@@ -67,3 +67,9 @@ docs/build
 
 # Testing folder 
 .test_game_dir
+
+# Ox AI handler / interface local state and test output
+.ox-state/
+*.sqlite
+*.sqlite3
+.pytest_cache/

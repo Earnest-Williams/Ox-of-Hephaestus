@@ -2,7 +2,7 @@
 
 **An autonomous spaceship MUD and shipboard simulation, built on [Evennia](https://www.evennia.com/).**
 
-> **Project status: early design / engine fork.** This repository currently contains the upstream Evennia framework. The Ox-specific spaceship systems, external AI handler, and operational interface described below are plans, **not implemented features**.
+> **Project status: early prototype scaffolding.** This fork retains upstream Evennia and now adds independently packaged service skeletons, architectural decisions and test-scenario specifications. **Neither the autonomous crew nor the human interface is implemented or runnable yet.**
 
 ## The premise
 
@@ -28,7 +28,7 @@ Ox is planned as **three separately operable components**, with different respon
 | Component | Responsibility |
 | --- | --- |
 | **Evennia game server** | Authoritative ship, characters, equipment, in-world duty assignments, game rules, and action outcomes. |
-| **External AI handler** | Individual agents' memories, beliefs, goals, decision processes, cognitive workloads, and interpretations of their duties. |
+| **External AI handler** | Concordia-powered NPC cognition, memory, beliefs, goals, decisions, inference and interpretation of duties. |
 | **Human interface** | Traditional play where appropriate, ship dashboards, data visualisations, crew and AI inspection, and authorised operational controls. |
 
 The **interface will consume two APIs**: Evennia's game-facing interfaces (with additional ship-specific endpoints if necessary) for world facts and actions, and a planned **AI-handler API** for agent status, goals, decision summaries, and other cognitive or operational information. Neither Evennia nor the handler must depend on the interface being connected.
@@ -43,7 +43,9 @@ Initially, each AI-controlled character will connect as an ordinary game client,
 
 Once that works, we intend to add a dedicated, authenticated integration endpoint so the handler can act for multiple characters without maintaining a separate player-like network session for each. The transport can change without replacing the agents' identities, memory, and decision-making. Server-side authorization and game rules must remain authoritative in either mode.
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for the initial boundaries and proposed proof of concept.
+**Prototype 1 adopts [Concordia](https://github.com/google-deepmind/concordia)** for NPC cognition and a **deterministic Game Master** for mock-world tests. The GM never invents physical outcomes: the mock world or Evennia decides them. The handler's optional Concordia dependency is pinned to a reviewed source revision because the published `gdm-concordia` 2.4.0 package does not contain the newer interrupt-driven scheduler.
+
+See the [architecture](ARCHITECTURE.md), [decision records](design/README.md) and [Prototype 1 plan](design/prototypes/01-autonomous-crew.md).
 
 ## Human interface
 
@@ -53,12 +55,12 @@ Normal in-world actions should be executed and authorised through Evennia. Opera
 
 ## Proposed first milestones
 
-1. Establish project documentation and a development baseline on the Evennia fork.
-2. Prototype a separate AI handler controlling a few ordinary Evennia characters via client connections.
-3. Test a small shipboard duty-and-incident scenario, including coordination and observable decision traces.
-4. Build a basic, read-only interface that correlates Evennia ship state with agent state from the handler.
-5. Add ship-specific mechanics, operational controls, and drill-down visualisations iteratively.
-6. Evaluate a dedicated AI-service API once the external-client approach is understood.
+1. Prepare three-system boundaries, Concordia decisions, independent package skeletons and provisional world contracts (**scaffolding committed; runtime integrations pending**).
+2. Build one Concordia entity with a model adapter, persistence and inspectable decisions.
+3. Run three agents in a deterministic mock ship with watch handover and cooling-fault scenarios.
+4. Connect them as ordinary Evennia clients, then add one small Ox-specific ship mechanic using the game template.
+5. Build a read-only interface joining Evennia facts with handler cognitive state.
+6. Evaluate a dedicated Evennia AI-service transport after the client approach works.
 
 The order and design may change as prototypes reveal what works.
 
@@ -66,13 +68,17 @@ The order and design may change as prototypes reveal what works.
 
 | Location | What it contains |
 | --- | --- |
-| `evennia/` | The inherited Evennia game-server framework; **not** an implemented Ox spaceship. |
-| `docs/` | Evennia's upstream engine documentation, retained as reference material. |
-| `ARCHITECTURE.md` | Ox-specific preliminary architecture and integration plan. |
-| `INSTALL.md` | How to run a **stock Evennia development game** from this checkout. |
-| `CONTRIBUTING.md` | How to propose changes to this fork and distinguish them from upstream engine work. |
+| `evennia/` | Inherited Evennia framework; untouched by the Ox service scaffold. |
+| `services/ai-handler/` | Standalone Python skeleton for Concordia NPCs, supervisor and game adapters. |
+| `services/interface/` | Standalone interface Python skeleton for dual-API views and a future frontend. |
+| `contracts/` | Cross-service boundary principles and future wire schemas. |
+| `design/` | Concordia decisions and Prototype 1 implementation plan. |
+| `scenarios/` | Mock test specifications: watch handover and cooling fault. |
+| `docs/` | Retained upstream Evennia engine manual. |
+| `ARCHITECTURE.md` | The three-system architecture and source-of-truth rules. |
+| `INSTALL.md` | Stock Evennia setup and optional new service scaffolding setup. |
 
-There is **no production-ready Ox game or AI handler to start yet**.
+**No functional Ox AI service, ship scenario or dashboard exists yet.**
 
 ## Built on Evennia
 

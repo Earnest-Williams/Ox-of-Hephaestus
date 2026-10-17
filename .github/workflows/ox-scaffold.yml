@@ -1,0 +1,34 @@
+name: Ox service scaffold checks
+
+on:
+  pull_request:
+    paths:
+      - "services/ai-handler/**"
+      - "services/interface/**"
+      - ".github/workflows/ox-scaffold.yml"
+  push:
+    paths:
+      - "services/ai-handler/**"
+      - "services/interface/**"
+      - ".github/workflows/ox-scaffold.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install standalone service skeletons
+        run: |
+          python -m pip install -e ./services/ai-handler
+          python -m pip install -e ./services/interface
+      - name: Check sources and provisional contracts
+        run: |
+          python -m compileall -q services/ai-handler/src services/interface/src
+          python -m unittest discover -s services/ai-handler/tests -v

@@ -1,6 +1,6 @@
 # Ox of Hephaestus — preliminary architecture
 
-> **Status:** Design sketch, October 2026. This document describes intended boundaries and experiments, **not an existing implementation**. Decisions remain revisable.
+> **Status:** Agreed prototype architecture and package skeleton, October 2026. Concordia is selected for Prototype 1, but the agents, game adapters and UI described here are not operational.
 
 ## 1. System boundaries
 
@@ -28,7 +28,17 @@
 - May include a lightweight backend-for-frontend for authenticated requests, event aggregation, and access control. Its deployment shape and screen design remain open.
 - Is optional to the autonomous operation of the ship; closing all dashboards must not halt the game or its crew.
 
-## 2. Transport: start conventional, then specialise
+## 2. Concordia cognitive foundation and minimal Game Master
+
+**Decision:** Adopt [Concordia](https://github.com/google-deepmind/concordia) (Apache-2.0, distribution `gdm-concordia`) for Prototype 1. Each full NPC is represented by a Concordia `EntityAgentWithLogging`. An independent Ox handler supervises entities, inference budgets, memory persistence, scheduling and game transport.
+
+Start with observation, memory and acting components, adding Ox-specific duties, commitments and procedures. Use rich deliberative components selectively rather than running several expensive model requests for every routine action.
+
+A Concordia Game Master **can be deterministic**. In the mock-world experiment, explore its interrupt-driven event masks and timers, but the **mock world**, not a generative GM, resolves physical actions. In the live Evennia mode, the handler may invoke `observe()` and `act()` directly without adopting Concordia's world-driving simulation loop or clock. The Evennia world remains authoritative.
+
+Concordia's published v2.4.0 release lacks the newer interrupt-driven scheduler. The handler's optional dependency is pinned to a [reviewed upstream revision](https://github.com/google-deepmind/concordia/tree/4b7e02a94b719e56f10989046af32d79bbbc3b9c), as described in [ADR 0001](design/decisions/0001-concordia-first.md). See [ADR 0002](design/decisions/0002-game-master-world-authority.md) for GM boundaries and [Prototype 1](design/prototypes/01-autonomous-crew.md) for build gates.
+
+## 3. Transport: start conventional, then specialise
 
 ### Phase A — normal client connections
 
@@ -46,7 +56,7 @@ That endpoint must resolve the acting character, apply the normal authorization 
 
 The endpoint is an intended optimization and integration improvement, not a prerequisite for the first prototype.
 
-## 3. Interface and API contracts
+## 4. Interface and API contracts
 
 **The interface must consume both backends, through clearly separate interfaces.** This is a planned architectural requirement, not a claim that the needed endpoints already exist.
 
@@ -91,7 +101,7 @@ A stable mapping between an Evennia character ID and a handler agent ID will let
 
 For an initial prototype, polling suitable endpoints is acceptable. Streaming updates (for example via WebSockets or server-sent events) can be introduced where supported or deliberately implemented; it is not a prerequisite to begin. The handler and game continue without any interface connection.
 
-## 4. Agent identity and knowledge
+## 5. Agent identity and knowledge
 
 Every significant NPC should have distinct persistent identity and continuity. Their own goals, assigned duties, skills, remembered experiences, and imperfect understanding of events may differ from the canonical ship state.
 
@@ -102,15 +112,15 @@ In particular:
 - Skills are intended to advance from practice, training, and use, not fixed classes or character levels.
 - A duty roster creates obligations and opportunities, but it should not dictate every decision by script.
 
-Whether memories and plans use files, a database, or another persistence layer remains open.
+Prototype 1 will begin with Concordia component snapshots and an append-only decision/event journal; the durable storage backend and retrieval approach remain to be implemented. The skeleton `WorldPort` contract in `services/ai-handler/` is not a finished transport implementation.
 
-## 5. Time and workload
+## 6. Time and workload
 
 The ship should be able to progress without a human connected. That does **not** imply one high-frequency LLM call per NPC or a fully detailed real-time simulation of every compartment at every instant.
 
 An initial implementation can combine scheduled duties, meaningful events, asynchronous decision queues, coarse background ticks, and deferred catch-up. Work should remain causally consistent with Evennia's authoritative state and become detailed when consequences require it.
 
-## 6. First proving-ground scenario
+## 7. First proving-ground scenario
 
 Start with a handful of rooms and crew rather than the full freighter:
 
@@ -123,8 +133,8 @@ Start with a handful of rooms and crew rather than the full freighter:
 
 Success means meaningful autonomous coordination, valid in-world actions, and correctly attributed observations—not merely convincing dialogue.
 
-## 7. Deliberately undecided
+## 8. Deliberately undecided
 
-The AI model, inference backend, message/event schema, storage engine for agent cognition, final dedicated API shape, interface/backend technology, ship-system fidelity, and dashboard technology have **not** been chosen here.
+The Concordia framework and deterministic GM authority boundary are chosen for Prototype 1. The specific model, inference server, durable storage, event/wire schema, dedicated Evennia API, UI framework and ship-system fidelity remain open.
 
 The early priority is a testable separation of concerns: **the game determines what is true and possible; the agents decide what to try; the interface exposes both without silently changing either; the transport lets us change how they communicate.**
