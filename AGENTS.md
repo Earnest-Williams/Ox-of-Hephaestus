@@ -21,11 +21,18 @@ from upstream Evennia.
   communication adapter replaceable.
 - NPC agents may have distinct memory, goals, and schedules, but must follow the
   same world rules and permissions as ordinary characters.
+- Treat the human interface as a **third independent component**. It consumes
+  an Evennia-facing API for world truth and game actions, and an AI-handler API
+  for agent state, inspection, and authorised operator controls.
+- Keep the interface out of both databases; distinguish player permissions
+  from privileged AI-observability and operator permissions. The game and
+  agents must run without a connected interface.
 - Background world progress can use meaningful events, deferred catch-up, and
   coarse ticks; do not assume an always-detailed real-time AI call for every NPC.
 - Do not describe unimplemented Ox features as operational.
 - Engine-specific development commands and the existing links below remain
   useful for work on inherited Evennia components.
+
 ## Quick Reference
 
 Use `uv run` to execute commands in the project venv. Prefer `uv` over `pip`.
