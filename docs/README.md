@@ -1,3 +1,12 @@
+> **Ox of Hephaestus repository note:** The files in this directory are inherited
+> **Evennia engine documentation**, not documentation of completed Ox gameplay.
+> Start at the repository [project README](../README.md) and
+> [architecture sketch](../ARCHITECTURE.md) for Ox-specific plans.
+> The [official Evennia docs](https://www.evennia.com/docs/latest/) remain
+> the primary reference for the underlying framework.
+
+---
+
 # Evennia docs
 
 Documentation for the Evennia MUD creation system.
