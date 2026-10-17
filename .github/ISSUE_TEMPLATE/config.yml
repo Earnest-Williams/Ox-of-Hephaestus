@@ -1,8 +1,8 @@
-blank_issues_enabled: false
+blank_issues_enabled: true
 contact_links:
-  - name: Questions
-    url: https://github.com/evennia/evennia/discussions?discussions_q=category%3A%22Evennia+Questions%22
-    about: Ask usage questions here (Github Discussions)
-  - name: Feature discussions
-    url: https://github.com/evennia/evennia/discussions?discussions_q=category%3A%22Evennia+Engine+Development%22
-    about: If you want to discuss before making a formal feature request (Github Discussions)
+  - name: Evennia framework questions (upstream)
+    url: https://github.com/evennia/evennia/discussions
+    about: General questions about the underlying Evennia framework belong with the Evennia community.
+  - name: Evennia engine bug reports (upstream)
+    url: https://github.com/evennia/evennia/issues/new/choose
+    about: Report bugs reproducible in unmodified Evennia to its maintainers.

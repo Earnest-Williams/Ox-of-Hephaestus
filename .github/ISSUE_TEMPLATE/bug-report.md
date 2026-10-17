@@ -1,27 +1,31 @@
 ---
 name: Bug report
-about: Create a report to help us improve
-title: "[BUG] (Enter a brief description here)"
+about: Report a problem in Ox of Hephaestus or its fork-specific integration
+title: "[BUG] Brief description"
 labels: bug, needs-triage
 assignees: ''
-
 ---
 
-#### Describe the bug
-<!--(Replace with a clear and concise description of what the bug is.)-->
+## Affected area
 
-#### To Reproduce
-Steps to reproduce the behavior:
+<!-- Project documentation, AI handler, ship mechanics, interface, Evennia integration, or inherited engine? -->
+
+## Observed behavior
+
+<!-- What actually happened? -->
+
+## Reproduction
+
 1.
 2.
 3.
-4. See error
 
-#### Expected behavior
-<!--(Replace with a clear and concise description of what you expected to happen.)-->
+## Expected behavior
 
-#### Environment, Evennia version, OS etc
-<!--(Replace with info. If unsure, run `evennia -v` or get the first few lines of the `about` command in-game.)-->
+<!-- What should have happened? -->
 
-#### Additional context
-<!--(Replace with any other context about the problem, or ideas on how to solve.)-->
+## Environment and evidence
+
+<!-- Branch/commit, Python and Evennia version, OS, relevant logs, and whether this reproduces on stock Evennia. Do not disclose secrets. -->
+
+If the problem reproduces in unmodified upstream Evennia, consider reporting it to [Evennia](https://github.com/evennia/evennia/issues) as well or instead.

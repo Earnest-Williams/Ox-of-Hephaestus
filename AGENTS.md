@@ -4,6 +4,28 @@ This file provides guidance to AI coding agents working in this repository.
 
 Evennia is a Python (>= 3.12) framework for building text-based multiplayer online games (MUD/MUX/MUSH/MOO). It is a library, not a game.
 
+## Fork-specific context: Ox of Hephaestus
+
+**Read [README.md](README.md) and [ARCHITECTURE.md](ARCHITECTURE.md) before changing this fork.**
+This repository hosts the *planned* Ox of Hephaestus spaceship MUD and autonomous
+crew simulation, built on Evennia. The game systems and AI handler do **not**
+exist yet in the current checkout; most existing source and docs are inherited
+from upstream Evennia.
+
+- Preserve the upstream `evennia/` package, its metadata, license, and attribution
+  unless a specific justified task requires an engine change.
+- Prefer isolated game extensions and a **separately running AI handler** rather
+  than modifying the engine to embed each agent.
+- First integration: each AI character connects through a normal game client;
+  eventual integration: an authenticated dedicated service API. Keep the
+  communication adapter replaceable.
+- NPC agents may have distinct memory, goals, and schedules, but must follow the
+  same world rules and permissions as ordinary characters.
+- Background world progress can use meaningful events, deferred catch-up, and
+  coarse ticks; do not assume an always-detailed real-time AI call for every NPC.
+- Do not describe unimplemented Ox features as operational.
+- Engine-specific development commands and the existing links below remain
+  useful for work on inherited Evennia components.
 ## Quick Reference
 
 Use `uv run` to execute commands in the project venv. Prefer `uv` over `pip`.

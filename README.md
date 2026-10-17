@@ -1,63 +1,62 @@
-# Evennia MUD/MU\* Creation System ![][logo]
-[![unittestciimg]][unittestcilink] [![Coverage Status][coverimg]][coverlink] [![Pypi Version][pypibadge]][pypilink]
+# Ox of Hephaestus
 
+**An autonomous spaceship MUD and shipboard simulation, built on [Evennia](https://www.evennia.com/).**
 
-[Evennia][homepage] is a modern library for creating [online multiplayer text
-games][wikimudpage] (MUD, MUSH, MUX, MUCK, MOO etc) in pure Python. It
-allows game creators to design and flesh out their ideas with great
-freedom.
+> **Project status: early design / engine fork.** This repository currently contains the upstream Evennia framework. The Ox-specific spaceship systems, external AI handler, and operational interface described below are plans, **not implemented features**.
 
-Evennia does not impose a particular style, genre or game mechanic. Instead it
-solves the boring networking and basic stuff all online games need. It provides
-a framework and tools for you to build the game you want. Coding in Evennia is
-done using normal Python modules imported into the server at runtime.
+## The premise
 
-Evennia has [extensive documentation][docs]. It also has a very active community
-with [discussion forums][group] and a [discord server][chat] to help and support you!
+*Ox of Hephaestus* is envisioned as a large interstellar bulk-freight vessel: a working ship with cargo, machinery, departments, watch rotations, and people whose jobs matter. The ship is the MUD world, rather than merely the setting for a conventional dungeon.
 
-## Installation
+The ambition is a persistent environment in which autonomous AI crew can operate the ship, pursue their own objectives, learn their jobs, cooperate, misunderstand one another, and respond to emergencies. Human participants should be able to join through the game interface or inspect what is happening from higher-level operational views.
 
-    pip install evennia
-        (windows users once: py -m evennia)
-        (note: Windows users with multiple Python versions should prefer `py -3.11` instead of `python` when creating virtual environments)
-    evennia --init mygame
-    cd mygame
-    evennia migrate
-    evennia start / stop / reload
+## Design direction
 
-See [the full installation instructions][installation] for more help.
+- **Full-fledged autonomous crew.** Significant NPCs have persistent identities, personal knowledge, memories, goals, and duties. They are actors in the same game world as human players, not scripted dialogue endpoints.
+- **Work and watchkeeping.** Departments, duty rosters, task assignments, reporting relationships, and handovers shape everyday shipboard life.
+- **Skills without classes or levels.** Abilities develop through practice, training, and use, not character levels or fixed class advancement.
+- **Consequential ship systems.** Cargo operations, machinery, maintenance, and incidents create things for the crew to do and decisions to make.
+- **Inspectable operations.** Alongside a traditional text interface, a planned interface will allow drill-down into crew, ship systems, events, histories, and charts.
+- **Persistent, not wastefully continuous.** The world should progress without a human logged in, but background work may advance through events, coarse simulation ticks, and deferred catch-up rather than continuously simulating every detail.
 
-Next, browse to `http://localhost:4001` or use your third-party mud client to
-connect to `localhost`, port `4000` to see your working (if empty) game!
+These are design goals, not a declaration of implemented functionality.
 
-![screenshot][screenshot]
-_A game website is created automatically. Connect to your Evennia game from your
-web browser as well as using traditional third-party clients_.
+## How the AI will connect
 
-## Where to go next
+The first AI implementation will be an **independent handler service**, developed and tested against Evennia with little or no engine modification.
 
-If this piqued your interest, there is a [lengthier introduction][introduction] to read. You
-can also read our [Evennia in pictures][evenniapictures] overview. After that,
-why not check out the [Evennia Beginner tutorial][beginnertutorial].
+Initially, each AI-controlled character will connect as an ordinary game client, using the same exposed commands and observations available to human players. A shared handler can coordinate many independent characters and their inference workloads; each character does **not** require its own AI server process.
 
-Welcome!
+Once that works, we intend to add a dedicated, authenticated integration endpoint so the handler can act for multiple characters without maintaining a separate player-like network session for each. The transport can change without replacing the agents' identities, memory, and decision-making. Server-side authorization and game rules must remain authoritative in either mode.
 
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the initial boundaries and proposed proof of concept.
 
-[homepage]: https://www.evennia.com
-[docs]: https://www.evennia.com/docs/latest
-[screenshot]: https://user-images.githubusercontent.com/294267/205434941-14cc4f59-7109-49f7-9d71-0ad3371b007c.jpg
-[logo]: https://raw.githubusercontent.com/evennia/evennia/refs/heads/main/evennia/web/static/website/images/evennia_logo.png
-[unittestciimg]: https://github.com/evennia/evennia/workflows/test-suite/badge.svg
-[unittestcilink]: https://github.com/evennia/evennia/actions?query=workflow%3Atest-suite
-[coverimg]: https://coveralls.io/repos/github/evennia/evennia/badge.svg?branch=main
-[coverlink]: https://coveralls.io/github/evennia/evennia?branch=main
-[pypibadge]: https://img.shields.io/pypi/v/evennia?color=blue
-[pypilink]: https://pypi.org/project/evennia/
-[introduction]: https://www.evennia.com/docs/latest/Evennia-Introduction.html
-[license]: https://www.evennia.com/docs/latest/Licensing.html
-[group]: https://github.com/evennia/evennia/discussions
-[chat]: https://discord.gg/AJJpcRUhtF
-[wikimudpage]: http://en.wikipedia.org/wiki/Multi-user_dungeon
-[evenniapictures]: https://www.evennia.com/docs/latest/Evennia-In-Pictures.html
-[beginnertutorial]: https://www.evennia.com/docs/latest/Howtos/Beginner-Tutorial/Beginner-Tutorial-Overview.html
-[installation]: https://www.evennia.com/docs/latest/Setup/Setup-Overview.html#installation-and-running
+## Proposed first milestones
+
+1. Establish project documentation and a development baseline on the Evennia fork.
+2. Prototype a separate AI handler controlling a few ordinary Evennia characters via client connections.
+3. Test a small shipboard duty-and-incident scenario, including coordination and observable decision traces.
+4. Add ship-specific mechanics and operational views iteratively.
+5. Evaluate a dedicated AI-service API once the external-client approach is understood.
+
+The order and design may change as prototypes reveal what works.
+
+## Current repository layout
+
+| Location | What it contains |
+| --- | --- |
+| `evennia/` | The inherited Evennia game-server framework; **not** an implemented Ox spaceship. |
+| `docs/` | Evennia's upstream engine documentation, retained as reference material. |
+| `ARCHITECTURE.md` | Ox-specific preliminary architecture and integration plan. |
+| `INSTALL.md` | How to run a **stock Evennia development game** from this checkout. |
+| `CONTRIBUTING.md` | How to propose changes to this fork and distinguish them from upstream engine work. |
+
+There is **no production-ready Ox game or AI handler to start yet**.
+
+## Built on Evennia
+
+This repository is a fork of [evennia/evennia](https://github.com/evennia/evennia), the open-source Python framework for text-based multiplayer worlds. Evennia supplies the server, persistence, account/character model, networking, command infrastructure, and other foundational machinery on which Ox is intended to build.
+
+The underlying Evennia code and documentation retain their upstream attribution. The applicable [BSD 3-Clause license and original copyright notice](LICENSE.txt) have been preserved. Ox of Hephaestus is an independent project, **not an official Evennia release or an endorsement by Evennia's maintainers**.
+
+For framework usage and reference documentation, see the [Evennia documentation](https://www.evennia.com/docs/latest/). For this project's development setup, see [INSTALL.md](INSTALL.md).
