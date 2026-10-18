@@ -4,6 +4,8 @@ This directory holds **Ox-specific** architecture, accepted decisions,
 historical proof-of-concept phases and runnable evidence. The repository's
 `docs/` folder remains the inherited Evennia engine manual.
 
+For the next implementation sequence see [the execution roadmap](ROADMAP.md) and [ADR 0009](decisions/0009-durable-events-and-work.md). GitHub Issues were disabled at roadmap creation, so roadmap entries are the tracked backlog.
+
 **Current truth:** [P0–P4 status and documented limitations](STATUS.md).
 Do not read a P2/P3 historical description of “future P3 integration” as
 the present implementation; those milestones are now merged. P5 is
