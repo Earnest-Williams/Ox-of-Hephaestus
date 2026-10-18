@@ -1,8 +1,8 @@
 # P4d — specialist departments and a useful seven-compartment freighter
 
-**Status:** PR #17 integration candidate. Acceptance is the focused
-`ox-departments.yml` workflow plus all triggered prior Ox regressions.
-For merged-state truth, see [../STATUS.md](../STATUS.md).
+**Status: implemented, tested and merged as [PR #17](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/17).**
+The focused `ox-departments.yml` workflow and all eleven other triggered
+Ox regressions passed on the final PR commit. See [../STATUS.md](../STATUS.md).
 
 ## Scope and navigable layout
 
@@ -10,14 +10,13 @@ The existing Bridge, Connecting Passage and Engineering remain in place.
 Four new permanent rooms branch off their original connections:
 
 ```text
-                         Bridge
-                           |
-                    Connecting Passage --- Crew Mess
-                       /       \
-          Environmental Plant   Cargo Hold
-                       |
-      (the original path to Engineering remains)
-                           Engineering --- Machine Shop
+                           Bridge
+                             |
+                      Connecting Passage
+                      /    |     |     \
+            Environmental Cargo  Crew   Engineering
+                Plant      Hold   Mess       |
+                                        Machine Shop
 ```
 
 **Exact navigational links:** Bridge ↔ Connecting Passage via `aft/fore`;

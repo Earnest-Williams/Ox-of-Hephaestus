@@ -8,7 +8,7 @@
 > native Concordia entities; the two new specialist crew bodies (Mara, Teo)
 > are not autonomous yet. P4c proves one independently running supervisor
 > handles coolant repair, handover and human hails. P4d's departmental
-> expansion is in [PR #17](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/17).
+> expansion was merged as [PR #17](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/17).
 > This remains a narrow prototype, not a deployed production freighter.
 
 **Start here:** [Current implementation and limitations](design/STATUS.md) ·
