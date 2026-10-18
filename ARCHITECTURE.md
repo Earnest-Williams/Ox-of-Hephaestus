@@ -8,6 +8,25 @@ systems and five crew bodies**; new cargo/environmental personnel are not
 yet autonomous. This is not a deployed freighter or general social simulation.
 [Verified feature matrix](design/STATUS.md) · [Development setup](INSTALL.md).
 
+## P4e autonomy extension under verification
+
+PR #19 extends the **optional external agent handler** to five distinct
+accounts and five private native Concordia entities. Mara and Teo receive
+only their own addressed cargo/atmospheric events and local equipment
+inspections. Specialist `oxaction`/`oxreceipt` requests now bind the
+actor, fixture and operation to durable game-side physical outcomes.
+The handler checkpoints pending actions before sending; restart may
+reconcile the original request ID, never mint a new ID for an unknown
+outcome. The original pump supervisor remains supported and must not be
+run concurrently on the same ship.
+
+The new handler has a finite event-driven safety-priority order, not a
+general auction/agenda scheduler, and specialist procedures are authored
+actions rather than unstructured model-generated commands. Distinct
+skill labels exist but **skill-by-use progression is not implemented**.
+See [P4e scope and acceptance](design/prototypes/p4e-five-crew-autonomy.md).
+This PR is pending full-server verification and merge.
+
 ## 1. Independently operable components
 
 ~~~text
