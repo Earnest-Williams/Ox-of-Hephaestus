@@ -68,3 +68,38 @@ class CmdOxOfferWatch(_CrewCommand):
 class CmdOxAcceptWatch(_CrewCommand):
     key = "oxaccept"
     func_name = "accept_watch"
+
+
+class CmdOxHail(Command):
+    """Request an addressed, bounded response from shipboard crew.
+
+    Usage: oxhail <lin|ari|iona> = <message>
+    """
+
+    key = "oxhail"
+    locks = "cmd:all()"
+
+    def func(self) -> None:
+        from world.crew_interaction import send_hail
+        if "=" not in self.args:
+            self.caller.msg("Usage: oxhail <lin|ari|iona> = <message>")
+            return
+        role, message = self.args.split("=", 1)
+        _success, result = send_hail(self.caller, role.strip(), message)
+        self.caller.msg(result)
+
+
+class CmdOxAnswer(Command):
+    """Answer one's own pending hail using world-grounded response types."""
+
+    key = "oxanswer"
+    locks = "cmd:all()"
+
+    def func(self) -> None:
+        from world.crew_interaction import answer_hail
+        parts = self.args.strip().split()
+        if len(parts) != 2:
+            self.caller.msg("Usage: oxanswer <hail-id> <status|ack|decline>")
+            return
+        _success, result = answer_hail(self.caller, *parts)
+        self.caller.msg(result)
