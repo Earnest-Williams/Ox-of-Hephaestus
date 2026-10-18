@@ -37,8 +37,9 @@ jobs:
           # This is an ephemeral local-only CI database, never a deployed server.
           EVENNIA_SUPERUSER_USERNAME: OxCI
           EVENNIA_SUPERUSER_EMAIL: oxci@example.invalid
-          EVENNIA_SUPERUSER_PASSWORD: OxCI-ephemeral-test-only-2026
+
         run: |
+          export EVENNIA_SUPERUSER_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
           evennia migrate --noinput
           evennia shell --command="from world.bootstrap import build_ship; s=build_ship(); assert s['pump'].state == 'normal'; print('Created ship:', s['bridge'].key)"
           evennia shell --command="from world.bootstrap import build_ship; s=build_ship(); ok, _ = s['pump'].inject_fault(); assert ok"

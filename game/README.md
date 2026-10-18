@@ -97,7 +97,7 @@ cd game
 evennia test world.tests --verbosity=2
 ```
 
-Use `--verbosity=2` rather than `-v 2`: the latter is reserved by Evennia's launcher for `--version` and would silently skip the test suite. Do not pass Evennia's own `--settings` launcher option to this Django test pass-through: it would be forwarded to Django as a command. The separate CI bootstrap uses the actual game configuration.
+Use `--verbosity=2` rather than `-v 2`: Evennia reserves `-v` for its version display, which would skip the test suite. The command above uses Evennia's default testing configuration; the separate CI bootstrap validates the real Ox game settings against a persistent database.
 
 This uses a temporary Django test database and exercises the actual
 Evennia objects, exit topology, persisted pump state, permission and location
