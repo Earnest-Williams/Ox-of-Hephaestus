@@ -19,6 +19,8 @@ GAME_SLOGAN = "A working ship and an autonomous crew, eventually."
 LOCKDOWN_MODE = True
 TELNET_INTERFACES = ["127.0.0.1"]
 WEBSERVER_INTERFACES = ["127.0.0.1"]
+WEBSOCKET_CLIENT_INTERFACE = "127.0.0.1"
+NEW_ACCOUNT_REGISTRATION_ENABLED = False
 
 BASE_ACCOUNT_TYPECLASS = "evennia.accounts.accounts.DefaultAccount"
 BASE_OBJECT_TYPECLASS = "evennia.objects.objects.DefaultObject"

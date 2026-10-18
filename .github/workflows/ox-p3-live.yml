@@ -1,0 +1,76 @@
+# Focused, disposable live Evennia portal + external AI client test.
+name: Ox P3 external crew transport
+
+on:
+  pull_request:
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-p3-live.yml"
+  push:
+    branches: [main]
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-p3-live.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  external-client:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install game and external WebSocket handler
+        run: |
+          python -m pip install .
+          python -m pip install -e './services/ai-handler[transport]'
+      - name: Run offline transport regression tests
+        run: python -m unittest discover -s services/ai-handler/tests -p 'test_evennia_client.py' -v
+      - name: Prepare disposable identities and real database
+        shell: bash
+        run: |
+          echo "::add-mask::$(python -c 'import secrets; print(secrets.token_hex(32))')" >/dev/null
+          TOKEN="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          OWNER_TOKEN="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          echo "::add-mask::$TOKEN"
+          echo "::add-mask::$OWNER_TOKEN"
+          echo "OX_PROBE_PASSWORD=$TOKEN" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_PASSWORD=$OWNER_TOKEN" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_USERNAME=OxTrialOwner" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_EMAIL=owner@example.invalid" >> "$GITHUB_ENV"
+      - name: Provision unprivileged persistent crew accounts
+        working-directory: game
+        run: |
+          evennia migrate --noinput
+          evennia shell --command="from world.transport_probe import provision; provision(); print('OX_ACCOUNTS_READY')"
+      - name: Start real Evennia portal and test external process
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd game
+          evennia start
+          cd ..
+          python - <<'PY'
+          import socket, time
+          for _ in range(90):
+              try:
+                  sock = socket.create_connection(("127.0.0.1", 4002), timeout=1)
+                  sock.close()
+                  break
+              except OSError:
+                  time.sleep(1)
+          else:
+              raise RuntimeError("Evennia WebSocket listener never became ready")
+          PY
+          python -m ox_ai.scenarios.p3a_probe
+      - name: Stop disposable Evennia processes
+        if: always()
+        working-directory: game
+        run: evennia stop || true
