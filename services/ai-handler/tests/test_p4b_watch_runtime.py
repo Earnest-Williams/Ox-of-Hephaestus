@@ -16,7 +16,8 @@ class SupervisorContractTests(unittest.TestCase):
         )
         self.assertEqual(
             active_watch_from_roster(
-                "Chief Engineer Iona Vek\nActive engineering watch: Chief Engineer Iona Vek"
+                "<span>Chief Engineer Iona Vek</span><br>"
+                "<span>Active engineering watch: Chief Engineer Iona Vek</span>"
             ), "iona"
         )
         with self.assertRaises(RuntimeError):
