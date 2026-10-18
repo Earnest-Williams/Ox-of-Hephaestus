@@ -297,6 +297,47 @@ class CoordinatedCoolantTests(unittest.TestCase):
             a.pending_requests for a in restarted.agents.values()
         ))
 
+    def test_restart_drains_queued_urgent_interrupt_before_new_physical_action(self):
+        self.world.advance_to(180)
+        self.world.trigger_fault()
+
+        _, alarm = self.world.next_observation()
+        radio = self.supervisor.agents["lin"].observe(alarm)
+        self.supervisor._submit(radio)
+        _, alert = self.world.next_observation()
+        inspection = self.supervisor.agents["ari"].observe(alert)
+        self.supervisor._submit(inspection)
+        _, readout = self.world.next_observation()
+        isolation = self.supervisor.agents["ari"].observe(readout)
+        self.assertEqual(isolation.verb, "isolate_pump")
+
+        self.world.drop_next_ack("isolate_pump")
+        self.supervisor._submit(isolation)
+        self.assertEqual(
+            self.supervisor.agents["ari"].pending_requests, (isolation,)
+        )
+        self.assertEqual(self.world.pump_state, "isolated")
+        # The world has committed isolation, but its result is queued. A
+        # fresh urgent safety alarm is ALSO waiting when the handler dies.
+        self.world.urgent_safety_recheck()
+        checkpoint = json.loads(json.dumps(self.supervisor.snapshot()))
+        restarted = CoolantSupervisor.from_snapshot(self.world, checkpoint)
+        self.assertEqual(restarted.reconcile_pending(), 1)
+        self.assertTrue(self.world.incident_closed)
+        self.assertEqual(self.world.pump_state, "normal")
+        self.assertGreaterEqual(restarted.replans, 1)
+        self.assertEqual(
+            [event.operation for event in self.world.pump_history],
+            ["fault", "isolate", "repair", "commission"],
+        )
+        ari_kinds = [e["kind"] for e in restarted.agents["ari"].memories]
+        self.assertIn("urgent_recheck", ari_kinds)
+        self.assertEqual(
+            ari_kinds[ari_kinds.index("urgent_recheck") + 1],
+            "pump_readout",
+        )
+        self.assertEqual(restarted.inference_calls, 0)
+
     def test_request_deduplication_and_unauthorized_receipt(self):
         self.world.advance_to(180)
         self.world.trigger_fault()
