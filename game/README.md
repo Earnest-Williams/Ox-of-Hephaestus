@@ -213,3 +213,30 @@ https://ai.google.dev/gemini-api/docs/pricing
 
 The game is not yet an autonomous multi-agent GOAP system. A follow-up
 should compare hosted model choices with a deterministic GOAP-only policy.
+
+## Run the live Gemini trial entirely on GitHub
+
+After this workflow is merged into the repository's default `main` branch,
+no local Python or Evennia installation is needed:
+
+1. Visit https://aistudio.google.com/api-keys and create a Google AI Studio
+   API key for a project with free-tier Gemini 3.1 Flash-Lite access.
+2. In GitHub visit **Settings > Secrets and variables > Actions > New repository
+   secret**; enter exactly `GEMINI_API_KEY` for the name and paste the key
+   for the value. Never add it to source code or an issue comment.
+3. Open **Actions > Ox live Gemini pump repair > Run workflow** and choose
+   the `main` branch; click **Run workflow**.
+4. Open the new run and expand **Let Ari attempt the real pump repair with
+   Gemini**. A passing trial prints `OX_VERIFIED_REPAIR_PASS`; a failing
+   trial, quota failure, or API error fails the workflow instead of reporting
+   success.
+5. Download the `ox-gemini-pump-trial` artifact for a structured JSONL
+   agent journal and the command transcript (retained for seven days).
+
+This workflow runs only when **manually launched**, not on commits or PRs.
+It uses a disposable database on a temporary GitHub-hosted runner. The
+API key is passed as an Actions secret; the job does not echo its value.
+The free tier has changing quotas, and free-tier test prompts are subject
+to Google's data-use terms. Only synthetic ship data is used.
+The live-model scenario has not been validated against Google until
+someone launches this workflow with their own API key.
