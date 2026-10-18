@@ -37,7 +37,7 @@ Preserve three-crew/old command regressions. Stage additive migrations with an i
   `oxworkreceipt`, equipment and bounded social-effect deduplication.
 - [PR #24](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/24):
   private durable `WorkStepLedger` integrated into five pump-cycle
-  stages and tested with seven independent handler process starts.
+  stages and tested with eight handler process launches across seven restarts.
 
 The original legacy `oxaction` paths remain supported. This ADR is not
 a claim that all existing social/specialist procedures use the new ledger;
