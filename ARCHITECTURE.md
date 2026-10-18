@@ -163,3 +163,18 @@ Scripted-choice CI proves command-dispatch wiring, not planning. The opt-in
 inference endpoint and inspect whether it succeeds. This exception to our
 planned three-service topology is temporary: normal network character
 sessions and a genuine independently running handler remain required.
+
+
+## 11. GOAP without a language model
+
+An additional policy is being developed for the same P-01 Evennia
+command harness: a model-independent GOAP planner with known preconditions,
+effects, costs, and ship layout. It uses character-authorised text
+observations to learn current equipment state, and retains its planned
+action sequence until the world contradicts its predictions. Each command
+still passes the existing Evennia access and physical-state checks.
+
+This does not change Concordia's status as an experimental cognitive host:
+routine deterministic planners must work without it. The GOAP fixture is
+not proof of general shipwide autonomous behavior. For limitations, tests
+and interface decisions see ADR 0006.

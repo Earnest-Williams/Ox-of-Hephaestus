@@ -1,0 +1,64 @@
+# Credential-free comparison to the live Gemini pump trial.
+# Manual only. Same physical Evennia command interface and verdict.
+name: Ox GOAP pump repair (zero LLM)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  goap-pump:
+    name: Ari repairs P-01 with GOAP and zero inference
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Evennia and model-free AI handler
+        run: |
+          python -m pip install .
+          python -m pip install -e ./services/ai-handler
+
+      - name: Migrate disposable Evennia database
+        working-directory: game
+        run: evennia migrate
+
+      - name: Initialize temporary owner and ship without inference
+        working-directory: game
+        shell: bash
+        run: |
+          set -o pipefail
+          export EVENNIA_SUPERUSER_USERNAME=OxGoapTrialOwner
+          export EVENNIA_SUPERUSER_EMAIL=goap-trial@example.invalid
+          export EVENNIA_SUPERUSER_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(36))')"
+          mkdir -p ../.ox-state
+          evennia shell --command="from world.bootstrap import build_ship; ship = build_ship(); assert ship['pump']; print('OX_SHIP_BOOTSTRAP_READY')" | tee ../.ox-state/goap-bootstrap.log
+          grep -Fq 'OX_SHIP_BOOTSTRAP_READY' ../.ox-state/goap-bootstrap.log
+
+      - name: GOAP plans and attempts real pump repair
+        working-directory: game
+        shell: bash
+        run: |
+          set -o pipefail
+          evennia shell --command="from pathlib import Path; from world.ai_repair import goap_trial; trial = goap_trial(trace_path=Path('../.ox-state/goap-pump.jsonl')); print('OX_GOAP_REPAIR_' + ('PASS' if trial.success and trial.inference_calls == 0 else 'FAIL'))" | tee ../.ox-state/goap-console.log
+          if ! grep -Fq 'OX_GOAP_REPAIR_PASS' ../.ox-state/goap-console.log; then
+            echo "::error::The GOAP engineer failed to physically restore and verify P-01."
+            exit 1
+          fi
+
+      - name: Attach GOAP decision journal and game transcript
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-goap-pump-trial
+          path: |
+            .ox-state/goap-bootstrap.log
+            .ox-state/goap-console.log
+            .ox-state/goap-pump.jsonl
+          if-no-files-found: ignore
+          retention-days: 7

@@ -106,3 +106,20 @@ To try the actual hosted model with the real pump fixture, see the
 Inference runs synchronously inside the disposable developer trial only.
 A real scheduler, GOAP baseline, timeouts and operator-safe failure handling
 are separate milestones.
+
+
+## Zero-inference GOAP planning
+
+The independent GoapPlanner and GoapCrewAgent in this Python package have
+no Concordia, model-server or API requirements. Search operates on a
+character's symbolic beliefs and known action schemas; the world still
+decides whether attempted physical actions succeed.
+
+```bash
+python -m pip install -e ./services/ai-handler
+python -m unittest discover -s services/ai-handler/tests -p 'test_goap_*.py' -v
+```
+
+The real-world comparison and manual GitHub Actions workflow are described
+in game/README.md and ADR 0006. This is narrow equipment expertise,
+not a general replacement for dialogue or novel diagnosis by an LLM.

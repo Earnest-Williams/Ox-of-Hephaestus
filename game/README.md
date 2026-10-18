@@ -258,3 +258,49 @@ If the live run fails in the initial-owner or ship-bootstrap step, no hosted
 model requests have been made. An API failure or physically unsuccessful
 repair will instead fail inside the live Gemini step; inspect the run's
 per-step logs to distinguish these cases.
+
+
+## Zero-LLM GOAP engineer - same pump, same rules
+
+The GOAP-only controller uses the **same** game-world pump, permissions,
+normal character command menu, fault injection and independent event-journal
+verdict as the successful Gemini trial. Its knowledge of the bridge and
+engineering procedures is authored; its knowledge of *current pump state*
+comes solely from character-visible console and pump readouts.
+
+To run planner and agent unit tests without installing Concordia or models:
+
+```bash
+python -m pip install -e ./services/ai-handler
+python -m unittest discover -s services/ai-handler/tests -p 'test_goap_*.py' -v
+```
+
+To run real-game GOAP integration tests on your machine (from repo root):
+
+```bash
+python -m pip install -e .
+python -m pip install -e ./services/ai-handler
+cd game
+evennia test world.tests.test_goap_repair --verbosity=2
+```
+
+For a live one-shot GOAP run against your existing local test database:
+
+```bash
+cd game
+evennia shell --command="from world.ai_repair import goap_trial; goap_trial()"
+```
+
+You can also run it **entirely in GitHub** without an API key or local
+installation. After this change is merged, open Actions, select
+**Ox GOAP pump repair (zero LLM)**, then click **Run workflow** on
+branch main. The workflow creates a disposable ship and records a
+downloadable GOAP decision journal, command transcript and operator verdict.
+
+The first benchmark compares independent planning with Gemini's 10 live
+decisions. A second integration test injects an unexpected repeat fault
+between commissioning and verification, requiring physical re-inspection
+and replanning. The planner makes no model calls, but the engineer's
+equipment procedures and known map are deliberately encoded as actions.
+
+See ADR 0006 at design/decisions/0006-zero-inference-goap.md.
