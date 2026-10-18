@@ -40,6 +40,9 @@ class TrialResult:
     inference_calls: int
     pump_state: str
     event_history: tuple[dict, ...]
+    planning_calls: int = 0
+    expanded_states: int = 0
+    replans: int = 0
 
 
 class LocalCharacterTerminal:
@@ -150,10 +153,12 @@ def _visible_observation(agent, text: str, serial: int) -> None:
 
 
 def conduct_repair_trial(
-    model,
+    model=None,
     *,
+    agent_factory=None,
     max_steps: int = 16,
     trace_path: Path | None = None,
+    after_action=None,
 ) -> TrialResult:
     """Run a single Concordia engineer through human-equivalent commands.
 
@@ -165,10 +170,17 @@ def conduct_repair_trial(
     OPERATOR VERDICT: Success requires the AI to choose Finish and the
     authoritative Evennia event log to contain AI-character isolation,
     repair and commissioning of the pump during this trial.
+
+    The original model-backed Concordia entity and the zero-model GOAP agent
+    run the SAME terminal, commands, fixture, authorisation and verdict.
+    agent_factory is reserved for non-model controllers; after_action is an
+    operator-only test hook for changing the physical world between steps.
     """
     from ox_ai.agents.crew import CrewAgent, CrewIdentity
     from ox_ai.ports.base import ActionOutcome
 
+    if (model is None) == (agent_factory is None):
+        raise ValueError("Choose exactly one of a model or an agent_factory")
     if max_steps < 1 or max_steps > 50:
         raise ValueError("max_steps must be between 1 and 50")
     ship = build_ship()
@@ -199,7 +211,11 @@ def conduct_repair_trial(
             "You cannot teleport or edit ship state."
         ),
     )
-    agent = CrewAgent(identity, model, journal_path=trace_path)
+    agent = (
+        agent_factory(identity, journal_path=trace_path)
+        if agent_factory is not None
+        else CrewAgent(identity, model, journal_path=trace_path)
+    )
     terminal = LocalCharacterTerminal(body)
     steps: list[TrialStep] = []
 
@@ -245,6 +261,9 @@ def conduct_repair_trial(
                 f"Command delivered; world response: {response}",
             )
         )
+        if after_action is not None:
+            # Test operator, not an agent power. For mid-plan perturbations.
+            after_action(line, ship)
         _visible_observation(agent, f"Command '{line}' returned:\n{response}", index)
 
     # Never pass these values back to the cognitive loop: external scoring.
@@ -278,6 +297,9 @@ def conduct_repair_trial(
         inference_calls=agent.usage.total_calls,
         pump_state=pump.state,
         event_history=new_events,
+        planning_calls=getattr(agent, "planning_calls", 0),
+        expanded_states=getattr(agent, "planning_expansions", 0),
+        replans=getattr(agent, "replans", 0),
     )
 
 
@@ -361,4 +383,24 @@ def live_trial() -> TrialResult:
     print(f"\nVerdict: {result.reason}")
     print(f"Physical pump state: {result.pump_state}")
     print(f"Inference calls: {result.inference_calls}")
+    return result
+
+
+def goap_trial(*, max_steps: int = 16, trace_path: Path | None = None) -> TrialResult:
+    """Zero-LLM GOAP against the SAME actual Evennia scenario and verdict."""
+    from ox_ai.agents.goap_crew import GoapCrewAgent
+
+    result = conduct_repair_trial(
+        agent_factory=GoapCrewAgent,
+        max_steps=max_steps,
+        trace_path=trace_path,
+    )
+    for num, step in enumerate(result.steps, start=1):
+        print(f"\n[{num}] GOAP Ari enters: {step.command}\n{step.response}")
+    print(f"\nVerdict: {result.reason}")
+    print(f"Physical pump state: {result.pump_state}")
+    print(f"Model inference calls: {result.inference_calls}")
+    print(f"GOAP searches: {result.planning_calls}")
+    print(f"GOAP expanded states: {result.expanded_states}")
+    print(f"GOAP replans: {result.replans}")
     return result
