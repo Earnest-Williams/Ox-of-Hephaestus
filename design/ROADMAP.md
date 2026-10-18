@@ -103,7 +103,7 @@ and general autonomous movement.
 ### PR 23 — persistent agendas and reconsideration
 **Dependency:** PR 22. Persistent private goals, ranked obligations, blockers, due times and accepted/deferred/declined/delegated/escalated/completed states; world-owned `WorkOrder` is distinct from handler-owned `AgentAgenda`. A deferral records its next trigger; no indefinite silent skip. **Acceptance:** priority interruption, later resumption and missing-supply reconsideration survive restarts.
 
-### G2b — nonblocking cognition and local exclusive supervision (PR #33)
+### G2b — nonblocking cognition and local exclusive supervision (merged PR #33)
 
 The original provisional PR 24 is now [actual PR #33](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/33). Detached native Concordia snapshots provide nonblocking, role-scoped inference, bounded global concurrency, model timeouts and quarantine, stale decision rejection, limited hourly inference budgets and safe failure. Hails on independently authenticated crew clients may be scheduled in parallel; the existing real physical duty order is preserved. Both supervisor variants share one POSIX lock file. **Acceptance:** a delayed model does not block another agent's inference or observation; an out-of-date result is never adopted; a competing local supervisor is refused. **Limit:** the local flock epoch is not a world-enforced or distributed fence—multi-host operation needs a later authoritative fencing protocol. [Design and tests](prototypes/g2-nonblocking-cognition.md).
 
