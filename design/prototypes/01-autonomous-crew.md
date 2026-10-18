@@ -1,6 +1,6 @@
 # Prototype 1 — Autonomous Crew
 
-**Status:** P0/P1 are tested. Both Gemini and GOAP have repaired the real Evennia P-01. P2 includes verified deterministic mock watch-handover and coordinated coolant-fault scenarios with three scoped crew identities, GOAP repairs, urgent interruption, and lost-ACK recovery. Three Concordia-driven crew agents and P3 external Evennia transport remain unimplemented; P5 observatory remains future work.
+**Status:** P0/P1 are tested. Both Gemini and GOAP have repaired the real Evennia P-01. P2 includes verified deterministic mock watch-handover and coordinated coolant-fault scenarios with three scoped crew identities, GOAP repairs, urgent interruption, and lost-ACK recovery. Three Concordia-driven crew agents and P3 three-client Evennia integration is under test; general Concordia-driven unscripted cooperation and P5 observatory remain future work.
 
 ## Aim
 
@@ -111,3 +111,14 @@ Track inference requests/tokens, model latency, decision trigger, retrieved memo
 ## Stop / reevaluate conditions
 
 Reconsider the specific Concordia integration strategy if synchronous `act()` calls block urgent-event handling, the richer prefabs require unsustainable inference, entity state cannot be safely restored, or the native interrupt scheduler proves costly to decouple from its environment. Keep the externally visible world port stable so we can swap the cognitive execution strategy without restructuring the game.
+
+
+## P3 live three-crew acceptance
+
+The independently supervised real Evennia scenario is described in
+[P3c live crew](p3c-live-crew.md). It uses individual ordinary
+WebSocket sessions, game-validated radio, role-bound chief release,
+real pump actions, private event delivery and game-authoritative watch
+handover. It must pass both real-world database tests and a complete
+external three-client CI trial before P3 is considered achieved. The
+scripted test is **not** a claim of free-form three-model cooperation.
