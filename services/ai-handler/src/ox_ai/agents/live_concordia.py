@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 import os
+import math
 from pathlib import Path
 import uuid
 
@@ -93,9 +94,11 @@ class LiveCrewBrain:
         if not isinstance(data, Mapping):
             raise TypeError("Event details must be a mapping")
         game_time = float(event["game_time"])
-        if game_time < self._game_time:
-            raise ValueError("World game time moved backwards")
-        self._game_time = game_time
+        if not math.isfinite(game_time) or game_time < 0:
+            raise ValueError("Invalid authoritative game timestamp")
+        # Late recipient-specific events can have older timestamps. Preserve
+        # each event's actual time, and remember the newest known game time.
+        self._game_time = max(self._game_time, game_time)
         return self.agent.observe(WorldObservation(
             observation_id=event_id,
             character_id=self.character_id,
