@@ -1,16 +1,17 @@
 # Ox AI handler — native Concordia, GOAP and live crew
 
-**Status (18 October 2026):** An independent Python process can puppet
-three nonprivileged Evennia characters, maintain separate native
-Concordia memories and watch obligations, use GOAP for known pump work,
-and wait for authenticated world events. A two-incident recovery test
-passed on real persistent Evennia. This is **not** a deployed production
-service or proof of general unscripted social intelligence.
+**Status (18 October 2026):** Two independently runnable supervisor
+variants exist: three legacy crew or five crew with cargo and environmental
+specialists. Five ordinary nonprivileged Evennia characters have their own
+native Concordia memory/checkpoints. The P4e full-server trial passed actual
+cargo, atmospheric and coolant work, hails and a deliberately lost cartridge
+ACK across a handler restart. This is **not** deployed production software
+or proof of unconstrained multi-agent intelligence.
 [Current status](../../design/STATUS.md).
 
-## P4e five-crew runtime candidate
+## P4e merged five-crew runtime
 
-[PR #19](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/19)
+[Merged PR #19](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/19)
 adds `src/ox_ai/runtime/five_crew_service.py` with five independently
 authenticated native Concordia agents and scoped crew-event dispatch. It
 handles real cargo and environmental faults through world-confirmed
@@ -34,18 +35,19 @@ The five-person CI simulates a real A-01 replacement with a lost
 acknowledgement and verifies safe recovery by a new process, alongside
 cooling, cargo, player hails and the game-owned watch handover.
 Read [P4e design and limitations](../../design/prototypes/p4e-five-crew-autonomy.md).
-P4e remains a candidate until that workflow passes and the PR merges.
+All 13 focused Ox workflows passed on the final PR commit; P4e is merged.
 
 ## Components actually implemented
 
 | Location | Function |
 | --- | --- |
 | `src/ox_ai/agents/crew.py` | Single native Concordia `EntityAgentWithLogging`, bounded proposals, per-agent journal and native checkpoint |
-| `src/ox_ai/agents/live_concordia.py` | Three role-specific Concordia entities (Lin, Ari, Iona), individual observations, deferred choices and restoration |
+| `src/ox_ai/agents/live_concordia.py` | Five role-specific Concordia entities (Lin, Ari, Iona, Mara, Teo), individual observations, deferred choices and restoration |
 | `src/ox_ai/agents/goap_crew.py` and `src/ox_ai/planning/` | Deterministic engineering action search; beliefs checked against observations |
 | `src/ox_ai/ports/evennia/client.py` | Normal `v1.evennia.com` authenticated WebSocket and character identity proof |
 | `src/ox_ai/ports/evennia/durable.py` | World-owned actor-bound equipment action receipts and recovery queries |
-| `src/ox_ai/runtime/watch_service.py` | Event-driven external watch loop, normal `serve` mode and acceptance `begin`/`resume` modes |
+| `src/ox_ai/runtime/watch_service.py` | Historical three-crew watch supervisor with `serve`, `begin` and `resume` |
+| `src/ox_ai/runtime/five_crew_service.py` | P4e five-crew event-driven watch, cargo and environmental work with a durable interrupted-cartridge test |
 | `src/ox_ai/scenarios/` | Historical P2 mocks and real P3/P4 integration demonstrations |
 | `src/ox_ai/scheduler/`, `src/ox_ai/ports/mock/` | Deterministic P2 mock-world supervision and fault acceptance |
 | `src/ox_ai/inference/` | Metering and optional bounded Gemini/local-model adapters |

@@ -1,7 +1,7 @@
 # P4e — Five independently authenticated autonomous crewmembers
 
-**Status:** PR #19 integration candidate; not a merged capability until the
-real-server five-crew workflow and all earlier Ox regressions pass.
+**Status: verified and merged in [PR #19](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/19).** The real-server five-crew workflow
+and all twelve other triggered Ox regressions passed on the final PR commit.
 
 ## Goal
 

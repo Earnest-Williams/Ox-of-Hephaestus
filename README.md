@@ -2,14 +2,13 @@
 
 **A prototype autonomous spaceship MUD built on [Evennia](https://www.evennia.com/).**
 
-> **Status — 18 October 2026:** P4a–P4c are merged. The ship now has seven
-> navigable compartments, three physical equipment systems and five
-> persistent crew bodies. Three (Lin, Ari, Iona) are controlled by separate
-> native Concordia entities; the two new specialist crew bodies (Mara, Teo)
-> are not autonomous yet. P4c proves one independently running supervisor
-> handles coolant repair, handover and human hails. P4d's departmental
-> expansion was merged as [PR #17](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/17).
-> This remains a narrow prototype, not a deployed production freighter.
+> **Status — 18 October 2026:** P4a–P4e are merged. Seven ship compartments
+> and three physical systems now support **five independently authenticated
+> Concordia crewmembers** (Lin, Ari, Iona, Mara and Teo). An external event-
+> driven supervisor handles engineering, environmental and cargo faults,
+> human hails and world-owned watch handover. Its lost-ACK cartridge
+> recovery was validated in [PR #19](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/19).
+> This is still a bounded prototype—not a deployed complete freighter.
 
 **Start here:** [Current implementation and limitations](design/STATUS.md) ·
 [Install and test](INSTALL.md) · [Playable ship](game/README.md) ·
@@ -25,21 +24,23 @@ also be able to inspect the whole ship and drill into individual crew cognition.
 
 The longer-term design includes autonomous specialist departments,
 propulsion, skill-by-use development instead of levels/classes, and
-consequential-event or coarse-tick background simulation. Cargo restraints
-and atmospheric servicing now have small physical prototypes; **the new
-specialists' AI, skills, propulsion, trading and observer UI are not built.**
+consequential-event or coarse-tick background simulation. Cargo and
+environmental servicing now have autonomous bounded procedures; **skill-by-use,
+propulsion, trading, full crew social intelligence and the observer UI remain
+future work.**
 
-## P4e under review: autonomous specialist crew
+## P4e: autonomous specialist crew
 
-[PR #19](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/19)
-adds separate Concordia entities for Mara Voss and Teo Hale, five authenticated
-normal character clients, and a specialist event dispatcher for cargo and
-atmospheric duties. C-01 and A-01 gain durable actor-scoped command receipts;
-a lost cartridge-replacement acknowledgement must be reconciled without
-consuming another spare. The three-person supervisor remains supported, but
-the five-person runtime is **not yet part of the verified mainline inventory**
-until the PR's full-server CI passes and merges. Skill-by-use is still future
-work. See [the implementation specification](design/prototypes/p4e-five-crew-autonomy.md).
+[Merged PR #19](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/19)
+adds native Concordia cognition for Mara Voss and Teo Hale, five separate
+authenticated clients and specialist dispatch for real cargo and atmospheric
+faults. C-01 and A-01 have actor-scoped durable receipts. The five-person CI
+demonstrates cartridge replacement with a lost acknowledgment and safe
+process-restart reconciliation: **one cartridge is consumed, not two**.
+All 13 triggered Ox workflows passed on the final PR commit. The earlier
+three-person supervisor remains supported, but must not run concurrently
+against the same ship. Skill-by-use is still future work.
+See [the P4e implementation](design/prototypes/p4e-five-crew-autonomy.md).
 
 ## What's actually runnable
 
@@ -47,10 +48,10 @@ work. See [the implementation specification](design/prototypes/p4e-five-crew-aut
 | --- | --- |
 | Ship | Seven traversable compartments, five crew bodies, real coolant pump P-01, cargo restraint grid C-01, atmospheric scrubber A-01, specialist positions and bridge telemetry |
 | Game rules | Pump safety/review, cargo survey/restow/certify, atmosphere isolate/replace/restart, role and locality gates, consumable cartridges, private alarms and world-timed watch handover |
-| Transport | Three ordinary authenticated WebSocket client sessions with character identity checks |
-| Cognition | Three separate Concordia entities with per-character observations, memory and snapshots; bounded choice menus |
+| Transport | Five ordinary authenticated WebSocket clients with character identity checks; original three-person transport remains available |
+| Cognition | Five independent native Concordia entities with per-character observations, memories and checkpoints; bounded choices |
 | Routine engineering | Model-free GOAP plans actions; Evennia validates physical effects and durable request-ID receipts |
-| Autonomous runtime | Three Concordia crew with independent `serve` processing pump alarms, handover and player hails; P-01 isolation-ACK recovery |
+| Autonomous runtime | `five_crew_service serve` dispatches engineering, atmosphere, cargo, player hails and handover; pump and cartridge ACK recovery |
 | Observability | JSON journals and focused CI artifacts; **no browser dashboard or published handler API** |
 
 A completed CI test is not equivalent to general intelligence. CI uses

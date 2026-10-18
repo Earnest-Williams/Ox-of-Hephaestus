@@ -1,16 +1,17 @@
 # Ox of Hephaestus — architecture and authority boundaries
 
-**Current implementation:** P4a/P4c have passed focused full-server
-integration tests. Three independently authenticated Concordia crew control
-real pump work, watched handovers and answered hails. P4d extends the
-authoritative Evennia world to **seven rooms, three bounded physical
-systems and five crew bodies**; new cargo/environmental personnel are not
-yet autonomous. This is not a deployed freighter or general social simulation.
+**Current implementation:** P4a–P4e passed focused real-Evennia tests and
+are merged. Five separately authenticated native Concordia crew operate
+across a **seven-room, three-equipment-system ship**. The world validates
+cooling repairs, cargo work, atmospheric cartridge servicing, hails and
+duty transfer. The separate handler can recover an unknown committed
+cartridge replacement without duplicating inventory use. This is not a
+deployed freighter or general social simulation.
 [Verified feature matrix](design/STATUS.md) · [Development setup](INSTALL.md).
 
-## P4e autonomy extension under verification
+## P4e verified five-agent extension
 
-PR #19 extends the **optional external agent handler** to five distinct
+Merged PR #19 extends the **optional external agent handler** to five distinct
 accounts and five private native Concordia entities. Mara and Teo receive
 only their own addressed cargo/atmospheric events and local equipment
 inspections. Specialist `oxaction`/`oxreceipt` requests now bind the
@@ -25,7 +26,8 @@ general auction/agenda scheduler, and specialist procedures are authored
 actions rather than unstructured model-generated commands. Distinct
 skill labels exist but **skill-by-use progression is not implemented**.
 See [P4e scope and acceptance](design/prototypes/p4e-five-crew-autonomy.md).
-This PR is pending full-server verification and merge.
+The full-server five-agent integration test and all 12 other triggered Ox
+workflows passed before merge.
 
 ## 1. Independently operable components
 
@@ -46,10 +48,10 @@ timer, physical transitions and validation of equipment operations. The
 game remains accessible to human players using ordinary Telnet/web
 clients. The AI handler does not read or mutate the game database.
 
-**Ox AI handler (implemented for three crew)** owns each character's
-Concordia entity, memory, proposed actions, pending requests, journals,
-snapshots and wake-up policy. It connects as three ordinary, nonprivileged
-Evennia client accounts. The handler can be stopped while the world keeps
+**Ox AI handler (implemented for three or five crew)** owns each character's
+Concordia entity, private memory, proposed actions, pending requests,
+journals, snapshots and event wake-up policy. P4e connects as five ordinary,
+nonprivileged Evennia client accounts. The handler can be stopped while the world keeps
 its own state, alarms and event journal. Production process supervision,
 generic concurrency limits and full crash-resume coverage are future work.
 
@@ -63,10 +65,10 @@ exists. The interface must never create a second store of ship truth.
 
 `game/world/bootstrap.py` installs Bridge, Connecting Passage, Engineering,
 Cargo Hold, Environmental Plant, Crew Mess and Machine Shop. Existing crew
-Lin Sato, Ari Sen and Iona Vek remain, alongside non-autonomous cargo
-officer Mara Voss and environmental technician Teo Hale. The Bridge
-has both cooling and cargo/environmental status consoles. The original
-pump P-01 remains under three-AI control and has the lifecycle:
+Lin Sato, Ari Sen and Iona Vek remain alongside independently autonomous
+cargo officer Mara Voss and environmental technician Teo Hale. The Bridge
+has separate cooling and cargo/environmental status consoles. The original
+pump P-01 retains the lifecycle:
 
 ~~~text
 normal --fault--> low_pressure --isolate--> isolated
@@ -83,9 +85,9 @@ C-01 cargo restraints (`secured → unsecured → restowed → secured`) and A-0
 atmospheric scrubber (`nominal → saturated → isolated → serviced → nominal`).
 Each requires its own specialist role, local inspection and valid transition;
 A-01 consumes finite spare cartridges. Their separate physical journals
-survive game restart. They **do not yet implement generic actor-bound
-command receipts**, so crash-safe AI control of these new devices is future
-work. Cargo and atmosphere alarms are addressed to their specialist and
+survive game restart. Both now implement actor-bound durable equipment-specific action receipts;
+the five-agent handler checkpoints pending world requests and can reconcile
+a lost cartridge ACK without repeating a physical transition. Cargo and atmosphere alarms are addressed to their specialist and
 the Bridge, never broadcast to all crew. The public duty board lists
 responsibilities; it is not a character memory store.
 
