@@ -177,3 +177,66 @@ It is separate from the nine-environment inherited upstream Evennia matrix.
 **Next step:** connect the external handler through ordinary character
 sessions; no agent is allowed to write pump state directly or observe a remote
 compartment except through deliberate in-game instrumentation.
+
+## Optional free-tier Gemini choice experiment
+
+Instead of running an LLM server, you can run the same in-process
+Concordia-to-Evennia test through Google's hosted, schema-constrained
+choice endpoint. Google provides a limited free tier for Gemini 3.1
+Flash-Lite, but **requires an API key** (obtainable in Google AI Studio);
+it is not an anonymous endpoint. Free-tier data may be used to improve
+Google products. Do not send sensitive real player data.
+
+Set your credentials locally, not in the repository. From the `game/`
+directory, after installing the handler with the `[concordia]` extra
+and running `evennia migrate`:
+
+```bash
+export OX_TRIAL_PROVIDER=gemini
+export GEMINI_API_KEY=your-google-ai-studio-key
+export OX_LLM_MODEL=gemini-3.1-flash-lite
+export OX_TRIAL_TRACE=../.ox-state/gemini-pump.jsonl
+evennia shell --command="from world.ai_repair import live_trial; live_trial()"
+```
+
+This is an **opt-in live experiment**, not a passing CI claim. No API
+calls are made during the standard offline test suite. The model chooses
+only from the exact lettered menu of currently visible commands, with a
+JSON-Schema enum enforced by the API and independently validated in Ox.
+Malformed answers, timeouts or quota errors stop the trial without
+executing the proposed command. No calibrated probabilities are claimed
+for generative classification. The pump still changes state only through
+normal Evennia commands.
+
+Free-tier limits and supported models:
+https://ai.google.dev/gemini-api/docs/pricing
+
+The game is not yet an autonomous multi-agent GOAP system. A follow-up
+should compare hosted model choices with a deterministic GOAP-only policy.
+
+## Run the live Gemini trial entirely on GitHub
+
+After this workflow is merged into the repository's default `main` branch,
+no local Python or Evennia installation is needed:
+
+1. Visit https://aistudio.google.com/api-keys and create a Google AI Studio
+   API key for a project with free-tier Gemini 3.1 Flash-Lite access.
+2. In GitHub visit **Settings > Secrets and variables > Actions > New repository
+   secret**; enter exactly `GEMINI_API_KEY` for the name and paste the key
+   for the value. Never add it to source code or an issue comment.
+3. Open **Actions > Ox live Gemini pump repair > Run workflow** and choose
+   the `main` branch; click **Run workflow**.
+4. Open the new run and expand **Let Ari attempt the real pump repair with
+   Gemini**. A passing trial prints `OX_VERIFIED_REPAIR_PASS`; a failing
+   trial, quota failure, or API error fails the workflow instead of reporting
+   success.
+5. Download the `ox-gemini-pump-trial` artifact for a structured JSONL
+   agent journal and the command transcript (retained for seven days).
+
+This workflow runs only when **manually launched**, not on commits or PRs.
+It uses a disposable database on a temporary GitHub-hosted runner. The
+API key is passed as an Actions secret; the job does not echo its value.
+The free tier has changing quotas, and free-tier test prompts are subject
+to Google's data-use terms. Only synthetic ship data is used.
+The live-model scenario has not been validated against Google until
+someone launches this workflow with their own API key.

@@ -298,35 +298,57 @@ def live_trial() -> TrialResult:
     """Opt-in LLM trial from `evennia shell` in a local, trusted game.
 
     Environment:
-      OPENAI_API_KEY       Required unless local endpoint uses a dummy key.
-      OX_LLM_MODEL         Model ID, e.g. a local model ID or API model name.
-      OX_LLM_BASE_URL      Optional OpenAI-compatible URL for local inference.
+      OX_TRIAL_PROVIDER    'gemini' (typed choices) or 'openai' (default).
+      GEMINI_API_KEY       Required only for Gemini; free tier needs a key.
+      OPENAI_API_KEY       Required only for OpenAI/compatible endpoints.
+      OX_LLM_MODEL         Model ID; Gemini defaults to gemini-3.1-flash-lite.
+      OX_LLM_BASE_URL      Optional OpenAI-compatible URL (OpenAI mode only).
       OX_TRIAL_TRACE       Optional path for a JSONL decision/observation log.
       OX_TRIAL_MAX_STEPS   Limit choices to 1..50 (default 16).
     """
+    provider_name = os.getenv("OX_TRIAL_PROVIDER", "openai").strip().lower()
     model_name = os.getenv("OX_LLM_MODEL")
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not model_name or not api_key:
-        raise RuntimeError(
-            "Set OX_LLM_MODEL and OPENAI_API_KEY explicitly; no live "
-            "inference will be initiated without them."
+    if provider_name == "gemini":
+        from ox_ai.inference.gemini_choices import (
+            GeminiChoiceModel,
+            GeminiChoiceProvider,
         )
-    api_base = os.getenv("OX_LLM_BASE_URL")
-    if api_base:
-        # Compatible local endpoints frequently reject OpenAI-specific
-        # reasoning_effort / verbosity parameters used by Concordia's GPT
-        # adapter; use our small portable wrapper instead.
-        from ox_ai.inference.compatible_chat import CompatibleChatModel
 
-        model = CompatibleChatModel(
-            model_name=model_name, api_key=api_key, api_base=api_base
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            raise RuntimeError(
+                "Set GEMINI_API_KEY for a Gemini live trial; no request sent."
+            )
+        model = GeminiChoiceModel(
+            GeminiChoiceProvider(
+                api_key, model_name=model_name or "gemini-3.1-flash-lite"
+            )
         )
+    elif provider_name == "openai":
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not model_name or not api_key:
+            raise RuntimeError(
+                "Set OX_LLM_MODEL and OPENAI_API_KEY explicitly; no live "
+                "inference will be initiated without them."
+            )
+        api_base = os.getenv("OX_LLM_BASE_URL")
+        if api_base:
+            # Avoid model-specific generation arguments on local endpoints.
+            from ox_ai.inference.compatible_chat import CompatibleChatModel
+
+            model = CompatibleChatModel(
+                model_name=model_name, api_key=api_key, api_base=api_base
+            )
+        else:
+            from concordia.contrib.language_models.openai.gpt_model import (
+                GptLanguageModel,
+            )
+
+            model = GptLanguageModel(model_name=model_name, api_key=api_key)
     else:
-        from concordia.contrib.language_models.openai.gpt_model import (
-            GptLanguageModel,
+        raise RuntimeError(
+            "OX_TRIAL_PROVIDER must be 'gemini' or 'openai'; no request sent."
         )
-
-        model = GptLanguageModel(model_name=model_name, api_key=api_key)
     raw = os.getenv("OX_TRIAL_TRACE")
     max_steps = int(os.getenv("OX_TRIAL_MAX_STEPS", "16"))
     result = conduct_repair_trial(

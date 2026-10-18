@@ -93,6 +93,42 @@ class RepairAgentIntegrationTests(EvenniaTestCase):
         self.assertEqual(actor.location.key, "Engineering")
         self.assertTrue(any("cooling" in p.lower() for p in model.prompts))
 
+
+    def test_choice_only_provider_drives_same_world_boundary(self):
+        """A finite hosted-style decision can control Concordia without prose."""
+        from ox_ai.inference.decisions import ChoiceDecision
+        from ox_ai.inference.gemini_choices import GeminiChoiceModel
+
+        planned = iter([
+            "Go aft", "Go engineering", "Inspect Cooling Pump P-01",
+            "Isolate Cooling Pump P-01", "Repair Cooling Pump P-01",
+            "Commission Cooling Pump P-01", "Finish trial (claim completed)",
+        ])
+
+        class FakeTypedProvider:
+            def choose(self, question):
+                expected = next(planned)
+                options = dict(
+                    (label.strip(), letter)
+                    for letter, label in re.findall(
+                        r"^\s*\(([a-z])\)\s+(.+)$",
+                        question.state, flags=re.MULTILINE,
+                    )
+                )
+                if expected not in options:
+                    raise AssertionError(f"Not offered: {expected}")
+                return ChoiceDecision(options[expected], "fake-typed", "none")
+
+        result = conduct_repair_trial(
+            GeminiChoiceModel(FakeTypedProvider()), max_steps=12
+        )
+        self.assertTrue(result.success, result.reason)
+        self.assertEqual(result.inference_calls, 7)
+        self.assertEqual(
+            [event["operation"] for event in result.event_history],
+            ["isolate", "repair", "commission"],
+        )
+
     def test_agent_claiming_success_does_not_fix_world(self):
         """Saying the work is complete has no machinery effect."""
         model = ScriptedChoices(["Finish trial (claim completed)"])

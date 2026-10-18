@@ -1,0 +1,67 @@
+# Explicit opt-in: never runs for PRs or ordinary pushes.
+# Uses an ephemeral Evennia SQLite database; no live ship or model credentials
+# are committed. Repository secret GEMINI_API_KEY is supplied at runtime.
+name: Ox live Gemini pump repair
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ox-live-gemini-pump
+  cancel-in-progress: false
+
+jobs:
+  pump-repair:
+    name: Ari repairs P-01 with Gemini (live API)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Evennia and pinned Concordia
+        run: |
+          python -m pip install .
+          python -m pip install -e './services/ai-handler[concordia]'
+
+      - name: Prepare a disposable Evennia database
+        working-directory: game
+        run: evennia migrate
+
+      - name: Let Ari attempt the real pump repair with Gemini
+        working-directory: game
+        shell: bash
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OX_TRIAL_PROVIDER: gemini
+          OX_LLM_MODEL: gemini-3.1-flash-lite
+          OX_TRIAL_MAX_STEPS: "16"
+          OX_TRIAL_TRACE: ../.ox-state/gemini-pump.jsonl
+        run: |
+          set -o pipefail
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "::error::Missing repository Actions secret GEMINI_API_KEY. Add it under Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          mkdir -p ../.ox-state
+          evennia shell --command="from world.ai_repair import live_trial; trial = live_trial(); print('OX_VERIFIED_REPAIR_' + ('PASS' if trial.success else 'FAIL'))" | tee ../.ox-state/gemini-console.log
+          if ! grep -Fq "OX_VERIFIED_REPAIR_PASS" ../.ox-state/gemini-console.log; then
+            echo "::error::The physically verified repair did not complete. Review the trial console and trace."
+            exit 1
+          fi
+
+      - name: Attach diagnostic logs (synthetic ship data only)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-gemini-pump-trial
+          path: |
+            .ox-state/gemini-pump.jsonl
+            .ox-state/gemini-console.log
+          if-no-files-found: ignore
+          retention-days: 7
