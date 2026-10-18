@@ -1,11 +1,10 @@
 # Ox playable ship — authoritative Evennia game
 
-**Status (18 October 2026):** A seven-compartment prototype with five
-physical crew bodies, three actual working AI characters, a cooling pump,
-cargo restraints and an atmospheric scrubber. Three authenticated
-Concordia crew retain automated pump/watch/hail duties; Mara and Teo
-are **new non-autonomous specialist characters** awaiting handler expansion.
-This is a proving ground, not an entire cargo freighter.
+**Status (18 October 2026):** Seven connected compartments, three physical
+equipment systems and **five separately authenticated native Concordia
+crewmembers**. Lin, Ari and Iona work the cooling/watch chain; Mara and
+Teo autonomously handle bounded cargo and atmosphere procedures. It is
+still a proving ground, not a complete cargo freighter.
 [Current milestone status](../design/STATUS.md).
 
 All Ox ship content is under `game/`; the inherited `evennia/` engine has
@@ -30,14 +29,15 @@ not been converted into a different distribution.
 
 The ship now has separate bounded physical cargo and atmosphere procedures.
 There is still **no propulsion, trading economy, general cargo routing,
-manufacturing, or skill-by-use progression**. Two new crewmembers are not yet
-Concordia actors and the independent supervisor still handles three brains.
+manufacturing, or skill-by-use progression**. The P4e supervisor runs
+five private cognitive agents; the original P4c three-crew supervisor
+remains available but must not be run simultaneously on the same ship.
 
-## P4e specialist-autonomy candidate (PR #19)
+## P4e specialist autonomy (merged PR #19)
 
-The independent five-person handler in PR #19 can make Mara and Teo real
-Concordia agents. It reuses the ordinary character command and event
-transport but adds typed durable work requests:
+The independent five-person handler gives Mara and Teo real Concordia
+agents. It reuses ordinary character commands and recipient-private world
+events while adding typed durable work requests:
 
 ~~~text
 oxaction <32-hex-id> restow cargo
@@ -55,7 +55,9 @@ All transitions require the proper character, physical access and stage-
 specific inspections. Replaying the same ID returns the original receipt,
 including a failed attempt, rather than applying an action twice. The
 historical two-argument `oxaction`/`oxreceipt` forms still target P-01.
-**This candidate is not marked merged until PR #19 passes full-server CI.**
+**PR #19 passed all 13 focused Ox CI workflows and is merged.** A real
+five-client test showed safe recovery from a lost cartridge-replacement
+acknowledgment alongside coolant, cargo, hails and world-owned handover.
 
 ## Start the game
 
