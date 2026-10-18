@@ -201,19 +201,26 @@ class CrewWatchSupervisor:
             return alarm
         if not block:
             return None
-        # True idle suspension: wait on a WebSocket message, not a scheduler
-        # polling loop and not one model request per game tick.
+        # Indefinite idle suspension: no model calls, polling, timeout or
+        # arbitrary packet budget. Check each addressed event's provenance.
         while True:
-            event = await next_event(
-                self.clients["lin"], "coolant_alarm", self.memories["lin"],
-                timeout=86400,
-            )
+            packet = await self.clients["lin"].receive()
+            event = decode_event(packet, self.ids["lin"])
+            if event is None:
+                continue
+            if event["kind"] != "coolant_alarm":
+                if event["event_id"] not in {
+                    e["event_id"] for e in self.memories["lin"]
+                }:
+                    self.memories["lin"].append(event)
+                    self.brains["lin"].observe_event(event)
+                continue
             alarm_id = event["data"]["alarm_id"]
             if alarm_id not in self.state["handled_alarms"]:
                 self.state["handled_alarms"].append(alarm_id)
                 return event
 
-    async def begin(self, *, block: bool = False) -> bool:
+    async def begin(self, *, block: bool = False, drop_ack: bool = False) -> bool:
         """React to one new world alarm; stop with an unknown isolation ACK."""
         if self.state["phase"] != "idle":
             raise RuntimeError("Cannot begin over an unresolved world operation")
@@ -223,6 +230,14 @@ class CrewWatchSupervisor:
             return False
         brain = self.brains["lin"]
         brain.observe_event(alarm)
+        # World telemetry, not the age of an inbox event, determines whether
+        # an incident is still active after an offline catch-up.
+        await lin.send_line("inspect console")
+        telemetry = await lin.expect_text("BRIDGE COOLING TELEMETRY", timeout=10)
+        brain.observe_local("Bridge telemetry during incident catch-up", telemetry)
+        if "LOW PRESSURE" not in telemetry:
+            self.checkpoint()
+            return False
         await lin.send_line("inspect roster")
         roster = await lin.expect_text("Active engineering watch:", timeout=10)
         active = active_watch_from_roster(roster)
@@ -276,14 +291,20 @@ class CrewWatchSupervisor:
         )
         if result.status != "succeeded" or not result.source_event_id:
             raise RuntimeError("World did not execute initial isolation")
-        # Intentionally drop ACK from *handler memory*, not world ledger.
-        # The following process must reconcile this exact request_id.
+        if not drop_ack:
+            # Normal always-on behavior retains a successful world ACK; the
+            # resumed work still validates the world ledger before acting.
+            self.state["phase"] = "isolate_verified"
+            self.state["current"]["receipt_event_id"] = result.source_event_id
+            self.checkpoint()
+        # The two-process acceptance mode intentionally loses this ACK in
+        # handler memory to test reconciliation without any command replay.
         return True
 
     async def resume(self) -> dict:
         """Reconcile lost ACK and let active watch + separate reviewer finish."""
-        if self.state["phase"] != "unknown_isolate":
-            raise RuntimeError("No unresolved physical action to reconcile")
+        if self.state["phase"] not in ("unknown_isolate", "isolate_verified"):
+            raise RuntimeError("No isolation-phase operation to reconcile")
         pending = dict(self.state["current"])
         active, reviewer = pending["active"], pending["reviewer"]
         if active == reviewer or set((active, reviewer)) != {"ari", "iona"}:
@@ -396,10 +417,10 @@ class CrewWatchSupervisor:
 
     async def serve(self) -> None:
         """Run indefinitely, but remain dormant between legitimate world events."""
-        if self.state["phase"] == "unknown_isolate":
+        if self.state["phase"] in ("unknown_isolate", "isolate_verified"):
             await self.resume()
         while True:
-            if await self.begin(block=True):
+            if await self.begin(block=True, drop_ack=False):
                 await self.resume()
 
 
@@ -408,7 +429,7 @@ async def main_async(mode: str) -> None:
     try:
         await supervisor.open()
         if mode == "begin":
-            if not await supervisor.begin(block=False):
+            if not await supervisor.begin(block=False, drop_ack=True):
                 raise RuntimeError("No new addressed world alarm")
             print("OX_P4B_UNKNOWN_ISOLATION_DURABLY_CHECKPOINTED")
         elif mode == "resume":
