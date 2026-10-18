@@ -1,0 +1,61 @@
+name: Ox G1 PostgreSQL concurrent world effects
+
+on:
+  pull_request:
+    paths:
+      - "game/**"
+      - ".github/workflows/ox-g1-postgres-contention.yml"
+  push:
+    branches: [main]
+    paths:
+      - "game/**"
+      - ".github/workflows/ox-g1-postgres-contention.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-contention:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: ox_ci
+          POSTGRES_USER: ox_ci
+          POSTGRES_PASSWORD: disposable_local_ci_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ox_ci -d ox_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      OX_PG_CONCURRENCY_TEST: "1"
+      DJANGO_SETTINGS_MODULE: server.conf.settings_postgres_ci
+      OX_CI_PG_DATABASE: ox_ci
+      OX_CI_PG_USER: ox_ci
+      OX_CI_PG_PASSWORD: disposable_local_ci_only
+      OX_CI_PG_HOST: 127.0.0.1
+      OX_CI_PG_PORT: "5432"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install actual game and PostgreSQL driver
+        run: |
+          python -m pip install .
+          python -m pip install "psycopg[binary]>=3.1,<4"
+          python -m compileall -q game/world game/server/conf
+      - name: Apply real Django schema to disposable PostgreSQL
+        working-directory: game
+        run: |
+          python -m django migrate --noinput
+          python -m django makemigrations world --check --dry-run
+      - name: Race independent world commands through distinct database connections
+        working-directory: game
+        run: python -m world.postgres_contention
