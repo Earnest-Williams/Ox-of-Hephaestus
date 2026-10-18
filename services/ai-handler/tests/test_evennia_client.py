@@ -18,7 +18,9 @@ class FakeSocket:
     async def send(self, frame):
         command = json.loads(frame)[1][0]
         self.sent.append(command)
-        if command.startswith("oxidentity "):
+        if command.startswith("connect "):
+            self.frames.append(json.dumps(["logged_in", [], {}]))
+        elif command.startswith("oxidentity "):
             challenge = command.split(" ")[1]
             self.frames.append(json.dumps([
                 "text", ["OX_IDENTITY " + challenge + " " + self.correct], {}
