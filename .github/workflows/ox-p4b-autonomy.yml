@@ -1,0 +1,114 @@
+name: Ox P4b autonomous two-incident ship
+
+on:
+  pull_request:
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-p4b-autonomy.yml"
+  push:
+    branches: [main]
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-p4b-autonomy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  autonomous-watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install actual Evennia + native Concordia and transport
+        run: |
+          python -m pip install .
+          python -m pip install -e './services/ai-handler[concordia,transport]'
+      - name: Test inbox, identity, supervision and world-side duty interlocks
+        run: |
+          python -m unittest discover -s services/ai-handler/tests -p 'test_p4b_watch_runtime.py' -v
+      - name: Install throwaway identity secrets
+        shell: bash
+        run: |
+          TOKEN="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          OWNER="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          echo "::add-mask::$TOKEN"
+          echo "::add-mask::$OWNER"
+          echo "OX_PROBE_PASSWORD=$TOKEN" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_PASSWORD=$OWNER" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_USERNAME=OxTrialOwner" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_EMAIL=owner@example.invalid" >> "$GITHUB_ENV"
+      - name: Test world scheduler and safety reviewer against actual SQLite
+        working-directory: game
+        run: |
+          evennia migrate --noinput
+          evennia test world.tests.test_autonomy world.tests.test_live_cooperation --verbosity=2
+      - name: Seed initial low-pressure incident with real duty deadline
+        working-directory: game
+        run: |
+          evennia shell --command="from world.transport_probe import provision; provision(); from world.live_crew import fixture_setup; fixture_setup(scheduled_clock=True); print('OX_P4B_WORLD_CLOCK_ARMED')"
+      - name: Run first incident through genuine clock and native Concordia crew
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd game && evennia start)
+          python - <<'PY'
+          import socket,time
+          for _ in range(90):
+              try:
+                  with socket.create_connection(("127.0.0.1",4002),timeout=1):
+                      break
+              except OSError:
+                  time.sleep(1)
+          else:
+              raise RuntimeError("Evennia portal was not accepting clients")
+          PY
+          sleep 5
+          python -m ox_ai.scenarios.p4a_concordia_crew
+      - name: Stop game, independently verify first handover and inject second fault
+        working-directory: game
+        shell: bash
+        run: |
+          evennia stop
+          evennia shell --command="from world.bootstrap import build_ship; s=build_ship(); assert s['pump'].state=='normal' and s['roster'].db.ox_active_engineer==s['chief'].dbref; assert not s['roster'].db.ox_autoadvance_on_resolution; assert s['pump'].inject_fault()[0]; print('OX_P4B_SECOND_FAULT_INJECTED')"
+      - name: Restart persistent game, isolate then restart independent handler
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd game && evennia start)
+          sleep 6
+          python -m ox_ai.runtime.watch_service begin
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          v=json.loads(Path('.ox-state/p4b-supervisor.json').read_text())
+          assert v['phase']=='unknown_isolate'
+          assert v['current']['active']=='iona'
+          assert v['current']['reviewer']=='ari'
+          print('OX_P4B_UNKNOWN_ACK_PERSISTED')
+          PY
+          python -m ox_ai.runtime.watch_service resume
+      - name: Shut down live game for independent authoritative verdict
+        if: always()
+        working-directory: game
+        run: evennia stop || true
+      - name: Assert two genuine incident cycles, no duplicate isolation
+        working-directory: game
+        run: |
+          evennia shell --command="from world.bootstrap import build_ship; from world.live_crew import inbox; s=build_ship(); p=s['pump']; r=s['roster']; log=list(p.db.event_history); assert [e['operation'] for e in log]==['fault','isolate','repair','commission','fault','isolate','repair','commission'], log; assert [e['actor_dbref'] for e in log[5:8]]==[s['chief'].dbref]*3; assert p.state=='normal' and p.db.ox_incident_closed and r.db.ox_active_engineer==s['chief'].dbref; assert p.db.ox_release_reviewer==s['watch'].dbref and p.db.ox_chief_released; assert [e['kind'] for e in inbox(s['officer'])].count('coolant_alarm')==2; print('OX_P4B_TWO_REAL_INCIDENTS_NO_REPLAY_PASS')"
+      - name: Attach operator-only restart and cognitive diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-p4b-persistent-runtime
+          path: |
+            .ox-state/p4b-verdict.json
+            .ox-state/p4b-supervisor.json
+          if-no-files-found: ignore
+          retention-days: 7
