@@ -1,0 +1,36 @@
+# Real Concordia contract exercise; separate from fast stdlib scaffold checks.
+name: Ox Concordia entity integration
+
+on:
+  pull_request:
+    paths:
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-concordia.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-concordia.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  entity-lifecycle:
+    name: Native Concordia entity lifecycle (Python 3.12)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pinned Concordia optional extra
+        run: python -m pip install -e './services/ai-handler[concordia]'
+      - name: Exercise actual Concordia components
+        run: |
+          python -c "from concordia.agents.entity_agent_with_logging import EntityAgentWithLogging; print('Concordia API available:', EntityAgentWithLogging)"
+          python -m unittest discover -s services/ai-handler/tests -p 'test_concordia_*.py' -v
+          python services/ai-handler/examples/one_engineer.py

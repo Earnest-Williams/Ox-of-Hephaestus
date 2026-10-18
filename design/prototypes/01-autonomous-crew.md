@@ -1,6 +1,6 @@
 # Prototype 1 — Autonomous Crew
 
-**Status:** Approved design and preparatory package structure. **Not implemented.**
+**Status:** P0 merged and CI-green. P1 native entity implementation proposed; its pinned Concordia integration job must pass before the gate can be considered complete. P2–P5 are not implemented.
 
 ## Aim
 
