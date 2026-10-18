@@ -178,3 +178,24 @@ This does not change Concordia's status as an experimental cognitive host:
 routine deterministic planners must work without it. The GOAP fixture is
 not proof of general shipwide autonomous behavior. For limitations, tests
 and interface decisions see ADR 0006.
+
+
+## 12. Event-driven three-crew mock world
+
+A new P2 fixture extends the single-engineer experiment to three distinct,
+role-specific policies and an event-driven handler. A deterministic mock
+world owns a simulated game clock, active-watch roster, authorised readings,
+co-located message delivery and world receipt IDs. The handler supervises
+Ari, Iona and Lin with individual memories and scheduled obligations.
+No model or Concordia dependency is required for this mock duty scenario.
+
+Ari can relay a previously observed, unverified concern to Iona at watch
+handover; Lin does not gain access to its content. Iona's acknowledged
+acceptance causes the world to transfer engineering duty. Quiet intervals
+produce no agent wakeups, and unknown command receipts are reconciled
+without replaying the command.
+
+This is deliberately **not** an external service linked to persistent
+Evennia sessions. The rest of P2 (mock coordinated cooling fault), P3
+(live transport), and P5 (observatory) remain open. See
+[ADR 0007](design/decisions/0007-three-crew-watch-supervision.md).

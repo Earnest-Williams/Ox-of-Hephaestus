@@ -1,0 +1,42 @@
+# Manual demonstration of P2 mock crew; no network, credentials or models.
+name: Ox three-crew watch handover
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  watch-handover:
+    name: Deterministic three-crew duty handover
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install stdlib-only AI handler
+        run: python -m pip install -e ./services/ai-handler
+
+      - name: Test independent crew memories and watch events
+        run: python -m unittest discover -s services/ai-handler/tests -p 'test_watch_*.py' -v
+
+      - name: Advance mock world clock and run unattended handover
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p .ox-state
+          python -m ox_ai.scenarios.watch_handover | tee .ox-state/watch-handover.json
+          python -c "import json; d=json.load(open('.ox-state/watch-handover.json')); assert d['status']=='passed' and d['inference_calls']==0 and d['current_active_engineer']=='iona'; print('OX_WATCH_HANDOVER_PASS')"
+
+      - name: Attach operator-only synthetic trace
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-mock-watch-handover
+          path: .ox-state/watch-handover.json
+          if-no-files-found: ignore
+          retention-days: 7

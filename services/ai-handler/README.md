@@ -1,6 +1,6 @@
 # Ox AI Handler
 
-**Status: native Concordia single-agent lifecycle tested; an optional local in-process Evennia pump-repair trial is available. There is still no independent network transport, always-on scheduler, handler server or bundled inference endpoint.**
+**Status: native Concordia, live Gemini, and model-free GOAP pump experiments have succeeded; the three-crew event-driven mock watch-handover scenario is implemented in P2. There is still no persistent external Evennia transport, always-on handler daemon or bundled inference endpoint.**
 
 A separately installed Python service will supervise the game's significant autonomous NPCs. The cognitive engine is **[Google DeepMind Concordia](https://github.com/google-deepmind/concordia)** (Apache-2.0); the rest of the system—agent lifecycles, event routing, model workload coordination, persistence, world transport, and inspection API—is an Ox concern. There is one logical cognitive entity per NPC, not one operating-system process or inference server per NPC.
 
@@ -56,6 +56,43 @@ The `openai` dependency extra is used for Concordia's configurable OpenAI-compat
 7. A later dedicated Evennia service endpoint replaces the transport only, not character cognition.
 
 See the first scenario fixtures under [scenarios](../../scenarios/).
+
+
+## P2: Three-crew event-driven mock watch handover
+
+`ox_ai.ports.mock.watch_world` is a deterministic, authoritative mock world
+with the initial engineering/bridge roster, explicit game clock, scoped
+sensor observations, physical co-location checks and event receipts.
+`ox_ai.agents.mock_watch` represents **three separate** watchkeepers:
+Ari Sen, Iona Vek and Lin Sato. Each keeps a private observation journal;
+there is no shared omniscient agent context.
+
+`ox_ai.scheduler.watch.WatchSupervisor` wakes policies only for delivered
+world observations and scheduled duties. In the runnable first scenario,
+Ari remembers an unverified pump concern, briefs Iona at 07:55, and Iona
+acknowledges before the mock world transfers the watch. Lin is not
+privy to their engineering conversation. Quiet time causes zero wakeups
+or LLM calls. Requests are idempotent, and a lost ACK can be queried from
+the world after restoring the handler snapshot, without replaying an action.
+
+This is a **mock-world P2 checkpoint**, not a live independent handler
+connecting to Evennia and not yet the complete P2 fault-coordination gate.
+
+Run it with Python 3.12+, from the repository root:
+
+```bash
+python -m pip install -e ./services/ai-handler
+python -m unittest discover -s services/ai-handler/tests -p 'test_watch_*.py' -v
+python -m ox_ai.scenarios.watch_handover
+```
+
+Once merged, the manually triggered **Ox three-crew watch handover**
+GitHub Actions workflow runs the scenario with no API keys, Concordia,
+or server installation on your own machine. It attaches a JSON artifact
+with an operator-only world event ledger and separate agent memories.
+
+See [Scenario 0](../../scenarios/shift_handover/README.md) and
+[ADR 0007](../../design/decisions/0007-three-crew-watch-supervision.md).
 
 ## P1 one-engineer integration candidate
 
