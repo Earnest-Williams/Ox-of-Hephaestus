@@ -78,9 +78,9 @@ class CoolingPump(FixedFixture):
         from world.bootstrap import find_fixture
         roster = find_fixture("roster-board")
         active = getattr(roster.db, "ox_active_engineer", None) if roster else None
-        if active is not None and actor and actor.db.crew_role == "watch_engineer":
-            if actor.dbref != active:
-                return False
+        if (active is not None and actor and actor.dbref != active
+                and not actor.check_permstring("Developer")):
+            return False
         return bool(
             actor
             and actor.location == self.location
@@ -231,6 +231,8 @@ class RosterBoard(FixedFixture):
                     f"{member.key}: {member.db.duty_title} "
                     f"[{member.db.watch_window}]"
                 )
+                if self.db.ox_active_engineer == member.dbref:
+                    rows.append(f"Active engineering watch: {member.key}")
         return "\n".join(rows)
 
     def get_display_desc(self, looker, **kwargs) -> str:

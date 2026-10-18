@@ -9,7 +9,9 @@ def at_server_init() -> None:
 
 
 def at_server_start() -> None:
-    """Called on each server start."""
+    """Ensure a persistent, world-owned duty timer exists after every boot."""
+    from world.live_clock import ensure_clock_script
+    ensure_clock_script()
 
 
 def at_server_stop() -> None:

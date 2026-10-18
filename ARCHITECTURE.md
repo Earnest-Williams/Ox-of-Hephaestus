@@ -1,6 +1,6 @@
 # Ox of Hephaestus — preliminary architecture
 
-> **Status:** Agreed prototype architecture, first native Concordia entity integration candidate and a small playable Evennia test ship, October 2026. The agent has **not** been connected to the ship; the AI supervisor, game adapters and UI remain unimplemented.
+> **Status (October 2026):** The first live multi-crew Concordia/GOAP integration and event-driven external supervisor are implemented and tested against Evennia. Game-side machinery, duties and role permissions remain authoritative. This is a narrow three-crew, one-pump prototype; the UI and its separate read APIs remain unimplemented.
 
 ## 1. System boundaries
 

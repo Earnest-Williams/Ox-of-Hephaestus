@@ -1,6 +1,6 @@
 # Ox AI Handler
 
-**Status: native Concordia, live Gemini and model-free GOAP pump experiments have succeeded. P2 now includes event-driven mock watch handover and coordinated three-crew coolant incident tests. Persistent external Evennia transport, an always-on handler and the observer UI remain unimplemented.**
+**Status: P4 autonomous crew prototype.** The three native Concordia entities connect to real Evennia character sessions. A separately runnable event-driven watch supervisor restores agent checkpoints, follows world-owned watch deadlines, and reconciles a lost physical action receipt. The observer UI and production deployment are still unimplemented.
 
 A separately installed Python service will supervise the game's significant autonomous NPCs. The cognitive engine is **[Google DeepMind Concordia](https://github.com/google-deepmind/concordia)** (Apache-2.0); the rest of the system—agent lifecycles, event routing, model workload coordination, persistence, world transport, and inspection API—is an Ox concern. There is one logical cognitive entity per NPC, not one operating-system process or inference server per NPC.
 
@@ -196,3 +196,22 @@ python -m unittest discover -s services/ai-handler/tests -p 'test_goap_*.py' -v
 The real-world comparison and manual GitHub Actions workflow are described
 in game/README.md and ADR 0006. This is narrow equipment expertise,
 not a general replacement for dialogue or novel diagnosis by an LLM.
+
+
+## P4b — Running the persistent watch supervisor
+
+With the private development crew accounts provisioned and the Evennia
+server running, install the optional Concordia and transport dependencies,
+then start an independent handler process using the module command
+`python -m ox_ai.runtime.watch_service serve`. It will block awaiting
+character-scoped world events when no incident requires attention.
+
+The disposable CI workflow runs `begin` and `resume` in separate processes
+to deliberately lose a pump-isolation ACK and prove actor-bound reconciliation
+without executing isolation again. Checkpoints are written beneath
+`.ox-state/`. No inference or wall-clock polling is required while idle.
+
+The default provider is a deterministic native Concordia test model. Set
+`OX_COGNITION_PROVIDER=gemini` and privately provide `GEMINI_API_KEY` only
+for optional hosted-model evaluations. Never expose development credentials
+or serve the prototype to untrusted networks.

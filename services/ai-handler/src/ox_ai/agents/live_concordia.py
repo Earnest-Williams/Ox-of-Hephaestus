@@ -169,6 +169,19 @@ class LiveCrewBrain:
     def save_checkpoint(self, path: Path) -> None:
         self.agent.save_checkpoint(path)
 
+    @classmethod
+    def from_checkpoint(
+        cls, role: str, character_dbref: str, model, path: Path,
+    ) -> "LiveCrewBrain":
+        """Restore native Concordia state without replaying unknown actions."""
+        restored = cls(role, character_dbref, model)
+        restored.agent = CrewAgent.from_checkpoint(path, model)
+        if (restored.agent.identity.character_id != character_dbref
+                or restored.agent.identity.agent_id != f"ox.live.{role}"):
+            raise PermissionError("Checkpoint cannot control a different identity")
+        restored._game_time = float(restored.agent.snapshot()["last_game_time"] or 0)
+        return restored
+
 
 def build_live_brains(
     ids: Mapping[str, str], *, provider: str | None = None,
