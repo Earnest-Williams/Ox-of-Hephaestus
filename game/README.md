@@ -148,6 +148,12 @@ isolated rather than creating an imaginary cartridge. Atmospheric and
 cargo fault events are individually addressed to their specialist and
 to Lin; other characters cannot read them from their own inbox.
 
+For local hands-on tests, a **Developer** can switch their own ordinary
+character to a disposable specialty with `shiprole cargo` or
+`shiprole environment`. They must still walk into the appropriate
+compartment and inspect the equipment; the assignment does not authorize
+work remotely. Normal players cannot assign themselves a role this way.
+
 Developer-only synthetic faults and these specialist work verbs are
 available through ordinary game commands. **No AI operates Mara or Teo
 yet**, and cargo/scrubber commands do not yet have P-01's generic
