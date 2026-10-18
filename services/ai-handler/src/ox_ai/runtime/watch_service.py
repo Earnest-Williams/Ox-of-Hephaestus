@@ -290,49 +290,112 @@ class CrewWatchSupervisor:
                 self.state["handled_alarms"].append(alarm_id)
                 return event
 
-    async def begin(self, *, block: bool = False, drop_ack: bool = False) -> bool:
-        """React to one new world alarm; stop with an unknown isolation ACK."""
-        if self.state["phase"] != "idle":
-            raise RuntimeError("Cannot begin over an unresolved world operation")
+    async def begin(
+        self, *, block: bool = False, drop_ack: bool = False,
+        interrupt_at: str | None = None,
+    ) -> bool:
+        """Start or recover a bridge alarm before the first physical action.
+
+        A prior implementation could lose the bridge relay ACK and forget
+        which alarm had been dispatched. Persist the incident identity and
+        the global radio request ID before network submission; a restarted
+        handler reconciles that ID before trying isolation.
+        """
+        phase = self.state["phase"]
         lin = self.clients["lin"]
-        alarm = await self.next_alarm(block=block)
-        if alarm is None:
-            return False
         brain = self.brains["lin"]
-        brain.observe_event(alarm)
-        # World telemetry, not the age of an inbox event, determines whether
-        # an incident is still active after an offline catch-up.
-        await lin.send_line("inspect console")
-        telemetry = await lin.expect_text("BRIDGE COOLING TELEMETRY", timeout=10)
-        brain.observe_local("Bridge telemetry during incident catch-up", telemetry)
-        if "LOW PRESSURE" not in telemetry:
+        if phase == "idle":
+            alarm = await self.next_alarm(block=block)
+            if alarm is None:
+                return False
+            brain.observe_event(alarm)
+            await lin.send_line("inspect console")
+            telemetry = await lin.expect_text(
+                "BRIDGE COOLING TELEMETRY", timeout=10,
+            )
+            brain.observe_local("Bridge incident catch-up", telemetry)
+            if "LOW PRESSURE" not in telemetry:
+                self.checkpoint()
+                return False
+            await lin.send_line("inspect roster")
+            active = active_watch_from_roster(
+                await lin.expect_text("Active engineering watch:", timeout=10)
+            )
+            reviewer = "ari" if active == "iona" else "iona"
+            self.state.update({
+                "phase": "begin_alarm",
+                "current": {
+                    "alarm_id": alarm["data"]["alarm_id"],
+                    "active": active,
+                    "reviewer": reviewer,
+                    "goap_expansions": 0,
+                },
+            })
             self.checkpoint()
-            return False
-        await lin.send_line("inspect roster")
-        roster = await lin.expect_text("Active engineering watch:", timeout=10)
-        active = active_watch_from_roster(roster)
+        elif phase == "begin_alarm":
+            # Read *only* Lin's legitimate bridge observations. An arbitrary
+            # saved alarm ID cannot authorize an unobserved new incident.
+            pending = self.state["current"]
+            if not isinstance(pending, dict):
+                raise RuntimeError("Incomplete bridge work checkpoint")
+            history = await self.read_inbox("lin")
+            matches = [
+                e for e in history
+                if e["kind"] == "coolant_alarm"
+                and e["data"].get("alarm_id") == pending["alarm_id"]
+            ]
+            if not matches:
+                raise PermissionError("Restored incident not observed by bridge")
+            alarm = matches[-1]
+            brain.observe_event(alarm)
+        else:
+            raise RuntimeError("Cannot begin over an unresolved world operation")
+
+        pending = self.state["current"]
+        active, reviewer = pending["active"], pending["reviewer"]
+        if (active not in ("ari", "iona") or reviewer not in ("ari", "iona")
+                or active == reviewer):
+            raise PermissionError("Recovered watch/reviewer pairing invalid")
         worker = self.clients[active]
-        reviewer = "ari" if active == "iona" else "iona"
-        notice = brain.choose(
-            CommandOption("Relay new bridge alarm to the posted watch", "oxradio"),
-            alternative="Defer until an additional bridge reading",
+
+        async def propose_radio() -> None:
+            proposal = brain.choose(
+                CommandOption(
+                    "Relay verified bridge alarm to the posted watch", "oxradio",
+                ),
+                alternative="Defer until an additional bridge reading",
+            )
+            brain.require(proposal, "oxradio")
+            brain.selected_procedure(proposal)
+
+        relay = await WorkStepLedger(
+            pending, self.checkpoint, character_ids=self.ids,
+        ).run(
+            "radio", "lin", "radio", "ship", DurableEvenniaPort(lin),
+            prepare=propose_radio, interrupt_at=interrupt_at,
         )
-        brain.require(notice, "oxradio")
-        await lin.send_line("oxradio")
-        event = await replayable_event(
-            worker, "radio_alert", self.memories[active]
+        if relay.status != "succeeded" or not relay.source_event_id:
+            raise RuntimeError("Bridge relay lacks authoritative receipt")
+        addressed = await self.read_inbox(active)
+        event = next(
+            (e for e in addressed
+             if e["event_id"] == relay.source_event_id
+             and e["kind"] == "radio_alert"
+             and e["sender_dbref"] == self.ids["lin"]
+             and e["data"].get("alarm_id") == pending["alarm_id"]),
+            None,
         )
-        brain.record_unknown(notice)
-        if event["data"]["alarm_id"] != alarm["data"]["alarm_id"]:
-            raise RuntimeError("World relayed a mismatched alarm")
+        if event is None:
+            raise PermissionError("Radio alert not addressed to active engineer")
         engineer = self.brains[active]
         engineer.observe_event(event)
+
         local = await inspect(worker)
         engineer.observe_local("Physical engineering inspection", local)
         if "LOW PRESSURE" not in local:
-            raise RuntimeError("No fault verified at the physical pump")
+            raise RuntimeError("No current fault verified at physical pump")
         choose = engineer.choose(
-            CommandOption("Execute known safe GOAP isolation procedure", "goap"),
+            CommandOption("Execute verified GOAP isolation", "goap"),
             alternative="Defer physical isolation and request assistance",
         )
         engineer.require(choose, "goap")
@@ -341,20 +404,16 @@ class CrewWatchSupervisor:
             frozenset({"at_engineering", "status_known", "pump_low_pressure"}),
             frozenset({"pump_isolated"}),
         )
-        if [a.verb for a in planned.actions if a.verb == "isolate"] != ["isolate"]:
+        if [action.verb for action in planned.actions
+                if action.verb == "isolate"] != ["isolate"]:
             raise RuntimeError("GOAP supplied no safe isolation plan")
         request_id = uuid.uuid4().hex
-        self.state.update({
-            "phase": "unknown_isolate",
-            "current": {
-                "alarm_id": alarm["data"]["alarm_id"],
-                "active": active, "reviewer": reviewer,
-                "request_id": request_id, "status": "unknown",
-                "goap_expansions": planned.expanded_states,
-            },
+        pending.update({
+            "request_id": request_id,
+            "status": "unknown",
+            "goap_expansions": planned.expanded_states,
         })
-        # Record pending physical request BEFORE sending: on arbitrary handler
-        # crash, a missing outcome cannot trigger an unsafe retry.
+        self.state["phase"] = "unknown_isolate"
         self.checkpoint()
         result = await DurableEvenniaPort(worker).submit(
             ActionRequest(request_id, self.ids[active], "isolate_pump", "pump")
@@ -362,13 +421,9 @@ class CrewWatchSupervisor:
         if result.status != "succeeded" or not result.source_event_id:
             raise RuntimeError("World did not execute initial isolation")
         if not drop_ack:
-            # Normal always-on behavior retains a successful world ACK; the
-            # resumed work still validates the world ledger before acting.
             self.state["phase"] = "isolate_verified"
-            self.state["current"]["receipt_event_id"] = result.source_event_id
+            pending["receipt_event_id"] = result.source_event_id
             self.checkpoint()
-        # The two-process acceptance mode intentionally loses this ACK in
-        # handler memory to test reconciliation without any command replay.
         return True
 
     async def resume(self, *, interrupt_at: str | None = None) -> dict:
@@ -572,57 +627,120 @@ class CrewWatchSupervisor:
         self.checkpoint()
         return verdict
 
-    async def handover_if_due(self) -> bool:
-        """Independently react to world-issued duty events, even with no fault."""
+    async def handover_if_due(
+        self, *, interrupt_at: str | None = None,
+    ) -> bool:
+        """Reconcile an authorized watch offer/accept across handler restarts."""
         if self.state["phase"] != "idle":
             return False
-        # Only a real addressed due event can authorize this procedure.
         old = self.clients["ari"]
         incoming = self.clients["iona"]
-        history = await self.read_inbox("ari")
-        due = [e for e in history if e["kind"] == "handover_due"]
-        if not due:
-            return False
-        bridge = self.clients["lin"]
-        await bridge.send_line("inspect roster")
-        current = active_watch_from_roster(
-            await bridge.expect_text("Active engineering watch:", timeout=10)
+        work = self.state.get("handover_work")
+        if work is None:
+            history = await self.read_inbox("ari")
+            due = [e for e in history if e["kind"] == "handover_due"]
+            if not due:
+                return False
+            bridge = self.clients["lin"]
+            await bridge.send_line("inspect roster")
+            current = active_watch_from_roster(
+                await bridge.expect_text("Active engineering watch:", timeout=10)
+            )
+            if current != "ari":
+                return False
+            incoming_events = await self.read_inbox("iona")
+            if not any(e["kind"] == "handover_due" for e in incoming_events):
+                return False
+            work = {
+                "due_event_id": due[-1]["event_id"],
+                "outgoing": self.ids["ari"], "incoming": self.ids["iona"],
+            }
+            self.state["handover_work"] = work
+            self.checkpoint()
+        else:
+            if (not isinstance(work, dict)
+                    or work.get("outgoing") != self.ids["ari"]
+                    or work.get("incoming") != self.ids["iona"]):
+                raise PermissionError("Persisted handover no longer matches identities")
+            due_ids = {
+                e["event_id"] for e in await self.read_inbox("ari")
+                if e["kind"] == "handover_due"
+            }
+            if work.get("due_event_id") not in due_ids:
+                raise PermissionError("Persisted handover lacks world-issued duty")
+        ledger = WorkStepLedger(
+            work, self.checkpoint, character_ids=self.ids,
         )
-        if current != "ari":
-            return False
-        # The receiving crewmember must also have been sent the duty event.
-        if not any(e["kind"] == "handover_due" for e in
-                   await self.read_inbox("iona")):
-            return False
         ari = self.brains["ari"]
         iona = self.brains["iona"]
-        ari.observe_event(due[-1])
-        offer = ari.choose(
-            CommandOption("Offer posted watch at due time", "oxhandover"),
-            alternative="Defer handover for an unresolved safety concern",
+
+        if "offer" not in ledger.steps:
+            proposal = ari.choose(
+                CommandOption("Offer posted watch at due time", "oxhandover"),
+                alternative="Defer handover for an unresolved safety concern",
+            )
+            if proposal.verb != "oxhandover":
+                ari.record_unknown(proposal)
+                # No world action has been requested. Reconsider on a future
+                # event, preserving the due obligation on the world roster.
+                self.state["handover_work"] = None
+                self.checkpoint()
+                return False
+            ari.selected_procedure(proposal)
+        offer = await ledger.run(
+            "offer", "ari", "offer", "ship", DurableEvenniaPort(old),
+            interrupt_at=interrupt_at,
         )
-        if offer.verb != "oxhandover":
-            ari.record_unknown(offer)
-            self.checkpoint()
-            return False
-        await old.send_line("oxhandover")
-        offered = await replayable_event(incoming, "handover_offer",
-                                         self.memories["iona"])
-        ari.record_unknown(offer)
+        offered = next(
+            (e for e in await self.read_inbox("iona")
+             if e["event_id"] == offer.source_event_id
+             and e["kind"] == "handover_offer"
+             and e["sender_dbref"] == self.ids["ari"]),
+            None,
+        )
+        if offered is None:
+            raise PermissionError("Incoming watch did not receive an authorized offer")
         iona.observe_event(offered)
-        take = iona.choose(
-            CommandOption("Accept scheduled engineering watch", "oxaccept"),
-            alternative="Decline to assume the scheduled watch",
+
+        if "accept" not in ledger.steps:
+            proposal = iona.choose(
+                CommandOption("Accept scheduled engineering watch", "oxaccept"),
+                alternative="Decline to assume the scheduled watch",
+            )
+            if proposal.verb != "oxaccept":
+                iona.record_unknown(proposal)
+                self.checkpoint()
+                return False
+            iona.selected_procedure(proposal)
+        accepted = await ledger.run(
+            "accept", "iona", "accept", "ship",
+            DurableEvenniaPort(incoming), interrupt_at=interrupt_at,
         )
-        if take.verb != "oxaccept":
-            iona.record_unknown(take)
-            self.checkpoint()
-            return False
-        await incoming.send_line("oxaccept")
-        transferred = await replayable_event(
-            incoming, "watch_transferred", self.memories["iona"]
+        outgoing_events = await self.read_inbox("ari")
+        transferred = next(
+            (e for e in outgoing_events
+             if e["event_id"] == accepted.source_event_id
+             and e["kind"] == "watch_transferred"
+             and e["sender_dbref"] == self.ids["iona"]
+             and e["data"].get("new_watch") == self.ids["iona"]),
+            None,
         )
-        iona.confirm(take, transferred)
+        if transferred is None:
+            raise PermissionError("Outgoing watch did not observe world transfer")
+        own_events = await self.read_inbox("iona")
+        if not any(
+            e["kind"] == "watch_transferred"
+            and e["data"].get("new_watch") == self.ids["iona"]
+            for e in own_events
+        ):
+            raise PermissionError("Incoming watch lacks world transfer confirmation")
+        await self.clients["lin"].send_line("inspect roster")
+        roster = await self.clients["lin"].expect_text(
+            "Active engineering watch:", timeout=10,
+        )
+        if active_watch_from_roster(roster) != "iona":
+            raise RuntimeError("World roster did not transfer authorized watch")
+        self.state["handover_work"] = None
         self.checkpoint()
         return True
 
@@ -630,45 +748,82 @@ class CrewWatchSupervisor:
         """Optional specialist-work hook; historical three-crew runtime is idle."""
         return False
 
-    async def respond_to_hails(self) -> int:
-        """Consume recipient-private hails, with world-side duplicate defence."""
+    async def respond_to_hails(
+        self, *, interrupt_at: str | None = None,
+    ) -> int:
+        """Resume each addressed hail using a saved typed world-work request.
+
+        The handler never reinterprets an already-persisted answer as a new
+        model decision. World-owned `hail_answered` is required as evidence
+        before private intent may be cleared from the supervisor checkpoint.
+        """
         count = 0
+        pending = self.state.setdefault("hail_work", {})
         for role in self.clients:
             events = await self.read_inbox(role)
-            answered = {e["data"]["hail_id"] for e in events
-                        if e["kind"] == "hail_answered"}
+            answered = {
+                e["data"]["hail_id"] for e in events
+                if e["kind"] == "hail_answered"
+            }
             for event in events:
                 if event["kind"] != "crew_hail":
                     continue
                 hail_id = event["data"]["hail_id"]
-                if hail_id in answered:
+                work = pending.get(hail_id)
+                if hail_id in answered and work is None:
                     continue
                 brain = self.brains[role]
                 brain.observe_event(event)
-                proposal = brain.choose(
-                    CommandOption("Give an authoritative station status", "status"),
-                    alternative="Acknowledge request without unverified claims",
+                if work is None:
+                    proposal = brain.choose(
+                        CommandOption(
+                            "Give authoritative station status", "status",
+                        ),
+                        alternative="Acknowledge without unverified claims",
+                    )
+                    mode = proposal.verb if proposal.verb == "status" else "ack"
+                    work = {
+                        "role": role,
+                        "mode": mode,
+                        "hail_event_id": event["event_id"],
+                    }
+                    pending[hail_id] = work
+                    self.checkpoint()
+                if (work.get("role") != role
+                        or work.get("hail_event_id") != event["event_id"]
+                        or work.get("mode") not in ("status", "ack")):
+                    raise PermissionError("Recovered hail belongs to another recipient")
+                result = await WorkStepLedger(
+                    work, self.checkpoint, character_ids=self.ids,
+                ).run(
+                    "answer", role, "answer", "ship",
+                    DurableEvenniaPort(self.clients[role]),
+                    arguments={"hail_id": hail_id, "mode": work["mode"]},
+                    interrupt_at=interrupt_at,
                 )
-                mode = proposal.verb if proposal.verb == "status" else "ack"
-                await self.clients[role].send_line(
-                    f"oxanswer {hail_id} {mode}"
-                )
-                # Re-read the world-owned durable event before recording success.
-                result = await self.read_inbox(role)
-                confirmed = [e for e in result if e["kind"] == "hail_answered"
-                             and e["data"]["hail_id"] == hail_id]
-                if not confirmed:
-                    brain.record_unknown(proposal)
-                    raise RuntimeError("Hail answer unconfirmed by world")
-                brain.confirm(proposal, confirmed[-1])
+                if result.status != "succeeded":
+                    raise RuntimeError("World did not accept addressed hail")
+                verified = [
+                    e for e in await self.read_inbox(role)
+                    if e["kind"] == "hail_answered"
+                    and e["data"].get("hail_id") == hail_id
+                    and e["data"].get("mode") == work["mode"]
+                ]
+                if not verified:
+                    raise RuntimeError("Hail answer unconfirmed by world journal")
+                brain.observe_event(verified[-1])
                 answered.add(hail_id)
+                del pending[hail_id]
                 count += 1
                 self.checkpoint()
         return count
 
     async def serve(self) -> None:
         """Independent multi-source event dispatch; no idle model polling."""
-        if self.state["phase"] in ("unknown_isolate", "isolate_verified"):
+        if self.state["phase"] == "begin_alarm":
+            await self.begin()
+            await self.resume()
+        elif self.state["phase"] in ("unknown_isolate", "isolate_verified"):
             await self.resume()
         while True:
             # First reconcile world-owned pending duties on reconnect.
@@ -720,6 +875,46 @@ async def main_async(mode: str) -> None:
             print("OX_P4B_RESTORED_ENGINEER_RESOLVED_SECOND_INCIDENT")
         elif mode == "serve":
             await supervisor.serve()
+        elif mode.startswith("begin-radio-interrupt-"):
+            point = mode.removeprefix("begin-radio-interrupt-")
+            if point not in ("prepared", "committed", "ack"):
+                raise ValueError("Unsupported radio interruption point")
+            try:
+                await supervisor.begin(interrupt_at="radio:" + point)
+            except SimulatedWorkInterruption:
+                print("OX_P4I_RADIO_INTERRUPTED " + point)
+                return
+            raise RuntimeError("Radio interruption never occurred")
+        elif mode == "handover-once":
+            if not await supervisor.handover_if_due():
+                raise RuntimeError("No authorized posted handover was completed")
+            print("OX_P4I_HANDOVER_DONE")
+        elif mode.startswith("handover-interrupt-"):
+            parts = mode.removeprefix("handover-interrupt-").split("-")
+            if (len(parts) != 2
+                    or parts[0] not in ("offer", "accept")
+                    or parts[1] not in ("prepared", "committed", "ack")):
+                raise ValueError("Unsupported handover interruption point")
+            try:
+                await supervisor.handover_if_due(interrupt_at=":".join(parts))
+            except SimulatedWorkInterruption:
+                print("OX_P4I_HANDOVER_INTERRUPTED " + ":".join(parts))
+                return
+            raise RuntimeError("Handover interruption never occurred")
+        elif mode == "hails-once":
+            if not await supervisor.respond_to_hails():
+                raise RuntimeError("No authorized recipient hail was answered")
+            print("OX_P4I_HAIL_DONE")
+        elif mode.startswith("hails-interrupt-answer-"):
+            point = mode.removeprefix("hails-interrupt-answer-")
+            if point not in ("prepared", "committed", "ack"):
+                raise ValueError("Unsupported hail interruption point")
+            try:
+                await supervisor.respond_to_hails(interrupt_at="answer:" + point)
+            except SimulatedWorkInterruption:
+                print("OX_P4I_HAIL_INTERRUPTED " + point)
+                return
+            raise RuntimeError("Hail interruption never occurred")
         elif mode.startswith("resume-interrupt-"):
             parts = mode.removeprefix("resume-interrupt-").split("-")
             if (len(parts) != 2
@@ -743,11 +938,16 @@ async def main_async(mode: str) -> None:
 def main() -> None:
     import sys
     if (len(sys.argv) != 2
-            or not (sys.argv[1] in ("begin", "resume", "serve")
-                    or sys.argv[1].startswith("resume-interrupt-"))):
+            or not (sys.argv[1] in (
+                "begin", "resume", "serve", "handover-once", "hails-once",
+            )
+                    or any(sys.argv[1].startswith(prefix) for prefix in (
+                        "resume-interrupt-", "begin-radio-interrupt-",
+                        "handover-interrupt-", "hails-interrupt-answer-",
+                    )))):
         raise SystemExit(
             "Usage: python -m ox_ai.runtime.watch_service "
-            "begin|resume|serve|resume-interrupt-<stage>-<point>"
+            "begin|resume|serve|handover-once|hails-once|<stage>-interrupt-<point>"
         )
     asyncio.run(main_async(sys.argv[1]))
 

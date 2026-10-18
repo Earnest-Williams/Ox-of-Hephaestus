@@ -9,6 +9,32 @@ ACK across a handler restart. This is **not** deployed production software
 or proof of unconstrained multi-agent intelligence.
 [Current status](../../design/STATUS.md).
 
+## P4i bridge, watch and hail recovery (under validation)
+
+The three- and five-crew supervisors persist the bridge alarm's
+`begin_alarm` stage before attempting an `oxwork radio ship`. If
+the handler loses the radio acknowledgment or stops before its initial
+isolation, it resumes the same global request and validates the actual
+radio observation delivered to the current watch.
+
+Engineering handover and addressed player hails also use
+`WorkStepLedger` with original request IDs, world-owned
+`oxworkreceipt` reconciliation, and independent recipient-only evidence.
+The handler can stop before transmission or after the world commit
+without repeating the same decision as a new external action.
+`handover_work` and `hail_work` are private per-supervisor checkpoint
+entries; they do not grant world authority.
+
+CI-only entry points `begin-radio-interrupt-<point>`,
+`handover-interrupt-<offer|accept>-<point>` and
+`hails-interrupt-answer-<point>` simulate loss at
+`prepared`, `committed` and `ack` boundaries. The
+[real-server coordination tests](../../.github/workflows/ox-p4i-coordination-recovery.yml)
+exercise three separate full-server scenarios in isolated worlds.
+
+This stage does not convert cargo/environmental supervisor requests or
+guarantee PostgreSQL concurrent-writer isolation.
+
 ## P4h restartable pump-work supervisor
 
 P4h adds `src/ox_ai/runtime/work_steps.py`: a durable per-incident

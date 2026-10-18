@@ -10,6 +10,27 @@ This is not a
 deployed freighter or general social simulation.
 [Verified feature matrix](design/STATUS.md) · [Development setup](INSTALL.md).
 
+## P4i: restartable addressed crew coordination (proposed PR)
+
+The bridge now persists a `begin_alarm` incident before any radio relay,
+then issues that world-validated social operation using a stable `WorkStepLedger`
+ID. The next independent handler can reconcile the existing receipt and
+verify the precise addressed radio event before isolating equipment.
+
+Scheduled handover stores its original world-issued due observation and
+separate `offer` and `accept` work IDs. If interrupted after the
+world's watch transfer, it validates the independent receipt, both
+characters' addressed events and the posted roster rather than repeating
+the transfer. Recipient-private hails similarly retain their chosen
+bounded answer, actor identity, source hail and one work ID through
+process restarts. They are completed only after an addressed
+`hail_answered` event is independently replayed.
+
+Original `oxradio`, `oxhandover`, `oxaccept`, and `oxanswer` commands
+remain valid character interfaces; the supervisor uses the authenticated
+typed `oxwork` path for these persisted jobs. Specialist work still uses
+fixture-specific receipts and must migrate separately.
+
 ## P4h: restartable engineering work stages
 
 `services/ai-handler/src/ox_ai/runtime/work_steps.py` owns the handler's

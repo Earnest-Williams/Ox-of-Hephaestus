@@ -1,0 +1,124 @@
+name: Ox P4i radio handover and hail crash recovery
+
+on:
+  pull_request:
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-p4i-coordination-recovery.yml"
+  push:
+    branches: [main]
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-p4i-coordination-recovery.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  restartable-coordination:
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [radio, handover, hail]
+    env:
+      OX_SCENARIO: ${{ matrix.scenario }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install actual Evennia Concordia and handler transport
+        run: |
+          python -m pip install .
+          python -m pip install -e './services/ai-handler[concordia,transport]'
+          python -m compileall -q game services/ai-handler/src services/ai-handler/tests
+      - name: Generate disposable operator and bot credentials
+        shell: bash
+        run: |
+          TOKEN="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          OWNER="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          echo "::add-mask::$TOKEN"
+          echo "::add-mask::$OWNER"
+          echo "OX_PROBE_PASSWORD=$TOKEN" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_PASSWORD=$OWNER" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_USERNAME=OxTrialOwner" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_EMAIL=owner@example.invalid" >> "$GITHUB_ENV"
+      - name: Seed real world and private addressed duty
+        working-directory: game
+        shell: bash
+        run: |
+          evennia migrate --noinput
+          evennia shell --command="from world.transport_probe import provision; provision(); from world.live_crew import fixture_setup; fixture_setup(scheduled_clock=True)"
+          if [ "$OX_SCENARIO" = "handover" ]; then
+            evennia shell --command="from world.bootstrap import build_ship; from world.live_crew import emit; s=build_ship(); r=s['roster']; r.db.ox_handover_due=True; r.db.ox_world_minute=int(r.db.ox_handover_at); r.db.ox_handover_delay_seconds=None; emit(s['pump'],s['watch'],'handover_due',data={'minute':'475'},text='Posted engineering watch due'); emit(s['pump'],s['chief'],'handover_due',data={'minute':'475'},text='Posted engineering watch due'); print('OX_P4I_POSTED_DUTY_SEEDED')"
+          elif [ "$OX_SCENARIO" = "hail" ]; then
+            evennia shell --command="from world.bootstrap import build_ship; from world.crew_interaction import send_hail; s=build_ship(); assert send_hail(s['officer'],'iona','Please report your verified station status')[0]; print('OX_P4I_PRIVATE_HAIL_SEEDED')"
+          fi
+      - name: Start local server with character-authenticated socket
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd game && evennia start)
+          python - <<'PY'
+          import socket,time
+          for _ in range(90):
+              try:
+                  with socket.create_connection(("127.0.0.1",4002),timeout=1):
+                      break
+              except OSError:
+                  time.sleep(1)
+          else:
+              raise RuntimeError("External Evennia socket was not available")
+          PY
+          sleep 5
+      - name: Simulate dropped coordination ACKs across new handler processes
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$OX_SCENARIO" = "radio" ]; then
+            python -m ox_ai.runtime.watch_service begin-radio-interrupt-prepared
+            python -m ox_ai.runtime.watch_service begin-radio-interrupt-committed
+            python -m ox_ai.runtime.watch_service begin
+            python -m ox_ai.runtime.watch_service resume
+          elif [ "$OX_SCENARIO" = "handover" ]; then
+            python -m ox_ai.runtime.watch_service handover-interrupt-offer-prepared
+            python -m ox_ai.runtime.watch_service handover-interrupt-offer-committed
+            python -m ox_ai.runtime.watch_service handover-interrupt-accept-committed
+            python -m ox_ai.runtime.watch_service handover-once
+          elif [ "$OX_SCENARIO" = "hail" ]; then
+            python -m ox_ai.runtime.watch_service hails-interrupt-answer-prepared
+            python -m ox_ai.runtime.watch_service hails-interrupt-answer-committed
+            python -m ox_ai.runtime.watch_service hails-once
+          else
+            exit 2
+          fi
+      - name: Stop world before independent database checks
+        if: always()
+        working-directory: game
+        run: evennia stop || true
+      - name: Verify no duplicate event or social world effect
+        working-directory: game
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$OX_SCENARIO" = "radio" ]; then
+            evennia shell --command="from world.bootstrap import build_ship; from world.live_crew import inbox; from world.models import WorkReceipt; s=build_ship(); p=s['pump']; assert [e['operation'] for e in p.db.event_history]==['fault','isolate','repair','commission']; assert p.state=='normal' and p.db.ox_incident_closed; assert WorkReceipt.objects.filter(target='ship',operation='radio').count()==1; assert [e['kind'] for e in inbox(s['watch'])].count('radio_alert')==1; assert [e['kind'] for e in inbox(s['officer'])].count('incident_resolved')==1; print('OX_P4I_SINGLE_RELAY_AND_PUMP_CYCLE_PASS')"
+          elif [ "$OX_SCENARIO" = "handover" ]; then
+            evennia shell --command="from world.bootstrap import build_ship; from world.live_crew import inbox; from world.models import WorkReceipt; s=build_ship(); r=s['roster']; assert r.db.ox_active_engineer==s['chief'].dbref and not r.db.ox_handover_due; assert WorkReceipt.objects.filter(target='ship',operation='offer').count()==1; assert WorkReceipt.objects.filter(target='ship',operation='accept').count()==1; assert [e['kind'] for e in inbox(s['chief'])].count('handover_offer')==1; assert [e['kind'] for e in inbox(s['watch'])].count('watch_transferred')==1; assert [e['kind'] for e in inbox(s['chief'])].count('watch_transferred')==1; print('OX_P4I_SINGLE_WATCH_HANDOVER_PASS')"
+          else
+            evennia shell --command="from world.bootstrap import build_ship; from world.live_crew import inbox; from world.models import WorkReceipt; s=build_ship(); p=s['pump']; assert p.db.ox_hails['hail-0001']['state']=='answered'; assert WorkReceipt.objects.filter(target='ship',operation='answer').count()==1; assert [e['kind'] for e in inbox(s['chief'])].count('hail_answered')==1; assert [e['kind'] for e in inbox(s['officer'])].count('crew_reply')==1; print('OX_P4I_SINGLE_PRIVATE_HAIL_REPLY_PASS')"
+          fi
+      - name: Preserve synthetic handler diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-p4i-${{ matrix.scenario }}
+          path: |
+            .ox-state/p4b-supervisor.json
+          if-no-files-found: ignore
+          retention-days: 7
