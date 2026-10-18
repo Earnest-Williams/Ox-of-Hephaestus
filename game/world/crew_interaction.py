@@ -16,7 +16,11 @@ HAIL_ID = re.compile(r"hail-[0-9]{4,}")
 
 
 def _crew(ship):
-    return {"lin": ship["officer"], "ari": ship["watch"], "iona": ship["chief"]}
+    return {
+        "lin": ship["officer"], "ari": ship["watch"],
+        "iona": ship["chief"], "mara": ship["cargo"],
+        "teo": ship["environment"],
+    }
 
 
 def send_hail(actor, role: str, message: str) -> tuple[bool, str]:
@@ -25,8 +29,12 @@ def send_hail(actor, role: str, message: str) -> tuple[bool, str]:
     target = _crew(ship).get(role.strip().lower())
     message = message.strip()
     if target is None:
-        return False, "Unknown crew member; use lin, ari or iona."
-    if actor.location not in (ship["bridge"], ship["passage"], ship["engineering"]):
+        return False, "Unknown crew member; use lin, ari, iona, mara or teo."
+    if actor.location not in (
+        ship["bridge"], ship["passage"], ship["engineering"],
+        ship["cargo_hold"], ship["environmental"],
+        ship["mess"], ship["workshop"],
+    ):
         return False, "Shipboard communications are unavailable here."
     if actor == target:
         return False, "You cannot hail yourself."
@@ -79,11 +87,15 @@ def answer_hail(actor, hail_id: str, mode: str) -> tuple[bool, str]:
         if actor == ship["officer"] and actor.location == ship["bridge"]:
             # Remote BRIDGE telemetry is intentionally available to Lin only.
             answer = ship["console"].readout()
+        elif actor == ship["cargo"] and actor.location == ship["cargo_hold"]:
+            answer = ship["cradle"].readout()
+        elif actor == ship["environment"] and actor.location == ship["environmental"]:
+            answer = ship["scrubber"].readout()
         elif actor.location == ship["engineering"]:
             # The local sensor, not an agent's alleged belief, supplies facts.
             answer = pump.readout()
         else:
-            answer = "I cannot verify P-01 from my current station."
+            answer = "I cannot verify the requested station from here."
     elif mode == "ack":
         answer = "Your hail is received. I am continuing my posted duties."
     else:
