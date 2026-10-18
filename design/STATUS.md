@@ -23,7 +23,8 @@ feature inventories.
 | P4d — specialist ship departments | Tested and merged | [PR #17](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/17); seven compartments, cargo and atmosphere state machines, five persistent crew bodies, authority and inventory tests |
 | P4e — five independently autonomous crew | Tested and merged | [PR #19](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/19); two additional nonprivileged Concordia actors, world-confirmed cargo/environmental work and a lost-ACK cartridge-replacement gate |
 | P4f — indexed, paginated crew events | Tested and merged | [PR #22](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/22); world-owned indexed journal, schema-v2 recipient replay, safe legacy import, private handler checkpoints; all 14 applicable CI workflows passed before merge. |
-| P4g stage 1 — global world work receipts | Tested and merged | [PR #23](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/23); typed `oxwork` / `oxworkreceipt` interface, global actor-bound receipt IDs, transactional effects; all 15 applicable workflows passed. |\n| P4h — restartable pump stages | PR validation | World receipt IDs persisted before repair, request, independent approval, commissioning and resolution. Multiple killed external handler processes must reconcile the identical IDs without duplicate effects; does not cover arbitrary hail/handover crashes. |
+| P4g stage 1 — global world work receipts | Tested and merged | [PR #23](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/23); typed `oxwork` / `oxworkreceipt` interface, global actor-bound receipt IDs and transactional effects; all 15 applicable workflows passed. |
+| P4h — restartable pump stages | Tested and merged | [PR #24](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/24); exact work ID checkpointed for repair, request, independent approval, commissioning and resolution. Eight process launches across seven restarts and independent world-effect assertions passed; 14/14 workflows green. |
 | P5 — browser observatory | **Deferred / not built** | No browser UI, joined handler/world API, or operator dashboard |
 
 **Naming note:** the original Prototype 1 plan used “P4” for the first
@@ -102,14 +103,16 @@ recovery or general LLM-driven planning.
   commerce or high-fidelity life support. Propulsion, skill-by-use
   progression, wider schedules and the full freighter remain future work.
 - `serve` is a runnable runtime, **not a hosted deployment or a system
-  service**. A disposable CI trial demonstrates two incidents and one
-  unknown-isolation recovery; no long-duration soak test or production
-  operations guarantee exists.
-- **P-01, C-01 and A-01 physical actions** now have actor-bound,
-  equipment-specific durable receipts and recovery. Not every social
-  command is idempotent or crash-transactional. Arbitrary
-  mid-scene service restarts must fail closed until reconciliation logic is
-  added; they are not proven to resume every obligation automatically.
+  service**. Disposable CI trials cover two consecutive incidents and
+  seven sequential handler restarts across a separate pump cycle; no
+  long-duration soak test or production operations guarantee exists.
+- **P-01, C-01 and A-01 physical actions** have actor-bound durable
+  receipts, with a common typed world work ledger available. P4h adds
+  restartable repair, safety request, independent approval, commissioning
+  and resolution stages in the cooling supervisor. Initial alarm radio,
+  autonomous handover, player hails and specialist task stage bookkeeping
+  are not all migrated to the general restartable protocol. Full
+  mid-scene recovery remains an unmet G1 acceptance criterion.
 - Development account provisioning uses **disposable three- or five-bot
   fixtures** and a shared test credential. It is not a production account-management
   scheme. The prototype server binds to loopback and disables registration.

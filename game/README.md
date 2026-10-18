@@ -33,6 +33,23 @@ manufacturing, or skill-by-use progression**. The P4e supervisor runs
 five private cognitive agents; the original P4c three-crew supervisor
 remains available but must not be run simultaneously on the same ship.
 
+## P4h pump-work recovery across handler restarts (merged PR #24)
+
+A separately running three- or five-crew handler can restart after a
+world-confirmed pump repair, safety request, independent review,
+commissioning or incident resolution. The handler preserves each work
+request ID before sending it; after restart, it reconciles against the
+world's actor-bound receipt rather than inventing a second attempt.
+
+The [P4h Actions gate](../.github/workflows/ox-p4h-pump-recovery.yml)
+tests eight independent process launches across seven restarts, including an interrupted prepared
+request that is retried using its **original ID**, and verifies exact
+physical and private social event counts on the authoritative database.
+The first isolation still uses the legacy P4b receipt.
+
+This coverage does not yet extend to all autonomous handovers, hails,
+or specialist task bookkeeping.
+
 ## P4g typed shipboard work receipts (first stage)
 
 `oxwork <32-hex-id> <operation> <target> [hail-id response]`
@@ -220,12 +237,15 @@ character to a disposable specialty with `shiprole cargo` or
 compartment and inspect the equipment; the assignment does not authorize
 work remotely. Normal players cannot assign themselves a role this way.
 
-Developer-only synthetic faults and these specialist work verbs are
-available through ordinary game commands. **No AI operates Mara or Teo
-yet**, and cargo/scrubber commands do not yet have P-01's generic
-request-ID reconciliation. Competence labels in the fixture code are
-future skill hooks, not a live progression mechanism. See
-[the P4d implementation plan](../design/prototypes/p4d-ship-departments.md).
+Developer-only synthetic faults and specialist work verbs are
+available through ordinary game commands. This P4d world-physics section
+predates the P4e autonomous-specialist milestone: **Mara and Teo now have
+their own separate Concordia agents**, and C-01/A-01 have durable
+actor-bound receipts. P4g additionally offers a common typed work
+namespace; the existing five-crew supervisor still uses the compatible
+fixture-specific recovery path. Competence tags are future skill hooks,
+not a live skill progression mechanism. See
+[the P4d implementation history](../design/prototypes/p4d-ship-departments.md).
 
 ## Authenticated three-crew protocol (P3)
 
@@ -276,10 +296,10 @@ From a repository-root environment with Evennia installed:
 
 ~~~sh
 cd game
-evennia test world.tests.test_ship --verbosity=2
-evennia test world.tests.test_live_cooperation --verbosity=2
-evennia test world.tests.test_autonomy --verbosity=2
-evennia test world.tests.test_departments --verbosity=2
+python -m world.test_runner world.tests.test_ship --verbosity=2
+python -m world.test_runner world.tests.test_live_cooperation --verbosity=2
+python -m world.test_runner world.tests.test_autonomy --verbosity=2
+python -m world.test_runner world.tests.test_departments --verbosity=2
 ~~~
 
 Use `--verbosity=2`, not `-v 2` (Evennia reserves `-v` for version
@@ -319,7 +339,7 @@ as a control experiment, not the current handler architecture.
 After installing `./services/ai-handler[concordia]`, from `game/`:
 
 ~~~sh
-evennia test world.tests.test_agent_repair --verbosity=2
+python -m world.test_runner world.tests.test_agent_repair --verbosity=2
 evennia shell --command="from world.ai_repair import live_trial; live_trial()"
 ~~~
 
@@ -352,10 +372,12 @@ not automatically deployed by `evennia start`. Test provisioning in
 CI password and refuses to overwrite existing accounts. Do not use it
 as a production account registrar.
 
-Only pump operations currently have full world-authoritative durable
-receipts. Recovery from every possible mid-social-command crash is not
-established; the documented two-process test specifically proves
-unknown-isolation reconciliation. The browser observatory is deferred.
+All three major equipment systems have actor-bound durable world
+receipts. The shared `oxwork` command additionally supports typed social
+and equipment work requests, and the P4h supervisor persists original IDs
+across five consequential pump stages. The eight-process trial (seven restarts)
+proves those specific recovery paths, not every hail, handover, or specialist
+work interruption. The browser observatory remains deferred.
 
 See [setup](../INSTALL.md), [handler operations](../services/ai-handler/README.md),
 [P4 status](../design/STATUS.md) and [original P2 scenario](../scenarios/coolant_fault/README.md).

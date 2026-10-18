@@ -1,11 +1,12 @@
 # Ox of Hephaestus — architecture and authority boundaries
 
-**Current implementation:** P4a–P4e passed focused real-Evennia tests and
+**Current implementation:** P4a–P4h passed focused real-Evennia tests and
 are merged. Five separately authenticated native Concordia crew operate
 across a **seven-room, three-equipment-system ship**. The world validates
 cooling repairs, cargo work, atmospheric cartridge servicing, hails and
-duty transfer. The separate handler can recover an unknown committed
-cartridge replacement without duplicating inventory use. This is not a
+duty transfer. The separate handler recovers lost cartridge acknowledgments
+and can resume five consecutive pump-work stages across process interruptions.
+This is not a
 deployed freighter or general social simulation.
 [Verified feature matrix](design/STATUS.md) · [Development setup](INSTALL.md).
 
@@ -39,7 +40,11 @@ existing P3–P4e clients. World-side permission and physical-presence tests
 remain unchanged. A refused action is also a durable outcome and cannot
 later be retried under the same ID to acquire new authority.
 
-PR #23 merged this additive world protocol, but the independent handler\nstill needed a durable stage ledger. P4h uses that protocol for the pump's\nrepair, safety request, separate reviewer approval, commissioning and final\nresolution. Watch handovers, player hails, initial alarm radio and specialist\nfixtures still need migration to the same resumable work pattern.
+PR #23 merged the additive world protocol. PR #24 supplied a durable
+private handler stage ledger for pump repair, safety request, independent
+reviewer approval, commissioning and final resolution. Watch handovers,
+player hails, initial alarm radio and specialist work bookkeeping still
+need migration to the same resumable work pattern.
 
 ## P4f addressed, indexed world-event journal
 
@@ -205,8 +210,9 @@ separate OS process** after Evennia has committed an isolation but before
 its acknowledgment has been remembered. The new process reconciles the
 existing request ID; it never repeats that physical isolation. The
 verifier independently checks exactly two complete pump cycles in one
-persistent game database. This is **not** yet proof of recovery from
-every possible mid-scene interruption or of production 24/7 uptime.
+persistent game database. PR #24 separately tested repeated restarts at each later pump-work stage.
+Neither test proves recovery from every possible social or specialist
+interruption, or production 24/7 uptime.
 
 ## 5. Security and provenance
 
@@ -219,9 +225,10 @@ every possible mid-scene interruption or of production 24/7 uptime.
 - Test provisioning (`game/world/transport_probe.py`) intentionally uses
   throwaway bot accounts and is unsuitable for production identity
   management. Never commit keys or credentials.
-- Ox wire event IDs, physical request IDs, world event timestamps and
-  actor dbrefs support attribution; social commands do **not** all have
-  the same durable/transactional receipt guarantees as physical actions.
+- Ox wire event IDs, common world work receipts, game timestamps and
+  actor dbrefs support attribution. The typed social-work interface is
+  transactional, but the existing hail/handover supervisor paths have not
+  all been migrated to checkpointed intent and restart reconciliation.
 - Individual cognitive journals are private operator diagnostics, not
   authorized input for other crew or a public dashboard.
 
