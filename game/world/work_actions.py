@@ -66,6 +66,22 @@ def _arguments(operation: str, target: str, arguments: Mapping | None) -> dict:
         if arguments:
             raise ValueError("This shipboard work takes no extra arguments")
         return {}
+    if target == "inventory":
+        if operation not in (
+            "request_supply", "accept_supply", "collect_supply",
+            "deliver_supply",
+        ):
+            raise ValueError("Unknown supply workflow action")
+        if operation == "request_supply":
+            if arguments:
+                raise ValueError("Supply request does not accept custom arguments")
+            return {}
+        if set(arguments) != {"order_id"}:
+            raise ValueError("Handoff requires one world-owned order ID")
+        order_id = arguments["order_id"]
+        if not isinstance(order_id, str) or _REQUEST_ID.fullmatch(order_id) is None:
+            raise ValueError("Malformed world order identity")
+        return {"order_id": order_id}
     spec = _EQUIPMENT.get(target)
     if spec is None or operation not in spec[1] or arguments:
         raise ValueError("Unsupported equipment work or arguments")
@@ -126,7 +142,22 @@ def execute_work(
                 raise PermissionError("Request ID already belongs to other work")
             return dict(old.outcome)
 
-        if target != "ship":
+        if target == "inventory":
+            from world.supply import execute_supply
+            succeeded, source_event = execute_supply(
+                actor, request_id, operation, validated,
+            )
+            outcome = {
+                "request_id": request_id,
+                "actor_dbref": actor.dbref,
+                "operation": operation,
+                "target": target,
+                "status": "succeeded" if succeeded else "failed",
+                "reason": "world_accepted" if succeeded else "world_refused",
+                "source_event_id": source_event,
+                "game_time": float(gametime.gametime(absolute=True)),
+            }
+        elif target != "ship":
             fixture = find_fixture(_EQUIPMENT[target][0])
             if fixture is None:
                 raise RuntimeError("Requested equipment is absent")

@@ -118,6 +118,8 @@ class CmdOxWork(Command):
         oxwork <32-hex-id> <radio|request|approve|resolve|offer|accept> ship
         oxwork <32-hex-id> answer ship <hail-id> <status|ack|decline>
         oxwork <32-hex-id> <operation> <pump|cargo|scrubber>
+        oxwork <32-hex-id> request_supply inventory
+        oxwork <32-hex-id> <accept_supply|collect_supply|deliver_supply> inventory <order-id>
 
     Every command is checked again by the world. No client may grant its
     own work permission by offering a model-generated command.
@@ -131,14 +133,24 @@ class CmdOxWork(Command):
         from world.work_actions import execute_work
         parts = self.args.strip().split()
         usage = "Usage: oxwork <32-hex-id> <operation> <target> [hail-id mode]"
-        if (len(parts) not in (3, 5)
+        if (len(parts) not in (3, 4, 5)
                 or re.fullmatch(r"[0-9a-f]{32}", parts[0]) is None):
             self.caller.msg(usage)
             return
         request_id, operation, target = parts[:3]
         arguments = None
         if len(parts) == 5:
+            if target != "ship" or operation != "answer":
+                self.caller.msg(usage)
+                return
             arguments = {"hail_id": parts[3], "mode": parts[4]}
+        elif len(parts) == 4:
+            if target != "inventory" or operation not in (
+                "accept_supply", "collect_supply", "deliver_supply",
+            ):
+                self.caller.msg(usage)
+                return
+            arguments = {"order_id": parts[3]}
         try:
             result = execute_work(
                 self.caller, request_id, operation, target,

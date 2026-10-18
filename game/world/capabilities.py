@@ -18,6 +18,11 @@ _NONCE = re.compile(r"[0-9a-f]{32}")
 _COMMAND = re.compile(r"[a-zA-Z][a-zA-Z0-9 _-]{0,63}")
 
 
+def _local_spares(scrubber):
+    from world.supply import total_local_spares
+    return total_local_spares(scrubber)
+
+
 def local_capabilities(actor, nonce: str) -> dict:
     """Return only exits and fixture actions visible to this character."""
     if (actor is None or not isinstance(getattr(actor, "dbref", None), str)
@@ -73,7 +78,7 @@ def local_capabilities(actor, nonce: str) -> dict:
             if obj._authorized(actor, "environment_tech"):
                 if obj.state == "saturated" and obj._fresh_inspection(actor):
                     operations.append("isolate")
-                elif obj.state == "isolated" and int(obj.db.spare_cartridges or 0) > 0:
+                elif obj.state == "isolated" and _local_spares(obj) > 0:
                     operations.append("replace")
                 elif obj.state == "serviced" and obj._fresh_inspection(actor):
                     operations.append("restart")

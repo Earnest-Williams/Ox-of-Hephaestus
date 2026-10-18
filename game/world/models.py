@@ -50,3 +50,62 @@ class WorkReceipt(models.Model):
                 name="ox_work_actor_time",
             ),
         ]
+
+
+class InventoryItem(models.Model):
+    """One serialised physical consumable; exactly one place/carrier or used.
+
+    Individual item rows make single-unit scarcity and transfer inspectable.
+    No AI-authored claim can change this table. Consumed rows remain durable
+    conservation evidence instead of disappearing from the count.
+    """
+
+    item_id = models.CharField(max_length=48, primary_key=True)
+    kind = models.CharField(max_length=48)
+    state = models.CharField(max_length=16, default="stored")
+    location_dbref = models.CharField(max_length=32, null=True)
+    carrier_dbref = models.CharField(max_length=32, null=True)
+    reserved_order_id = models.CharField(max_length=32, null=True)
+    consumed_by_dbref = models.CharField(max_length=32, null=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["kind", "state", "location_dbref"],
+                         name="ox_inventory_location"),
+            models.Index(fields=["carrier_dbref", "state"],
+                         name="ox_inventory_carrier"),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                name="ox_inventory_one_location",
+                condition=(
+                    models.Q(state="stored", location_dbref__isnull=False,
+                             carrier_dbref__isnull=True)
+                    | models.Q(state="carried", location_dbref__isnull=True,
+                               carrier_dbref__isnull=False)
+                    | models.Q(state="consumed", location_dbref__isnull=True,
+                               carrier_dbref__isnull=True)
+                ),
+            ),
+        ]
+
+
+class SupplyOrder(models.Model):
+    """World-owned interdepartment dependency, not agent-private agenda."""
+
+    order_id = models.CharField(max_length=32, primary_key=True)
+    item_kind = models.CharField(max_length=48)
+    requester_dbref = models.CharField(max_length=32)
+    assigned_dbref = models.CharField(max_length=32)
+    delivery_room_dbref = models.CharField(max_length=32)
+    status = models.CharField(max_length=20)
+    item_id = models.CharField(max_length=48, null=True)
+    created_game_time = models.FloatField()
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["assigned_dbref", "status"],
+                         name="ox_supply_assignee"),
+            models.Index(fields=["requester_dbref", "status"],
+                         name="ox_supply_requester"),
+        ]
