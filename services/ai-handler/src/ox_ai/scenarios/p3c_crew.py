@@ -44,7 +44,10 @@ async def next_event(client, expected: str, memory: list[dict],
                     secret = os.environ.get("OX_PROBE_PASSWORD", "")
                     if secret:
                         safe = safe.replace(secret, "[REDACTED]")
-                    safe_text_samples.append(re.sub(r"\s+", " ", safe)[:170])
+                    lines = [line.strip() for line in safe.splitlines() if line.strip()]
+                    diagnostic = (lines[-1] if "Traceback" in safe and lines
+                                  else re.sub(r"\s+", " ", safe)[:170])
+                    safe_text_samples.append(diagnostic[:260])
                 if packet.kind != "ox_event":
                     continue
                 if len(packet.args) == 1 and isinstance(packet.args[0], str):
