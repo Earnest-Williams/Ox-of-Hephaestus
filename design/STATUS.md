@@ -18,7 +18,7 @@ feature inventories.
 | P4a — native Concordia across three live crew | Tested and merged | [PR #13](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/13); per-character Concordia entities, finite decisions, MockModel used in CI |
 | P4b — ongoing watch supervisor and repeated incident | Tested and merged | [PR #14](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/14); Evennia duty Script, changed active engineer, two real pump incidents, two-process recovery |
 | P4c — unattended event dispatch and player hails | Tested and merged | [PR #16](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/16); one continuous supervisor processes pump repair, world-timed watch handover and an addressed human hail |
-| P4d — specialist ship departments | Tested in P4d CI / PR pending merge | [PR #17](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/17); seven compartments, cargo and atmosphere state machines, five persistent crew bodies, authority and inventory tests |
+| P4d — specialist ship departments | Tested and merged | [PR #17](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/17); seven compartments, cargo and atmosphere state machines, five persistent crew bodies, authority and inventory tests |
 | P5 — browser observatory | **Deferred / not built** | No browser UI, joined handler/world API, or operator dashboard |
 
 **Naming note:** the original Prototype 1 plan used “P4” for the first
