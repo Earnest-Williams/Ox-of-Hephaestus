@@ -33,4 +33,5 @@ jobs:
         run: |
           python -c "from concordia.agents.entity_agent_with_logging import EntityAgentWithLogging; print('Concordia API available:', EntityAgentWithLogging)"
           python -m unittest discover -s services/ai-handler/tests -p 'test_concordia_*.py' -v
+          python -m unittest discover -s services/ai-handler/tests -p 'test_character_factory.py' -v
           python services/ai-handler/examples/one_engineer.py

@@ -62,6 +62,7 @@ class CrewAgent:
         model: Any,
         *,
         journal_path: Path | None = None,
+        blueprint: Any | None = None,
     ) -> None:
         """Construct the Concordia component graph around a supplied model.
 
@@ -77,6 +78,13 @@ class CrewAgent:
         from concordia.components.agent import observation
 
         self.identity = identity
+        if blueprint is not None:
+            from ox_ai.agents.crew_blueprints import CrewBlueprint
+            if not isinstance(blueprint, CrewBlueprint):
+                raise TypeError("Blueprint must be a validated CrewBlueprint")
+            if identity.agent_id != f"ox.person.{blueprint.person_id}" or identity.name != blueprint.name:
+                raise PermissionError("Blueprint identity does not match this agent")
+        self.blueprint = blueprint
         self.usage = MeteredModel(model)
         self._journal_path = Path(journal_path) if journal_path else None
         self._revision = 0
@@ -103,6 +111,11 @@ class CrewAgent:
             ),
             memory.DEFAULT_MEMORY_COMPONENT_KEY: memory.ListMemory([]),
         }
+        if blueprint is not None:
+            components["CharacterProfile"] = constant.Constant(
+                state=blueprint.cognition_context(),
+                pre_act_label="Individual behavioural tendencies (not authority)",
+            )
         self._entity = EntityAgentWithLogging(
             agent_name=identity.name,
             act_component=concat_act_component.ConcatActComponent(
@@ -272,6 +285,7 @@ class CrewAgent:
         return {
             "checkpoint_version": self.CHECKPOINT_VERSION,
             "identity": asdict(self.identity),
+            **({"character_blueprint": self.blueprint.to_record()} if self.blueprint is not None else {}),
             "revision": self._revision,
             "seen_observations": sorted(self._seen_observations),
             "last_game_time": self._last_game_time,
@@ -315,10 +329,15 @@ class CrewAgent:
         checkpoint = json.loads(Path(path).read_text(encoding="utf-8"))
         if checkpoint.get("checkpoint_version") != cls.CHECKPOINT_VERSION:
             raise ValueError("Unsupported crew checkpoint version")
+        blueprint = None
+        if "character_blueprint" in checkpoint:
+            from ox_ai.agents.crew_blueprints import CrewBlueprint
+            blueprint = CrewBlueprint.from_record(checkpoint["character_blueprint"])
         crew = cls(
             CrewIdentity(**checkpoint["identity"]),
             model,
             journal_path=journal_path,
+            blueprint=blueprint,
         )
         crew._entity.set_state(checkpoint["concordia_state"])
         crew._revision = checkpoint["revision"]
