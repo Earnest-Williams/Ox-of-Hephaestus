@@ -162,20 +162,27 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
             if item and item["status"] == "offered":
                 effects = finished.get("world_effects") or []
                 if not effects:
-                    raise RuntimeError("Legacy completion has no world action receipts")
-                agenda.set_status(
-                    item["task_id"], "accepted",
-                    reason="historical_world_confirmed_obligation",
-                )
-                agenda.set_status(
-                    item["task_id"], "in_progress",
-                    reason="historical_world_confirmed_work",
-                )
-                agenda.set_status(
-                    item["task_id"], "completed",
-                    reason="historical_verified_specialist_receipts",
-                    effects=effects,
-                )
+                    # A P4e job could be discarded after observing that a
+                    # human had already restored the equipment. That is not
+                    # this AI's world-confirmed success.
+                    agenda.set_status(
+                        item["task_id"], "declined",
+                        reason="historic_alarm_already_resolved_by_world",
+                    )
+                else:
+                    agenda.set_status(
+                        item["task_id"], "accepted",
+                        reason="historical_world_confirmed_obligation",
+                    )
+                    agenda.set_status(
+                        item["task_id"], "in_progress",
+                        reason="historical_world_confirmed_work",
+                    )
+                    agenda.set_status(
+                        item["task_id"], "completed",
+                        reason="historical_verified_specialist_receipts",
+                        effects=effects,
+                    )
                 changed = True
         if changed:
             self.checkpoint()
@@ -528,6 +535,27 @@ async def run(mode: str) -> None:
                 print("OX_P4J_SPECIALIST_INTERRUPTED " + ":".join(parts[1:]))
                 return
             raise RuntimeError("Requested specialist interruption did not occur")
+        if mode == "agenda-pause-cargo":
+            progressed = await supervisor._advance_job(
+                "mara", stop_after="restow",
+            )
+            job = supervisor.state["specialist_jobs"]["mara"]
+            if not progressed or job is None or job["index"] != 2:
+                raise RuntimeError("Cargo pause did not stop after real restow")
+            print("OX_G2_CARGO_PAUSED_AFTER_WORLD_RESTOW")
+            return
+        if mode == "agenda-once":
+            progressed = await supervisor.service_departments()
+            print("OX_G2_AGENDA_STEP", progressed)
+            return
+        if mode == "agenda-finish":
+            for attempt in range(12):
+                if not await supervisor.service_departments():
+                    break
+            else:
+                raise RuntimeError("Agenda dispatch exceeded bounded wake cycle")
+            print("OX_G2_AGENDA_DRAINED")
+            return
         if mode.startswith("finish-"):
             role = mode.removeprefix("finish-")
             if role not in EXTRA_ACCOUNTS:
@@ -545,12 +573,15 @@ async def run(mode: str) -> None:
 
 def main() -> None:
     if (len(sys.argv) != 2
-            or not (sys.argv[1] in ("serve", "drop-replace-ack")
+            or not (sys.argv[1] in (
+                "serve", "drop-replace-ack",
+                "agenda-pause-cargo", "agenda-once", "agenda-finish",
+            )
                     or sys.argv[1].startswith("interrupt-")
                     or sys.argv[1].startswith("finish-"))):
         raise SystemExit(
             "Usage: python -m ox_ai.runtime.five_crew_service "
-            "serve|drop-replace-ack|interrupt-<role>-<op>-<point>|finish-<role>"
+            "serve|drop-replace-ack|agenda-pause-cargo|agenda-once|agenda-finish|"\n            "interrupt-<role>-<op>-<point>|finish-<role>"
         )
     asyncio.run(run(sys.argv[1]))
 
