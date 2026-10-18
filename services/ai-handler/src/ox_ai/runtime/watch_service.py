@@ -21,6 +21,8 @@ import tempfile
 import uuid
 
 from ox_ai.agents.crew import CommandOption
+from ox_ai.runtime.cognition_scheduler import DecisionScheduler
+from ox_ai.runtime.supervisor_lease import SupervisorLease
 from ox_ai.agents.live_concordia import (
     LiveCrewBrain, build_live_brains, make_model,
 )
@@ -200,6 +202,17 @@ class CrewWatchSupervisor:
             raise RuntimeError("Incompatible handler checkpoint format")
         self.brains = self._restore_brains()
         self.memories: dict[str, list[dict]] = {role: [] for role in self.clients}
+        self.cognition = DecisionScheduler(
+            max_parallel=int(os.getenv("OX_MAX_PARALLEL_COGNITION", "2")),
+            per_actor_budget=int(os.getenv("OX_COGNITION_ACTOR_BUDGET", "500")),
+            total_budget=int(os.getenv("OX_COGNITION_TOTAL_BUDGET", "2500")),
+            timeout_seconds=float(os.getenv("OX_COGNITION_TIMEOUT_SECONDS", "25")),
+        )
+        # All supervisor variants lock the same stable file inode before
+        # opening ordinary world sessions or performing any work.
+        self.lease = SupervisorLease(
+            ROOT / "supervisor.lock", owner=type(self).__name__,
+        )
 
     def _restore_brains(self) -> dict[str, LiveCrewBrain]:
         restored = {}
@@ -224,13 +237,32 @@ class CrewWatchSupervisor:
         atomic_json(self.state_path, self.state)
 
     async def open(self) -> None:
-        for client in self.clients.values():
-            await client.open()
+        self.lease.acquire()
+        try:
+            for client in self.clients.values():
+                await client.open()
+        except BaseException:
+            await self.close()
+            raise
 
     async def close(self) -> None:
-        await asyncio.gather(
-            *(client.close() for client in self.clients.values()),
-            return_exceptions=True,
+        try:
+            await asyncio.gather(
+                *(client.close() for client in self.clients.values()),
+                return_exceptions=True,
+            )
+        finally:
+            self.lease.release()
+
+    async def choose(
+        self, role: str, primary: CommandOption, *, alternative: str,
+    ):
+        """Cognition happens on an independent snapshot; no blocking LLM I/O."""
+        self.lease.assert_held()
+        if role not in self.brains or role not in self.clients:
+            raise PermissionError("Cannot schedule thought for an unknown actor")
+        return await self.cognition.choose(
+            role, self.brains[role], primary, alternative=alternative,
         )
 
     async def read_inbox(self, role: str) -> list[dict]:
@@ -359,7 +391,7 @@ class CrewWatchSupervisor:
         worker = self.clients[active]
 
         async def propose_radio() -> None:
-            proposal = brain.choose(
+            proposal = await self.choose("lin", 
                 CommandOption(
                     "Relay verified bridge alarm to the posted watch", "oxradio",
                 ),
@@ -394,7 +426,7 @@ class CrewWatchSupervisor:
         engineer.observe_local("Physical engineering inspection", local)
         if "LOW PRESSURE" not in local:
             raise RuntimeError("No current fault verified at physical pump")
-        choose = engineer.choose(
+        choose = await self.choose(active, 
             CommandOption("Execute verified GOAP isolation", "goap"),
             alternative="Defer physical isolation and request assistance",
         )
@@ -489,7 +521,7 @@ class CrewWatchSupervisor:
                 raise RuntimeError("World repair receipt disagrees with local state")
 
         async def prepare_request() -> None:
-            ask = engineer.choose(
+            ask = await self.choose(active, 
                 CommandOption("Request separate safety inspection", "oxrequest"),
                 alternative="Keep repaired equipment isolated",
             )
@@ -515,7 +547,7 @@ class CrewWatchSupervisor:
         inspecting.observe_event(requested)
 
         async def prepare_approval() -> None:
-            choice = inspecting.choose(
+            choice = await self.choose(reviewer, 
                 CommandOption(
                     "Perform independent local safety inspection", "inspect_pump",
                 ),
@@ -527,7 +559,7 @@ class CrewWatchSupervisor:
             inspecting.selected_procedure(choice)
             if "REPAIRED" not in reading:
                 raise RuntimeError("Reviewer cannot verify repaired pump")
-            consent = inspecting.choose(
+            consent = await self.choose(reviewer, 
                 CommandOption(
                     "Authorize commissioning after inspection", "oxapprove",
                 ),
@@ -571,7 +603,7 @@ class CrewWatchSupervisor:
             engineer.observe_local("Post-commission inspection", reading)
             if "NORMAL" not in reading:
                 raise RuntimeError("Pressure not independently verified normal")
-            closing = engineer.choose(
+            closing = await self.choose(active, 
                 CommandOption(
                     "Report physically verified resolution", "oxresolve",
                 ),
@@ -675,7 +707,7 @@ class CrewWatchSupervisor:
         iona = self.brains["iona"]
 
         if "offer" not in ledger.steps:
-            proposal = ari.choose(
+            proposal = await self.choose("ari", 
                 CommandOption("Offer posted watch at due time", "oxhandover"),
                 alternative="Defer handover for an unresolved safety concern",
             )
@@ -703,7 +735,7 @@ class CrewWatchSupervisor:
         iona.observe_event(offered)
 
         if "accept" not in ledger.steps:
-            proposal = iona.choose(
+            proposal = await self.choose("iona", 
                 CommandOption("Accept scheduled engineering watch", "oxaccept"),
                 alternative="Decline to assume the scheduled watch",
             )
@@ -751,71 +783,91 @@ class CrewWatchSupervisor:
     async def respond_to_hails(
         self, *, interrupt_at: str | None = None,
     ) -> int:
-        """Resume each addressed hail using a saved typed world-work request.
+        """Process independent recipients concurrently, never sharing a mind.
 
-        The handler never reinterprets an already-persisted answer as a new
-        model decision. World-owned `hail_answered` is required as evidence
-        before private intent may be cleared from the supervisor checkpoint.
+        Each ordinary character has its own authenticated socket, so a slow
+        model response for one crew member cannot delay another crew member's
+        hail response. Every physical/social effect still uses its own
+        source-addressed receipt and persisted WorkStepLedger.
         """
+        completed = await asyncio.gather(
+            *(
+                self._answer_role_hails(role, interrupt_at=interrupt_at)
+                for role in self.clients
+            ),
+            return_exceptions=True,
+        )
+        # Do not abandon other actors' in-flight durable work after one
+        # provider failure; wait until each has either settled or failed.
+        for result in completed:
+            if isinstance(result, BaseException):
+                raise result
+        return sum(completed)
+
+    async def _answer_role_hails(
+        self, role: str, *, interrupt_at: str | None = None,
+    ) -> int:
+        self.lease.assert_held()
+        if role not in self.clients or role not in self.brains:
+            raise PermissionError("Cannot handle another character's hails")
         count = 0
         pending = self.state.setdefault("hail_work", {})
-        for role in self.clients:
-            events = await self.read_inbox(role)
-            answered = {
-                e["data"]["hail_id"] for e in events
-                if e["kind"] == "hail_answered"
-            }
-            for event in events:
-                if event["kind"] != "crew_hail":
-                    continue
-                hail_id = event["data"]["hail_id"]
-                work = pending.get(hail_id)
-                if hail_id in answered and work is None:
-                    continue
-                brain = self.brains[role]
-                brain.observe_event(event)
-                if work is None:
-                    proposal = brain.choose(
-                        CommandOption(
-                            "Give authoritative station status", "status",
-                        ),
-                        alternative="Acknowledge without unverified claims",
-                    )
-                    mode = proposal.verb if proposal.verb == "status" else "ack"
-                    work = {
-                        "role": role,
-                        "mode": mode,
-                        "hail_event_id": event["event_id"],
-                    }
-                    pending[hail_id] = work
-                    self.checkpoint()
-                if (work.get("role") != role
-                        or work.get("hail_event_id") != event["event_id"]
-                        or work.get("mode") not in ("status", "ack")):
-                    raise PermissionError("Recovered hail belongs to another recipient")
-                result = await WorkStepLedger(
-                    work, self.checkpoint, character_ids=self.ids,
-                ).run(
-                    "answer", role, "answer", "ship",
-                    DurableEvenniaPort(self.clients[role]),
-                    arguments={"hail_id": hail_id, "mode": work["mode"]},
-                    interrupt_at=interrupt_at,
+        events = await self.read_inbox(role)
+        answered = {
+            e["data"]["hail_id"] for e in events
+            if e["kind"] == "hail_answered"
+        }
+        for event in events:
+            if event["kind"] != "crew_hail":
+                continue
+            hail_id = event["data"]["hail_id"]
+            work = pending.get(hail_id)
+            if hail_id in answered and work is None:
+                continue
+            brain = self.brains[role]
+            brain.observe_event(event)
+            if work is None:
+                proposal = await self.choose(role, 
+                    CommandOption(
+                        "Give authoritative station status", "status",
+                    ),
+                    alternative="Acknowledge without unverified claims",
                 )
-                if result.status != "succeeded":
-                    raise RuntimeError("World did not accept addressed hail")
-                verified = [
-                    e for e in await self.read_inbox(role)
-                    if e["kind"] == "hail_answered"
-                    and e["data"].get("hail_id") == hail_id
-                    and e["data"].get("mode") == work["mode"]
-                ]
-                if not verified:
-                    raise RuntimeError("Hail answer unconfirmed by world journal")
-                brain.observe_event(verified[-1])
-                answered.add(hail_id)
-                del pending[hail_id]
-                count += 1
+                mode = proposal.verb if proposal.verb == "status" else "ack"
+                work = {
+                    "role": role,
+                    "mode": mode,
+                    "hail_event_id": event["event_id"],
+                }
+                pending[hail_id] = work
                 self.checkpoint()
+            if (work.get("role") != role
+                    or work.get("hail_event_id") != event["event_id"]
+                    or work.get("mode") not in ("status", "ack")):
+                raise PermissionError("Recovered hail belongs to another recipient")
+            result = await WorkStepLedger(
+                work, self.checkpoint, character_ids=self.ids,
+            ).run(
+                "answer", role, "answer", "ship",
+                DurableEvenniaPort(self.clients[role]),
+                arguments={"hail_id": hail_id, "mode": work["mode"]},
+                interrupt_at=interrupt_at,
+            )
+            if result.status != "succeeded":
+                raise RuntimeError("World did not accept addressed hail")
+            verified = [
+                e for e in await self.read_inbox(role)
+                if e["kind"] == "hail_answered"
+                and e["data"].get("hail_id") == hail_id
+                and e["data"].get("mode") == work["mode"]
+            ]
+            if not verified:
+                raise RuntimeError("Hail answer unconfirmed by world journal")
+            brain.observe_event(verified[-1])
+            answered.add(hail_id)
+            del pending[hail_id]
+            count += 1
+            self.checkpoint()
         return count
 
     async def serve(self) -> None:

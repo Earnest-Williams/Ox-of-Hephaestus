@@ -10,6 +10,32 @@ This is not a
 deployed freighter or general social simulation.
 [Verified feature matrix](design/STATUS.md) · [Development setup](INSTALL.md).
 
+## G2b: nonblocking per-agent cognition and process exclusion (PR #33)
+
+The handler now uses a `DecisionScheduler` for ordinary role-bound Concordia
+choices. The main asyncio loop never runs synchronous provider inference.
+Instead, each decision starts from a deep-copied per-character native Concordia
+snapshot, executed in a bounded worker thread. Actual private observations can
+still be ingested on the live mind. A changed observation revision rejects the
+detached result; only a valid current result can become a pending *proposal*.
+Neither the fork nor scheduler can submit world actions.
+
+At most two inference calls are in flight by default, with independent
+per-character single-flight reservations, timeouts and hourly admission quotas.
+Timeouts fail closed and quarantine the outstanding actor until its provider
+worker finishes; Python cannot forcibly interrupt a synchronous running model.
+This requires explicit transport timeouts. Concurrent hails are handled over
+separate character sockets and retain the world-owned global WorkReceipt
+reconciliation. Consequential physical work remains serialized by existing
+world-grounded duties and the world's rules.
+
+The three-person and five-person controllers now acquire the SAME stable POSIX
+lock file in `.ox-state/supervisor.lock` before logging into Evennia. A second
+controller on that host is denied; crash releases the kernel-managed lock.
+The recorded epoch is diagnostic only. There is **no distributed/world-enforced
+fencing yet**, so this architecture must not be deployed as multiple hosts
+controlling the same ship. [Tests and scope](design/prototypes/g2-nonblocking-cognition.md).
+
 ## G2a: persistent, actor-bound crew agendas (merged PR #29)
 
 `services/ai-handler/src/ox_ai/runtime/crew_agenda.py` introduces one

@@ -382,7 +382,7 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
                     stage = f"{base_stage}-retry-{generation}"
                     self.checkpoint()
                 if stage not in ledger.steps:
-                    choice = brain.choose(
+                    choice = await self.choose(role, 
                         CommandOption(
                             f"Perform verified {operation} on local {target}",
                             operation + "_" + target,

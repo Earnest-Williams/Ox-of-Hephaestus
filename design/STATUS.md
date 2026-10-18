@@ -5,7 +5,7 @@ Ox-specific documentation. Earlier ADRs and P2/P3 scenario documents preserve
 the design and acceptance criteria of those milestones; they are not live
 feature inventories.
 
-**Forward plan (later milestones not implemented):** [reliability-to-autonomy roadmap](ROADMAP.md) and [ADR 0009](decisions/0009-durable-events-and-work.md). Phase 0 planning merged in [PR #21](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/21). GitHub Issues were disabled when tracking was attempted.
+**Forward plan (remaining milestones):** [reliability-to-autonomy roadmap](ROADMAP.md) and [ADR 0009](decisions/0009-durable-events-and-work.md). Phase 0 planning merged in [PR #21](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/21). GitHub Issues were disabled when tracking was attempted.
 
 ## Verified implementation
 
@@ -30,6 +30,7 @@ feature inventories.
 | G1-PG — independent PostgreSQL concurrency gate | Tested and merged | [PR #28](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/28); real PostgreSQL 16, two distinct writer connections, identical-ID and last-cartridge races, row-lock blocking and transaction rollback; 17/17 workflows passed. |
 | G2a — persistent crew agendas | Tested and merged | [PR #29](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/29); five character-bound private agenda records, specialist priority interruption and evidence-triggered reconsideration after a world-blocked replacement. Pure agenda invariants and both independent live-server scenarios passed; all 17 applicable workflows green. |
 | G2 character foundations — reusable personalities | Character factory merged; cognition probes in PR #32 | [PR #31](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/31) introduced versioned, composable per-person blueprints; [PR #32](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/32) adds optional live-role binding and **offline** identical-observation decision probes. MockModel is deliberately not personality-sensitive; no new world permissions or recruitment mechanics. |
+| G2b — nonblocking cognition and supervisor exclusion | Implementation in PR #33; CI acceptance pending | [PR #33](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/33): detached Concordia inference, per-agent serialization and revision checks, global bounded parallelism, timeout quarantine, hourly quotas, independent recipient hail work, and a single-host lease shared by both handler variants. No world-enforced multi-host fencing. |
 | P5 — browser observatory | **Deferred / not built** | No browser UI, joined handler/world API, or operator dashboard |
 
 **Naming note:** the original Prototype 1 plan used “P4” for the first

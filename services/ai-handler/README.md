@@ -9,6 +9,31 @@ ACK across a handler restart. This is **not** deployed production software
 or proof of unconstrained multi-agent intelligence.
 [Current status](../../design/STATUS.md).
 
+## G2b isolated nonblocking cognition (PR #33)
+
+The three- and five-crew handler supervisors now ask Concordia to choose via
+`await self.choose(...)`, with a `DecisionScheduler` running native
+synchronous LLM calls against a **detached per-agent snapshot**, off the
+asyncio I/O loop. A new private observation on the live agent invalidates the
+older response; only a still-current, identity-bound proposed action is
+adopted. No inference worker has world command or database access.
+
+The scheduler limits global concurrent model calls, one worker per character,
+inference deadlines, hourly quotas and safe failure. Timed-out threads are
+quarantined until their provider finishes. Addressed hails from different
+characters can progress concurrently on separate authenticated sockets, with
+ordinary durable social-action receipts. Actual repair and inspection
+sequencing remains tied to existing world-grounded duties.
+
+**Single-host control:** both supervisor entry points use a common POSIX
+`.ox-state/supervisor.lock` acquired before socket login. Starting another
+three- or five-crew controller on the same host is refused. This does NOT
+provide remote-host/distributed fencing or guarantee an immediate stop for a
+blocking Python thread.
+
+See [G2b design and evidence](../../design/prototypes/g2-nonblocking-cognition.md)
+and the [new CI workflow](../../.github/workflows/ox-g2-nonblocking-cognition.yml).
+
 ## G2a event-triggered private crew agendas (merged PR #29)
 
 Each of the five independent characters now owns a separate
@@ -39,8 +64,9 @@ the world physically resupplies and addresses Teo.
 **Scope:** The agenda data structure is generic across all five agents,
 but actual automatic work creation is currently integrated only into the
 two specialist jobs. Time-based due dates, independent goal selection,
-delegation/escalation communications, and nonblocking hosted inference
-remain future G2 work. Never treat the private status `completed`
+delegation/escalation communications and independent goal selection remain
+future G2 work. G2b adds nonblocking *choice inference* without implementing
+open-ended parallel physical action scheduling. Never treat the private status `completed`
 as proof without the corresponding world-authoritative action receipts.
 
 ## P4j globally receipted cargo and environmental work (merged PR #27)

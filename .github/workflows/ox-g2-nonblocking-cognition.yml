@@ -1,0 +1,49 @@
+name: Ox G2 nonblocking cognition and single-host supervisor exclusion
+
+on:
+  pull_request:
+    paths:
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-g2-nonblocking-cognition.yml"
+  push:
+    branches: [main]
+    paths:
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-g2-nonblocking-cognition.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lease-and-scheduler-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install standalone handler
+        run: python -m pip install -e ./services/ai-handler
+      - name: Validate source and POSIX cross-process controller exclusion
+        run: |
+          python -m compileall -q services/ai-handler/src services/ai-handler/tests
+          python -m unittest discover -s services/ai-handler/tests -p 'test_supervisor_lease.py' -v
+          python -m unittest discover -s services/ai-handler/tests -p 'test_cognition_scheduler.py' -v
+
+  native-cognition-competition:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pinned native Concordia and handler
+        run: python -m pip install -e './services/ai-handler[concordia]'
+      - name: Prove actual detached Concordia choices remain scoped
+        run: |
+          python -m unittest discover -s services/ai-handler/tests -p 'test_cognition_scheduler.py' -v
+          python -m unittest discover -s services/ai-handler/tests -p 'test_character_factory.py' -v
+          python -m unittest discover -s services/ai-handler/tests -p 'test_profile_decision_trials.py' -v
