@@ -10,6 +10,8 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
+from html import unescape
 from pathlib import Path
 import uuid
 
@@ -28,12 +30,21 @@ async def next_event(client, expected: str, memory: list[dict],
                      *, timeout: float = 25.0) -> dict:
     """Wait for legitimate, recipient-scoped world observations only."""
     received_types = []
+    safe_text_samples = []
     seen = {event.get("event_id") for event in memory}
     try:
         async with asyncio.timeout(timeout):
             for _ in range(128):
                 packet = await client.receive()
                 received_types.append(packet.kind[:32])
+                if packet.kind == "text" and len(safe_text_samples) < 3:
+                    # Only synthetic CI observations; redact known secret
+                    # before including a bounded diagnostic snippet.
+                    safe = re.sub(r"<[^>]*>", "", unescape(packet.text))
+                    secret = os.environ.get("OX_PROBE_PASSWORD", "")
+                    if secret:
+                        safe = safe.replace(secret, "[REDACTED]")
+                    safe_text_samples.append(re.sub(r"\s+", " ", safe)[:170])
                 if packet.kind != "ox_event":
                     continue
                 if len(packet.args) == 1 and isinstance(packet.args[0], str):
@@ -56,6 +67,7 @@ async def next_event(client, expected: str, memory: list[dict],
         raise TimeoutError(
             "Expected " + expected + " absent; received protocol kinds "
             + repr(received_types[-18:])
+            + " text=" + repr(safe_text_samples)
         ) from exc
     raise RuntimeError("Event delivery budget exhausted")
 
