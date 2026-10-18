@@ -10,7 +10,34 @@ This is not a
 deployed freighter or general social simulation.
 [Verified feature matrix](design/STATUS.md) · [Development setup](INSTALL.md).
 
-## G1 PostgreSQL concurrency gate (under validation)
+## G2a: persistent, actor-bound crew agendas (under validation)
+
+`services/ai-handler/src/ox_ai/runtime/crew_agenda.py` introduces one
+private, JSON-serializable intention ledger **per world character**, bound
+to their authenticated DB ref. The agenda is kept beside (but distinct
+from) each role's native Concordia state and restored from the handler
+checkpoint. It does not create world-owned `WorkOrder` records or
+grant itself permissions, supplies, or equipment effects.
+
+An agenda obligation is keyed by the **real recipient-addressed event ID**,
+with a source sequence, local priority, state, reason, bounded transition
+history and an explicit reconsideration trigger. The handler rejects events
+addressed to another crewmember. Inbox replay is idempotent: a deferral
+cannot be dismissed by rereading the same old event. A newer authoritative
+world observation of a subscribed kind can restore a blocked/deferred task
+to the ready queue. A world refusal is saved as a permanent failed receipt;
+a later genuinely authorized attempt has a different ID.
+
+This first G2a integration uses the general ledger for cargo and
+environmental work. It dispatches ready tasks by priority instead of the
+hardcoded Teo-before-Mara loop and permits preemption **only between
+validated world actions**, resuming the older duty thereafter. All five
+agents have separate agenda records, but bridge, watches, hails, time-based
+deadlines, independent goal selection and generalized navigation still
+need subsequent integration. MockModel remains the default deterministic
+acceptance model; these tests are not proof of open-ended intelligence.
+
+## G1 PostgreSQL concurrency gate (merged PR #28)
 
 The default Ox game remains a loopback-only SQLite development fixture.
 `server.conf.settings_postgres_ci` is a separate, explicitly opt-in
