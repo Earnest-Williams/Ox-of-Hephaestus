@@ -157,3 +157,49 @@ class CmdOxIdentity(Command):
             self.caller.msg("Usage: oxidentity <32 hex digit challenge>")
             return
         self.caller.msg(f"OX_IDENTITY {nonce} {self.caller.dbref}")
+
+class CmdOxAction(Command):
+    """Identified game-authorised pump operation, same physics as normal verbs."""
+
+    key = "oxaction"
+    locks = "cmd:all()"
+
+    def func(self) -> None:
+        import re
+        from world.bootstrap import find_fixture
+        args = self.args.strip().split()
+        if (len(args) != 2 or not re.fullmatch(r"[0-9a-f]{32}", args[0])
+                or args[1] not in ("isolate", "repair", "commission")):
+            self.caller.msg("Usage: oxaction <request-id> <isolate|repair|commission>")
+            return
+        pump = find_fixture("pump-p01")
+        if not isinstance(pump, CoolingPump):
+            self.caller.msg("P-01 unavailable.")
+            return
+        try:
+            result = pump.durable_action(args[0], args[1], self.caller)
+        except PermissionError:
+            result = {"request_id": args[0], "actor_dbref": self.caller.dbref,
+                      "operation": args[1], "status": "failed",
+                      "reason": "request_collision", "source_event_id": None}
+        self.caller.msg(ox_receipt=(result,))
+
+
+class CmdOxReceipt(Command):
+    """Reconcile one's own previously submitted game operation."""
+
+    key = "oxreceipt"
+    locks = "cmd:all()"
+
+    def func(self) -> None:
+        import re
+        from world.bootstrap import find_fixture
+        request_id = self.args.strip()
+        if not re.fullmatch(r"[0-9a-f]{32}", request_id):
+            self.caller.msg("Usage: oxreceipt <request-id>")
+            return
+        pump = find_fixture("pump-p01")
+        if not isinstance(pump, CoolingPump):
+            self.caller.msg("P-01 unavailable.")
+            return
+        self.caller.msg(ox_receipt=(pump.durable_receipt(request_id, self.caller),))
