@@ -31,30 +31,14 @@ async def next_event(client, expected: str, memory: list[dict]) -> dict:
             packet = await client.receive()
             if packet.kind != "ox_event":
                 continue
-            if len(packet.args) == 1 and isinstance(packet.args[0], dict):
-                event = packet.args[0]
-            elif not packet.args and "event_id" in packet.options:
-                event = packet.options
+            if len(packet.args) == 1 and isinstance(packet.args[0], str):
+                event = json.loads(packet.args[0])
             else:
-                raise ValueError("Malformed private observation")
+                raise ValueError("Malformed private observation framing")
+            if not isinstance(event, dict) or not isinstance(event.get("data"), dict):
+                raise ValueError("Malformed world event content")
             if event.get("recipient_dbref") != client.character_dbref:
                 raise PermissionError("Another character's memory leaked")
-            # Evennia's outgoing OOB machinery can represent a nested
-            # mapping as a singleton positional wrapper. Normalize the
-            # *data* field without relaxing the recipient/ID checks.
-            value = event.get("data", {})
-            if isinstance(value, dict):
-                event["data"] = value
-            elif isinstance(value, list) and len(value) == 1 and isinstance(value[0], dict):
-                event["data"] = value[0]
-            elif isinstance(value, list) and all(
-                isinstance(pair, list) and len(pair) == 2 and isinstance(pair[0], str)
-                for pair in value
-            ):
-                event["data"] = dict(value)
-            else:
-                raise TypeError("Unexpected private event data shape: "
-                                + str(type(value).__name__) + " " + repr(value)[:200])
             memory.append(event)
             if event.get("kind") == expected:
                 return event
