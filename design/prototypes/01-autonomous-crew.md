@@ -1,6 +1,6 @@
 # Prototype 1 — Autonomous Crew
 
-**Status:** P0 scaffold and P1 Concordia lifecycle are tested. Gemini and GOAP have each restored a real Evennia pump. P2 now includes a deterministic, event-driven, three-crew watch-handover mock with isolated memories and request reconciliation. The complete P2 fault-coordination gate, P3 external transport and P5 observer remain incomplete.
+**Status:** P0/P1 are tested. Both Gemini and GOAP have repaired the real Evennia P-01. P2 includes verified deterministic mock watch-handover and coordinated coolant-fault scenarios with three scoped crew identities, GOAP repairs, urgent interruption, and lost-ACK recovery. Three Concordia-driven crew agents and P3 external Evennia transport remain unimplemented; P5 observatory remains future work.
 
 ## Aim
 
@@ -63,6 +63,32 @@ See [Scenario 0](../../scenarios/shift_handover/README.md) and
 **Gate assessment:** watch handover is tested, but P2 as defined above
 remains open pending cooling-fault mock coordination. The mock test is
 not a permanently running Evennia ship and does not satisfy P3.
+
+## P2 coordinated coolant-fault checkpoint (2026-10-18)
+
+The second P2 mock scenario, [Scenario 1](../../scenarios/coolant_fault/README.md),
+is now executable. Lin receives the world-side bridge alarm, radios Ari,
+and Ari inspects the local pump and plans operations using the same
+dependency-free GOAP search engine. Iona receives a first-hand local
+inspection opportunity only after Ari requests chief safety release.
+The world validates permission, state transitions, the chief signoff and
+the final resolution report.
+
+An urgent world event invalidates an Ari action proposal before it reaches
+the world; world permissions independently require a new safety readout.
+A separate test loses the ACK for successful isolation, checkpoints the
+handler, restores the three private cognitive states and reconciles the
+operation by request ID without replaying it. Quiet periods still wake
+no agents and use zero inference. See [ADR 0008](../decisions/0008-coordinated-coolant-incident.md).
+
+**P2 interpretation:** Both authored mock acceptance scenarios have runnable
+evidence for event routing, the mock world's authoritative clock, scoped
+communication and physical effects. The policies are deliberately
+deterministic; they do not prove open-ended emergent cooperation or three
+native Concordia actors. The mock chief-release interlock is not yet
+present in the actual Evennia pump fixture. P3 is the next substantial
+integration: normal per-character Evennia clients and a separately
+running, restartable supervisor.
 
 ## First scenarios
 

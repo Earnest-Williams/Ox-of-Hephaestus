@@ -1,6 +1,6 @@
 # Ox AI Handler
 
-**Status: native Concordia, live Gemini, and model-free GOAP pump experiments have succeeded; the three-crew event-driven mock watch-handover scenario is implemented in P2. There is still no persistent external Evennia transport, always-on handler daemon or bundled inference endpoint.**
+**Status: native Concordia, live Gemini and model-free GOAP pump experiments have succeeded. P2 now includes event-driven mock watch handover and coordinated three-crew coolant incident tests. Persistent external Evennia transport, an always-on handler and the observer UI remain unimplemented.**
 
 A separately installed Python service will supervise the game's significant autonomous NPCs. The cognitive engine is **[Google DeepMind Concordia](https://github.com/google-deepmind/concordia)** (Apache-2.0); the rest of the system—agent lifecycles, event routing, model workload coordination, persistence, world transport, and inspection API—is an Ox concern. There is one logical cognitive entity per NPC, not one operating-system process or inference server per NPC.
 
@@ -93,6 +93,42 @@ with an operator-only world event ledger and separate agent memories.
 
 See [Scenario 0](../../scenarios/shift_handover/README.md) and
 [ADR 0007](../../design/decisions/0007-three-crew-watch-supervision.md).
+
+## P2 Scenario 1: Coordinated cooling fault
+
+The second P2 mock scenario extends the same three-crew watch supervisor
+with a **world-authoritative** coolant pump, ordinary character-scoped
+instrument readings and radio alerts:
+
+- Lin on the Bridge receives the initial cooling alarm and radios Ari.
+- Ari in Engineering inspects actual local telemetry and uses the existing
+  model-free GOAP planner to isolate, repair and later commission P-01.
+- Iona independently inspects the repaired pump and approves the safety
+  release; only the mock world permits commissioning afterward.
+- Ari verifies normal pressure before sending incident closure reports.
+
+The mock world is the sole source of mechanical and authorization truth.
+Every observation is scoped to one recipient. A new urgent safety reading
+causes stale command rejection and local reinspection, and an ambiguous
+isolation receipt is reconciled after handler restoration without
+duplicating the physical operation.
+
+Test and print the operator-only JSON record:
+
+```bash
+python -m pip install -e ./services/ai-handler
+python -m unittest discover -s services/ai-handler/tests -p 'test_coolant_*.py' -v
+python -m ox_ai.scenarios.coolant_fault
+```
+
+The credential-free, manually triggered **Ox three-crew coolant incident**
+GitHub workflow runs the same experiment with no Concordia or LLM.
+
+This is a *deterministic three-crew mock*, not a persistent Evennia server.
+The mock chief-release requirement has not yet been introduced to real
+Evennia P-01. P3 still needs proper character sessions, scoped observations
+and reconnect-safe action submission. See [Scenario 1](../../scenarios/coolant_fault/README.md)
+and [ADR 0008](../../design/decisions/0008-coordinated-coolant-incident.md).
 
 ## P1 one-engineer integration candidate
 
