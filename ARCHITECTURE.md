@@ -1,11 +1,11 @@
 # Ox of Hephaestus — architecture and authority boundaries
 
-**Current implementation:** P4a/P4b have passed focused integration checks
-against real Evennia and are merged into `main`. Three authenticated
-character sessions, native Concordia entities, a GOAP pump procedure,
-world-issued event receipts and a separately runnable watch supervisor
-exist. **This is a three-room, one-pump prototype, not a deployed complete
-freighter or general social simulation.**
+**Current implementation:** P4a/P4c have passed focused full-server
+integration tests. Three independently authenticated Concordia crew control
+real pump work, watched handovers and answered hails. P4d extends the
+authoritative Evennia world to **seven rooms, three bounded physical
+systems and five crew bodies**; new cargo/environmental personnel are not
+yet autonomous. This is not a deployed freighter or general social simulation.
 [Verified feature matrix](design/STATUS.md) · [Development setup](INSTALL.md).
 
 ## 1. Independently operable components
@@ -42,22 +42,33 @@ exists. The interface must never create a second store of ship truth.
 
 ## 2. The currently implemented ship
 
-`game/world/bootstrap.py` installs three rooms—Bridge, Connecting Passage
-and Engineering—and crew characters Lin Sato, Ari Sen and Iona Vek. A
-status console reads P-01 pressure on the Bridge; operators in Engineering
-can `inspect pump`. The pump's authoritative lifecycle is:
+`game/world/bootstrap.py` installs Bridge, Connecting Passage, Engineering,
+Cargo Hold, Environmental Plant, Crew Mess and Machine Shop. Existing crew
+Lin Sato, Ari Sen and Iona Vek remain, alongside non-autonomous cargo
+officer Mara Voss and environmental technician Teo Hale. The Bridge
+has both cooling and cargo/environmental status consoles. The original
+pump P-01 remains under three-AI control and has the lifecycle:
 
 ~~~text
 normal --fault--> low_pressure --isolate--> isolated
 isolated --repair--> repaired --commission--> normal
 ~~~
 
-Every physical operation checks the actual state, character presence and
-in-world role. The ordinary `oxaction <request-id> <operation>` route
-produces a durable, actor-bound `ox_receipt`; querying
-`oxreceipt <request-id>` reconciles uncertain physical outcomes without
-repeating the command. A proposed plan has **no game effect** until
-Evennia validates and executes it.
+Pump operations check actual state, presence and game-owned role. The
+`oxaction <request-id> <operation>` route produces a durable, actor-bound
+P-01 `ox_receipt` for uncertain-outcome reconciliation. A proposed plan
+has **no game effect** until Evennia validates and executes it.
+
+Additional installed equipment lives in `typeclasses.departments`:
+C-01 cargo restraints (`secured → unsecured → restowed → secured`) and A-01
+atmospheric scrubber (`nominal → saturated → isolated → serviced → nominal`).
+Each requires its own specialist role, local inspection and valid transition;
+A-01 consumes finite spare cartridges. Their separate physical journals
+survive game restart. They **do not yet implement generic actor-bound
+command receipts**, so crash-safe AI control of these new devices is future
+work. Cargo and atmosphere alarms are addressed to their specialist and
+the Bridge, never broadcast to all crew. The public duty board lists
+responsibilities; it is not a character memory store.
 
 World events (`ox_event`) are stored for a **single recipient** with a
 source event ID, game timestamp, sender and flat scalar details. On an
@@ -112,9 +123,11 @@ optionally used an artificial clock jump after incident closure. P4b
 specifically tests handover **without** that shortcut.
 
 `ox_ai.runtime.watch_service serve` is the independent event-driven
-handler entry point. It can restore native Concordia checkpoints from
-`.ox-state/`, rejoin the world and wait on an authenticated socket when
-no character needs attention; idle cycles do not require model calls.
+handler entry point for **Lin/Ari/Iona only**. It can restore native
+Concordia checkpoints from `.ox-state/`, rejoin the world, dispatch
+coolant faults, time-owned handover and addressed player hails, then
+wait on authenticated sockets when idle; idle cycles do not require
+model calls.
 One world-side fault can wake the crew, and subsequent faults can occur
 under a different active watch.
 
