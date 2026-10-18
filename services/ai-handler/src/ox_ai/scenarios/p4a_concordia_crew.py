@@ -58,11 +58,6 @@ async def run() -> dict:
         bridge.require(alert, "oxradio")
         await lin.send_line("oxradio")
         radio = await next_event(ari, "radio_alert", memory["ari"])
-        bridge.confirm(alert, {
-            "event_id": radio["event_id"], "recipient_dbref": bridge.character_id,
-            "kind": "radio_delivered", "text": "Engineering received bridge relay",
-            "game_time": radio["game_time"],
-        }) if False else None
         # The relay is addressed to Ari, not Lin. A cross-recipient event is
         # NEVER a valid acknowledgement to Lin's Concordia memory.
         bridge.record_unknown(alert)
