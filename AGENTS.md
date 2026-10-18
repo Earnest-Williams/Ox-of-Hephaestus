@@ -43,6 +43,9 @@ game and AI systems. Existing core engine code is inherited upstream.
 - The inherited development commands and links below apply to Evennia.
   New service packages have separate install and test instructions, and the
   skeletons do not yet contain launchable backends.
+- Use focused Ox CI by default; inherited 3x3 Evennia matrix is **manual only**.
+  See [ADR 0004](design/decisions/0004-ci-scope.md). Never republish upstream
+  Evennia Docker images or documentation from this fork.
 
 ## Quick Reference
 

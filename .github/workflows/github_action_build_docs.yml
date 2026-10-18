@@ -1,4 +1,5 @@
-# This github-Evennia workflow will build the docs.
+# Inherited Evennia documentation build workflow.
+# The upstream publishing step is disabled on forks, including Ox.
 
 name: documentation
 
@@ -49,7 +50,7 @@ jobs:
           evennia migrate
 
       - name: Build and deploy docs (only from main/develop branch)
-        if: ${{ github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'}}
+        if: ${{ github.repository == 'evennia/evennia' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main') }}
         run: |
           git config --global user.email "docbuilder@evennia.com"
           git config --global user.name "Evennia docbuilder action"
