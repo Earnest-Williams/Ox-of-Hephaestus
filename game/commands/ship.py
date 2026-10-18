@@ -202,7 +202,11 @@ class CmdOxIdentity(Command):
         self.caller.msg(f"OX_IDENTITY {nonce} {self.caller.dbref}")
 
 class CmdOxAction(Command):
-    """Identified game-authorised pump operation, same physics as normal verbs."""
+    """Durable, role-checked action on P-01, C-01 or A-01.
+
+    The original two-argument P-01 contract remains supported; extended
+    fixtures explicitly name their target to prevent aliasing commands.
+    """
 
     key = "oxaction"
     locks = "cmd:all()"
@@ -210,26 +214,43 @@ class CmdOxAction(Command):
     def func(self) -> None:
         import re
         from world.bootstrap import find_fixture
-        args = self.args.strip().split()
-        if (len(args) != 2 or not re.fullmatch(r"[0-9a-f]{32}", args[0])
-                or args[1] not in ("isolate", "repair", "commission")):
-            self.caller.msg("Usage: oxaction <request-id> <isolate|repair|commission>")
+
+        parts = self.args.strip().split()
+        usage = ("Usage: oxaction <request-id> <isolate|repair|commission> "
+                 "[pump]; or <request-id> <operation> <cargo|scrubber>")
+        if (len(parts) not in (2, 3)
+                or re.fullmatch(r"[0-9a-f]{32}", parts[0]) is None):
+            self.caller.msg(usage)
             return
-        pump = find_fixture("pump-p01")
-        if not isinstance(pump, CoolingPump):
-            self.caller.msg("P-01 unavailable.")
+        request_id, operation = parts[:2]
+        fixture_name = parts[2] if len(parts) == 3 else "pump"
+        targets = {
+            "pump": ("pump-p01", CoolingPump, ("isolate", "repair", "commission")),
+            "cargo": ("cargo-cradle", CargoCradle, ("restow", "certify")),
+            "scrubber": ("atmosphere-scrubber", AtmosphereScrubber,
+                        ("isolate", "replace", "restart")),
+        }
+        spec = targets.get(fixture_name)
+        if spec is None or operation not in spec[2]:
+            self.caller.msg(usage)
+            return
+        equipment = find_fixture(spec[0])
+        if not isinstance(equipment, spec[1]):
+            self.caller.msg("Equipment is unavailable.")
             return
         try:
-            result = pump.durable_action(args[0], args[1], self.caller)
+            result = equipment.durable_action(request_id, operation, self.caller)
         except PermissionError:
-            result = {"request_id": args[0], "actor_dbref": self.caller.dbref,
-                      "operation": args[1], "status": "failed",
-                      "reason": "request_collision", "source_event_id": None}
+            result = {
+                "request_id": request_id, "actor_dbref": self.caller.dbref,
+                "operation": operation, "status": "failed",
+                "reason": "request_collision", "source_event_id": None,
+            }
         self.caller.msg(ox_receipt=([result], {}))
 
 
 class CmdOxReceipt(Command):
-    """Reconcile one's own previously submitted game operation."""
+    """Look up this actor's own durable operation, by equipment namespace."""
 
     key = "oxreceipt"
     locks = "cmd:all()"
@@ -237,12 +258,27 @@ class CmdOxReceipt(Command):
     def func(self) -> None:
         import re
         from world.bootstrap import find_fixture
-        request_id = self.args.strip()
-        if not re.fullmatch(r"[0-9a-f]{32}", request_id):
-            self.caller.msg("Usage: oxreceipt <request-id>")
+
+        parts = self.args.strip().split()
+        if (len(parts) not in (1, 2)
+                or re.fullmatch(r"[0-9a-f]{32}", parts[0]) is None):
+            self.caller.msg("Usage: oxreceipt <request-id> [pump|cargo|scrubber]")
             return
-        pump = find_fixture("pump-p01")
-        if not isinstance(pump, CoolingPump):
-            self.caller.msg("P-01 unavailable.")
+        request_id = parts[0]
+        fixture_name = parts[1] if len(parts) == 2 else "pump"
+        targets = {
+            "pump": ("pump-p01", CoolingPump),
+            "cargo": ("cargo-cradle", CargoCradle),
+            "scrubber": ("atmosphere-scrubber", AtmosphereScrubber),
+        }
+        spec = targets.get(fixture_name)
+        if spec is None:
+            self.caller.msg("Usage: oxreceipt <request-id> [pump|cargo|scrubber]")
             return
-        self.caller.msg(ox_receipt=([pump.durable_receipt(request_id, self.caller)], {}))
+        equipment = find_fixture(spec[0])
+        if not isinstance(equipment, spec[1]):
+            self.caller.msg("Equipment is unavailable.")
+            return
+        self.caller.msg(ox_receipt=([
+            equipment.durable_receipt(request_id, self.caller)
+        ], {}))
