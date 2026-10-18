@@ -16,6 +16,8 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
+import uuid
 from pathlib import Path
 import sys
 
@@ -26,6 +28,7 @@ from ox_ai.ports.evennia.client import EvenniaWebSocketClient
 from ox_ai.ports.evennia.durable import DurableEvenniaPort
 from ox_ai.runtime.work_steps import WorkStepLedger, SimulatedWorkInterruption
 from ox_ai.runtime.crew_agenda import AgentAgenda, ACTIVE, WAITING
+from ox_ai.runtime.epistemics import AgentEpistemics
 from ox_ai.runtime.watch_service import (
     CrewWatchSupervisor, ROOT, URL, atomic_json,
 )
@@ -131,6 +134,19 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
             )
             for role, actor in self.ids.items()
         }
+        # Belief is actor-private, never a proxy for the world DB. An old
+        # checkpoint is additively upgraded without silently claiming facts.
+        stored_epistemics = self.state.setdefault("epistemics", {})
+        if (not isinstance(stored_epistemics, dict)
+                or any(role not in self.ids for role in stored_epistemics)):
+            raise PermissionError("Invalid cross-character epistemic state")
+        self.epistemics = {
+            role: AgentEpistemics(
+                stored_epistemics.setdefault(role, {}),
+                role=role, character_id=character_id,
+            )
+            for role, character_id in self.ids.items()
+        }
 
     async def read_inbox(self, role: str) -> list[dict]:
         """Ingest ONLY this actor's real events into their private agenda.
@@ -142,6 +158,10 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
         agenda = self.agendas[role]
         changed = False
         for event in events:
+            # This confirms the world delivered a recipient-addressed event.
+            # Its sender's free text is *not* automatically a verified fact.
+            if self.epistemics[role].receive_event(event):
+                changed = True
             sequence = int(event["sequence"])
             if sequence > agenda.record["last_sequence"]:
                 agenda.observe(event)
@@ -283,6 +303,11 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
             handled | {e["event_id"] for e in new}
         )
         self.brains[role].observe_event(latest)
+        if role == "teo":
+            self.epistemics[role].ask(
+                "scrubber.spares",
+                reason="Cartridge availability requires a current local inspection",
+            )
         self.agendas[role].set_status(
             latest["event_id"], "accepted",
             reason="posted_specialist_duty_selected",
@@ -333,6 +358,23 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
                 await client.send_line("inspect " + target)
                 reading = await client.expect_text(HEADERS[role], timeout=12)
                 brain.observe_local("Local specialist equipment inspection", reading)
+                if role == "teo":
+                    found = re.search(r"Local spare cartridges:\s*([0-9]+)\.", reading)
+                    if found is not None:
+                        # This numerical fact is derived ONLY from an
+                        # authenticated local sensor response. It is a timed
+                        # observation, not permanent knowledge or hearsay.
+                        self.epistemics[role].observe_verified(
+                            "scrubber.spares", int(found.group(1)),
+                            evidence_id="localread-" + uuid.uuid4().hex,
+                            at=brain._game_time, valid_for=0,
+                            source="world_local",
+                        )
+                        if int(found.group(1)) == 0:
+                            self.epistemics[role].ask(
+                                "scrubber.next_restock_at",
+                                reason="No actual future delivery has been confirmed",
+                            )
                 if expected not in reading:
                     # If the world has already resolved this old alarm through
                     # authorized human work, record no fictitious AI repair.
