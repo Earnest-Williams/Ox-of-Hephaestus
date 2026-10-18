@@ -5,6 +5,8 @@ Ox-specific documentation. Earlier ADRs and P2/P3 scenario documents preserve
 the design and acceptance criteria of those milestones; they are not live
 feature inventories.
 
+**Forward plan (not implemented):** [reliability-to-autonomy roadmap](ROADMAP.md) and [ADR 0009](decisions/0009-durable-events-and-work.md). The current Phase 0 planning branch does not change any runtime capability. GitHub Issues were disabled when tracking was attempted.
+
 ## Verified implementation
 
 | Stage | Status | Evidence and scope |
