@@ -10,6 +10,35 @@ This is not a
 deployed freighter or general social simulation.
 [Verified feature matrix](design/STATUS.md) · [Development setup](INSTALL.md).
 
+## G2c: actor-scoped world capabilities and learned GOAP travel (PRs #35–36)
+
+The ordinary, nonprivileged `oxcapabilities <nonce>` game command returns
+the calling character's **current local** room identity, traversable stock
+Evennia exits and currently eligible local equipment actions. Exit locks,
+physical presence, role, inspection and inventory come from Evennia.
+Capability advertisements are not durable permissions; actual world
+commands and receipts revalidate every consequential precondition.
+
+`CapabilityPort` authenticates each nonce/actor/version/schema over an
+ordinary character WebSocket. `NavigationKnowledge` persists only
+character-bound observations of rooms personally reached and their local
+exits. `CrewNavigator` converts that knowledge into finite
+`GoapAction` room transitions and explores unknown reachable frontiers
+without a complete ship map. Each action is a **normal exit command**,
+preceded and followed by fresh world observations. Closed/stale exits are
+excluded for that run; if no route can be found, the character remains
+blocked without movement shortcuts or remote equipment operations.
+
+Shipboard `CrewCharacter` overrides stock Evennia's unpuppet storage.
+Disconnected AI or player sessions do not remove a crew person from the
+physical world; locations persist for other observers and on re-puppet.
+This makes a handler restart independent of a physical crew position.
+
+The live supervisors use this mechanism to verify engineering and
+specialist duty-station access before local work. A private map is not an
+authoritative location; restarts begin with a real local observation.
+[Implementation and acceptance](design/prototypes/g2-navigation.md).
+
 ## G2b: nonblocking per-agent cognition and process exclusion (PR #33)
 
 The handler now uses a `DecisionScheduler` for ordinary role-bound Concordia
@@ -59,8 +88,8 @@ environmental work. It dispatches ready tasks by priority instead of the
 hardcoded Teo-before-Mara loop and permits preemption **only between
 validated world actions**, resuming the older duty thereafter. All five
 agents have separate agenda records, but bridge, watches, hails, time-based
-deadlines, independent goal selection and generalized navigation still
-need subsequent integration. MockModel remains the default deterministic
+deadlines and independent goal selection still need subsequent integration.
+Station-recovery navigation is described in G2c. MockModel remains the default deterministic
 acceptance model; these tests are not proof of open-ended intelligence.
 
 ## G1 PostgreSQL concurrency gate (merged PR #28)

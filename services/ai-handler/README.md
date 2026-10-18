@@ -9,6 +9,34 @@ ACK across a handler restart. This is **not** deployed production software
 or proof of unconstrained multi-agent intelligence.
 [Current status](../../design/STATUS.md).
 
+## G2c local capability discovery and GOAP ship travel (PRs #35–36)
+
+`ox_ai.ports.evennia.capabilities.CapabilityPort` asks the **world** for
+only this authenticated character's visible exits and local equipment
+affordances, with a nonce and actor-bound typed OOB response. The
+`CrewNavigator` stores individual learned room graphs and runs the existing
+bounded GOAP planner over those observed edges. It executes stock Evennia
+exit commands and confirms the actual destination from fresh world
+observations; it never teleports or treats a predicted effect as truth.
+
+Live engineering and department work now explicitly verify that the assigned
+character can travel to the relevant station. Unreachable locations
+stop physical work; maps are private role-bound additive supervisor state.
+
+The physical `CrewCharacter` now remains at its last authoritative
+world location across a handler disconnection, instead of stock Evennia's
+offstage storage. This does not grant commands or movement permissions.
+
+A disposable real-server acceptance run:
+
+    python -m ox_ai.runtime.navigation_trial direct
+
+The test fixture must provision a nonprivileged Ari account and place the
+character in Crew Mess before launching the server. Other modes are
+`blocked` and `reroute`, which require operator-created hatch conditions.
+See [full G2c test protocol](../../design/prototypes/g2-navigation.md).
+No operator browser UI or generic inventory/skill system is added.
+
 ## G2b isolated nonblocking cognition (PR #33)
 
 The three- and five-crew handler supervisors now ask Concordia to choose via

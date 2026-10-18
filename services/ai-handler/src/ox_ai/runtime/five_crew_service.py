@@ -315,6 +315,12 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
             self.checkpoint()
         elif task["status"] != "in_progress":
             raise RuntimeError("Specialist has no selectable obligation")
+        # The role's historical checkpoint is not evidence of physical
+        # presence. An independently authenticated character must travel
+        # through real exits and re-observe its own assigned workstation.
+        await self.ensure_station(
+            role, "Cargo Hold" if role == "mara" else "Environmental Plant",
+        )
         client = self.clients[role]
         brain = self.brains[role]
         port = DurableEvenniaPort(client)

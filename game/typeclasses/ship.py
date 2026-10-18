@@ -17,7 +17,19 @@ class ShipRoom(DefaultRoom):
 
 
 class CrewCharacter(DefaultCharacter):
-    """A crew body in the world, whether or not it has an account or AI."""
+    """A persistent physical shipboard person, not a session-scoped avatar."""
+
+    def at_post_unpuppet(self, account=None, session=None, **kwargs) -> None:
+        """Remain in the ship's world when an AI or player session disconnects.
+
+        Stock DefaultCharacter stows an unpuppeted body in location=None.
+        That would effectively make a ship's crew vanish whenever an external
+        Concordia handler restarts. Shipboard people instead persist at
+        their last actual world location; normal per-account puppet locks,
+        authenticated commands and world checks still govern control.
+        """
+        if self.location is not None:
+            self.db.prelogout_location = self.location
 
 
 class FixedFixture(DefaultObject):
