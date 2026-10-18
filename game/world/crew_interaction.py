@@ -95,7 +95,10 @@ def answer_hail(actor, hail_id: str, mode: str) -> tuple[bool, str]:
             # The local sensor, not an agent's alleged belief, supplies facts.
             answer = pump.readout()
         else:
-            answer = "I cannot verify the requested station from here."
+            if actor in (ship["watch"], ship["chief"]):
+                answer = "I cannot verify P-01 from my current station."
+            else:
+                answer = "I cannot verify my assigned station from here."
     elif mode == "ack":
         answer = "Your hail is received. I am continuing my posted duties."
     else:
