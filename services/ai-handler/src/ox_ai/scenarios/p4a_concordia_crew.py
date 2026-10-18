@@ -24,6 +24,15 @@ from ox_ai.scenarios.p3b_goap import inspect
 from ox_ai.scenarios.p3c_crew import IDS, URL, next_event, read_console, replayable_event
 
 
+async def due_event(client, recipient: str, memory: list[dict]) -> dict:
+    """Recover a due event even if it preceded login or another ACK."""
+    for event in memory:
+        if event["kind"] == "handover_due":
+            return event
+    await client.send_line("oxinbox 0")
+    return await next_event(client, "handover_due", memory, timeout=15)
+
+
 async def run() -> dict:
     ids = json.loads(IDS.read_text(encoding="utf-8"))
     password = os.environ["OX_PROBE_PASSWORD"]
@@ -159,8 +168,8 @@ async def run() -> dict:
         engineer.record_unknown(close)
         bridge.observe_event(resolved_bridge)
         chief.observe_event(resolved_chief)
-        due_engineer = await next_event(ari, "handover_due", memory["ari"])
-        due_chief = await next_event(iona, "handover_due", memory["iona"])
+        due_engineer = await due_event(ari, "ari", memory["ari"])
+        due_chief = await due_event(iona, "iona", memory["iona"])
         engineer.observe_event(due_engineer)
         chief.observe_event(due_chief)
         offer = engineer.choose(
