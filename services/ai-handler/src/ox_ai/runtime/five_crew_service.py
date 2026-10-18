@@ -236,12 +236,6 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
                     raise SimulatedLostAcknowledgement(str(exc)) from exc
 
             if result.status != "succeeded" or not result.source_event_id:
-                        raise RuntimeError("No committed action ACK to discard")
-                    raise SimulatedLostAcknowledgement(
-                        f"World committed {role} {operation}; ACK intentionally lost"
-                    )
-
-            if result.status != "succeeded" or not result.source_event_id:
                 raise RuntimeError(
                     f"{role} {operation}: unknown or denied world action; "
                     "no fresh request will be generated"
