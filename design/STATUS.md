@@ -5,7 +5,7 @@ Ox-specific documentation. Earlier ADRs and P2/P3 scenario documents preserve
 the design and acceptance criteria of those milestones; they are not live
 feature inventories.
 
-**Forward plan (not implemented):** [reliability-to-autonomy roadmap](ROADMAP.md) and [ADR 0009](decisions/0009-durable-events-and-work.md). The current Phase 0 planning branch does not change any runtime capability. GitHub Issues were disabled when tracking was attempted.
+**Forward plan (not implemented):** [reliability-to-autonomy roadmap](ROADMAP.md) and [ADR 0009](decisions/0009-durable-events-and-work.md). Phase 0 planning merged in [PR #21](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/21). GitHub Issues were disabled when tracking was attempted.
 
 ## Verified implementation
 
@@ -22,6 +22,7 @@ feature inventories.
 | P4c — unattended event dispatch and player hails | Tested and merged | [PR #16](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/16); one continuous supervisor processes pump repair, world-timed watch handover and an addressed human hail |
 | P4d — specialist ship departments | Tested and merged | [PR #17](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/17); seven compartments, cargo and atmosphere state machines, five persistent crew bodies, authority and inventory tests |
 | P4e — five independently autonomous crew | Tested and merged | [PR #19](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/19); two additional nonprivileged Concordia actors, world-confirmed cargo/environmental work and a lost-ACK cartridge-replacement gate |
+| P4f — indexed, paginated crew events | Implemented; PR validation | [PR #22](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/22); world-owned indexed journal, schema-v2 per-recipient cursor replay, safe legacy import and handler-side private checkpoints. New P4f database/handler tests passed; final legacy integration gates remain PR checks. |
 | P5 — browser observatory | **Deferred / not built** | No browser UI, joined handler/world API, or operator dashboard |
 
 **Naming note:** the original Prototype 1 plan used “P4” for the first
@@ -49,6 +50,21 @@ deliberately loses the acknowledgement of an actual cartridge replacement
 before handler restart, then independently verifies that only one spare was
 consumed while all three equipment incidents, two player hails and the
 engineering watch handover complete. Existing P3–P4d scenarios remain green.
+
+## P4f journal boundary
+
+PR #22 introduces a dedicated `world.CrewEvent` Django table and migrations,
+replacing the growing private event list on P-01 as the live event authority.
+`oxinbox <cursor>` returns up to 128 recipient-specific records plus a
+versioned `ox_inbox_done` continuation marker. The separate handler reads
+every page, deduplicates observation IDs and checkpoints per-character
+high-water cursors after saving its private Concordia state.
+
+Existing P4e procedural consumers still need full addressed-history scans.
+A bounded per-agent incremental work queue, retained-history compaction,
+broader crash-safe physical/social actions and the autonomy scheduler remain
+future work. P4f does **not** establish arbitrary mid-scene transaction
+recovery or general LLM-driven planning.
 
 ## What the prototype does today
 
