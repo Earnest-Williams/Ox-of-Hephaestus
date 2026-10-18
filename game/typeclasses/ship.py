@@ -75,6 +75,12 @@ class CoolingPump(FixedFixture):
 
     def _is_engineer_here(self, actor) -> bool:
         """Require physical access and a game-authorised engineering role."""
+        from world.bootstrap import find_fixture
+        roster = find_fixture("roster-board")
+        active = getattr(roster.db, "ox_active_engineer", None) if roster else None
+        if active is not None and actor and actor.db.crew_role == "watch_engineer":
+            if actor.dbref != active:
+                return False
         return bool(
             actor
             and actor.location == self.location
@@ -92,6 +98,9 @@ class CoolingPump(FixedFixture):
             return False, (
                 f"Cannot {operation} P-01 while it is {before.replace('_', ' ')}."
             )
+
+        if operation == "commission" and self.db.ox_chief_gate and not self.db.ox_chief_released:
+            return False, "Chief safety release required before commissioning."
 
         # An unattended fault is a world event, not an NPC command; the other
         # operations must be performed by a local authorised character.
@@ -125,7 +134,11 @@ class CoolingPump(FixedFixture):
 
     def inject_fault(self, actor=None) -> tuple[bool, str]:
         """Simulate a fault; only the system or a developer can introduce it."""
-        return self._transition("fault", actor=actor)
+        succeeded, message = self._transition("fault", actor=actor)
+        if succeeded and self.db.ox_chief_gate:
+            from world.live_crew import fault_alarm
+            fault_alarm(self)
+        return succeeded, message
 
     def isolate(self, actor) -> tuple[bool, str]:
         """Isolate a low-pressure pump in person."""
