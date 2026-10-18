@@ -9,6 +9,22 @@ cartridge replacement without duplicating inventory use. This is not a
 deployed freighter or general social simulation.
 [Verified feature matrix](design/STATUS.md) · [Development setup](INSTALL.md).
 
+## P4f addressed, indexed world-event journal
+
+[PR #22](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/22)
+introduces a dedicated `world.CrewEvent` Django model (with migration)
+and ordered, recipient-filtered pages. Legacy P4e events on P-01 are
+imported idempotently on first journal use, preserving source IDs; new events
+use `oxevt-v2-...` identifiers. A transaction rollback cannot publish
+an event, and live OOB messages are sent only when the journal commit succeeds.
+
+`oxinbox` now replies with version, count, `next_cursor` and `has_more`
+and only returns observations addressed to its caller. The external handler
+scans all pages and durably checkpoints consumed per-character high-water
+marks **after** the corresponding native Concordia snapshots. The older
+procedures still reread complete recipient-private history for compatibility;
+cursor-only incremental scheduling, retention and compaction are not present.
+
 ## P4e verified five-agent extension
 
 Merged PR #19 extends the **optional external agent handler** to five distinct
@@ -91,7 +107,7 @@ a lost cartridge ACK without repeating a physical transition. Cargo and atmosphe
 the Bridge, never broadcast to all crew. The public duty board lists
 responsibilities; it is not a character memory store.
 
-World events (`ox_event`) are stored for a **single recipient** with a
+World events (`ox_event`) are stored in an indexed world journal for a **single recipient** with a
 source event ID, game timestamp, sender and flat scalar details. On an
 ordinary Evennia `v1.evennia.com` WebSocket connection the handler sends
 normal character commands and receives in-world observations or the
