@@ -1,5 +1,7 @@
 # G3c — Teo / Mara cooperative supply with epistemic separation
 
+**Status: tested and merged** in [PR #40](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/40): all 37 CI jobs across 23 applicable workflows passed on the final code commit. The world-inventory foundation and epistemic boundary were merged in PRs #39 and #38 respectively.
+
 The initial G3 vertical slice is a five-crew, restart-safe dependency:
 Teo needs an A-01 cartridge; Mara can deliver one from Cargo Hold;
 Teo resumes only after the world validates the delivery. Every action
