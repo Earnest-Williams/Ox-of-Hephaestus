@@ -28,13 +28,17 @@ jobs:
         run: |
           python -m pip install .
           python -m compileall -q game
+      - name: Create ephemeral, noninteractive owner credential
+        shell: bash
+        run: |
+          TOKEN="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          echo "::add-mask::$TOKEN"
+          echo "EVENNIA_SUPERUSER_PASSWORD=$TOKEN" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_USERNAME=OxCI" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_EMAIL=oxci@example.invalid" >> "$GITHUB_ENV"
       - name: Test specialist world rules, permission boundaries and old coolant physics
         working-directory: game
-        env:
-          EVENNIA_SUPERUSER_USERNAME: OxCI
-          EVENNIA_SUPERUSER_EMAIL: oxci@example.invalid
         run: |
-          export EVENNIA_SUPERUSER_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
           evennia migrate --noinput
           evennia test world.tests.test_departments world.tests.test_ship world.tests.test_autonomy --verbosity=2
       - name: Seed independent departmental faults in persistent game database
