@@ -88,12 +88,17 @@ def _on_watch(actor, ship, roster) -> bool:
 
 
 def relay_alarm(actor) -> tuple[bool, str]:
-    ship, pump, _roster = _world()
+    ship, pump, roster = _world()
     if (actor != ship["officer"] or actor.location != ship["bridge"]
             or actor.db.crew_role != "bridge_officer" or not pump.db.ox_active_alarm
             or pump.db.ox_incident_closed):
         return False, "No authorised bridge alarm to relay"
-    emit(pump, ship["watch"], "radio_alert", sender=actor,
+    active = (ship["watch"] if roster.db.ox_active_engineer == ship["watch"].dbref
+              else ship["chief"] if roster.db.ox_active_engineer == ship["chief"].dbref
+              else None)
+    if active is None:
+        return False, "There is no valid active engineering watch"
+    emit(pump, active, "radio_alert", sender=actor,
          data={"alarm_id": pump.db.ox_active_alarm, "equipment": "P-01"},
          text="Lin reports P-01 bridge pressure alarm; investigate locally.")
     return True, "Bridge alert relayed"
