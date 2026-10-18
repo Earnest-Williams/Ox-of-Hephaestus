@@ -1,24 +1,45 @@
-# Ox Human Interface
+# Ox human interface — intentionally deferred
 
-**Status: importable Python package scaffold and design notes only. No browser app or API server exists yet.**
+**Status (18 October 2026): package scaffold only.** P5—the read-only
+ship/crew observatory—was explicitly postponed while P4a and P4b were
+implemented. There is **no running browser app, frontend, HTTP API server
+or production operator-control endpoint**. Do not confuse GitHub test
+artifacts or private JSONL journals with a user-facing interface.
 
-The interface is the third, independently operated system alongside Evennia and the AI handler. It provides a shipboard operations console and—under separate permissions—an agent/simulation observatory.
+## Intended data sources
 
-## Dual data sources
+The eventual interface is the third independently operated component:
 
-- **Evennia-facing interface:** ship state, rooms, equipment, duties and permitted in-world actions. Evennia is authoritative.
-- **AI handler-facing API:** agent identity mapping, cognition status, beliefs, decisions, event histories and privileged execution controls. The handler is authoritative for its own agent state.
+1. An **Evennia-facing read model** will expose legitimately authorized
+   equipment conditions, rooms, posted watches, sensors and in-world
+   events. All game actions still pass Evennia permissions.
+2. An **AI-handler-owned API** will expose authorized per-character
+   observations, memories, beliefs, decisions, pending actions, outcome
+   reconciliation and inference diagnostics, without sharing private
+   cognition by default.
 
-The frontend may use a Python backend-for-frontend to join these sources and protect secrets. Neither backend depends on the browser. It must not access either backend's database directly or invent world state.
+The interface may use a lightweight backend-for-frontend to join those
+responses and present charts, ship overviews and crew drill-downs. It
+must not read the game or handler databases directly, independently
+simulate ship conditions, grant itself omniscience or mutate either
+component's state. The game and handler operate without the browser.
 
-An initial read-only view will correlate one pump's true condition (Evennia) with each relevant engineer's observed events and beliefs (handler). A player-view and an operator-view must not expose the same private details by default. Prefer explicit role/permission checks at the server boundary.
+For a minimal future acceptance test, show **P-01's actual Evennia
+state alongside each relevant engineer's possibly stale belief**,
+a timeline of proposed vs attempted vs world-confirmed actions, and
+permission checks denying ordinary users another character's private
+cognitive records.
 
-## Proposed source layout
+## Existing package vs future work
 
-- `src/ox_interface/clients/` — eventual typed clients for the two APIs.
-- `src/ox_interface/views/` — presentation/read-model composition, not game mutation.
-- Additional visual frontend code will be added after the UI framework is selected; the existing Python package does **not** commit us to NiceGUI over a separate JavaScript client.
+- `src/ox_interface/clients/` and `src/ox_interface/views/` are scaffolds
+  for typed clients and presentation/read models.
+- No browser stack (NiceGUI, JavaScript or otherwise) is selected.
+- No stable handler inspection schema, telemetry API, operator-control
+  protocol or live event stream is published.
+- Current inspectable development evidence is GitHub Actions artifacts,
+  game-world logs and handler-local checkpoint/trace files, not a UI.
 
-The package currently has no runtime entry point or web dependencies. Do not document it as a functioning dashboard.
-
-See [the system architecture](../../ARCHITECTURE.md) and [service-boundary decision](../../design/decisions/0003-three-services.md).
+See [implementation status](../../design/STATUS.md),
+[system architecture](../../ARCHITECTURE.md) and
+[service boundary ADR](../../design/decisions/0003-three-services.md).

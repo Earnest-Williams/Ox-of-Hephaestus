@@ -1,223 +1,177 @@
-# Ox of Hephaestus — preliminary architecture
-
-> **Status (October 2026):** The first live multi-crew Concordia/GOAP integration and event-driven external supervisor are implemented and tested against Evennia. Game-side machinery, duties and role permissions remain authoritative. This is a narrow three-crew, one-pump prototype; the UI and its separate read APIs remain unimplemented.
-
-## 1. System boundaries
-
-**Evennia (the authoritative game server)**
-
-- Owns the game-world state: characters, locations, items, machinery, ship systems, and consequential actions.
-- Applies normal game permissions, rules, time advances, and action outcomes.
-- Delivers observations and events to characters through the available game interfaces.
-- Remains usable by ordinary human clients.
-
-**External AI handler (a separate service)**
-
-- Manages many distinct, persistent AI-controlled characters.
-- Maintains or coordinates each agent's memory, beliefs, goals, interpretation of duties, plans, and decision state; official in-world duty assignments remain game state.
-- Schedules cognition and shares model/inference resources among agents; one NPC is not one AI server process.
-- Converts perceptions into proposed actions and receives the results through a transport adapter.
-- Does not own or silently override authoritative ship or character state.
-
-**Human interface (a distinct, separately operable component)**
-
-- Presents traditional gameplay where useful, ship-wide views, departments, cargo, machinery, crew, incidents, and historical charts.
-- Obtains **authoritative world data and game actions from Evennia's interfaces**, using narrowly scoped Ox-specific endpoints when the existing Evennia facilities are insufficient.
-- Obtains **agent-owned information through an API exposed by the external AI handler**: agent status, beliefs, goals, intended actions, recorded decisions, and execution history, subject to permissions.
-- Combines those sources for human inspection without becoming a third authoritative store for physical or cognitive state.
-- May include a lightweight backend-for-frontend for authenticated requests, event aggregation, and access control. Its deployment shape and screen design remain open.
-- Is optional to the autonomous operation of the ship; closing all dashboards must not halt the game or its crew.
-
-## 2. Concordia cognitive foundation and minimal Game Master
-
-**Decision:** Adopt [Concordia](https://github.com/google-deepmind/concordia) (Apache-2.0, distribution `gdm-concordia`) for Prototype 1. Each full NPC is represented by a Concordia `EntityAgentWithLogging`. An independent Ox handler supervises entities, inference budgets, memory persistence, scheduling and game transport.
-
-Start with observation, memory and acting components, adding Ox-specific duties, commitments and procedures. Use rich deliberative components selectively rather than running several expensive model requests for every routine action.
-
-A Concordia Game Master **can be deterministic**. In the mock-world experiment, explore its interrupt-driven event masks and timers, but the **mock world**, not a generative GM, resolves physical actions. In the live Evennia mode, the handler may invoke `observe()` and `act()` directly without adopting Concordia's world-driving simulation loop or clock. The Evennia world remains authoritative.
-
-Concordia's published v2.4.0 release lacks the newer interrupt-driven scheduler. The handler's optional dependency is pinned to a [reviewed upstream revision](https://github.com/google-deepmind/concordia/tree/4b7e02a94b719e56f10989046af32d79bbbc3b9c), as described in [ADR 0001](design/decisions/0001-concordia-first.md). See [ADR 0002](design/decisions/0002-game-master-world-authority.md) for GM boundaries and [Prototype 1](design/prototypes/01-autonomous-crew.md) for build gates.
-
-## 3. Transport: start conventional, then specialise
-
-### Phase A — normal client connections
-
-The external handler connects AI characters to an unmodified or minimally configured Evennia game as ordinary clients. Each controlled character has an appropriate game identity/session and uses commands and observations exposed by the game.
-
-This allows the handler, agents, and initial scenario to be developed and evaluated without first changing Evennia's server internals.
-
-The handler should depend on a small transport contract—roughly **connect, observe, act, receive outcome, disconnect**—rather than on the incidental details of a particular MUD protocol.
-
-### Phase B — a dedicated AI-service endpoint
-
-If the conventional-client prototype works, introduce a purpose-built authenticated endpoint. A single service connection could act on behalf of several separately identified NPCs and receive structured observations or event notifications.
-
-That endpoint must resolve the acting character, apply the normal authorization and world rules, and return the same kinds of outcomes the character would encounter through ordinary play. **A service credential must not automatically become omniscience or a bypass around the game.**
-
-The endpoint is an intended optimization and integration improvement, not a prerequisite for the first prototype.
-
-## 4. Interface and API contracts
-
-**The interface must consume both backends, through clearly separate interfaces.** This is a planned architectural requirement, not a claim that the needed endpoints already exist.
-
-```text
-      Human players / observers / operators
-                        |
-                Interface component
-                  /           \
-     Evennia-facing API     AI-handler API
-            |                    |
-      Evennia server <------> AI handler
-        world truth       agent transport and cognition
-```
-
-The interface may make both requests itself or use an interface-owned backend-for-frontend to consolidate auth, events, and presentation-friendly responses. That backend is a gateway/read-model layer, not a fourth simulation authority.
-
-### Evennia-facing data and actions
-
-- Read ship and game facts: rooms, equipment, cargo, crew positions, in-world duty assignments, events, and operational measurements when available to the requesting identity.
-- Perform normal in-world commands or appropriately authorised ship operations through Evennia. Game rules remain authoritative regardless of whether a human used a text client or dashboard.
-- Reuse supported Evennia networking and API mechanisms. Where stock Evennia lacks ship-specific read models, add explicit extensions rather than reach into its database from the UI. No claim is made that the complete dashboard API currently exists.
-
-### AI-handler-facing data and controls
-
-The independent handler should offer its **own versioned, authenticated API**, ideally separate from its transport to the game server. Candidate capabilities include:
-
-- List managed agents and expose their online/offline status, current decision activity, goals, intended next actions, and handler-side schedules.
-- Inspect recorded observations, beliefs, memory summaries, decisions, attempted game commands, and the outcomes agents received—subject to viewing permissions.
-- Expose operational diagnostics such as action queues, inference workload, errors, and event histories.
-- Support explicitly authorised **operator controls** such as pausing/resuming an agent or changing an administrative execution setting; these are not ordinary in-world character actions.
-
-These describe information and action categories rather than fixed REST paths or a selected protocol. Preserve an explicit distinction between an agent's **belief** and an authoritative fact, and between a decision explanation logged by the handler and any unrecorded internal model reasoning.
-
-### Joining both sides without losing provenance
-
-A stable mapping between an Evennia character ID and a handler agent ID will let the UI assemble a crew profile from both sources. Correlatable event IDs, game-time and wall-time timestamps, and distinguishable observed / attempted / succeeded / failed states are useful targets for the eventual API schemas.
-
-- A pump's actual condition comes from **Evennia**; an engineer's belief that it is broken comes from **the AI handler**.
-- An issued duty assignment comes from **Evennia**; how the agent plans to fulfil it comes from **the AI handler**.
-- A human's command to operate a pump routes to **Evennia**; an administrator's command to pause an AI agent routes to **the handler**.
-- Displaying or exporting diagnostic cognition must not leak private agent information to ordinary players or grant them omniscience.
-
-For an initial prototype, polling suitable endpoints is acceptable. Streaming updates (for example via WebSockets or server-sent events) can be introduced where supported or deliberately implemented; it is not a prerequisite to begin. The handler and game continue without any interface connection.
-
-## 5. Agent identity and knowledge
-
-Every significant NPC should have distinct persistent identity and continuity. Their own goals, assigned duties, skills, remembered experiences, and imperfect understanding of events may differ from the canonical ship state.
-
-In particular:
-
-- An agent may act only on information it can legitimately obtain, directly or from other characters or systems.
-- The game resolves what an action physically changes; the handler decides what an agent attempts.
-- Skills are intended to advance from practice, training, and use, not fixed classes or character levels.
-- A duty roster creates obligations and opportunities, but it should not dictate every decision by script.
-
-Prototype 1 will begin with Concordia component snapshots and an append-only decision/event journal; the durable storage backend and retrieval approach remain to be implemented. The skeleton `WorldPort` contract in `services/ai-handler/` is not a finished transport implementation.
-
-## 6. Time and workload
-
-The ship should be able to progress without a human connected. That does **not** imply one high-frequency LLM call per NPC or a fully detailed real-time simulation of every compartment at every instant.
-
-An initial implementation can combine scheduled duties, meaningful events, asynchronous decision queues, coarse background ticks, and deferred catch-up. Work should remain causally consistent with Evennia's authoritative state and become detailed when consequences require it.
-
-## 7. First proving-ground scenario
-
-Start with a handful of rooms and crew rather than the full freighter:
-
-1. An engineering space, a control room, and a connecting passage.
-2. Three individually managed crew members with distinct responsibilities and duty assignments.
-3. A routine maintenance or watchkeeping schedule.
-4. A failure such as a cooling pump fault, observable by appropriate crew or instruments.
-5. Logs that show who noticed what, what they believed, whom they contacted, and what they tried.
-6. A minimal read-only interface combining a pump/room status view from Evennia with each engineer's status and recorded decisions from the AI handler.
-
-Success means meaningful autonomous coordination, valid in-world actions, and correctly attributed observations—not merely convincing dialogue.
-
-## 8. Deliberately undecided
-
-The Concordia framework and deterministic GM authority boundary are chosen for Prototype 1. The specific model, inference server, durable storage, event/wire schema, dedicated Evennia API, UI framework and ship-system fidelity remain open.
-
-The early priority is a testable separation of concerns: **the game determines what is true and possible; the agents decide what to try; the interface exposes both without silently changing either; the transport lets us change how they communicate.**
-
-## 9. First concrete Evennia game directory
-
-The standalone [`game/`](game/README.md) directory is now a **playable fixture**, not an invented model observation. Its idempotent builder (`game/world/bootstrap.py`) creates a bridge, connecting passage, engineering compartment, four physical exits, three initially idle crew bodies, a pump, status console and posted roster. If Evennia has generated Limbo, an additional boarding exit makes the ship accessible from the default entry room. The pump's `normal -> low_pressure -> isolated -> repaired -> normal` transitions and event history persist as game-owned state. The read-only bridge telemetry reads its actual state; physical commands require presence and an authorised character role.
-
-This does **not** mark P2, P3 or P4 complete: there is no multi-agent mock scenario or external agent-to-Evennia transport. A local in-process repair experiment now lets one Concordia entity attempt normal Evennia commands, but it does not exercise a remote session or establish unscripted model competence. The dedicated `ox-ship-world.yml` workflow exercises game mechanics on an isolated Django test database. The existing P1 Concordia agent operates separately until an ordinary client transport is implemented.
-
-## 10. Single-character in-process command experiment
-
-`game/world/ai_repair.py` is a deliberately limited **developer harness**:
-a Concordia entity is paired with the actual Evennia engineer object. An
-operator places the engineer on the bridge and injects a pump fault. The
-entity receives only in-game text returned by ordinary commands and a list
-of locally visible command options. Each selected action goes through
-`DefaultCharacter.execute_cmd`, not a new privileged endpoint or direct
-Attribute mutation. Evennia determines movement, permissions and pump state.
-An external evaluator inspects the game-owned event log only **after** the
-agent has stopped, requiring a real pump recovery attributed to the
-engineer's character ID.
-
-Scripted-choice CI proves command-dispatch wiring, not planning. The opt-in
-`live_trial` permits an actual LLM to choose actions; users must supply an
-inference endpoint and inspect whether it succeeds. This exception to our
-planned three-service topology is temporary: normal network character
-sessions and a genuine independently running handler remain required.
-
-
-## 11. GOAP without a language model
-
-An additional policy is being developed for the same P-01 Evennia
-command harness: a model-independent GOAP planner with known preconditions,
-effects, costs, and ship layout. It uses character-authorised text
-observations to learn current equipment state, and retains its planned
-action sequence until the world contradicts its predictions. Each command
-still passes the existing Evennia access and physical-state checks.
-
-This does not change Concordia's status as an experimental cognitive host:
-routine deterministic planners must work without it. The GOAP fixture is
-not proof of general shipwide autonomous behavior. For limitations, tests
-and interface decisions see ADR 0006.
-
-
-## 12. Event-driven three-crew mock world
-
-A new P2 fixture extends the single-engineer experiment to three distinct,
-role-specific policies and an event-driven handler. A deterministic mock
-world owns a simulated game clock, active-watch roster, authorised readings,
-co-located message delivery and world receipt IDs. The handler supervises
-Ari, Iona and Lin with individual memories and scheduled obligations.
-No model or Concordia dependency is required for this mock duty scenario.
-
-Ari can relay a previously observed, unverified concern to Iona at watch
-handover; Lin does not gain access to its content. Iona's acknowledged
-acceptance causes the world to transfer engineering duty. Quiet intervals
-produce no agent wakeups, and unknown command receipts are reconciled
-without replaying the command.
-
-This is deliberately **not** an external service linked to persistent
-Evennia sessions. The rest of P2 (mock coordinated cooling fault), P3
-(live transport), and P5 (observatory) remain open. See
-[ADR 0007](design/decisions/0007-three-crew-watch-supervision.md).
-
-
-## 13. Mock coordinated engineering incident (P2)
-
-Scenario 1 composes the already-verified event-driven three-crew
-supervisor, private character observations, model-free GOAP action planning
-and world-authoritative machinery into one deterministic cooling incident.
-Lin's bridge alarm arrives to Lin alone, then moves by radio to Ari.
-Ari inspects and repairs locally. Iona receives a chief-release request,
-performs her own equipment inspection, and authorizes commissioning.
-Ari verifies the final state before reporting the incident closed.
-
-World logic enforces physical preconditions and immutable action IDs.
-The handler handles urgent revision changes, zero-inference idle behavior
-and restart/reconciliation of an unknown operation without blind retries.
-The mocked chief-release interlock is an extension of the prototype
-mechanics and must not be misrepresented as part of real Evennia P-01.
-
-Although the two P2 scenario fixtures have passing executable tests,
-the independent handler does **not** yet connect to persistent Evennia
-characters. That external transport (P3) is the next architectural boundary.
-See [ADR 0008](design/decisions/0008-coordinated-coolant-incident.md).
+# Ox of Hephaestus — architecture and authority boundaries
+
+**Current implementation:** P4a/P4b have passed focused integration checks
+against real Evennia and are merged into `main`. Three authenticated
+character sessions, native Concordia entities, a GOAP pump procedure,
+world-issued event receipts and a separately runnable watch supervisor
+exist. **This is a three-room, one-pump prototype, not a deployed complete
+freighter or general social simulation.**
+[Verified feature matrix](design/STATUS.md) · [Development setup](INSTALL.md).
+
+## 1. Independently operable components
+
+~~~text
+ Human MUD clients                 Planned human observatory (NOT built)
+        |                                /                \
+        v                         world-facing API     handler API
+  +------------+                         |                  |
+  |  Evennia   | <--- ordinary authenticated clients ---+    |
+  | world/game |           AI handler (Concordia + GOAP) <---+
+  +------------+              separate OS process
+    WORLD TRUTH                CHARACTER BELIEFS / INTENT
+~~~
+
+**Evennia (implemented)** is the sole authority on rooms, characters,
+equipment, permissions, engineering assignments, the world-owned duty
+timer, physical transitions and validation of equipment operations. The
+game remains accessible to human players using ordinary Telnet/web
+clients. The AI handler does not read or mutate the game database.
+
+**Ox AI handler (implemented for three crew)** owns each character's
+Concordia entity, memory, proposed actions, pending requests, journals,
+snapshots and wake-up policy. It connects as three ordinary, nonprivileged
+Evennia client accounts. The handler can be stopped while the world keeps
+its own state, alarms and event journal. Production process supervision,
+generic concurrency limits and full crash-resume coverage are future work.
+
+**Human interface (deferred)** is a separately packaged skeleton under
+`services/interface/`. The intended UI will join authoritative world
+readings with handler-owned cognitive records through **two distinct
+authenticated read APIs**. Neither the joined API nor the browser app
+exists. The interface must never create a second store of ship truth.
+
+## 2. The currently implemented ship
+
+`game/world/bootstrap.py` installs three rooms—Bridge, Connecting Passage
+and Engineering—and crew characters Lin Sato, Ari Sen and Iona Vek. A
+status console reads P-01 pressure on the Bridge; operators in Engineering
+can `inspect pump`. The pump's authoritative lifecycle is:
+
+~~~text
+normal --fault--> low_pressure --isolate--> isolated
+isolated --repair--> repaired --commission--> normal
+~~~
+
+Every physical operation checks the actual state, character presence and
+in-world role. The ordinary `oxaction <request-id> <operation>` route
+produces a durable, actor-bound `ox_receipt`; querying
+`oxreceipt <request-id>` reconciles uncertain physical outcomes without
+repeating the command. A proposed plan has **no game effect** until
+Evennia validates and executes it.
+
+World events (`ox_event`) are stored for a **single recipient** with a
+source event ID, game timestamp, sender and flat scalar details. On an
+ordinary Evennia `v1.evennia.com` WebSocket connection the handler sends
+normal character commands and receives in-world observations or the
+explicit Ox out-of-band event/receipt messages. `oxinbox` replays only
+events addressed to the logged-in character. We do **not** have an
+operator-omnipotent AI service endpoint.
+
+A live bridge alarm first reaches Lin, who may radio the engineer on
+active watch. Ari and Iona inspect and service equipment **locally**;
+an independently assigned reviewer inspects before commissioning.
+During the first watch Ari works and Iona reviews. After the world-owned
+handover, Iona works and Ari is delegated review authority; self-approval
+is forbidden. The reviewer and active engineer can be determined from
+world-owned roster state, not an agent's assertion.
+
+## 3. Cognition is not causality
+
+**Chosen foundation:** [Concordia](https://github.com/google-deepmind/concordia)
+`EntityAgentWithLogging` for each full NPC; the optional source dependency
+is pinned to a reviewed commit (see [ADR 0001](design/decisions/0001-concordia-first.md)).
+The current entity graph uses identity, duties/goals, observations and
+list memory. Each entity receives only its **own** addressed world events
+and direct local readouts.
+
+- **GOAP** is a model-free STRIPS-like search for familiar engineering
+  procedures; its predicted effects are not state changes.
+- **Concordia** offers a bounded finite action menu and produces a
+  **proposal**, including the option to defer. Choices have agent revision
+  and request IDs; a later world response is separately recorded.
+- **LLM usage** is optional, not a per-tick prerequisite. CI uses a native
+  deterministic MockModel, not three independently improvising language
+  models. A single-engineer Gemini experiment is opt-in. General dialogue,
+  unstructured new procedures and robust semantic cooperation are not
+  proven by the current integration tests.
+- **Game Master:** deterministic P2 mock tests use a tiny world/event
+  resolver; no continuously narrating language-model GM governs the live
+  ship. The Ox handler directly activates Concordia entities as needed.
+
+An agent's belief may be incorrect or stale. Any future observatory must
+show the difference between **Evennia says P-01 is normal** and **Ari
+believes it may still be isolated**, with each source identified.
+
+## 4. Time, handovers and the external loop
+
+The persistent `world.live_clock.ShipDutyClock` Evennia Script checks a
+game-owned duty deadline, emits addressed `handover_due` events **once**,
+and never invokes Concordia. The test fixture uses a short real world-timer
+delay while labelling the watch change at 07:55; the earlier P3 test
+optionally used an artificial clock jump after incident closure. P4b
+specifically tests handover **without** that shortcut.
+
+`ox_ai.runtime.watch_service serve` is the independent event-driven
+handler entry point. It can restore native Concordia checkpoints from
+`.ox-state/`, rejoin the world and wait on an authenticated socket when
+no character needs attention; idle cycles do not require model calls.
+One world-side fault can wake the crew, and subsequent faults can occur
+under a different active watch.
+
+The P4b GitHub test deliberately stops and restarts the **handler as a
+separate OS process** after Evennia has committed an isolation but before
+its acknowledgment has been remembered. The new process reconciles the
+existing request ID; it never repeats that physical isolation. The
+verifier independently checks exactly two complete pump cycles in one
+persistent game database. This is **not** yet proof of recovery from
+every possible mid-scene interruption or of production 24/7 uptime.
+
+## 5. Security and provenance
+
+- Only in-world account/character permissions authorize actions.
+  A successful login is followed by a character-identity challenge.
+- Non-TLS `ws://` connections are restricted to loopback in the client;
+  a remote service would require audited authentication and `wss://`.
+- Development `game/server/conf/settings.py` uses `LOCKDOWN_MODE`,
+  disables registration and binds game ports to loopback.
+- Test provisioning (`game/world/transport_probe.py`) intentionally uses
+  throwaway bot accounts and is unsuitable for production identity
+  management. Never commit keys or credentials.
+- Ox wire event IDs, physical request IDs, world event timestamps and
+  actor dbrefs support attribution; social commands do **not** all have
+  the same durable/transactional receipt guarantees as physical actions.
+- Individual cognitive journals are private operator diagnostics, not
+  authorized input for other crew or a public dashboard.
+
+## 6. Planned systems and explicit non-goals for P4
+
+The eventual bulk freighter will have cargo, propulsion, maintenance
+scheduling, department structures, trained skills without level/class
+progression and wider AI crew. These have **not been built** in the
+three-compartment fixture. The postponed P5 observatory would join
+Evennia readings to handler beliefs through permissioned, versioned APIs;
+no UI framework or deployment architecture is selected.
+
+A dedicated multi-character AI transport endpoint remains a **possible
+later optimization**, not a reason to bypass normal game authorization.
+Do not add a second general agent framework or an always-generative GM
+without a measured reason. Prefer lazy background work, event-driven
+decisions and causal consistency over full high-frequency continuous
+simulation.
+
+## 7. Source map and acceptance evidence
+
+| Concern | Code or document |
+| --- | --- |
+| Game world, equipment, roster | [`game/`](game/README.md) and `game/world/live_crew.py` |
+| Persistent game duty clock | `game/world/live_clock.py` |
+| Authenticated client and durable receipt port | `services/ai-handler/src/ox_ai/ports/evennia/` |
+| Individual native cognition | `services/ai-handler/src/ox_ai/agents/live_concordia.py` |
+| Persistent event-driven process | `services/ai-handler/src/ox_ai/runtime/watch_service.py` |
+| P2 mock scenarios | [watch handover](scenarios/shift_handover/README.md), [coolant fault](scenarios/coolant_fault/README.md) |
+| P3/P4 acceptance | [status and PR evidence](design/STATUS.md), [P4a](design/prototypes/p4a-live-cognition.md), [P4b](design/prototypes/p4b-autonomous-watch.md) |
+| Future interface | [interface roadmap](services/interface/README.md), [contracts](contracts/README.md) |
+
+The `ox-p4b-autonomy.yml` workflow is the executable test of the
+world-clock, changed-watch and crash-reconciliation claims. Its success
+does not expand the scope of the demonstrated mechanics.
