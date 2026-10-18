@@ -145,8 +145,11 @@ class DepartmentWorldTests(EvenniaTestCase):
         self.assertFalse(ship["scrubber"].access(self.tech, "get"))
 
     def test_developer_can_try_both_specialist_roles_without_npc_puppeting(self):
-        player = self.char1
-        player.move_to(self.ship["cargo_hold"], quiet=True)
+        from evennia.utils.create import create_object
+        player = create_object(
+            "typeclasses.ship.CrewCharacter", key="Development Volunteer",
+            location=self.ship["cargo_hold"],
+        )
         with patch.object(player, "check_permstring", return_value=False):
             self.assertIn("Only developers",
                           self.command(CmdShipRole, player, "cargo"))
