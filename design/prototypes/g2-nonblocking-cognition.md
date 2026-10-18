@@ -1,6 +1,6 @@
 # G2b — nonblocking individual cognition and single-host supervisor lease
 
-**Implementation target:** [PR #33](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/33). This is handler-only scheduling, with actual world receipts and rules unchanged.
+**Status: tested and merged** in [PR #33](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/33) (25 of 25 applicable jobs passed across 18 workflows). This is handler-only scheduling, with actual world receipts and rules unchanged.
 
 ## Ownership and safety
 
