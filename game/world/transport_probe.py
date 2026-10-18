@@ -16,7 +16,11 @@ from evennia.utils.create import create_account
 from world.bootstrap import build_ship
 
 
-CREW = (("ari", "watch", "OxBotAri"), ("lin", "officer", "OxBotLin"))
+CREW = (
+    ("ari", "watch", "OxBotAri"),
+    ("lin", "officer", "OxBotLin"),
+    ("iona", "chief", "OxBotIona"),
+)
 
 
 def provision() -> dict[str, str]:
