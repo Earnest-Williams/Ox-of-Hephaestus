@@ -45,7 +45,7 @@ jobs:
         working-directory: game
         run: |
           evennia migrate --noinput
-          evennia test world.tests.test_live_cooperation --verbosity=2
+          evennia --settings settings.py test world.tests.test_live_cooperation --verbosity=2
       - name: Provision three unprivileged characters and initial fault
         working-directory: game
         run: |
