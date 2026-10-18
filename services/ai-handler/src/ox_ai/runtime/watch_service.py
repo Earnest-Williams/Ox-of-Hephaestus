@@ -265,6 +265,36 @@ class CrewWatchSupervisor:
             role, self.brains[role], primary, alternative=alternative,
         )
 
+    async def ensure_station(self, role: str, destination: str):
+        """Reach assigned compartment by local capability + stock exit steps.
+
+        The private map is stored with the supervisor checkpoint. Physical
+        locations are never trusted from the checkpoint: each attempt begins
+        with a fresh authenticated world observation and verifies arrivals.
+        """
+        from ox_ai.planning.navigation import CrewNavigator, NavigationKnowledge
+        from ox_ai.ports.evennia.capabilities import CapabilityPort
+
+        self.lease.assert_held()
+        if role not in self.ids or role not in self.clients or role not in self.brains:
+            raise PermissionError("Navigator role not authenticated in this ship")
+        records = self.state.setdefault("navigation_knowledge", {})
+        if not isinstance(records, dict) or any(k not in self.ids for k in records):
+            raise PermissionError("Invalid or foreign private route checkpoint")
+        private_map = NavigationKnowledge(self.ids[role], records.get(role))
+        navigator = CrewNavigator(
+            CapabilityPort(self.clients[role]),
+            brain=self.brains[role], knowledge=private_map,
+        )
+        result = await navigator.navigate(destination, max_movements=20)
+        records[role] = navigator.knowledge.to_record()
+        self.checkpoint()
+        if result.status != "arrived":
+            raise RuntimeError(
+                f"{role} cannot reach assigned station; no physical work requested"
+            )
+        return result
+
     async def read_inbox(self, role: str) -> list[dict]:
         """Losslessly replay legacy consumers' full authenticated history.
 
@@ -422,6 +452,7 @@ class CrewWatchSupervisor:
         engineer = self.brains[active]
         engineer.observe_event(event)
 
+        await self.ensure_station(active, "Engineering")
         local = await inspect(worker)
         engineer.observe_local("Physical engineering inspection", local)
         if "LOW PRESSURE" not in local:
@@ -494,6 +525,7 @@ class CrewWatchSupervisor:
         )
 
         async def prepare_repair() -> None:
+            await self.ensure_station(active, "Engineering")
             reading = await inspect(worker)
             engineer.observe_local("Pre-repair local inspection", reading)
             if "ISOLATED" not in reading:
@@ -547,6 +579,7 @@ class CrewWatchSupervisor:
         inspecting.observe_event(requested)
 
         async def prepare_approval() -> None:
+            await self.ensure_station(reviewer, "Engineering")
             choice = await self.choose(reviewer, 
                 CommandOption(
                     "Perform independent local safety inspection", "inspect_pump",
