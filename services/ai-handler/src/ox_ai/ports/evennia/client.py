@@ -110,16 +110,34 @@ class EvenniaWebSocketClient:
         self._verified = True
 
     async def _await_login(self) -> None:
+        # Retain only event names and fixed classifications, not server text;
+        # diagnostic messages must never include an echoed password.
+        kinds = []
+        notices = []
         try:
             async with asyncio.timeout(self.timeout):
                 for _ in range(256):
                     packet = await self.receive()
+                    kinds.append(packet.kind[:32])
+                    message = packet.text.lower()
                     if packet.kind == "logged_in":
                         return
-                    if "incorrect" in packet.text.lower() or "login failures" in packet.text.lower():
-                        raise IdentityMismatch("Account authentication refused")
+                    for needle, code in (
+                        ("incorrect", "bad_credentials"),
+                        ("login failures", "login_throttle"),
+                        ("already connected", "existing_session"),
+                        ("invalid", "invalid_command"),
+                        ("welcome", "welcome"),
+                    ):
+                        if needle in message and code not in notices:
+                            notices.append(code)
+                    if "incorrect" in message or "login failures" in message:
+                        raise IdentityMismatch("Account authentication refused: " + ",".join(notices))
         except TimeoutError as exc:
-            raise IdentityMismatch("Timed out before authenticated session acknowledgement") from exc
+            raise IdentityMismatch(
+                "No login acknowledgement; packet kinds="
+                + ",".join(kinds[:15]) + " notices=" + ",".join(notices)
+            ) from exc
         raise IdentityMismatch("No authenticated session acknowledgement")
 
     async def send_line(self, line: str) -> None:
