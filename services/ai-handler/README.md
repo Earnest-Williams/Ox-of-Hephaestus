@@ -84,3 +84,25 @@ outside the finite action menu.
 This is *not* a completed external WorldPort, authenticated service, or
 multi-agent simulation. Real room movement and pump operations cannot
 bypass Evennia's world-side constraints.
+
+## Free-tier hosted, typed decisions (opt-in)
+
+The [ADR 0005](../../design/decisions/0005-typed-decisions-free-api.md)
+adds a provider-neutral bounded choice contract and an optional Gemini
+3.1 Flash-Lite backend. It returns a schema-constrained option identifier
+through the existing Concordia `sample_choice` pathway, never a claimed
+world outcome. Google requires `GEMINI_API_KEY` even for free usage.
+No account, key, model download, hosted call or network access is required
+for the offline tests.
+
+Run the no-network adapter tests:
+
+```sh
+python -m unittest discover -s services/ai-handler/tests -p 'test_gemini_decisions.py' -v
+```
+
+To try the actual hosted model with the real pump fixture, see the
+[game README](../../game/README.md#optional-free-tier-gemini-choice-experiment).
+Inference runs synchronously inside the disposable developer trial only.
+A real scheduler, GOAP baseline, timeouts and operator-safe failure handling
+are separate milestones.
