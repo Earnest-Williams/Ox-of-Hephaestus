@@ -9,7 +9,41 @@ ACK across a handler restart. This is **not** deployed production software
 or proof of unconstrained multi-agent intelligence.
 [Current status](../../design/STATUS.md).
 
-## P4j globally receipted cargo and environmental work (under validation)
+## G2a event-triggered private crew agendas (under validation)
+
+Each of the five independent characters now owns a separate
+`AgentAgenda` record under `agendas[role]` in the existing supervisor
+checkpoint. Each record is bound to the character DB ref; neither world
+permissions nor the separate Concordia memories are shared. A work item
+stores its actual addressed world-event ID/sequence, scheduling priority,
+disposition, reason, reconsideration event kinds, and bounded history.
+
+The five-crew handler materializes the cargo and environmental duties
+first. `service_departments()` now chooses a ready world-grounded
+obligation by priority rather than looping Teo then Mara. A new urgent
+world alarm may interrupt an in-progress lower-priority task **only after
+a real step**, and the interrupted job resumes its saved `WorkStepLedger`
+records later. A model-deferred or world-blocked task persists with an
+explicit world-event trigger and is not silently deleted or immediately
+rerun on replay. An operator-supplied A-01 replenishment event is used
+only in CI to demonstrate reopening a real failed attempt: the original
+failed request remains immutable, and a new request ID is generated
+after new source-world evidence arrives.
+
+The [G2a workflow](../../.github/workflows/ox-g2-crew-agendas.yml)
+includes local schema/security tests and two separate full-server
+process-restart trials: urgent life support preempts partly completed
+cargo work, and a missing-cartridge refusal is reconsidered after
+the world physically resupplies and addresses Teo.
+
+**Scope:** The agenda data structure is generic across all five agents,
+but actual automatic work creation is currently integrated only into the
+two specialist jobs. Time-based due dates, independent goal selection,
+delegation/escalation communications, and nonblocking hosted inference
+remain future G2 work. Never treat the private status `completed`
+as proof without the corresponding world-authoritative action receipts.
+
+## P4j globally receipted cargo and environmental work (merged PR #27)
 
 New cargo-restraint and scrubber operations from the five-crew supervisor
 are now recorded in that specialist job's own `work_steps` under
@@ -32,7 +66,7 @@ also seeds a genuine old-format P4e checkpoint.
 World inventory is not yet transferable between crew, and postponed
 specialist tasks do not yet have agenda-style reconsideration triggers.
 
-## P4i bridge, watch and hail recovery (under validation)
+## P4i bridge, watch and hail recovery (merged PR #26)
 
 The three- and five-crew supervisors persist the bridge alarm's
 `begin_alarm` stage before attempting an `oxwork radio ship`. If
