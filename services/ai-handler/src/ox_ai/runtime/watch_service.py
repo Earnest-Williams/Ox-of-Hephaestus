@@ -627,57 +627,120 @@ class CrewWatchSupervisor:
         self.checkpoint()
         return verdict
 
-    async def handover_if_due(self) -> bool:
-        """Independently react to world-issued duty events, even with no fault."""
+    async def handover_if_due(
+        self, *, interrupt_at: str | None = None,
+    ) -> bool:
+        """Reconcile an authorized watch offer/accept across handler restarts."""
         if self.state["phase"] != "idle":
             return False
-        # Only a real addressed due event can authorize this procedure.
         old = self.clients["ari"]
         incoming = self.clients["iona"]
-        history = await self.read_inbox("ari")
-        due = [e for e in history if e["kind"] == "handover_due"]
-        if not due:
-            return False
-        bridge = self.clients["lin"]
-        await bridge.send_line("inspect roster")
-        current = active_watch_from_roster(
-            await bridge.expect_text("Active engineering watch:", timeout=10)
+        work = self.state.get("handover_work")
+        if work is None:
+            history = await self.read_inbox("ari")
+            due = [e for e in history if e["kind"] == "handover_due"]
+            if not due:
+                return False
+            bridge = self.clients["lin"]
+            await bridge.send_line("inspect roster")
+            current = active_watch_from_roster(
+                await bridge.expect_text("Active engineering watch:", timeout=10)
+            )
+            if current != "ari":
+                return False
+            incoming_events = await self.read_inbox("iona")
+            if not any(e["kind"] == "handover_due" for e in incoming_events):
+                return False
+            work = {
+                "due_event_id": due[-1]["event_id"],
+                "outgoing": self.ids["ari"], "incoming": self.ids["iona"],
+            }
+            self.state["handover_work"] = work
+            self.checkpoint()
+        else:
+            if (not isinstance(work, dict)
+                    or work.get("outgoing") != self.ids["ari"]
+                    or work.get("incoming") != self.ids["iona"]):
+                raise PermissionError("Persisted handover no longer matches identities")
+            due_ids = {
+                e["event_id"] for e in await self.read_inbox("ari")
+                if e["kind"] == "handover_due"
+            }
+            if work.get("due_event_id") not in due_ids:
+                raise PermissionError("Persisted handover lacks world-issued duty")
+        ledger = WorkStepLedger(
+            work, self.checkpoint, character_ids=self.ids,
         )
-        if current != "ari":
-            return False
-        # The receiving crewmember must also have been sent the duty event.
-        if not any(e["kind"] == "handover_due" for e in
-                   await self.read_inbox("iona")):
-            return False
         ari = self.brains["ari"]
         iona = self.brains["iona"]
-        ari.observe_event(due[-1])
-        offer = ari.choose(
-            CommandOption("Offer posted watch at due time", "oxhandover"),
-            alternative="Defer handover for an unresolved safety concern",
+
+        if "offer" not in ledger.steps:
+            proposal = ari.choose(
+                CommandOption("Offer posted watch at due time", "oxhandover"),
+                alternative="Defer handover for an unresolved safety concern",
+            )
+            if proposal.verb != "oxhandover":
+                ari.record_unknown(proposal)
+                # No world action has been requested. Reconsider on a future
+                # event, preserving the due obligation on the world roster.
+                self.state["handover_work"] = None
+                self.checkpoint()
+                return False
+            ari.selected_procedure(proposal)
+        offer = await ledger.run(
+            "offer", "ari", "offer", "ship", DurableEvenniaPort(old),
+            interrupt_at=interrupt_at,
         )
-        if offer.verb != "oxhandover":
-            ari.record_unknown(offer)
-            self.checkpoint()
-            return False
-        await old.send_line("oxhandover")
-        offered = await replayable_event(incoming, "handover_offer",
-                                         self.memories["iona"])
-        ari.record_unknown(offer)
+        offered = next(
+            (e for e in await self.read_inbox("iona")
+             if e["event_id"] == offer.source_event_id
+             and e["kind"] == "handover_offer"
+             and e["sender_dbref"] == self.ids["ari"]),
+            None,
+        )
+        if offered is None:
+            raise PermissionError("Incoming watch did not receive an authorized offer")
         iona.observe_event(offered)
-        take = iona.choose(
-            CommandOption("Accept scheduled engineering watch", "oxaccept"),
-            alternative="Decline to assume the scheduled watch",
+
+        if "accept" not in ledger.steps:
+            proposal = iona.choose(
+                CommandOption("Accept scheduled engineering watch", "oxaccept"),
+                alternative="Decline to assume the scheduled watch",
+            )
+            if proposal.verb != "oxaccept":
+                iona.record_unknown(proposal)
+                self.checkpoint()
+                return False
+            iona.selected_procedure(proposal)
+        accepted = await ledger.run(
+            "accept", "iona", "accept", "ship",
+            DurableEvenniaPort(incoming), interrupt_at=interrupt_at,
         )
-        if take.verb != "oxaccept":
-            iona.record_unknown(take)
-            self.checkpoint()
-            return False
-        await incoming.send_line("oxaccept")
-        transferred = await replayable_event(
-            incoming, "watch_transferred", self.memories["iona"]
+        outgoing_events = await self.read_inbox("ari")
+        transferred = next(
+            (e for e in outgoing_events
+             if e["event_id"] == accepted.source_event_id
+             and e["kind"] == "watch_transferred"
+             and e["sender_dbref"] == self.ids["iona"]
+             and e["data"].get("new_watch") == self.ids["iona"]),
+            None,
         )
-        iona.confirm(take, transferred)
+        if transferred is None:
+            raise PermissionError("Outgoing watch did not observe world transfer")
+        own_events = await self.read_inbox("iona")
+        if not any(
+            e["kind"] == "watch_transferred"
+            and e["data"].get("new_watch") == self.ids["iona"]
+            for e in own_events
+        ):
+            raise PermissionError("Incoming watch lacks world transfer confirmation")
+        await self.clients["lin"].send_line("inspect roster")
+        roster = await self.clients["lin"].expect_text(
+            "Active engineering watch:", timeout=10,
+        )
+        if active_watch_from_roster(roster) != "iona":
+            raise RuntimeError("World roster did not transfer authorized watch")
+        self.state["handover_work"] = None
         self.checkpoint()
         return True
 
@@ -685,45 +748,82 @@ class CrewWatchSupervisor:
         """Optional specialist-work hook; historical three-crew runtime is idle."""
         return False
 
-    async def respond_to_hails(self) -> int:
-        """Consume recipient-private hails, with world-side duplicate defence."""
+    async def respond_to_hails(
+        self, *, interrupt_at: str | None = None,
+    ) -> int:
+        """Resume each addressed hail using a saved typed world-work request.
+
+        The handler never reinterprets an already-persisted answer as a new
+        model decision. World-owned `hail_answered` is required as evidence
+        before private intent may be cleared from the supervisor checkpoint.
+        """
         count = 0
+        pending = self.state.setdefault("hail_work", {})
         for role in self.clients:
             events = await self.read_inbox(role)
-            answered = {e["data"]["hail_id"] for e in events
-                        if e["kind"] == "hail_answered"}
+            answered = {
+                e["data"]["hail_id"] for e in events
+                if e["kind"] == "hail_answered"
+            }
             for event in events:
                 if event["kind"] != "crew_hail":
                     continue
                 hail_id = event["data"]["hail_id"]
-                if hail_id in answered:
+                work = pending.get(hail_id)
+                if hail_id in answered and work is None:
                     continue
                 brain = self.brains[role]
                 brain.observe_event(event)
-                proposal = brain.choose(
-                    CommandOption("Give an authoritative station status", "status"),
-                    alternative="Acknowledge request without unverified claims",
+                if work is None:
+                    proposal = brain.choose(
+                        CommandOption(
+                            "Give authoritative station status", "status",
+                        ),
+                        alternative="Acknowledge without unverified claims",
+                    )
+                    mode = proposal.verb if proposal.verb == "status" else "ack"
+                    work = {
+                        "role": role,
+                        "mode": mode,
+                        "hail_event_id": event["event_id"],
+                    }
+                    pending[hail_id] = work
+                    self.checkpoint()
+                if (work.get("role") != role
+                        or work.get("hail_event_id") != event["event_id"]
+                        or work.get("mode") not in ("status", "ack")):
+                    raise PermissionError("Recovered hail belongs to another recipient")
+                result = await WorkStepLedger(
+                    work, self.checkpoint, character_ids=self.ids,
+                ).run(
+                    "answer", role, "answer", "ship",
+                    DurableEvenniaPort(self.clients[role]),
+                    arguments={"hail_id": hail_id, "mode": work["mode"]},
+                    interrupt_at=interrupt_at,
                 )
-                mode = proposal.verb if proposal.verb == "status" else "ack"
-                await self.clients[role].send_line(
-                    f"oxanswer {hail_id} {mode}"
-                )
-                # Re-read the world-owned durable event before recording success.
-                result = await self.read_inbox(role)
-                confirmed = [e for e in result if e["kind"] == "hail_answered"
-                             and e["data"]["hail_id"] == hail_id]
-                if not confirmed:
-                    brain.record_unknown(proposal)
-                    raise RuntimeError("Hail answer unconfirmed by world")
-                brain.confirm(proposal, confirmed[-1])
+                if result.status != "succeeded":
+                    raise RuntimeError("World did not accept addressed hail")
+                verified = [
+                    e for e in await self.read_inbox(role)
+                    if e["kind"] == "hail_answered"
+                    and e["data"].get("hail_id") == hail_id
+                    and e["data"].get("mode") == work["mode"]
+                ]
+                if not verified:
+                    raise RuntimeError("Hail answer unconfirmed by world journal")
+                brain.observe_event(verified[-1])
                 answered.add(hail_id)
+                del pending[hail_id]
                 count += 1
                 self.checkpoint()
         return count
 
     async def serve(self) -> None:
         """Independent multi-source event dispatch; no idle model polling."""
-        if self.state["phase"] in ("unknown_isolate", "isolate_verified"):
+        if self.state["phase"] == "begin_alarm":
+            await self.begin()
+            await self.resume()
+        elif self.state["phase"] in ("unknown_isolate", "isolate_verified"):
             await self.resume()
         while True:
             # First reconcile world-owned pending duties on reconnect.
