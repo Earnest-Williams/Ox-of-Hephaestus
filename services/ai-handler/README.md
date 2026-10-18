@@ -9,6 +9,23 @@ ACK across a handler restart. This is **not** deployed production software
 or proof of unconstrained multi-agent intelligence.
 [Current status](../../design/STATUS.md).
 
+## P4f complete addressed event replay (PR #22)
+
+`src/ox_ai/runtime/watch_service.py` now reads the version-2
+`oxinbox` protocol page by page, rather than stopping at 128 events.
+Pages are fetched through each character's ordinary authenticated Evennia
+connection; cross-recipient frames and nonprogressing cursors fail closed.
+Each character's newly authorized events enter that character's own
+Concordia state before `inbox_cursors` is saved in the supervisor ledger.
+This ordering makes interrupted replay safe to repeat.
+
+**Compatibility limitation:** current P4e consumers need historic alarm,
+handover and hail context, so they still scan all recipient-private pages
+from cursor zero on each processing pass. The saved high-water cursors do
+not yet eliminate those full scans. Independent incremental agenda and
+retention support are planned in `design/ROADMAP.md`. This milestone does
+not make every arbitrary physical or social action crash-transactional.
+
 ## P4e merged five-crew runtime
 
 [Merged PR #19](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/19)
