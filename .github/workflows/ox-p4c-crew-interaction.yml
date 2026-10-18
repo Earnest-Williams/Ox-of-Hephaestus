@@ -68,7 +68,7 @@ jobs:
           PY
           sleep 5
           set +e
-          timeout 35s python -m ox_ai.runtime.watch_service serve
+          timeout 60s python -m ox_ai.runtime.watch_service serve
           CODE=$?
           set -e
           if [ "$CODE" -ne 124 ]; then
