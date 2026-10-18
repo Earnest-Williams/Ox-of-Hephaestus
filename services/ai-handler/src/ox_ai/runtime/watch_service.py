@@ -426,9 +426,10 @@ class CrewWatchSupervisor:
         due = [e for e in history if e["kind"] == "handover_due"]
         if not due:
             return False
-        await old.send_line("inspect roster")
+        bridge = self.clients["lin"]
+        await bridge.send_line("inspect roster")
         current = active_watch_from_roster(
-            await old.expect_text("Active engineering watch:", timeout=10)
+            await bridge.expect_text("Active engineering watch:", timeout=10)
         )
         if current != "ari":
             return False
