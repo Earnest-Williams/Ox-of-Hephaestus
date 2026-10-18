@@ -76,7 +76,7 @@ remaining steps migrate. Three isolated server tests exercise
 pre-send, post-commit and old-checkpoint recovery. PostgreSQL
 multi-writer contention remains the final outstanding G1 gate.
 
-**G1-PG (under validation):** A dedicated PostgreSQL CI job now
+**G1-PG (merged PR #28):** A dedicated PostgreSQL CI job now
 races independent world writers and verifies the actual row lock,
 global request ID uniqueness, one-unit resource consumption and
 rollback of world-owned event/receipt records. This does not
@@ -84,6 +84,19 @@ constitute a production-grade Postgres deployment recipe, nor a
 general property proof for every future inventory system.
 
 ## G2: Individual autonomy
+
+### G2a implementation slice (under validation)
+
+Introduce a generic private `AgentAgenda` for each of the five existing
+characters, persist dispositions and future-event reconsideration
+triggers, retain old saved jobs, and dispatch specialist obligations
+by meaningful local priority. Two game-server acceptance cases must
+demonstrate world-triggered reprioritization/interruption and an
+A-01 supply refusal followed by a later resupply observation and safe
+new attempt. The world owns both failed and successful work receipts.
+This slice deliberately precedes deadline escalation, cross-department
+delegation, freeform goal selection, threaded/provider-isolated cognition
+and general autonomous movement.
 
 ### PR 23 — persistent agendas and reconsideration
 **Dependency:** PR 22. Persistent private goals, ranked obligations, blockers, due times and accepted/deferred/declined/delegated/escalated/completed states; world-owned `WorkOrder` is distinct from handler-owned `AgentAgenda`. A deferral records its next trigger; no indefinite silent skip. **Acceptance:** priority interruption, later resumption and missing-supply reconsideration survive restarts.
