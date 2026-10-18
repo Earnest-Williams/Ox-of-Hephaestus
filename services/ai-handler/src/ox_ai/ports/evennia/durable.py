@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 
 from ox_ai.ports.base import ActionOutcome, ActionRequest
 from ox_ai.ports.evennia.client import EvenniaWebSocketClient
@@ -49,7 +50,7 @@ class DurableEvenniaPort:
         if request.target != "pump" or request.arguments:
             raise ValueError("Unsupported request or arguments")
         op = _VERBS.get(request.verb)
-        if op is None or len(request.request_id) != 32:
+        if op is None or re.fullmatch(r"[0-9a-f]{32}", request.request_id) is None:
             raise ValueError("Unknown operation or request ID")
         await self.client.send_line(f"oxaction {request.request_id} {op}")
         return await self._receipt(request.request_id)
@@ -57,7 +58,7 @@ class DurableEvenniaPort:
     async def reconcile(self, request_id: str) -> ActionOutcome:
         if not self.client.authenticated:
             raise PermissionError("Unauthenticated session")
-        if len(request_id) != 32:
+        if re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
             raise ValueError("Invalid request ID")
         await self.client.send_line(f"oxreceipt {request_id}")
         return await self._receipt(request_id)
