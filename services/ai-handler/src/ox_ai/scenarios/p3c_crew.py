@@ -24,25 +24,58 @@ IDS = Path(".ox-state/p3a-ids.json")
 URL = "ws://127.0.0.1:4002"
 
 
-async def next_event(client, expected: str, memory: list[dict]) -> dict:
-    """Block on actual character-addressed world messages, not an idle tick."""
-    async with asyncio.timeout(25):
-        for _ in range(128):
-            packet = await client.receive()
-            if packet.kind != "ox_event":
-                continue
-            if len(packet.args) == 1 and isinstance(packet.args[0], str):
-                event = json.loads(packet.args[0])
-            else:
-                raise ValueError("Malformed private observation framing")
-            if not isinstance(event, dict) or not isinstance(event.get("data"), dict):
-                raise ValueError("Malformed world event content")
-            if event.get("recipient_dbref") != client.character_dbref:
-                raise PermissionError("Another character's memory leaked")
-            memory.append(event)
-            if event.get("kind") == expected:
-                return event
-    raise RuntimeError("Expected scoped world event never arrived")
+async def next_event(client, expected: str, memory: list[dict],
+                     *, timeout: float = 25.0) -> dict:
+    """Wait for legitimate, recipient-scoped world observations only."""
+    received_types = []
+    seen = {event.get("event_id") for event in memory}
+    try:
+        async with asyncio.timeout(timeout):
+            for _ in range(128):
+                packet = await client.receive()
+                received_types.append(packet.kind[:32])
+                if packet.kind != "ox_event":
+                    continue
+                if len(packet.args) == 1 and isinstance(packet.args[0], str):
+                    event = json.loads(packet.args[0])
+                else:
+                    raise ValueError("Malformed private observation framing")
+                if not isinstance(event, dict) or not isinstance(event.get("data"), dict):
+                    raise ValueError("Malformed world event content")
+                if event.get("recipient_dbref") != client.character_dbref:
+                    raise PermissionError("Another character's memory leaked")
+                event_id = event.get("event_id")
+                if not isinstance(event_id, str):
+                    raise ValueError("World event lacks a stable ID")
+                if event_id not in seen:
+                    memory.append(event)
+                    seen.add(event_id)
+                if event.get("kind") == expected:
+                    return event
+    except TimeoutError as exc:
+        raise TimeoutError(
+            "Expected " + expected + " absent; received protocol kinds "
+            + repr(received_types[-18:])
+        ) from exc
+    raise RuntimeError("Event delivery budget exhausted")
+
+
+async def replayable_event(client, expected: str, memory: list[dict]) -> dict:
+    """On lost delivery, recover ONLY recipient-authorized event history.
+
+    No physical command can be repeated by this helper. It reissues an
+    idempotent inbox read at the most recent persisted event cursor.
+    """
+    for attempt in range(3):
+        cursor = max((int(e["event_id"].split("-")[-1]) for e in memory),
+                     default=0)
+        await client.send_line(f"oxinbox {cursor}")
+        try:
+            return await next_event(client, expected, memory, timeout=9)
+        except TimeoutError:
+            if attempt == 2:
+                raise
+    raise RuntimeError("World inbox was unavailable")
 
 
 async def read_console(client) -> str:
@@ -76,8 +109,7 @@ async def main_async() -> dict:
         for client in clients.values():
             await client.open()
         lin, ari, iona = (clients[role] for role in ("lin", "ari", "iona"))
-        await lin.send_line("oxinbox 0")
-        alarm = await next_event(lin, "coolant_alarm", memories["lin"])
+        alarm = await replayable_event(lin, "coolant_alarm", memories["lin"])
         if "LOW PRESSURE" not in await read_console(lin):
             raise RuntimeError("Lin could not verify the low-pressure bridge alarm")
         await lin.send_line("oxradio")
