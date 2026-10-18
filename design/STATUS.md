@@ -19,7 +19,7 @@ feature inventories.
 | P4b — ongoing watch supervisor and repeated incident | Tested and merged | [PR #14](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/14); Evennia duty Script, changed active engineer, two real pump incidents, two-process recovery |
 | P4c — unattended event dispatch and player hails | Tested and merged | [PR #16](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/16); one continuous supervisor processes pump repair, world-timed watch handover and an addressed human hail |
 | P4d — specialist ship departments | Tested and merged | [PR #17](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/17); seven compartments, cargo and atmosphere state machines, five persistent crew bodies, authority and inventory tests |
-| P4e — five independently autonomous crew | **In PR #19; integration pending** | [PR #19](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/19); two additional nonprivileged Concordia actors, world-confirmed cargo/environmental work and a lost-ACK cartridge-replacement gate |
+| P4e — five independently autonomous crew | Tested and merged | [PR #19](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/19); two additional nonprivileged Concordia actors, world-confirmed cargo/environmental work and a lost-ACK cartridge-replacement gate |
 | P5 — browser observatory | **Deferred / not built** | No browser UI, joined handler/world API, or operator dashboard |
 
 **Naming note:** the original Prototype 1 plan used “P4” for the first
@@ -27,25 +27,26 @@ real-world pump mechanic, which was actually implemented early. PRs #13 and
 #14 use **P4a/P4b** for the later live-cognition and autonomous-runtime work.
 These names denote different scopes, not a missing pump milestone.
 
-The [P4b Actions workflow](../.github/workflows/ox-p4b-autonomy.yml) is
-the most complete executable integration demonstration. It starts real
+The [P4b Actions workflow](../.github/workflows/ox-p4b-autonomy.yml) retains
+the detailed engineering restart and reviewer regression. It starts real
 Evennia, resolves an initial cooling failure, waits for the game-owned watch
 deadline, transfers watch from Ari to Iona, injects a second fault, stops and
 restarts an external handler, reconciles a deliberately lost isolation ACK,
 and verifies the persisted physical event journal without duplicate isolation.
 The full focused CI suite passed on `main` following PR #14.
 
-## P4e integration candidate
+## P4e verified five-crew runtime
 
-[The five-crew autonomous-departments design](prototypes/p4e-five-crew-autonomy.md)
-describes the unmerged PR #19. It adds independently persisted native
-Concordia brains for Mara and Teo, actor-scoped receipts for C-01/A-01,
-and an event-driven supervisor that can process three types of physical
-fault as well as player hails. The new CI deliberately loses the
-acknowledgment of a real cartridge replacement and must reconcile without
-consuming a second cartridge. The older P4a–P4d behavior remains in the
-regression matrix. **Until that complete gate passes and PR #19 merges,
-P4e is not part of the verified mainline feature inventory.**
+[PR #19](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/19)
+was merged after **13/13 focused Ox workflows passed** on its final commit.
+[The P4e design](prototypes/p4e-five-crew-autonomy.md) details five
+independently persisted native Concordia agents, authenticated ordinary
+Evennia clients, recipient-private alarms and actor-scoped world receipts
+for C-01/A-01. [The new live CI](../.github/workflows/ox-p4e-five-crew.yml)
+deliberately loses the acknowledgement of an actual cartridge replacement
+before handler restart, then independently verifies that only one spare was
+consumed while all three equipment incidents, two player hails and the
+engineering watch handover complete. Existing P3–P4d scenarios remain green.
 
 ## What the prototype does today
 
@@ -53,46 +54,45 @@ P4e is not part of the verified mainline feature inventory.**
   (cooling P-01, cargo restraints C-01 and atmospheric scrubber A-01),
   the roster, role-local readouts, alarms, private recipient-specific events,
   authoritative timestamps and validated physical effects.
-- **One external handler** can connect as three separately authenticated
-  characters (Ari, Lin, Iona) through ordinary Evennia WebSocket sessions.
-  Each character has its own native Concordia state, observations, choice
-  history and durable checkpoint.
+- **The P4e handler** connects as five separately authenticated characters
+  (Lin, Ari, Iona, Mara and Teo). Each character has its own native Concordia
+  state, scoped observations, choice history and checkpoint. The earlier
+  three-crew handler remains supported separately; never run both together.
 - **Deterministic GOAP** plans familiar equipment operations; Concordia
   chooses bounded, explicitly offered actions. Evennia alone executes
   permitted actions and supplies the confirmed physical outcome.
-- **P4c's `serve` entry point** runs the independent event-driven supervisor.
-  It handles pump alarms, the initial world-timed watch handover and addressed
-  human hails. An interrupted pump isolation can be reconciled by world
-  request ID. Idle operation does not require model polling.
+- **P4e's `five_crew_service serve`** is an external event-driven supervisor.
+  It handles P-01 cooling, A-01 environmental, C-01 cargo, player hails
+  and the world-timed engineering handover. Durable isolation/cartridge
+  requests are reconciled by the original world request ID after an
+  interrupted handler. Idle operation does not require model polling.
 - After the handover, **Iona** is the active engineer and **Ari** is the
   separately authorised safety reviewer. Iona cannot certify her own
   commissioning. The first incident has the reverse arrangement.
 
 ## What passing tests do NOT prove
 
-- The three-crew CI uses **Concordia's deterministic MockModel**, not
-  three independently reasoning live hosted models. An earlier opt-in
+- Both three- and five-crew CI use **Concordia's deterministic MockModel**,
+  not independently reasoning live hosted models. An earlier opt-in
   single-engineer Gemini trial succeeded, but unconstrained multi-agent
   negotiation, novel diagnosis and language-based coordination are not
   validated by these workflows.
 - This remains a **small proving-ground**, even with seven compartments
-  and five crew bodies. Mara (cargo) and Teo (environmental) are present
-  as ordinary world characters but not yet Concordia entities. C-01
-  and A-01 are locally actionable state machines, not general freight
+  and five independent Concordia crew. C-01 and A-01 are locally
+  actionable state machines, not general freight
   commerce or high-fidelity life support. Propulsion, skill-by-use
   progression, wider schedules and the full freighter remain future work.
 - `serve` is a runnable runtime, **not a hosted deployment or a system
   service**. A disposable CI trial demonstrates two incidents and one
   unknown-isolation recovery; no long-duration soak test or production
   operations guarantee exists.
-- **P-01 equipment** commands have durable, actor-bound receipts.
-  The new cargo and atmosphere verbs have physical journals but not yet
-  an AI-ready generic receipt/recovery protocol. Not every social
+- **P-01, C-01 and A-01 physical actions** now have actor-bound,
+  equipment-specific durable receipts and recovery. Not every social
   command is idempotent or crash-transactional. Arbitrary
   mid-scene service restarts must fail closed until reconciliation logic is
   added; they are not proven to resume every obligation automatically.
-- Development account provisioning uses a **disposable three-bot fixture**
-  and a shared test credential. It is not a production account-management
+- Development account provisioning uses **disposable three- or five-bot
+  fixtures** and a shared test credential. It is not a production account-management
   scheme. The prototype server binds to loopback and disables registration.
 - P5 and its dual-source authenticated read APIs do **not** exist.
 
@@ -103,7 +103,8 @@ P4e is not part of the verified mainline feature inventory.**
 - [Architecture and authority boundaries](../ARCHITECTURE.md)
 - [Prototype 1 gates](prototypes/01-autonomous-crew.md)
 - [P4a](prototypes/p4a-live-cognition.md), [P4b](prototypes/p4b-autonomous-watch.md)
-  and [P4d departments](prototypes/p4d-ship-departments.md)
+  [P4d departments](prototypes/p4d-ship-departments.md) and
+  [P4e five-crew autonomy](prototypes/p4e-five-crew-autonomy.md)
 - [Archived P2 test scenarios](../scenarios/shift_handover/README.md) and
   [cooling fault](../scenarios/coolant_fault/README.md)
 
