@@ -56,27 +56,29 @@ allocations. **Merged PR #22** implements the addressed-event ledger and
 lossless replay; **merged PR #23** implements the common world work receipt
 namespace and authenticated client adapter. **P4h** adds durable handler
 intents for five pump-cycle stages and a multi-process restart test.
-A complete G1 gate still requires converting initial radio, independent
-watch handover, player hail responses and specialist work to the common
-resumable pattern, plus explicit PostgreSQL contention validation. Do not
-mistake the P4h stage test for all-action recovery.
+G1's subsequent focused milestones implemented the then-current
+radio, watch, hail and specialist operations (PRs #26–27), while PR #28
+verified the existing shared protocol under real PostgreSQL contention.
+These scoped gates are complete. New or unimplemented gameplay actions
+still require their own authorization, crash recovery and concurrency
+evidence; do not treat G1 as a blanket certification of future systems.
 
-**P4i (merged PR #26):** The next incremental G1 work
-migrates bridge alarm relay, scheduled engineering offer/accept and
+**P4i (merged PR #26):** This G1 implementation
+migrated bridge alarm relay, scheduled engineering offer/accept and
 addressed hail answers to persistent handler intent records with
 actor-bound world receipt reconciliation. The old ordinary character
-commands remain supported. The remaining G1 obligations are specialist
-stage migration and real PostgreSQL contention/recovery tests.
+commands remain supported. The subsequent G1 milestones covered specialist stages and
+real PostgreSQL resource contention.
 
 **P4j (merged PR #27):** Both specialist departments' newly
 scheduled physical steps now use the global world-work namespace
 and handler-side stage ledger. Old P4e pending IDs retain the
 fixture-specific recovery path; after safe reconciliation the
 remaining steps migrate. Three isolated server tests exercise
-pre-send, post-commit and old-checkpoint recovery. PostgreSQL
-multi-writer contention remains the final outstanding G1 gate.
+pre-send, post-commit and old-checkpoint recovery. PostgreSQL multi-writer contention was separately verified
+in merged PR #28 for the existing action protocol.
 
-**G1-PG (merged PR #28):** A dedicated PostgreSQL CI job now
+**G1-PG (merged PR #28):** A dedicated PostgreSQL CI job
 races independent world writers and verifies the actual row lock,
 global request ID uniqueness, one-unit resource consumption and
 rollback of world-owned event/receipt records. This does not
@@ -85,7 +87,7 @@ general property proof for every future inventory system.
 
 ## G2: Individual autonomy
 
-### G2a implementation slice (under validation)
+### G2a implemented (merged PR #29)
 
 Introduce a generic private `AgentAgenda` for each of the five existing
 characters, persist dispositions and future-event reconsideration

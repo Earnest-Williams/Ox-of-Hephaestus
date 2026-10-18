@@ -9,7 +9,7 @@ ACK across a handler restart. This is **not** deployed production software
 or proof of unconstrained multi-agent intelligence.
 [Current status](../../design/STATUS.md).
 
-## G2a event-triggered private crew agendas (under validation)
+## G2a event-triggered private crew agendas (merged PR #29)
 
 Each of the five independent characters now owns a separate
 `AgentAgenda` record under `agendas[role]` in the existing supervisor

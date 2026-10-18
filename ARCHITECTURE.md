@@ -10,7 +10,7 @@ This is not a
 deployed freighter or general social simulation.
 [Verified feature matrix](design/STATUS.md) · [Development setup](INSTALL.md).
 
-## G2a: persistent, actor-bound crew agendas (under validation)
+## G2a: persistent, actor-bound crew agendas (merged PR #29)
 
 `services/ai-handler/src/ox_ai/runtime/crew_agenda.py` introduces one
 private, JSON-serializable intention ledger **per world character**, bound
