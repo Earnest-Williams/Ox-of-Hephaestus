@@ -20,6 +20,35 @@ from ox_ai.inference.decisions import (
 )
 
 
+def _safe_http_error_details(exc: urlerror.HTTPError) -> str:
+    """Return only diagnostic status and field path; never raw provider prose.
+
+    Provider messages may echo request contents or secrets. Only machine
+    readable status codes and recognised field identifiers reach logs.
+    """
+    try:
+        payload = json.loads(exc.read(4096))
+        details = payload.get("error", {})
+        if not isinstance(details, dict):
+            return ""
+        found = []
+        status = details.get("status")
+        if isinstance(status, str) and re.fullmatch(r"[A-Z_]{3,64}", status):
+            found.append(status)
+        message = details.get("message")
+        if isinstance(message, str):
+            field = re.search(
+                r"(?:generation_config|generationConfig|response_format|"
+                r"responseFormat)(?:[.][A-Za-z0-9_]+)*",
+                message,
+            )
+            if field is not None:
+                found.append(f"field={field.group(0)}")
+        return " (" + ", ".join(found) + ")" if found else ""
+    except (AttributeError, OSError, TypeError, ValueError):
+        return ""
+
+
 class GeminiChoiceProvider:
     """Use Gemini's JSON-schema enum to constrain one selected option."""
 
@@ -63,7 +92,7 @@ class GeminiChoiceProvider:
             "contents": [{"role": "user", "parts": [{"text": prompt}]}],
             "generationConfig": {
                 "responseFormat": {
-                    "text": {"mimeType": "application/json", "schema": schema}
+                    "text": {"mimeType": "APPLICATION_JSON", "schema": schema}
                 },
                 "maxOutputTokens": 256,
             },
@@ -88,6 +117,7 @@ class GeminiChoiceProvider:
         except urlerror.HTTPError as exc:
             raise DecisionUnavailable(
                 f"Gemini decision API returned HTTP {exc.code}"
+                + _safe_http_error_details(exc)
             ) from None
         except (urlerror.URLError, TimeoutError, OSError) as exc:
             raise DecisionUnavailable(

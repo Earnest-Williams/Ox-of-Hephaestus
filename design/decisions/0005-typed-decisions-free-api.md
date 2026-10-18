@@ -59,3 +59,27 @@ prove an unscripted hosted model will repair the pump. Future acceptance
 should compare deterministic, hosted and local providers on identical
 scenario fixtures, with request volume, latency, action counts, errors and
 physical outcomes recorded separately.
+
+## Live API incident and contract correction (2026-10-18)
+
+After fixing the fresh-database startup in PR #5, the first real hosted
+decision request returned **HTTP 400** (run
+https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/39088416596).
+The live log proved the credential was provided and the ship had bootstrapped,
+but the adapter discarded Google's error response, so the specific rejected
+field was not recorded.
+
+The adapter sent `generationConfig.responseFormat.text.mimeType` as
+`"application/json"`. For **this enum-valued field**, Google's API contract
+requires `"APPLICATION_JSON"`; the older **different** field,
+`generationConfig.responseMimeType`, accepts `"application/json"`.
+Google clarified the distinction on 2026-10-16:
+
+https://discuss.ai.google.dev/t/generatecontent-structured-json-mime-contract-conflict-and-bare-http400/188396
+
+This is a likely cause of the HTTP 400, not a verified explanation of that
+particular response (which was not logged). The code now uses the documented
+enum, asserts it in network-free tests, and extracts only safe provider status
+and field names from rejected responses. Raw error messages are never printed,
+since they can echo a crew member's observations or request data. We must
+repeat the live trial before claiming Gemini works.
