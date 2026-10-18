@@ -85,10 +85,22 @@ class EvenniaWebSocketClient:
             max_size=65536,
         )
         try:
+            await self._await_login_screen()
             await self._authenticate()
         except BaseException:
             await self.close()
             raise
+
+    async def _await_login_screen(self) -> None:
+        # The Portal opens the socket before the Server session can accept
+        # commands. An early connect can be silently lost; wait for the normal
+        # server-originated login banner instead of racing session setup.
+        async with asyncio.timeout(self.timeout):
+            for _ in range(64):
+                packet = await self.receive()
+                if packet.kind == "text" and packet.text:
+                    return
+        raise ConnectionError("Did not receive Evennia login screen")
 
     async def _authenticate(self) -> None:
         challenge = secrets.token_hex(16)
