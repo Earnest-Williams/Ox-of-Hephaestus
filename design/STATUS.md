@@ -24,7 +24,7 @@ feature inventories.
 | P4e — five independently autonomous crew | Tested and merged | [PR #19](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/19); two additional nonprivileged Concordia actors, world-confirmed cargo/environmental work and a lost-ACK cartridge-replacement gate |
 | P4f — indexed, paginated crew events | Tested and merged | [PR #22](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/22); world-owned indexed journal, schema-v2 recipient replay, safe legacy import, private handler checkpoints; all 14 applicable CI workflows passed before merge. |
 | P4g stage 1 — global world work receipts | Tested and merged | [PR #23](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/23); typed `oxwork` / `oxworkreceipt` interface, global actor-bound receipt IDs and transactional effects; all 15 applicable workflows passed. |
-| P4h — restartable pump stages | Tested and merged | [PR #24](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/24); exact work ID checkpointed for repair, request, independent approval, commissioning and resolution. Seven external handler starts and independent world-effect assertions passed; 14/14 workflows green. |
+| P4h — restartable pump stages | Tested and merged | [PR #24](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/24); exact work ID checkpointed for repair, request, independent approval, commissioning and resolution. Eight process launches across seven restarts and independent world-effect assertions passed; 14/14 workflows green. |
 | P5 — browser observatory | **Deferred / not built** | No browser UI, joined handler/world API, or operator dashboard |
 
 **Naming note:** the original Prototype 1 plan used “P4” for the first
