@@ -34,6 +34,9 @@ class CmdInspect(Command):
             self.caller.msg("That object has no shipboard readout.")
             return
         self.caller.msg(target.readout())
+        if isinstance(target, CoolingPump):
+            from world.live_crew import note_inspection
+            note_inspection(self.caller, target)
 
 
 class _CmdPumpOperation(Command):
