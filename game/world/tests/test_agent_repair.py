@@ -31,7 +31,7 @@ class ScriptedChoices:
         options = dict(
             (label.strip(), letter)
             for letter, label in re.findall(
-                r"^\\s*\\(([a-z])\\)\\s+(.+)$", prompt, flags=re.MULTILINE
+                r"^\s*\(([a-z])\)\s+(.+)$", prompt, flags=re.MULTILINE
             )
         )
         if choice not in options:
