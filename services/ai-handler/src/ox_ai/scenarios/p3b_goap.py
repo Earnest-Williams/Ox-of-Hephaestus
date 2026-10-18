@@ -25,8 +25,14 @@ URL = "ws://127.0.0.1:4002"
 
 
 async def inspect(client: EvenniaWebSocketClient) -> str:
-    await client.send_line("inspect pump")
-    return await client.expect_text("Cooling Pump P-01")
+    for attempt in range(3):
+        await client.send_line("inspect pump")
+        try:
+            return await client.expect_text("Cooling Pump P-01", timeout=6)
+        except TimeoutError:
+            if attempt == 2:
+                raise
+    raise RuntimeError("Physical readout unavailable")
 
 
 def plan_from(text: str, expected: str) -> tuple[list[str], int]:
