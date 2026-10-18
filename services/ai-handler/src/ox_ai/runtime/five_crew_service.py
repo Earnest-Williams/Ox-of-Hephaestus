@@ -282,6 +282,32 @@ async def run(mode: str) -> None:
                 print("OX_P4E_REPLACEMENT_ACK_DROPPED_WORLD_COMMITTED")
                 return
             raise RuntimeError("No environmental replacement was interrupted")
+        if mode.startswith("interrupt-"):
+            parts = mode.split("-")
+            if (len(parts) != 4 or parts[1] not in EXTRA_ACCOUNTS
+                    or parts[3] not in ("prepared", "committed", "ack")
+                    or parts[2] not in {
+                        op for op, _ in PROCEDURES[parts[1]] if op != "inspect"
+                    }):
+                raise ValueError("Unsupported specialist work interruption")
+            try:
+                await supervisor._advance_job(
+                    parts[1],
+                    interrupt_operation=parts[2],
+                    interrupt_point=parts[3],
+                )
+            except SimulatedLostAcknowledgement:
+                print("OX_P4J_SPECIALIST_INTERRUPTED " + ":".join(parts[1:]))
+                return
+            raise RuntimeError("Requested specialist interruption did not occur")
+        if mode.startswith("finish-"):
+            role = mode.removeprefix("finish-")
+            if role not in EXTRA_ACCOUNTS:
+                raise ValueError("Unknown specialist duty")
+            if not await supervisor._advance_job(role):
+                raise RuntimeError("No specialist work was completed")
+            print("OX_P4J_SPECIALIST_FINISHED " + role)
+            return
         if mode != "serve":
             raise ValueError("Unknown five-crew runtime mode")
         await supervisor.serve()
@@ -290,12 +316,13 @@ async def run(mode: str) -> None:
 
 
 def main() -> None:
-    if len(sys.argv) != 2 or sys.argv[1] not in (
-        "serve", "drop-replace-ack",
-    ):
+    if (len(sys.argv) != 2
+            or not (sys.argv[1] in ("serve", "drop-replace-ack")
+                    or sys.argv[1].startswith("interrupt-")
+                    or sys.argv[1].startswith("finish-"))):
         raise SystemExit(
             "Usage: python -m ox_ai.runtime.five_crew_service "
-            "serve|drop-replace-ack"
+            "serve|drop-replace-ack|interrupt-<role>-<op>-<point>|finish-<role>"
         )
     asyncio.run(run(sys.argv[1]))
 
