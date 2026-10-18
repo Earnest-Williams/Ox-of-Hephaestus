@@ -33,6 +33,22 @@ manufacturing, or skill-by-use progression**. The P4e supervisor runs
 five private cognitive agents; the original P4c three-crew supervisor
 remains available but must not be run simultaneously on the same ship.
 
+## Independent PostgreSQL concurrency gate (under validation)
+
+Ox's development world continues to use SQLite. The G1 concurrency
+trial uses disposable PostgreSQL 16 in GitHub Actions with the
+explicitly opt-in `server.conf.settings_postgres_ci` module.
+Only under `OX_PG_CONCURRENCY_TEST=1` can this module or its
+`python -m world.postgres_contention` probe execute.
+
+The probe checks simultaneous duplicate-ID radio submissions,
+competing authorized requests for one remaining A-01 cartridge,
+a second transaction blocked by an actual ship row lock, and
+rollback of both the world event and its authoritative receipt.
+The [PostgreSQL CI gate](../.github/workflows/ox-g1-postgres-contention.yml)
+does not change how the ordinary game launches, and should never be
+run against a populated ship database.
+
 ## P4j shared world-work receipts for cargo and environmental tasks
 
 New AI-initiated C-01/A-01 work now uses the same globally unique,
