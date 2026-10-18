@@ -9,6 +9,7 @@ from __future__ import annotations
 from evennia.commands.command import Command
 
 from typeclasses.ship import CoolingPump
+from typeclasses.departments import CargoCradle, AtmosphereScrubber
 
 
 class CmdInspect(Command):
@@ -37,6 +38,8 @@ class CmdInspect(Command):
         if isinstance(target, CoolingPump):
             from world.live_crew import note_inspection
             note_inspection(self.caller, target)
+        elif isinstance(target, (CargoCradle, AtmosphereScrubber)):
+            target.note_inspection(self.caller)
 
 
 class _CmdPumpOperation(Command):
@@ -53,8 +56,10 @@ class _CmdPumpOperation(Command):
         if target is None:
             return
         if not isinstance(target, CoolingPump):
-            self.caller.msg("That is not a cooling pump.")
-            return
+            if not (self.operation == "isolate"
+                    and isinstance(target, AtmosphereScrubber)):
+                self.caller.msg("This operation is not supported by that equipment.")
+                return
         _success, message = getattr(target, self.operation)(self.caller)
         self.caller.msg(message)
 
@@ -96,10 +101,10 @@ class CmdCommission(_CmdPumpOperation):
 
 
 class CmdShipFault(Command):
-    """Introduce a test cooling-pump failure (developers only).
+    """Introduce a synthetic equipment fault (developers only).
 
     Usage:
-        shipfault pump
+        shipfault <pump|cargo|scrubber>
     """
 
     key = "shipfault"
@@ -110,12 +115,18 @@ class CmdShipFault(Command):
         if not self.caller.check_permstring("Developer"):
             self.caller.msg("Only developers may inject test faults.")
             return
-        if self.args.strip().lower() not in ("pump", "p-01", "p01"):
-            self.caller.msg("Usage: shipfault pump")
+        lookup = {
+            "pump": "pump", "p-01": "pump", "p01": "pump",
+            "cargo": "cargo", "c-01": "cargo",
+            "scrubber": "scrubber", "a-01": "scrubber",
+        }
+        name = lookup.get(self.args.strip().lower())
+        if name is None:
+            self.caller.msg("Usage: shipfault <pump|cargo|scrubber>")
             return
-        target = self.caller.search("pump", location=self.caller.location)
-        if not isinstance(target, CoolingPump):
-            self.caller.msg("Cooling pump P-01 is not within reach.")
+        target = self.caller.search(name, location=self.caller.location)
+        if not isinstance(target, (CoolingPump, CargoCradle, AtmosphereScrubber)):
+            self.caller.msg("That equipment is not within reach.")
             return
         _success, message = target.inject_fault(self.caller)
         self.caller.msg(message)
@@ -141,6 +152,35 @@ class CmdShipEngineer(Command):
         self.caller.db.crew_role = "watch_engineer"
         self.caller.db.duty_title = "Engineering watch (developer test)"
         self.caller.msg("You are authorised for the prototype engineering watch.")
+
+
+class CmdShipRole(Command):
+    """Assume a specialist test duty in a disposable development world.
+
+    Usage: shiprole <cargo|environment>
+
+    Not an in-world promotion system. No production player can change
+    their own specialist qualifications or engineering authority this way.
+    """
+
+    key = "shiprole"
+    locks = "cmd:perm(Developer)"
+
+    def func(self) -> None:
+        if not self.caller.check_permstring("Developer"):
+            self.caller.msg("Only developers may assume a test department role.")
+            return
+        assignments = {
+            "cargo": ("cargo_officer", "Cargo test duty"),
+            "environment": ("environment_tech", "Environmental test duty"),
+        }
+        role = assignments.get(self.args.strip().lower())
+        if role is None:
+            self.caller.msg("Usage: shiprole <cargo|environment>")
+            return
+        self.caller.db.crew_role, self.caller.db.duty_title = role
+        self.caller.msg("Developer specialist duty set; physical access still required.")
+
 
 
 class CmdOxIdentity(Command):

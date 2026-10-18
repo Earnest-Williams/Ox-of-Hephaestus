@@ -1,0 +1,55 @@
+name: Ox P4d specialist ship departments
+
+on:
+  pull_request:
+    paths:
+      - "game/**"
+      - ".github/workflows/ox-departments.yml"
+  push:
+    branches: [main]
+    paths:
+      - "game/**"
+      - ".github/workflows/ox-departments.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  departments:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install real Evennia and compile game code
+        run: |
+          python -m pip install .
+          python -m compileall -q game
+      - name: Create ephemeral, noninteractive owner credential
+        shell: bash
+        run: |
+          TOKEN="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          echo "::add-mask::$TOKEN"
+          echo "EVENNIA_SUPERUSER_PASSWORD=$TOKEN" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_USERNAME=OxCI" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_EMAIL=oxci@example.invalid" >> "$GITHUB_ENV"
+      - name: Test specialist world rules, permission boundaries and old coolant physics
+        working-directory: game
+        run: |
+          evennia migrate --noinput
+          evennia test world.tests.test_departments world.tests.test_ship world.tests.test_autonomy --verbosity=2
+      - name: Seed independent departmental faults in persistent game database
+        working-directory: game
+        run: |
+          evennia shell --command="from world.bootstrap import build_ship; s=build_ship(); assert len({s[x].id for x in ('bridge','passage','engineering','cargo_hold','environmental','mess','workshop')})==7; assert s['cradle'].inject_fault()[0]; assert s['scrubber'].inject_fault()[0]; print('OX_P4D_WORLD_SEEDED')"
+      - name: Execute authorized repairs in another process
+        working-directory: game
+        run: |
+          evennia shell --command="from world.bootstrap import build_ship; s=build_ship(); c=s['cradle']; m=s['cargo']; a=s['scrubber']; t=s['environment']; assert c.state=='unsecured' and a.state=='saturated'; c.note_inspection(m); assert c.restow(m)[0]; c.note_inspection(m); assert c.certify(m)[0]; a.note_inspection(t); assert a.isolate(t)[0]; assert a.replace(t)[0]; a.note_inspection(t); assert a.restart(t)[0]; print('OX_P4D_DEPARTMENT_WORK_DONE')"
+      - name: Independently inspect persisted physical results and recipient events
+        working-directory: game
+        run: |
+          evennia shell --command="from world.bootstrap import build_ship; from world.live_crew import inbox; s=build_ship(); assert s['cradle'].state=='secured' and s['scrubber'].state=='nominal'; assert s['scrubber'].db.spare_cartridges==1; assert [e['operation'] for e in s['cradle'].db.event_history]==['shift','restow','certify']; assert [e['operation'] for e in s['scrubber'].db.event_history]==['saturate','isolate','replace','restart']; assert [e['kind'] for e in inbox(s['cargo'])]==['cargo_shift']; assert [e['kind'] for e in inbox(s['environment'])]==['atmosphere_alarm']; assert s['pump'].state=='normal'; print('OX_P4D_PERSISTED_WORLD_PASS')"

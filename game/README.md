@@ -1,10 +1,11 @@
 # Ox playable ship — authoritative Evennia game
 
-**Status (18 October 2026):** Real three-compartment world; independent
-authenticated AI-character transport; authoritative pump actions, private
-alarms, chief/reviewer signoff, posted watch and persistent world-owned
-handover deadline. A separately runnable three-crew handler exists. This
-is a **small proving ground**, not the entire cargo freighter.
+**Status (18 October 2026):** A seven-compartment prototype with five
+physical crew bodies, three actual working AI characters, a cooling pump,
+cargo restraints and an atmospheric scrubber. Three authenticated
+Concordia crew retain automated pump/watch/hail duties; Mara and Teo
+are **new non-autonomous specialist characters** awaiting handler expansion.
+This is a proving ground, not an entire cargo freighter.
 [Current milestone status](../design/STATUS.md).
 
 All Ox ship content is under `game/`; the inherited `evennia/` engine has
@@ -15,16 +16,22 @@ not been converted into a different distribution.
 | Object | Game-owned behavior |
 | --- | --- |
 | Bridge | Lin Sato, posted roster, real-time pump telemetry and in-world radio |
-| Connecting Passage | Ordinary movement between bridge and engineering |
+| Connecting Passage | Junction for Bridge, Engineering, Cargo Hold, Environmental Plant and Crew Mess; posted department duties |
 | Engineering | Ari Sen, Iona Vek and physical access to pump P-01 |
+| Cargo Hold | Mara Voss and cargo restraint grid C-01; local inspection, restow and certification |
+| Environmental Plant | Teo Hale and scrubber A-01; cartridge fault, isolation, replacement, verified restart |
+| Crew Mess | Navigable living/galley area, not yet a nutrition or morale simulation |
+| Machine Shop | Navigable engineering annex, reserved for later fabrication and tools |
+| Operations Console | Bridge-only readout of cargo restraint and atmosphere scrubber states |
 | Cooling Pump P-01 | `normal → low_pressure → isolated → repaired → normal`; durable event history and physical command receipts |
 | Ship roster | Active engineering duty holder, independent safety reviewer and handover state |
 | Duty Script | Persistent `world.live_clock.ShipDutyClock` checks an armed world deadline; it never calls a model |
 | World-private events | Receiver-specific `ox_event` observations and `oxinbox` replay; no cross-crew memory access |
 
-The physically authoritative coolant loop is deliberately tiny. There
-are no working propulsion, cargo-management, economy or character-skill
-progression systems yet.
+The ship now has separate bounded physical cargo and atmosphere procedures.
+There is still **no propulsion, trading economy, general cargo routing,
+manufacturing, or skill-by-use progression**. Two new crewmembers are not yet
+Concordia actors and the independent supervisor still handles three brains.
 
 ## Start the game
 
@@ -49,7 +56,8 @@ evennia shell --command="from world.bootstrap import build_ship; build_ship()"
 ~~~
 
 `build_ship()` is idempotent: it will not duplicate rooms or reset a
-faulted pump, existing events or crew positions. Stop the local server
+faulted pump, cargo status, cartridge stock, existing events or crew positions.
+Stop the local server
 using `evennia stop` from `game/`. The private signing key lives in an
 ignored `game/server/conf/.local-secret` unless supplied as `OX_SECRET_KEY`.
 These settings are **not suitable for a public deployment**.
@@ -69,11 +77,19 @@ look pump
 inspect pump
 ~~~
 
-The route is:
+The original route is preserved, with new branches:
 
 ~~~text
 Bridge <--fore/aft--> Connecting Passage <--out/engineering--> Engineering
+                           |     |       |                       |
+                      Cargo    Environmental  Crew Mess      Machine Shop
+                    (starboard)   (port)       (mess)         (workshop)
 ~~~
+
+From the Bridge use `inspect operations` to see world-authoritative cargo and
+environmental status. In the passage use `inspect duties` to read the
+posted responsibilities. Branches have explicit reverse exits:
+Cargo `port`, Environmental `starboard`, Mess `out`, Shop `out`.
 
 A **Developer-authorized** character may enter Engineering and use
 `shipengineer` to acquire a test engineering role, then use
@@ -96,6 +112,54 @@ The Bridge console permits **remote observation**, not remote repair.
 When the P4 safety gate is enabled, the engineer must also obtain a
 fresh independent safety release after repair, before commissioning.
 The chief cannot self-approve during her own engineering watch.
+
+## Additional specialist duties (P4d)
+
+**Cargo officer Mara Voss**, physically in Cargo Hold, uses:
+
+~~~text
+inspect cargo
+restow cargo
+inspect cargo
+certify cargo
+~~~
+
+These become necessary after an operator injects a **synthetic**
+`shipfault cargo` while standing in the hold. C-01 begins with eight
+sealed containers and twelve possible positions; a simulated load shift
+loosens two restraints. Restow requires the officer's own fresh local
+inspection; certification requires another inspection *after* restow.
+Being in the wrong compartment or holding the wrong role is refused.
+
+**Environmental technician Teo Hale**, in the Environmental Plant, uses:
+
+~~~text
+inspect scrubber
+isolate scrubber
+replace scrubber
+inspect scrubber
+restart scrubber
+~~~
+
+An operator can introduce a saturated cartridge with
+`shipfault scrubber` in that room. A-01 consumes one of two initially
+stocked spares per replacement. Without a spare, the fixture remains
+isolated rather than creating an imaginary cartridge. Atmospheric and
+cargo fault events are individually addressed to their specialist and
+to Lin; other characters cannot read them from their own inbox.
+
+For local hands-on tests, a **Developer** can switch their own ordinary
+character to a disposable specialty with `shiprole cargo` or
+`shiprole environment`. They must still walk into the appropriate
+compartment and inspect the equipment; the assignment does not authorize
+work remotely. Normal players cannot assign themselves a role this way.
+
+Developer-only synthetic faults and these specialist work verbs are
+available through ordinary game commands. **No AI operates Mara or Teo
+yet**, and cargo/scrubber commands do not yet have P-01's generic
+request-ID reconciliation. Competence labels in the fixture code are
+future skill hooks, not a live progression mechanism. See
+[the P4d implementation plan](../design/prototypes/p4d-ship-departments.md).
 
 ## Authenticated three-crew protocol (P3)
 
@@ -149,6 +213,7 @@ cd game
 evennia test world.tests.test_ship --verbosity=2
 evennia test world.tests.test_live_cooperation --verbosity=2
 evennia test world.tests.test_autonomy --verbosity=2
+evennia test world.tests.test_departments --verbosity=2
 ~~~
 
 Use `--verbosity=2`, not `-v 2` (Evennia reserves `-v` for version
@@ -159,7 +224,7 @@ inherited Evennia matrix.
 
 ## Live P4 demonstrations in GitHub
 
-The most useful demonstration is **Actions → Ox P4b autonomous
+The most useful earlier three-AI demonstration is **Actions → Ox P4b autonomous
 two-incident ship → Run workflow** on `main`:
 
 1. CI builds a disposable game with three ordinary bot accounts.

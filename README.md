@@ -2,13 +2,14 @@
 
 **A prototype autonomous spaceship MUD built on [Evennia](https://www.evennia.com/).**
 
-> **Status — 18 October 2026:** P4a and P4b are merged. Three authentic
-> Evennia crew sessions now have independent native Concordia cognition,
-> bounded decisions and a separately runnable, event-driven watch supervisor.
-> The real-world P-01 test has completed **two incidents across a watch
-> handover and handler restart**, with world-validated repair operations.
-> This is a narrow, tested prototype—not a deployed production simulation
-> or proof of open-ended three-model intelligence.
+> **Status — 18 October 2026:** P4a–P4c are merged. The ship now has seven
+> navigable compartments, three physical equipment systems and five
+> persistent crew bodies. Three (Lin, Ari, Iona) are controlled by separate
+> native Concordia entities; the two new specialist crew bodies (Mara, Teo)
+> are not autonomous yet. P4c proves one independently running supervisor
+> handles coolant repair, handover and human hails. P4d's departmental
+> expansion is in [PR #17](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/17).
+> This remains a narrow prototype, not a deployed production freighter.
 
 **Start here:** [Current implementation and limitations](design/STATUS.md) ·
 [Install and test](INSTALL.md) · [Playable ship](game/README.md) ·
@@ -22,21 +23,22 @@ exchange reports, carry imperfect memories and respond to shipboard events.
 Humans can participate as ordinary players. Eventually, an operator should
 also be able to inspect the whole ship and drill into individual crew cognition.
 
-The longer-term design includes departments, cargo and propulsion,
-skill-by-use development instead of levels or classes, and background
-simulation advanced by consequential events or coarse ticks. **These larger
-ship systems, skills and observer UI have not been implemented.**
+The longer-term design includes autonomous specialist departments,
+propulsion, skill-by-use development instead of levels/classes, and
+consequential-event or coarse-tick background simulation. Cargo restraints
+and atmospheric servicing now have small physical prototypes; **the new
+specialists' AI, skills, propulsion, trading and observer UI are not built.**
 
 ## What's actually runnable
 
 | Part | Present implementation |
 | --- | --- |
-| Ship | Bridge, Connecting Passage, Engineering, real Evennia pump P-01, bridge telemetry, roster and three persistent crew bodies |
-| Game rules | Four-state pump lifecycle, presence/role checks, chief/reviewer release, private alarms and world-owned watch handover |
+| Ship | Seven traversable compartments, five crew bodies, real coolant pump P-01, cargo restraint grid C-01, atmospheric scrubber A-01, specialist positions and bridge telemetry |
+| Game rules | Pump safety/review, cargo survey/restow/certify, atmosphere isolate/replace/restart, role and locality gates, consumable cartridges, private alarms and world-timed watch handover |
 | Transport | Three ordinary authenticated WebSocket client sessions with character identity checks |
 | Cognition | Three separate Concordia entities with per-character observations, memory and snapshots; bounded choice menus |
 | Routine engineering | Model-free GOAP plans actions; Evennia validates physical effects and durable request-ID receipts |
-| Autonomous runtime | External `ox_ai.runtime.watch_service serve` entry; event-triggered work, a persistent Evennia duty Script and tested isolation-ACK recovery |
+| Autonomous runtime | Three Concordia crew with independent `serve` processing pump alarms, handover and player hails; P-01 isolation-ACK recovery |
 | Observability | JSON journals and focused CI artifacts; **no browser dashboard or published handler API** |
 
 A completed CI test is not equivalent to general intelligence. CI uses
@@ -60,7 +62,7 @@ handler remain operational without a dashboard.
 
 ## Try the prototype
 
-For an ordinary human client and the three-room game, follow
+For an ordinary human client and the seven-room game, follow
 [`game/README.md`](game/README.md) or [`INSTALL.md`](INSTALL.md). Local ports
 are Telnet `127.0.0.1:4000`, web `127.0.0.1:4001` and Evennia's
 character WebSocket `127.0.0.1:4002`.
@@ -99,6 +101,11 @@ Do not run test account provisioning against an existing production world.
 - **P4b:** world-clock handover, changed active engineer, second incident
   and independent process restart/reconciliation
   ([PR #14](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/14)).
+- **P4c:** independent live supervisor dispatches an incident, watch
+  handover and a human hail ([PR #16](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/16)).
+- **P4d:** seven rooms, five world-owned crew and specialist cargo/
+  environmental equipment; two new specialist AI entities remain future
+  work ([PR #17](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/17)).
 - **P5:** joined world/agent browser observatory—**deferred**.
 
 See the [verification matrix](design/STATUS.md) for precise scope and gaps.

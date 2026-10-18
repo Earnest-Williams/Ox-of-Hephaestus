@@ -19,7 +19,7 @@ from unittest.mock import patch
 from evennia.utils import gametime
 
 from world.bootstrap import build_ship
-from typeclasses.ship import CoolingPump, FixedFixture
+from typeclasses.ship import CoolingPump, StatusConsole, RosterBoard
 
 
 @dataclass(frozen=True)
@@ -102,18 +102,24 @@ class LocalCharacterTerminal:
                     CommandOption(f"Go {exit_obj.key}", exit_obj.key)
                 )
         for obj in sorted(place.contents, key=lambda item: item.key):
-            if obj == body or not isinstance(obj, FixedFixture):
+            # This historical *pump-only* harness has a restricted command
+            # vocabulary. Other newer physical fixtures need their own
+            # commands and action contracts, never an alias to old targets.
+            if obj == body or not isinstance(
+                obj, (CoolingPump, StatusConsole, RosterBoard)
+            ):
                 continue
             if not obj.access(body, "view"):
                 continue
-            if callable(getattr(obj, "readout", None)):
-                # Only visible object names are shared; no remote metadata.
-                short_name = "pump" if isinstance(obj, CoolingPump) else (
-                    "console" if "Console" in obj.key else "roster"
-                )
-                options.append(
-                    CommandOption(f"Inspect {obj.key}", "inspect", short_name)
-                )
+            if isinstance(obj, CoolingPump):
+                short_name = "pump"
+            elif isinstance(obj, StatusConsole):
+                short_name = "console"
+            else:
+                short_name = "roster"
+            options.append(
+                CommandOption(f"Inspect {obj.key}", "inspect", short_name)
+            )
             if isinstance(obj, CoolingPump):
                 for verb in ("isolate", "repair", "commission"):
                     options.append(

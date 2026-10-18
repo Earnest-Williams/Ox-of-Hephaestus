@@ -3,10 +3,30 @@
 from evennia.utils.test_resources import EvenniaTestCase
 
 from ox_ai.agents.goap_crew import GoapCrewAgent
-from world.ai_repair import conduct_repair_trial
+from world.ai_repair import conduct_repair_trial, LocalCharacterTerminal
 
 
 class GoapPumpIntegrationTests(EvenniaTestCase):
+    def test_expanded_ship_keeps_pump_trial_commands_unambiguous(self):
+        """New terminals, boards and rooms must not masquerade as P-01."""
+        from world.bootstrap import build_ship
+
+        ship = build_ship()
+        actor = ship["watch"]
+        actor.move_to(ship["bridge"], quiet=True)
+        options = LocalCharacterTerminal(actor).options()
+        pairs = [(option.verb, option.target) for option in options]
+        self.assertEqual(len(pairs), len(set(pairs)))
+        self.assertEqual(pairs.count(("inspect", "console")), 1)
+        self.assertEqual(pairs.count(("inspect", "roster")), 1)
+        self.assertFalse(any("Operations Console" in o.label for o in options))
+        actor.move_to(ship["passage"], quiet=True)
+        options = LocalCharacterTerminal(actor).options()
+        self.assertEqual(
+            len({(o.verb, o.target) for o in options}), len(options)
+        )
+        self.assertFalse(any("Department Duty Board" in o.label for o in options))
+
     def test_goap_engineer_restores_pump_with_no_inference(self):
         from world.bootstrap import find_fixture
 

@@ -68,7 +68,7 @@ jobs:
           PY
           sleep 5
           set +e
-          timeout 35s python -m ox_ai.runtime.watch_service serve
+          timeout 60s python -m ox_ai.runtime.watch_service serve
           CODE=$?
           set -e
           if [ "$CODE" -ne 124 ]; then
@@ -87,7 +87,7 @@ jobs:
         if: always()
         working-directory: game
         run: evennia stop || true
-      - name: Verify durable authority and actual world-delivered human reply
+      - name: Independently check world state and print actionable diagnostics
         working-directory: game
         run: |
-          evennia shell --command="from world.bootstrap import build_ship; from world.live_crew import inbox; from evennia.objects.models import ObjectDB; s=build_ship(); p=s['pump']; r=s['roster']; guest=ObjectDB.objects.filter(db_key='Visiting Operator').first(); assert guest is not None; assert p.state=='normal' and p.db.ox_incident_closed; assert r.db.ox_active_engineer==s['chief'].dbref; assert [e['operation'] for e in p.db.event_history]==['fault','isolate','repair','commission']; assert [e['kind'] for e in inbox(guest)].count('crew_reply')==1; assert len([e for e in inbox(s['chief']) if e['kind']=='hail_answered'])==1; print('OX_P4C_UNATTENDED_HANDOVER_AND_HAIL_PASS')"
+          evennia shell --command="from world.bootstrap import build_ship; from world.live_crew import inbox; from evennia.objects.models import ObjectDB; s=build_ship(); p=s['pump']; r=s['roster']; guest=ObjectDB.objects.filter(db_key='Visiting Operator').first(); ops=[e['operation'] for e in p.db.event_history]; guest_kinds=[e['kind'] for e in inbox(guest)] if guest else []; chief_kinds=[e['kind'] for e in inbox(s['chief'])]; ari_kinds=[e['kind'] for e in inbox(s['watch'])]; print('OX_P4C_FINAL_DIAGNOSTIC',repr({'pump':p.state,'closed':p.db.ox_incident_closed,'active':r.db.ox_active_engineer,'expected':s['chief'].dbref,'ops':ops,'guest':guest is not None,'guest_events':guest_kinds,'chief_events':chief_kinds,'ari_events':ari_kinds})); assert guest is not None, 'guest missing'; assert p.state=='normal' and p.db.ox_incident_closed, 'cooling incident not resolved'; assert r.db.ox_active_engineer==s['chief'].dbref, 'handover not completed'; assert ops==['fault','isolate','repair','commission'], 'physical event history differs'; assert guest_kinds.count('crew_reply')==1, 'player reply missing or duplicated'; assert chief_kinds.count('hail_answered')==1, 'crew answer missing or duplicated'; print('OX_P4C_UNATTENDED_HANDOVER_AND_HAIL_PASS')"
