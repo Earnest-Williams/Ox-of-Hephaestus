@@ -55,6 +55,8 @@ class CoolantCrewAgent(MockWatchAgent):
         self._release_request_id: str | None = None
         self._release_requested = False
         self._chief_inspected = False
+        self._chief_inspection_requested = False
+        self._approval_attempted = False
         self._need_inspection = False
         self._verified_normal = False
         self._alert_sent = False
@@ -104,16 +106,23 @@ class CoolantCrewAgent(MockWatchAgent):
                 )
             return None
         if self.assignment == "relief_engineer":
-            if self._release_request_id and not self._chief_inspected:
-                self._chief_inspected = True  # inspection attempt is pending
+            if (
+                self._release_request_id
+                and not self._chief_inspected
+                and not self._chief_inspection_requested
+            ):
+                self._chief_inspection_requested = True
                 return self._request("inspect_pump", "pump", {})
             if (
                 self._release_request_id
                 and self._chief_inspected
                 and "pump_repaired" in self._facts
+                and not self._approval_attempted
                 and "chief_release" not in self._facts
             ):
-                self._facts.add("chief_release")  # records intent, not effect
+                # Chief approval is an attempted world action. Never mark
+                # chief_release true until the world delivers release_recorded.
+                self._approval_attempted = True
                 return self._request(
                     "approve_release", "pump",
                     {"request_id": self._release_request_id},
@@ -172,6 +181,8 @@ class CoolantCrewAgent(MockWatchAgent):
         elif kind == "release_request" and self.assignment == "relief_engineer":
             self._release_request_id = data["request_id"]
             self._chief_inspected = False
+            self._chief_inspection_requested = False
+            self._approval_attempted = False
         elif kind == "pump_readout":
             self._set_pump(data["state"])
             if self.assignment == "outgoing_engineer":
@@ -181,6 +192,7 @@ class CoolantCrewAgent(MockWatchAgent):
                     self._facts.add("chief_release")
             elif self.assignment == "relief_engineer":
                 self._chief_inspected = True
+                self._chief_inspection_requested = False
         elif kind == "pump_transition":
             if self.assignment == "outgoing_engineer":
                 operation = data["operation"]
@@ -242,6 +254,12 @@ class CoolantCrewAgent(MockWatchAgent):
                 self._release_requested = False
             if previous.verb == "report_resolved":
                 self._report_sent = False
+            if previous.verb == "inspect_pump" and self.assignment == "relief_engineer":
+                self._chief_inspection_requested = False
+                self._chief_inspected = False
+            if previous.verb == "approve_release" and self.assignment == "relief_engineer":
+                self._approval_attempted = False
+                self._chief_inspected = False
 
     def snapshot(self) -> dict:
         result = super().snapshot()
@@ -253,6 +271,8 @@ class CoolantCrewAgent(MockWatchAgent):
             "release_request_id": self._release_request_id,
             "release_requested": self._release_requested,
             "chief_inspected": self._chief_inspected,
+            "chief_inspection_requested": self._chief_inspection_requested,
+            "approval_attempted": self._approval_attempted,
             "need_inspection": self._need_inspection,
             "verified_normal": self._verified_normal,
             "alert_sent": self._alert_sent,
@@ -274,6 +294,8 @@ class CoolantCrewAgent(MockWatchAgent):
         agent._release_request_id = state["release_request_id"]
         agent._release_requested = state["release_requested"]
         agent._chief_inspected = state["chief_inspected"]
+        agent._chief_inspection_requested = state["chief_inspection_requested"]
+        agent._approval_attempted = state["approval_attempted"]
         agent._need_inspection = state["need_inspection"]
         agent._verified_normal = state["verified_normal"]
         agent._alert_sent = state["alert_sent"]
