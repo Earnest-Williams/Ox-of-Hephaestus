@@ -74,7 +74,7 @@ def newest_unseen_alarm(events: list[dict], handled: set[str]) -> tuple[dict | N
     if not unseen:
         return None, set()
     selected = max(
-        unseen, key=lambda e: int(e["event_id"].split("-")[-1])
+        unseen, key=lambda e: int(e.get("sequence", e["event_id"].split("-")[-1]))
     )
     return selected, {e["data"]["alarm_id"] for e in alarms}
 
