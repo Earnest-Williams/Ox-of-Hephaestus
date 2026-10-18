@@ -89,6 +89,9 @@ The slice currently coordinates one Teo/Mara A-01 supply dependency
 per supervisor. It is not a general object economy, contract market,
 employer scheduler, or UI. A new cargo shipment source and additional
 simultaneous work orders must extend the world's schema and scheduling
-without sharing private memories. Unknown unknowns are recognized
-only retrospectively as surprising verified observations, not listed
-by an omniscient simulation layer.
+without sharing private memories. A genuine hidden world fact
+is an **unknown unknown relative to an uninformed character even now**:
+the simulation may know it, but the character does not. World/character
+epistemic classification is limited to operator-authorized diagnostics.
+The agent does not receive a catalogue of what it has not conceived of.
+A later surprise is optional and not a prerequisite for the classification.

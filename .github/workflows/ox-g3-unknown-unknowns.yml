@@ -1,0 +1,53 @@
+name: Ox G3 actor-relative unknown unknowns and operator secrecy
+
+on:
+  pull_request:
+    paths:
+      - "game/world/epistemic_audit.py"
+      - "game/world/tests/test_epistemic_audit.py"
+      - "services/ai-handler/src/ox_ai/runtime/epistemics.py"
+      - "services/ai-handler/tests/test_epistemics.py"
+      - "design/prototypes/g3-epistemics.md"
+      - ".github/workflows/ox-g3-unknown-unknowns.yml"
+  push:
+    branches: [main]
+    paths:
+      - "game/world/epistemic_audit.py"
+      - "game/world/tests/test_epistemic_audit.py"
+      - "services/ai-handler/src/ox_ai/runtime/epistemics.py"
+      - "services/ai-handler/tests/test_epistemics.py"
+      - ".github/workflows/ox-g3-unknown-unknowns.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  operator-world-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Classify preexisting hidden pirate without disclosing it to actor
+        env:
+          PYTHONPATH: game
+        run: |
+          python -m compileall -q game/world/epistemic_audit.py game/world/tests/test_epistemic_audit.py
+          python -m unittest discover -s game/world/tests -p 'test_epistemic_audit.py' -v
+
+  private-agent-compatibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check existing character-private beliefs, questions and surprise history
+        run: |
+          python -m pip install -e ./services/ai-handler
+          python -m compileall -q services/ai-handler/src/ox_ai/runtime/epistemics.py
+          python -m unittest discover -s services/ai-handler/tests -p 'test_epistemics.py' -v
