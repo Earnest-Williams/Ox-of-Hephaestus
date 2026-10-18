@@ -22,7 +22,8 @@ feature inventories.
 | P4c — unattended event dispatch and player hails | Tested and merged | [PR #16](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/16); one continuous supervisor processes pump repair, world-timed watch handover and an addressed human hail |
 | P4d — specialist ship departments | Tested and merged | [PR #17](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/17); seven compartments, cargo and atmosphere state machines, five persistent crew bodies, authority and inventory tests |
 | P4e — five independently autonomous crew | Tested and merged | [PR #19](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/19); two additional nonprivileged Concordia actors, world-confirmed cargo/environmental work and a lost-ACK cartridge-replacement gate |
-| P4f — indexed, paginated crew events | Implemented; PR validation | [PR #22](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/22); world-owned indexed journal, schema-v2 per-recipient cursor replay, safe legacy import and handler-side private checkpoints. New P4f database/handler tests passed; final legacy integration gates remain PR checks. |
+| P4f — indexed, paginated crew events | Tested and merged | [PR #22](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/22); world-owned indexed journal, schema-v2 recipient replay, safe legacy import, private handler checkpoints; all 14 applicable CI workflows passed before merge. |
+| P4g stage 1 — global world work receipts | PR validation | New typed `oxwork` / `oxworkreceipt` interface, one world-wide unique request ID for physical and social actions, transactional receipt and world effects; old commands preserved. No claim of general mid-scene handler restart yet. |
 | P5 — browser observatory | **Deferred / not built** | No browser UI, joined handler/world API, or operator dashboard |
 
 **Naming note:** the original Prototype 1 plan used “P4” for the first
