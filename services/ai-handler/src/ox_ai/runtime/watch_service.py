@@ -83,7 +83,9 @@ def active_watch_from_roster(text: str) -> str:
     """Interpret only an authenticated, local posted-roster readout."""
     # Evennia's legacy browser wire format converts text into HTML.
     # Parse the character-visible readout, not markup or operator state.
-    plain = re.sub(r"<[^>]*>", "", unescape(text)).replace("\r", "")
+    plain = unescape(text)
+    plain = re.sub(r"(?i)<br\\s*/?>|</(?:p|div)>", "\\n", plain)
+    plain = re.sub(r"<[^>]*>", "", plain).replace("\\r", "")
     matches = re.findall(r"(?m)^\s*Active engineering watch:\s*(.+?)\s*$", plain)
     if len(matches) != 1:
         raise RuntimeError("Active engineering watch not observable")
