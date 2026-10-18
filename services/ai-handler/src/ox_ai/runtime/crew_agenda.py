@@ -23,7 +23,7 @@ ALLOWED = {
     "accepted": frozenset({"in_progress", "deferred", "blocked", "declined",
                            "delegated", "escalated"}),
     "in_progress": frozenset({"interrupted", "deferred", "blocked",
-                              "completed", "escalated"}),
+                              "completed", "declined", "escalated"}),
     "interrupted": frozenset({"in_progress", "deferred", "blocked",
                               "completed", "escalated"}),
     "deferred": frozenset({"accepted", "escalated"}),
