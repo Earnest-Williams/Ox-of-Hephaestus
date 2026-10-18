@@ -73,3 +73,6 @@ docs/build
 *.sqlite
 *.sqlite3
 .pytest_cache/
+
+# Ox local-only test ship Django signing secret (never version-controlled)
+game/server/conf/.local-secret

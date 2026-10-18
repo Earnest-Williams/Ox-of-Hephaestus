@@ -2,7 +2,13 @@
 
 **An autonomous spaceship MUD and shipboard simulation, built on [Evennia](https://www.evennia.com/).**
 
-> **Project status: early prototype scaffolding.** This fork retains upstream Evennia and now adds independently packaged service skeletons, architectural decisions and test-scenario specifications. **Neither the autonomous crew nor the human interface is implemented or runnable yet.**
+> **Project status: first playable test ship and first Concordia entity integration candidate.** The standalone `game/` directory contains real Evennia rooms, a pump, bridge telemetry and idle crew bodies. The `services/ai-handler/` package has a tested single-agent Concordia lifecycle, but **the agent is not yet connected to the ship**; the handler server, autonomous crew orchestration and dashboard do not exist.
+
+## Try the little ship
+
+A real, playable **three-compartment Ox ship** is now available in [`game/`](game/README.md), without changing Evennia's engine. The game fixture creates a bridge, connecting passage, and engineering space, three idle crew, a live bridge cooling readout, a duty board and a stateful P-01 cooling pump. It can be explored with a normal MUD client, and an authorised test engineer can inject, isolate, repair and commission a pump failure through in-world commands. Its world state persists in Evennia's database; there is not yet AI commanding it.
+
+The game lives outside the `evennia/` library and has its own [targeted database-backed tests](.github/workflows/ox-ship-world.yml). See [quickstart and commands](game/README.md) before trying it locally.
 
 ## The premise
 

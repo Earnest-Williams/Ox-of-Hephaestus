@@ -1,6 +1,6 @@
 # Prototype 1 — Autonomous Crew
 
-**Status:** P0 merged and CI-green. P1 native entity implementation proposed; its pinned Concordia integration job must pass before the gate can be considered complete. P2–P5 are not implemented.
+**Status:** P0 merged and CI-green. P1 native Concordia entity integration has passed its initial dedicated CI tests on the open PR; game-to-agent integration is still absent. A playable three-compartment Evennia fixture is included ahead of P3/P4, but P2–P5 remain incomplete.
 
 ## Aim
 
@@ -40,6 +40,10 @@ The temporary Python `WorldPort` contract lives in `services/ai-handler/src/ox_a
 - On reconnect or restart, reconcile unknown actions; do not blindly retry a valve command.
 
 Concordia's interrupt-driven Game Master can run the mock scenario, but it must not independently assert that text describing a repair makes that repair real. Live Evennia integration may call entities directly under an Ox supervisor without running Concordia's conventional simulation loop.
+
+## Preparatory game fixture (not a completed integration gate)
+
+The standalone [`game/`](../../game/README.md) test ship gives us real Evennia compartments and pump mechanics before hooking up the agents: bridge, passage, engineering, three idle NPC characters, a status console, a static watch roster and persistent pump state. It is populated once at initial startup (or through an idempotent manual bootstrap) and verified by separate SQLite-backed CI tests. **A playable game object does not imply the Concordia engineer can operate it.** P3 still requires normal-client connections, and P4 still requires an end-to-end AI-driven fault scenario.
 
 ## First scenarios
 
