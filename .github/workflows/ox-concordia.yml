@@ -34,4 +34,7 @@ jobs:
           python -c "from concordia.agents.entity_agent_with_logging import EntityAgentWithLogging; print('Concordia API available:', EntityAgentWithLogging)"
           python -m unittest discover -s services/ai-handler/tests -p 'test_concordia_*.py' -v
           python -m unittest discover -s services/ai-handler/tests -p 'test_character_factory.py' -v
+          python -m unittest discover -s services/ai-handler/tests -p 'test_profile_decision_trials.py' -v
+          python -m ox_ai.agents.decision_trials > /tmp/ox-personality-trials.json
+          python -c "import json; d=json.load(open('/tmp/ox-personality-trials.json')); assert d['world_actions_submitted']==0 and d['total_inference_calls']==12 and d['profiles']['methodical']==d['profiles']['collaborative']; print('OX_PROFILE_PROBE_PASS')"
           python services/ai-handler/examples/one_engineer.py
