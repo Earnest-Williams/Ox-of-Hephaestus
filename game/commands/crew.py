@@ -1,8 +1,6 @@
 """Ordinary character commands for authenticated, world-owned crew cooperation."""
 from __future__ import annotations
 
-import json
-
 from evennia.commands.command import Command
 from world import live_crew
 
@@ -26,7 +24,7 @@ class CmdOxInbox(Command):
     locks = "cmd:all()"
 
     def func(self) -> None:
-        from world.live_crew import inbox
+        from world.live_crew import inbox, wire_event
         try:
             since = int(self.args.strip() or "0")
             if since < 0:
@@ -36,7 +34,7 @@ class CmdOxInbox(Command):
             return
         messages = inbox(self.caller, after=since)
         for message in messages:
-            self.caller.msg(ox_event=([json.dumps(message, sort_keys=True)], {}))
+            self.caller.msg(ox_event=([wire_event(message)], {}))
         self.caller.msg(ox_inbox_done=([{"count": len(messages)}], {}))
 
 
