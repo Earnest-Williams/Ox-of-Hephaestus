@@ -34,3 +34,8 @@ jobs:
         run: |
           python -m compileall -q services/ai-handler/src services/interface/src
           python -m unittest discover -s services/ai-handler/tests -v
+      - name: Run complete model-free three-crew watch scenario
+        run: |
+          python -m ox_ai.scenarios.watch_handover > /tmp/ox-watch-handover.json
+          python -c "import json; d=json.load(open('/tmp/ox-watch-handover.json')); assert d['status']=='passed' and d['inference_calls']==0 and d['current_active_engineer']=='iona' and d['world_submissions']==2; print('OX_WATCH_HANDOVER_PASS')"
+

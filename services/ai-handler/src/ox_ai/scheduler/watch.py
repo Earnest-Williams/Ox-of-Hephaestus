@@ -92,6 +92,13 @@ class WatchSupervisor:
     def _submit(self, request: ActionRequest) -> None:
         if request.character_id not in self.agents:
             raise PermissionError("Unrecognised agent cannot submit commands")
+        agent = self.agents[request.character_id]
+        if request.agent_revision != agent.revision:
+            from ox_ai.agents.crew import StaleAgentRevision
+
+            raise StaleAgentRevision("Discarding stale mock-world action proposal")
+        if request not in agent.pending_requests:
+            raise PermissionError("Only this agent's outstanding request is valid")
         self.world_submissions += 1
         result = self.world.submit(request)
         self.agents[request.character_id].record_outcome(result)
