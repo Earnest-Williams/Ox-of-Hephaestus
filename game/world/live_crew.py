@@ -6,8 +6,6 @@ Physical operations remain in CoolingPump; private events are world-owned.
 """
 from __future__ import annotations
 
-import json
-
 from evennia.utils import gametime
 from world.bootstrap import build_ship, find_fixture
 
@@ -15,6 +13,26 @@ from world.bootstrap import build_ship, find_fixture
 def _world():
     ship = build_ship()
     return ship, ship["pump"], ship["roster"]
+
+
+def wire_event(event: dict) -> dict:
+    """Flatten synthetic fields for Evennia's first-level-only OOB contract.
+
+    Evennia's Portal/Server transport preserves a flat positional dictionary
+    but serializes a nested dict as its keys alone; no nested values may be
+    placed directly into an OOB frame.
+    """
+    result = {k: v for k, v in event.items() if k != "data"}
+    detail = event.get("data", {})
+    if not isinstance(detail, dict):
+        raise TypeError("World event details must be a mapping")
+    for key, value in detail.items():
+        if not isinstance(key, str) or not key.isidentifier():
+            raise ValueError("Invalid world observation field")
+        if not isinstance(value, (str, int, float, bool, type(None))):
+            raise TypeError("World observation fields must be scalar")
+        result["datum_" + key] = value
+    return result
 
 
 def emit(pump, recipient, kind: str, *, sender=None, data=None, text="") -> dict:
@@ -31,9 +49,7 @@ def emit(pump, recipient, kind: str, *, sender=None, data=None, text="") -> dict
     }
     items.append(event)
     pump.db.ox_private_events = items
-    # Nested dicts are lossy in the Evennia Portal/Server OOB scrubber.
-    # Transmit the scoped event as one serialized JSON positional argument.
-    recipient.msg(ox_event=([json.dumps(event, sort_keys=True)], {}))
+    recipient.msg(ox_event=([wire_event(event)], {}))
     return event
 
 
