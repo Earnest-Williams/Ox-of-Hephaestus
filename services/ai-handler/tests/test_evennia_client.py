@@ -12,7 +12,7 @@ class FakeSocket:
         self.sent = []
         self.correct = correct
         self.closed = False
-        self.frames = []
+        self.frames = [json.dumps(["text", ["Evennia welcome"], {}])]
         self.next_notice = None
 
     async def send(self, frame):
