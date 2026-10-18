@@ -93,6 +93,17 @@ class LiveCognitionTests(unittest.TestCase):
         })
         self.assertFalse(brain.agent.pending_requests)
 
+    def test_delayed_private_event_retains_original_timestamp(self):
+        brain = self.brains["lin"]
+        one = {"event_id": "e2", "recipient_dbref": "#13", "kind": "radio",
+               "game_time": 110.0, "text": "Newer report", "data": {}}
+        older = {"event_id": "e1", "recipient_dbref": "#13", "kind": "radio",
+                 "game_time": 105.0, "text": "Delayed report", "data": {}}
+        self.assertTrue(brain.observe_event(one))
+        self.assertTrue(brain.observe_event(older))
+        self.assertEqual(brain.agent.revision, 2)
+        self.assertTrue(any("Delayed report" in x for x in brain.agent.memories))
+
     def test_no_model_invocation_during_idle_and_refuse_wrong_ids(self):
         from ox_ai.agents.live_concordia import build_live_brains
         self.assertTrue(all(x.inference_calls == 0 for x in self.brains.values()))
