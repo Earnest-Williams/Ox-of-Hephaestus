@@ -1,0 +1,53 @@
+name: Ox P4g durable world work receipts
+
+on:
+  pull_request:
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-p4g-work-receipts.yml"
+  push:
+    branches: [main]
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-p4g-work-receipts.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  work:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install real Evennia and external work transport
+        run: |
+          python -m pip install .
+          python -m pip install -e ./services/ai-handler
+          python -m compileall -q game services/ai-handler/src services/ai-handler/tests
+      - name: Generate disposable local owner credentials
+        shell: bash
+        run: |
+          TOKEN="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          echo "::add-mask::$TOKEN"
+          echo "EVENNIA_SUPERUSER_PASSWORD=$TOKEN" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_USERNAME=OxCI" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_EMAIL=oxci@example.invalid" >> "$GITHUB_ENV"
+      - name: Apply and verify work receipt Django migration
+        working-directory: game
+        run: |
+          evennia migrate --noinput
+          evennia makemigrations world --check --dry-run
+      - name: Test real social and physical world receipts
+        working-directory: game
+        run: |
+          python -m world.test_runner world.tests.test_work_receipts world.tests.test_durable_actions world.tests.test_crew_interaction --verbosity=2
+      - name: Test authenticated typed external work adapter
+        run: |
+          python -m unittest discover -s services/ai-handler/tests -p 'test_world_work_port.py' -v

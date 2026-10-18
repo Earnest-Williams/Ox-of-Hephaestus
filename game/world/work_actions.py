@@ -1,0 +1,183 @@
+"""Unified world-authoritative, idempotent shipboard work requests.
+
+The external handler must persist one stable request ID before submission.
+Evennia validates the authenticated character's location and duty, applies
+at most one world effect, and records an immutable receipt in one transaction.
+
+Existing legacy oxaction/oxreceipt routes continue to work, so migration is
+additive. The new global namespace prevents cross-fixture request-ID reuse.
+"""
+from __future__ import annotations
+
+from collections.abc import Mapping
+import re
+
+from django.db import transaction
+from evennia.objects.models import ObjectDB
+from evennia.utils import gametime
+
+from world.bootstrap import find_fixture
+from world.models import CrewEvent, WorkReceipt
+
+_REQUEST_ID = re.compile(r"[0-9a-f]{32}")
+_EQUIPMENT = {
+    "pump": (
+        "pump-p01",
+        frozenset({"isolate", "repair", "commission"}),
+    ),
+    "cargo": (
+        "cargo-cradle",
+        frozenset({"restow", "certify"}),
+    ),
+    "scrubber": (
+        "atmosphere-scrubber",
+        frozenset({"isolate", "replace", "restart"}),
+    ),
+}
+_SOCIAL = {
+    "radio": "relay_alarm",
+    "request": "request_release",
+    "approve": "approve_release",
+    "resolve": "report_resolution",
+    "offer": "offer_watch",
+    "accept": "accept_watch",
+    "answer": "answer_hail",
+}
+
+
+def _arguments(operation: str, target: str, arguments: Mapping | None) -> dict:
+    if arguments is None:
+        arguments = {}
+    if not isinstance(arguments, Mapping):
+        raise ValueError("Work arguments must be a mapping")
+    if target == "ship":
+        if operation not in _SOCIAL:
+            raise ValueError("Unknown shipboard work operation")
+        if operation == "answer":
+            if set(arguments) != {"hail_id", "mode"}:
+                raise ValueError("Answer requires a hail ID and response mode")
+            hail_id = arguments["hail_id"]
+            mode = arguments["mode"]
+            if (not isinstance(hail_id, str) or
+                    re.fullmatch(r"hail-[0-9]{4,}", hail_id) is None or
+                    mode not in ("status", "ack", "decline")):
+                raise ValueError("Invalid hail response parameters")
+            return {"hail_id": hail_id, "mode": mode}
+        if arguments:
+            raise ValueError("This shipboard work takes no extra arguments")
+        return {}
+    spec = _EQUIPMENT.get(target)
+    if spec is None or operation not in spec[1] or arguments:
+        raise ValueError("Unsupported equipment work or arguments")
+    return {}
+
+
+def _validate(actor, request_id: str, operation: str, target: str,
+              arguments: Mapping | None) -> dict:
+    if actor is None or not isinstance(getattr(actor, "dbref", None), str):
+        raise PermissionError("An authenticated character must issue work")
+    if not isinstance(request_id, str) or _REQUEST_ID.fullmatch(request_id) is None:
+        raise ValueError("Work ID must contain 32 lowercase hex digits")
+    if not isinstance(operation, str) or not isinstance(target, str):
+        raise ValueError("Invalid requested work")
+    return _arguments(operation, target, arguments)
+
+
+def _social_action(actor, operation: str, arguments: dict) -> tuple[bool, str]:
+    from world import live_crew
+    from world.crew_interaction import answer_hail
+    if operation == "answer":
+        return answer_hail(actor, arguments["hail_id"], arguments["mode"])
+    return getattr(live_crew, _SOCIAL[operation])(actor)
+
+
+def _unknown(actor, request_id: str) -> dict:
+    return {
+        "request_id": request_id,
+        "actor_dbref": actor.dbref,
+        "status": "unknown",
+        "reason": "no_authorised_receipt",
+        "source_event_id": None,
+    }
+
+
+def execute_work(
+    actor, request_id: str, operation: str, target: str = "ship",
+    *, arguments: Mapping | None = None,
+) -> dict:
+    """Commit one validated social or physical world transition and receipt.
+
+    Lock the common ship fixture to serialize competing ship work on
+    PostgreSQL. SQLite's coarse write locking still cannot be used as
+    evidence of production concurrent-writer safety.
+    """
+    validated = _validate(actor, request_id, operation, target, arguments)
+    pump = find_fixture("pump-p01")
+    if pump is None:
+        raise RuntimeError("No authoritative ship equipment is installed")
+    with transaction.atomic():
+        # A single contention point prevents two overlapping work requests
+        # from consuming an identical scarce resource on PostgreSQL.
+        ObjectDB.objects.select_for_update().get(pk=pump.pk)
+        old = WorkReceipt.objects.filter(pk=request_id).first()
+        if old is not None:
+            if (old.actor_dbref != actor.dbref or old.target != target
+                    or old.operation != operation or old.arguments != validated):
+                raise PermissionError("Request ID already belongs to other work")
+            return dict(old.outcome)
+
+        if target != "ship":
+            fixture = find_fixture(_EQUIPMENT[target][0])
+            if fixture is None:
+                raise RuntimeError("Requested equipment is absent")
+            # Existing per-fixture legacy durable receipts remain for old
+            # clients and are incorporated in the common transaction.
+            result = fixture.durable_action(request_id, operation, actor)
+            outcome = {**result, "target": target}
+        else:
+            before = (
+                CrewEvent.objects.order_by("-sequence")
+                .values_list("sequence", flat=True).first() or 0
+            )
+            succeeded, message = _social_action(actor, operation, validated)
+            first_event = (
+                CrewEvent.objects.filter(sequence__gt=before)
+                .order_by("sequence").first()
+            )
+            outcome = {
+                "request_id": request_id,
+                "actor_dbref": actor.dbref,
+                "operation": operation,
+                "target": target,
+                "status": "succeeded" if succeeded else "failed",
+                "reason": "world_accepted" if succeeded else "world_refused",
+                "source_event_id": (
+                    first_event.event_id if first_event else None
+                ),
+                "game_time": float(gametime.gametime(absolute=True)),
+            }
+            # This is a world-authored diagnostic, never an LLM claim.
+            if not succeeded and not message:
+                raise RuntimeError("World refused work without a reason")
+
+        WorkReceipt.objects.create(
+            request_id=request_id,
+            actor_dbref=actor.dbref,
+            target=target,
+            operation=operation,
+            arguments=validated,
+            outcome=outcome,
+            game_time=float(gametime.gametime(absolute=True)),
+        )
+        return dict(outcome)
+
+
+def work_receipt(actor, request_id: str) -> dict:
+    """Read only the authenticated actor's previously committed work."""
+    if actor is None or not isinstance(getattr(actor, "dbref", None), str):
+        raise PermissionError("An authenticated character is required")
+    if not isinstance(request_id, str) or _REQUEST_ID.fullmatch(request_id) is None:
+        raise ValueError("Invalid work ID")
+    stored = WorkReceipt.objects.filter(pk=request_id,
+                                        actor_dbref=actor.dbref).first()
+    return dict(stored.outcome) if stored is not None else _unknown(actor, request_id)

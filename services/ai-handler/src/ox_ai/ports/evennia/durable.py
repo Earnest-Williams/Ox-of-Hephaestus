@@ -79,3 +79,58 @@ class DurableEvenniaPort:
         suffix = "" if target == "pump" else " " + target
         await self.client.send_line(f"oxreceipt {request_id}{suffix}")
         return await self._receipt(request_id)
+
+
+    async def submit_work(self, request: ActionRequest) -> ActionOutcome:
+        """Submit one typed world-work intent using the global receipt ID.
+
+        Caller must persist the same request ID before invoking this method.
+        Keep the historic submit() path until all legacy supervisors migrate.
+        """
+        if not self.client.authenticated:
+            raise PermissionError("Unauthenticated session")
+        if request.character_id != self.client.character_dbref:
+            raise PermissionError("Work belongs to another character")
+        if re.fullmatch(r"[0-9a-f]{32}", request.request_id) is None:
+            raise ValueError("Invalid work request ID")
+
+        if request.target == "ship":
+            if request.verb not in (
+                "radio", "request", "approve", "resolve", "offer",
+                "accept", "answer",
+            ):
+                raise ValueError("Unsupported shipboard operation")
+            operation = request.verb
+            if operation == "answer":
+                arguments = dict(request.arguments)
+                hail_id = arguments.get("hail_id")
+                mode = arguments.get("mode")
+                if (set(arguments) != {"hail_id", "mode"}
+                        or not isinstance(hail_id, str)
+                        or re.fullmatch(r"hail-[0-9]{4,}", hail_id) is None
+                        or mode not in ("status", "ack", "decline")):
+                    raise ValueError("Invalid typed hail answer")
+                suffix = f" {hail_id} {mode}"
+            else:
+                if request.arguments:
+                    raise ValueError("Ship work does not permit free-form arguments")
+                suffix = ""
+        else:
+            operation = _VERBS.get((request.verb, request.target))
+            if operation is None or request.arguments:
+                raise ValueError("Unsupported typed equipment work")
+            suffix = ""
+
+        await self.client.send_line(
+            f"oxwork {request.request_id} {operation} {request.target}{suffix}"
+        )
+        return await self._receipt(request.request_id)
+
+    async def reconcile_work(self, request_id: str) -> ActionOutcome:
+        """Check global world receipt; never retransmit an unknown operation."""
+        if not self.client.authenticated:
+            raise PermissionError("Unauthenticated session")
+        if re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
+            raise ValueError("Invalid work request ID")
+        await self.client.send_line(f"oxworkreceipt {request_id}")
+        return await self._receipt(request_id)

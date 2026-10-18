@@ -33,6 +33,26 @@ manufacturing, or skill-by-use progression**. The P4e supervisor runs
 five private cognitive agents; the original P4c three-crew supervisor
 remains available but must not be run simultaneously on the same ship.
 
+## P4g typed shipboard work receipts (first stage)
+
+`oxwork <32-hex-id> <operation> <target> [hail-id response]`
+submits one validated physical or social action through the common global
+work ledger. Targets are `pump`, `cargo`, `scrubber`, or `ship`.
+Equipment operations retain their existing names (`isolate`, `repair`,
+`commission`, `restow`, `certify`, `replace`, `restart`). Shipboard
+social verbs are `radio`, `request`, `approve`, `resolve`,
+`offer`, `accept`, and `answer`; only `answer` accepts a hail ID
+and bounded `status`/`ack`/`decline` response.
+
+`oxworkreceipt <32-hex-id>` returns an actor-private world result without
+repeating the command. The request ID is global across all three equipment
+systems and shipboard coordination. Repeating a rejected request produces
+the original refusal even after circumstances change; use a newly authorized
+request for a genuinely new attempt. The legacy commands are unchanged.
+
+This first stage does **not** implement automatic resumption of every
+interrupted supervisor procedure.
+
 ## P4f durable world events (PR #22)
 
 Private ship observations are now persisted in an indexed Django

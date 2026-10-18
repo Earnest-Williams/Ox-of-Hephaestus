@@ -9,6 +9,22 @@ cartridge replacement without duplicating inventory use. This is not a
 deployed freighter or general social simulation.
 [Verified feature matrix](design/STATUS.md) · [Development setup](INSTALL.md).
 
+## P4g stage 1: world-owned work receipts
+
+A versioned Django `world.WorkReceipt` record binds one globally unique
+request ID to an authenticated actor, operation, physical target or shipboard
+social procedure, typed arguments, and a committed authoritative outcome.
+The `oxwork` / `oxworkreceipt` character commands provide a common
+reconciliation surface while keeping `oxaction` / `oxreceipt` intact for
+existing P3–P4e clients. World-side permission and physical-presence tests
+remain unchanged. A refused action is also a durable outcome and cannot
+later be retried under the same ID to acquire new authority.
+
+This is an **additive protocol**, not yet universal recovery: old repair,
+commissioning, player-hail and watch supervisor procedures are still not
+entirely checkpointed by this API. Handler-side step ledgers and interrupted
+social-work recovery remain the next implementation dependency.
+
 ## P4f addressed, indexed world-event journal
 
 [PR #22](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/22)
