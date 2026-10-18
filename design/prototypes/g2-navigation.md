@@ -2,8 +2,10 @@
 
 **Delivery:** world-side capability advertisements merged in
 [PR #35](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/35).
-Authenticated handler planning, world travel and station recovery are in
-[PR #36](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/36).
+Authenticated handler planning, world travel, station recovery and
+persistent physical crew across disconnects are **tested and merged** in
+[PR #36](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/36)
+(35 of 35 CI jobs passed across 23 workflows).
 
 ## Authority and privacy
 
