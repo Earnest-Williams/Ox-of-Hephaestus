@@ -46,7 +46,7 @@ jobs:
         working-directory: game
         run: |
           evennia migrate --noinput
-          evennia test world.tests.test_specialist_autonomy world.tests.test_departments world.tests.test_durable_actions --verbosity=2
+          evennia --settings settings.py test world.tests.test_specialist_autonomy world.tests.test_departments world.tests.test_durable_actions --verbosity=2
       - name: Provision five separate accounts and independent world events
         working-directory: game
         run: |
