@@ -119,7 +119,7 @@ def emit(pump, recipient, kind: str, *, sender=None, data=None, text="") -> dict
             text=str(text),
             game_time=float(gametime.gametime(absolute=True)),
         )
-        record.event_id = f"oxevt-{record.sequence:04d}"
+        record.event_id = f"oxevt-v2-{record.sequence:04d}"
         record.save(update_fields=["event_id"])
         event = _as_dict(record)
         # Socket packets are advisory. Only a committed journal row is truth.
