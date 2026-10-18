@@ -42,6 +42,18 @@ class DurablePortTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.source_event_id, "p01-0002")
         self.assertEqual(c.lines, ["oxaction " + request_id + " isolate"])
 
+    async def test_evennia_legacy_keyword_form_is_world_receipt(self):
+        c = FakeClient()
+        request_id = "e" * 32
+        c.packets = [WebPacket("ox_receipt", (), {
+            "request_id": request_id, "actor_dbref": "#42",
+            "status": "succeeded", "source_event_id": "p01-0007",
+            "options": {},
+        })]
+        result = await DurableEvenniaPort(c).reconcile(request_id)
+        self.assertEqual(result.status, "succeeded")
+        self.assertEqual(result.source_event_id, "p01-0007")
+
     async def test_timeout_stays_unknown_and_does_not_replay(self):
         c = FakeClient()
         request_id = "b" * 32
