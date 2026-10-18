@@ -83,7 +83,7 @@ class ClientTests(unittest.IsolatedAsyncioTestCase):
                 "short", "#42",
             )
         socket = FakeSocket()
-        socket.frames.append(json.dumps({"world_state": "omnipotent"}))
+        
         async def connector(*args, **kwargs):
             return socket
         client = EvenniaWebSocketClient(
@@ -92,6 +92,7 @@ class ClientTests(unittest.IsolatedAsyncioTestCase):
         )
         # Authentication succeeds first; a later malformed frame is rejected.
         await client.open()
+        socket.frames.append(json.dumps({"world_state": "omnipotent"}))
         with self.assertRaises(ValueError):
             await client.receive()
         await client.close()
