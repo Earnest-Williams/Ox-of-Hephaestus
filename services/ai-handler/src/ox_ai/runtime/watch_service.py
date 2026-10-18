@@ -514,9 +514,12 @@ class CrewWatchSupervisor:
             if await self.begin(block=False, drop_ack=False):
                 await self.resume()
                 continue
-            if await self.handover_if_due():
-                continue
+            # Cooling faults first; then answer addressed player requests
+            # before optional routine handovers so a due roster cannot
+            # postpone legitimate human interaction indefinitely.
             if await self.respond_to_hails():
+                continue
+            if await self.handover_if_due():
                 continue
             # Wait for ANY addressed character event, not only bridge faults.
             # No concurrent consumer reads a socket during another protocol.
