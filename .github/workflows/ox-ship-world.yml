@@ -1,0 +1,49 @@
+# Targeted, database-backed test of Ox's actual Evennia game directory.
+name: Ox spaceship game tests
+
+on:
+  pull_request:
+    paths:
+      - "game/**"
+      - ".github/workflows/ox-ship-world.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "game/**"
+      - ".github/workflows/ox-ship-world.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ship-world:
+    name: Ship topology, pump and local game commands (Python 3.12)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install forked Evennia engine
+        run: python -m pip install .
+      - name: Compile Ox game sources
+        run: python -m compileall -q game
+      - name: Check idempotent bootstrap against real persistent SQLite
+        working-directory: game
+        env:
+          # This is an ephemeral local-only CI database, never a deployed server.
+          EVENNIA_SUPERUSER_USERNAME: OxCI
+          EVENNIA_SUPERUSER_EMAIL: oxci@example.invalid
+
+        run: |
+          export EVENNIA_SUPERUSER_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+          evennia migrate --noinput
+          evennia shell --command="from world.bootstrap import build_ship; s=build_ship(); assert s['pump'].state == 'normal'; print('Created ship:', s['bridge'].key)"
+          evennia shell --command="from world.bootstrap import build_ship; s=build_ship(); ok, _ = s['pump'].inject_fault(); assert ok"
+          evennia shell --command="from world.bootstrap import build_ship; s=build_ship(); assert s['pump'].state == 'low_pressure'; assert len(s['pump'].db.event_history) == 1; print('Durable pump state:', s['pump'].state)"
+      - name: Run Ox ship integration tests in isolated SQLite test database
+        working-directory: game
+        run: evennia test world.tests.test_ship --verbosity=2

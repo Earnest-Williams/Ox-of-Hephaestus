@@ -1,6 +1,6 @@
 # Ox of Hephaestus — preliminary architecture
 
-> **Status:** Agreed prototype architecture and package skeleton, October 2026. Concordia is selected for Prototype 1, but the agents, game adapters and UI described here are not operational.
+> **Status:** Agreed prototype architecture, first native Concordia entity integration candidate and a small playable Evennia test ship, October 2026. The agent has **not** been connected to the ship; the AI supervisor, game adapters and UI remain unimplemented.
 
 ## 1. System boundaries
 
@@ -138,3 +138,28 @@ Success means meaningful autonomous coordination, valid in-world actions, and co
 The Concordia framework and deterministic GM authority boundary are chosen for Prototype 1. The specific model, inference server, durable storage, event/wire schema, dedicated Evennia API, UI framework and ship-system fidelity remain open.
 
 The early priority is a testable separation of concerns: **the game determines what is true and possible; the agents decide what to try; the interface exposes both without silently changing either; the transport lets us change how they communicate.**
+
+## 9. First concrete Evennia game directory
+
+The standalone [`game/`](game/README.md) directory is now a **playable fixture**, not an invented model observation. Its idempotent builder (`game/world/bootstrap.py`) creates a bridge, connecting passage, engineering compartment, four physical exits, three initially idle crew bodies, a pump, status console and posted roster. If Evennia has generated Limbo, an additional boarding exit makes the ship accessible from the default entry room. The pump's `normal -> low_pressure -> isolated -> repaired -> normal` transitions and event history persist as game-owned state. The read-only bridge telemetry reads its actual state; physical commands require presence and an authorised character role.
+
+This does **not** mark P2, P3 or P4 complete: there is no multi-agent mock scenario or external agent-to-Evennia transport. A local in-process repair experiment now lets one Concordia entity attempt normal Evennia commands, but it does not exercise a remote session or establish unscripted model competence. The dedicated `ox-ship-world.yml` workflow exercises game mechanics on an isolated Django test database. The existing P1 Concordia agent operates separately until an ordinary client transport is implemented.
+
+## 10. Single-character in-process command experiment
+
+`game/world/ai_repair.py` is a deliberately limited **developer harness**:
+a Concordia entity is paired with the actual Evennia engineer object. An
+operator places the engineer on the bridge and injects a pump fault. The
+entity receives only in-game text returned by ordinary commands and a list
+of locally visible command options. Each selected action goes through
+`DefaultCharacter.execute_cmd`, not a new privileged endpoint or direct
+Attribute mutation. Evennia determines movement, permissions and pump state.
+An external evaluator inspects the game-owned event log only **after** the
+agent has stopped, requiring a real pump recovery attributed to the
+engineer's character ID.
+
+Scripted-choice CI proves command-dispatch wiring, not planning. The opt-in
+`live_trial` permits an actual LLM to choose actions; users must supply an
+inference endpoint and inspect whether it succeeds. This exception to our
+planned three-service topology is temporary: normal network character
+sessions and a genuine independently running handler remain required.

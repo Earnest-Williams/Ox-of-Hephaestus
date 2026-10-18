@@ -1,0 +1,40 @@
+# Focused native Concordia -> ordinary Evennia command integration. No API keys.
+name: Ox AI pump repair integration
+
+on:
+  pull_request:
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-ship-agent.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-ship-agent.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  manual-repair:
+    name: Native entity drives real ship commands (Python 3.12)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Evennia and pinned Concordia
+        run: |
+          python -m pip install .
+          python -m pip install -e './services/ai-handler[concordia]'
+      - name: Compile agent trial and game code
+        run: python -m compileall -q game services/ai-handler
+      - name: Drive a real Evennia pump through a Concordia entity
+        working-directory: game
+        run: evennia test world.tests.test_agent_repair --verbosity=2

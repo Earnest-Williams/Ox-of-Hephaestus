@@ -1,6 +1,6 @@
 # Ox AI Handler
 
-**Status: package skeleton only; no working agent, Game Master, scheduler, server, or Evennia connection.**
+**Status: native Concordia single-agent lifecycle tested; an optional local in-process Evennia pump-repair trial is available. There is still no independent network transport, always-on scheduler, handler server or bundled inference endpoint.**
 
 A separately installed Python service will supervise the game's significant autonomous NPCs. The cognitive engine is **[Google DeepMind Concordia](https://github.com/google-deepmind/concordia)** (Apache-2.0); the rest of the system—agent lifecycles, event routing, model workload coordination, persistence, world transport, and inspection API—is an Ox concern. There is one logical cognitive entity per NPC, not one operating-system process or inference server per NPC.
 
@@ -22,7 +22,7 @@ Read [Prototype 1](../../design/prototypes/01-autonomous-crew.md), the [Concordi
 | `src/ox_ai/observability/` | Structured logs and correlation IDs for human inspection |
 | `src/ox_ai/api/` | Handler's authenticated API for the human interface and operator controls |
 
-Directories currently contain package markers; the implementations are future work. The world contract does not define the final network API. The latter belongs in the shared [contracts](../../contracts/README.md).
+Most directories still contain package markers. The first real entity implementation is in `src/ox_ai/agents/crew.py`, with inference-call metering in `src/ox_ai/inference/usage.py`. It accepts character-scoped observations, proposes only bounded world commands, emits optional JSONL traces, and atomically checkpoints native Concordia memory together with unresolved request IDs. **It does not execute world commands by itself.** The temporary `game/world/ai_repair.py` experiment binds it to one existing Evennia character via ordinary command dispatch, not a network transport. The world contract does not define the final network API. The latter belongs in the shared [contracts](../../contracts/README.md).
 
 ## Python packaging
 
@@ -56,3 +56,31 @@ The `openai` dependency extra is used for Concordia's configurable OpenAI-compat
 7. A later dedicated Evennia service endpoint replaces the transport only, not character cognition.
 
 See the first scenario fixtures under [scenarios](../../scenarios/).
+
+## P1 one-engineer integration candidate
+
+Install the optional pinned Concordia revision, then exercise a native Concordia entity with a deterministic model:
+
+```bash
+python -m pip install -e './services/ai-handler[concordia]'
+python -m unittest discover -s services/ai-handler/tests -p 'test_concordia_*.py' -v
+python services/ai-handler/examples/one_engineer.py
+```
+
+The deterministic model tests framework wiring, not language-model quality. The options selected by Concordia are *proposals*, with no world connection or effect. The separate `ox-concordia.yml` job must pass on the pinned source before P1 is treated as tested. A restored pending/unknown action needs later world-side reconciliation; the code never replays it automatically. P2 adds the mock world, event routing and genuine autonomous multi-agent coordination.
+
+## In-process pump-repair experiment
+
+The [game README](../../game/README.md#experiment-can-an-ai-engineer-physically-fix-p-01)
+describes a bounded local integration experiment. It uses native Concordia
+choices, a real Evennia engineer character, and actual game commands. CI
+supplies a **scripted** choice model; model intelligence is only evaluated
+through a separate opt-in live run with an inference endpoint. The generic
+`inference/compatible_chat.py` adapter uses portable chat completions for
+local OpenAI-compatible endpoints, avoiding the GPT-specific parameters
+sent by Concordia's own hosted OpenAI adapter. Both models reject choices
+outside the finite action menu.
+
+This is *not* a completed external WorldPort, authenticated service, or
+multi-agent simulation. Real room movement and pump operations cannot
+bypass Evennia's world-side constraints.
