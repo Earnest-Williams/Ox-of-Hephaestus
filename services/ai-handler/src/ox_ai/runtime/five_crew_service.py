@@ -581,7 +581,8 @@ def main() -> None:
                     or sys.argv[1].startswith("finish-"))):
         raise SystemExit(
             "Usage: python -m ox_ai.runtime.five_crew_service "
-            "serve|drop-replace-ack|agenda-pause-cargo|agenda-once|agenda-finish|"\n            "interrupt-<role>-<op>-<point>|finish-<role>"
+            "serve|drop-replace-ack|agenda-pause-cargo|agenda-once|agenda-finish|"
+            "interrupt-<role>-<op>-<point>|finish-<role>"
         )
     asyncio.run(run(sys.argv[1]))
 
