@@ -75,9 +75,12 @@ jobs:
           import json
           from pathlib import Path
           state=json.loads(Path(".ox-state/p4e-supervisor.json").read_text())
-          pending=state["specialist_jobs"]["teo"]["pending"]
-          assert pending and pending["operation"]=="replace", state
-          assert state["specialist_jobs"]["teo"]["index"]==3, state
+          job=state["specialist_jobs"]["teo"]
+          stage=job["work_steps"]["physical-3-replace"]
+          assert stage["status"]=="prepared", state
+          assert stage["target"]=="scrubber" and stage["verb"]=="replace_scrubber"
+          assert len(stage["request_id"])==32
+          assert job["index"]==3 and job["pending"] is None, state
           print("OX_P4E_LOST_ACK_WITH_DURABLE_PENDING_ID")
           PY
       - name: Reopen five independent clients and complete work without scenario driver
@@ -119,4 +122,4 @@ jobs:
       - name: Verify actual world outcome, exact inventory and five private inboxes
         working-directory: game
         run: |
-          evennia shell --command="from world.bootstrap import build_ship; from world.live_crew import inbox; from evennia.objects.models import ObjectDB; s=build_ship(); p=s['pump']; c=s['cradle']; a=s['scrubber']; guest=ObjectDB.objects.filter(db_key='P4e Human Guest').first(); assert guest is not None; po=[e['operation'] for e in p.db.event_history]; co=[e['operation'] for e in c.db.event_history]; ao=[e['operation'] for e in a.db.event_history]; print('OX_P4E_WORLD_JOURNALS',po,co,ao,'spares',a.db.spare_cartridges); assert po==['fault','isolate','repair','commission']; assert co==['shift','restow','certify']; assert ao==['saturate','isolate','replace','restart']; assert p.state=='normal' and p.db.ox_incident_closed; assert c.state=='secured' and a.state=='nominal'; assert a.db.spare_cartridges==1, 'lost ACK consumed extra cartridge'; assert s['roster'].db.ox_active_engineer==s['chief'].dbref; assert [e['kind'] for e in inbox(guest)].count('crew_reply')==2; assert [e['kind'] for e in inbox(s['cargo'])].count('hail_answered')==1; assert [e['kind'] for e in inbox(s['environment'])].count('hail_answered')==1; assert not any(e['kind'] in ('cargo_shift','atmosphere_alarm') for e in inbox(s['watch'])); assert all(e['recipient_dbref']==s['cargo'].dbref for e in inbox(s['cargo'])); assert all(e['recipient_dbref']==s['environment'].dbref for e in inbox(s['environment'])); print('OX_P4E_FIVE_CREW_WORLD_AUTHORITY_PASS')"
+          evennia shell --command="from world.bootstrap import build_ship; from world.live_crew import inbox; from evennia.objects.models import ObjectDB; s=build_ship(); p=s['pump']; c=s['cradle']; a=s['scrubber']; guest=ObjectDB.objects.filter(db_key='P4e Human Guest').first(); assert guest is not None; po=[e['operation'] for e in p.db.event_history]; co=[e['operation'] for e in c.db.event_history]; ao=[e['operation'] for e in a.db.event_history]; print('OX_P4E_WORLD_JOURNALS',po,co,ao,'spares',a.db.spare_cartridges); assert po==['fault','isolate','repair','commission']; assert co==['shift','restow','certify']; assert ao==['saturate','isolate','replace','restart']; assert p.state=='normal' and p.db.ox_incident_closed; assert c.state=='secured' and a.state=='nominal'; assert a.db.spare_cartridges==1, 'lost ACK consumed extra cartridge'; from world.models import WorkReceipt; assert WorkReceipt.objects.filter(target='scrubber',operation='replace').count()==1; assert WorkReceipt.objects.filter(target='cargo',operation='restow').count()==1; assert WorkReceipt.objects.filter(target='cargo',operation='certify').count()==1; assert WorkReceipt.objects.filter(target='scrubber',operation='isolate').count()==1; assert WorkReceipt.objects.filter(target='scrubber',operation='restart').count()==1; assert s['roster'].db.ox_active_engineer==s['chief'].dbref; assert [e['kind'] for e in inbox(guest)].count('crew_reply')==2; assert [e['kind'] for e in inbox(s['cargo'])].count('hail_answered')==1; assert [e['kind'] for e in inbox(s['environment'])].count('hail_answered')==1; assert not any(e['kind'] in ('cargo_shift','atmosphere_alarm') for e in inbox(s['watch'])); assert all(e['recipient_dbref']==s['cargo'].dbref for e in inbox(s['cargo'])); assert all(e['recipient_dbref']==s['environment'].dbref for e in inbox(s['environment'])); print('OX_P4E_FIVE_CREW_WORLD_AUTHORITY_PASS')"
