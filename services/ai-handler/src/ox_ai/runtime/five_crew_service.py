@@ -153,6 +153,30 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
                         kind=ALARMS[role],
                     )
                     changed = True
+        # Additively upgrade pre-G2 completed P4e entries only when their
+        # original private source event was genuinely observed by this role.
+        for finished in self.state["specialist_completed"]:
+            if finished.get("role") != role:
+                continue
+            item = agenda.task(finished["alarm_event_id"])
+            if item and item["status"] == "offered":
+                effects = finished.get("world_effects") or []
+                if not effects:
+                    raise RuntimeError("Legacy completion has no world action receipts")
+                agenda.set_status(
+                    item["task_id"], "accepted",
+                    reason="historical_world_confirmed_obligation",
+                )
+                agenda.set_status(
+                    item["task_id"], "in_progress",
+                    reason="historical_world_confirmed_work",
+                )
+                agenda.set_status(
+                    item["task_id"], "completed",
+                    reason="historical_verified_specialist_receipts",
+                    effects=effects,
+                )
+                changed = True
         if changed:
             self.checkpoint()
         return events
@@ -207,21 +231,28 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
                 task = self.agendas[role].offer(
                     previous, kind=ALARMS[role], priority=PRIORITY[role],
                 )
+            changed = False
             if task["status"] == "offered":
-                self.agendas[role].set_status(
-                    job["event_id"], "accepted",
-                    reason="restored_existing_world_obligation",
-                )
+                if job["deferred"]:
+                    # Legacy deferred work must NOT silently wake just because
+                    # its event history was replayed during checkpoint upgrade.
+                    self.agendas[role].defer(
+                        job["event_id"],
+                        reason="legacy_deferred_requires_new_evidence",
+                        event_kinds=RECONSIDER_ON[role],
+                        after_sequence=self.agendas[role].record["last_sequence"],
+                    )
+                else:
+                    self.agendas[role].set_status(
+                        job["event_id"], "accepted",
+                        reason="restored_existing_world_obligation",
+                    )
+                changed = True
             if job["deferred"] and task["status"] == "accepted":
                 job["deferred"] = False
-            elif job["deferred"] and task["status"] == "offered":
-                # Compatibility: old saved deferrals cannot be discarded.
-                self.agendas[role].defer(
-                    job["event_id"], reason="legacy_deferred_requires_new_evidence",
-                    event_kinds=RECONSIDER_ON[role],
-                    after_sequence=self.agendas[role].record["last_sequence"],
-                )
-            self.checkpoint()
+                changed = True
+            if changed:
+                self.checkpoint()
             return True
         handled = set(self.state["specialist_handled"][role])
         new = [
@@ -297,6 +328,7 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
                         or ("NOMINAL" in reading and role == "teo")
                     ):
                         job["index"] = len(plan)
+                        job["resolved_elsewhere"] = True
                         break
                     raise RuntimeError(
                         f"{role}: expected {expected} from a local inspection"
@@ -414,11 +446,17 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
             if allow_preemption and await self._interrupt_for_urgent(role):
                 return True
 
-        self.agendas[role].set_status(
-            job["event_id"], "completed",
-            reason="world_receipts_and_local_final_inspection",
-            effects=list(job["effects"]),
-        )
+        if job.get("resolved_elsewhere"):
+            self.agendas[role].set_status(
+                job["event_id"], "declined",
+                reason="world_equipment_already_resolved_by_another_actor",
+            )
+        else:
+            self.agendas[role].set_status(
+                job["event_id"], "completed",
+                reason="world_receipts_and_local_final_inspection",
+                effects=list(job["effects"]),
+            )
         self.state["specialist_completed"].append({
             "role": role,
             "alarm_event_id": job["event_id"],
@@ -452,7 +490,12 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
         candidates = self._ready_specialists()
         if not candidates:
             return False
-        role, _task = candidates[0]
+        role, urgent = candidates[0]
+        for other, task in candidates[1:]:
+            if self.agendas[other].interrupt(
+                task["task_id"], urgent=urgent,
+            ):
+                self.checkpoint()
         return await self._advance_job(role, allow_preemption=True)
 
 
