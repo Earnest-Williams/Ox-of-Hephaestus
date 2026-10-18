@@ -1,0 +1,119 @@
+name: Ox P4h multi-process pump work recovery
+
+on:
+  pull_request:
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-p4h-pump-recovery.yml"
+  push:
+    branches: [main]
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-p4h-pump-recovery.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  resumed-pump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 27
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install real Evennia, pinned native Concordia and normal transport
+        run: |
+          python -m pip install .
+          python -m pip install -e './services/ai-handler[concordia,transport]'
+          python -m compileall -q game services/ai-handler/src services/ai-handler/tests
+      - name: Test pure durable work stages and private identity bindings
+        run: |
+          python -m unittest discover -s services/ai-handler/tests -p 'test_work_steps.py' -v
+      - name: Generate disposable credentials for ordinary crew accounts
+        shell: bash
+        run: |
+          TOKEN="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          OWNER="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          echo "::add-mask::$TOKEN"
+          echo "::add-mask::$OWNER"
+          echo "OX_PROBE_PASSWORD=$TOKEN" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_PASSWORD=$OWNER" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_USERNAME=OxTrialOwner" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_EMAIL=owner@example.invalid" >> "$GITHUB_ENV"
+      - name: Migrate and seed one fault, real role assignments and private bridge alarm
+        working-directory: game
+        run: |
+          evennia migrate --noinput
+          evennia shell --command="from world.transport_probe import provision; provision(); from world.live_crew import fixture_setup; fixture_setup(scheduled_clock=True); from world.bootstrap import build_ship; s=build_ship(); assert s['pump'].state=='low_pressure'; print('OX_P4H_WORLD_SEEDED')"
+      - name: Start real world with independent authenticated WebSocket access
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd game && evennia start)
+          python - <<'PY'
+          import socket,time
+          for attempt in range(90):
+              try:
+                  with socket.create_connection(("127.0.0.1", 4002), timeout=1):
+                      break
+              except OSError:
+                  time.sleep(1)
+          else:
+              raise RuntimeError("Evennia character transport did not start")
+          PY
+          sleep 5
+      - name: Kill and restore independent handler between consequential stages
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m ox_ai.runtime.watch_service begin
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          state = json.loads(Path(".ox-state/p4b-supervisor.json").read_text())
+          assert state["phase"] == "unknown_isolate"
+          assert state["current"]["active"] == "ari"
+          print("OX_P4H_ISOLATION_ACK_UNKNOWN")
+          PY
+          python -m ox_ai.runtime.watch_service resume-interrupt-repair-prepared
+          python -m ox_ai.runtime.watch_service resume-interrupt-repair-committed
+          python -m ox_ai.runtime.watch_service resume-interrupt-request-committed
+          python -m ox_ai.runtime.watch_service resume-interrupt-approve-committed
+          python -m ox_ai.runtime.watch_service resume-interrupt-commission-committed
+          python -m ox_ai.runtime.watch_service resume-interrupt-resolve-ack
+          python -m ox_ai.runtime.watch_service resume
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          state=json.loads(Path(".ox-state/p4b-supervisor.json").read_text())
+          assert state["phase"]=="idle" and state["current"] is None, state
+          assert len(state["completed"])==1, state
+          verdict=state["completed"][0]
+          assert all(verdict[k] for k in ("reconciled_isolation",
+                                          "repair_event", "commission_event",
+                                          "resolution_event")), verdict
+          print("OX_P4H_SEVEN_HANDLER_RESTARTS_RESOLVED")
+          PY
+      - name: Stop world before independent database verdict
+        if: always()
+        working-directory: game
+        run: evennia stop || true
+      - name: Verify no duplicated world effect, social events or supplies
+        working-directory: game
+        run: |
+          evennia shell --command="from world.bootstrap import build_ship; from world.models import WorkReceipt; from world.live_crew import inbox; s=build_ship(); p=s['pump']; ops=[e['operation'] for e in p.db.event_history]; rows=list(WorkReceipt.objects.order_by('game_time')); assert ops==['fault','isolate','repair','commission'], ops; assert p.state=='normal' and p.db.ox_incident_closed and p.db.ox_chief_released; assert len(rows)==5, [(r.target,r.operation) for r in rows]; assert {r.operation for r in rows}=={'repair','request','approve','commission','resolve'}; assert len(set(r.request_id for r in rows))==5; assert [e['kind'] for e in inbox(s['officer'])].count('incident_resolved')==1; assert [e['kind'] for e in inbox(s['chief'])].count('release_request')==1; assert [e['kind'] for e in inbox(s['chief'])].count('incident_resolved')==1; assert [e['kind'] for e in inbox(s['watch'])].count('release_granted')==1; print('OX_P4H_EXACT_WORLD_AND_SOCIAL_EFFECTS_PASS')"
+      - name: Preserve nonsecret operator verdict from trial
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-p4h-stage-recovery
+          path: |
+            .ox-state/p4b-supervisor.json
+            .ox-state/p4b-verdict.json
+          if-no-files-found: ignore
+          retention-days: 7

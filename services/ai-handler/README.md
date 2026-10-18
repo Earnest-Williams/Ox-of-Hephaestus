@@ -9,6 +9,31 @@ ACK across a handler restart. This is **not** deployed production software
 or proof of unconstrained multi-agent intelligence.
 [Current status](../../design/STATUS.md).
 
+## P4h restartable pump-work supervisor
+
+P4h adds `src/ox_ai/runtime/work_steps.py`: a durable per-incident
+handler-side stage ledger. For `watch_service resume`, each of repair,
+release request, separate safety approval, commissioning and incident
+resolution now checkpoints the exact work ID **before** sending a command.
+A restarted process reconciles the same ID using ordinary authenticated
+`oxworkreceipt` and never generates a substitute ID for an unknown result.
+Only the world's explicit no-receipt response permits resubmitting the
+same ID. The legacy isolation stage retains its existing receipt for
+backward compatibility.
+
+The CI-only modes are
+`resume-interrupt-<repair|request|approve|commission|resolve>-<prepared|committed|ack>`.
+They deliberately stop execution around a world commit and require a fresh
+external handler process to finish without double action. The
+[real-server restart gate](../../.github/workflows/ox-p4h-pump-recovery.yml)
+exercises interrupted work on both sides of the network.
+
+This is **pump-cycle recovery**, not universal crew recovery. Initial radio,
+human hails, engineering watch transfers and specialist task bookkeeping
+still use their previous bounded procedures. A full all-action recovery
+guarantee, PostgreSQL writer-contention testing and wider ship automation
+remain outstanding.
+
 ## P4g typed work adapter (first stage)
 
 `DurableEvenniaPort.submit_work(ActionRequest)` and
@@ -21,9 +46,7 @@ identity are refused before the client sends anything.
 The legacy `submit()` and `reconcile()` methods remain in place so that
 P3–P4e integration tests keep their existing command behavior. The
 new methods do **not**, by themselves, persist intent prior to transmission:
-callers must checkpoint the request ID first. Converting the old pump,
-safety handover and hail procedures into restartable stage ledgers is
-a separate remaining G1 step.
+callers must checkpoint the request ID first. The new P4h pump procedure uses this ledger for five later stages;\nhandover and hail stages still need conversion.
 
 ## P4f complete addressed event replay (PR #22)
 

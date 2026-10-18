@@ -31,6 +31,7 @@ from ox_ai.ports.evennia.client import EvenniaWebSocketClient, WebPacket
 from ox_ai.ports.evennia.durable import DurableEvenniaPort
 from ox_ai.scenarios.p3b_goap import inspect
 from ox_ai.scenarios.p3c_crew import IDS, URL, next_event, replayable_event
+from ox_ai.runtime.work_steps import WorkStepLedger, SimulatedWorkInterruption
 
 ROOT = Path(".ox-state")
 STATE = ROOT / "p4b-supervisor.json"
@@ -370,110 +371,197 @@ class CrewWatchSupervisor:
         # handler memory to test reconciliation without any command replay.
         return True
 
-    async def resume(self) -> dict:
-        """Reconcile lost ACK and let active watch + separate reviewer finish."""
+    async def resume(self, *, interrupt_at: str | None = None) -> dict:
+        """Resume every pump-work stage using the same persisted work IDs.
+
+        The initial isolation uses the original P4b receipt for backward
+        compatibility. All subsequent physical and social actions use the
+        global WorkReceipt interface. Every stage checkpoints its work ID
+        before submission, and a restart reconciles the original ID before
+        considering any new work.
+        """
         if self.state["phase"] not in ("unknown_isolate", "isolate_verified"):
-            raise RuntimeError("No isolation-phase operation to reconcile")
-        pending = dict(self.state["current"])
+            raise RuntimeError("No isolation-phase incident to reconcile")
+        pending = self.state["current"]
+        if not isinstance(pending, dict):
+            raise RuntimeError("Missing persisted physical incident")
         active, reviewer = pending["active"], pending["reviewer"]
         if active == reviewer or set((active, reviewer)) != {"ari", "iona"}:
             raise PermissionError("Authoritative watch/reviewer pairing invalid")
         worker = self.clients[active]
-        port = DurableEvenniaPort(worker)
-        receipt = await port.reconcile(pending["request_id"])
-        if receipt.status != "succeeded" or not receipt.source_event_id:
-            raise RuntimeError("Isolation outcome unknown; no duplicate command allowed")
-        checked = await inspect(worker)
-        engineer = self.brains[active]
-        engineer.observe_local(
-            "Reconciled isolation receipt", receipt.source_event_id
-        )
-        engineer.observe_local("Post-restart physical inspection", checked)
-        if "ISOLATED" not in checked:
-            raise RuntimeError("World condition disagrees with recovered receipt")
-        planned = GoapPlanner(pump_action_model()).plan(
-            frozenset({"at_engineering", "status_known", "pump_isolated"}),
-            frozenset({"pump_repaired"}),
-        )
-        if [a.verb for a in planned.actions if a.verb == "repair"] != ["repair"]:
-            raise RuntimeError("GOAP cannot restore this state")
-        repair = await port.submit(ActionRequest(
-            uuid.uuid4().hex, self.ids[active], "repair_pump", "pump"
-        ))
-        if repair.status != "succeeded" or not repair.source_event_id:
-            raise RuntimeError("Real world refused repair")
-        if "REPAIRED" not in await inspect(worker):
-            raise RuntimeError("Repaired pump was not locally verified")
-        engineer.observe_local("Repair receipt", repair.source_event_id)
-        ask = engineer.choose(
-            CommandOption("Request separate safety inspection", "oxrequest"),
-            alternative="Keep repaired equipment isolated",
-        )
-        engineer.require(ask, "oxrequest")
-        await worker.send_line("oxrequest")
         reviewer_client = self.clients[reviewer]
-        requested = await replayable_event(
-            reviewer_client, "release_request", self.memories[reviewer]
+        port = DurableEvenniaPort(worker)
+        ledger = WorkStepLedger(
+            pending, self.checkpoint, character_ids=self.ids,
         )
-        if requested["sender_dbref"] != self.ids[active]:
-            raise PermissionError("Release request was not submitted by the watch")
-        engineer.record_unknown(ask)
+        # Reconcile the ORIGINAL P4b isolation ID, not a fresh action.
+        isolation = await port.reconcile(pending["request_id"])
+        if isolation.status != "succeeded" or not isolation.source_event_id:
+            raise RuntimeError(
+                "Isolation outcome unknown; no duplicate command allowed"
+            )
+        engineer = self.brains[active]
         inspecting = self.brains[reviewer]
+        engineer.observe_local(
+            "Reconciled isolation receipt", isolation.source_event_id,
+        )
+
+        async def prepare_repair() -> None:
+            reading = await inspect(worker)
+            engineer.observe_local("Pre-repair local inspection", reading)
+            if "ISOLATED" not in reading:
+                raise RuntimeError("World condition contradicts isolation receipt")
+            planned = GoapPlanner(pump_action_model()).plan(
+                frozenset({"at_engineering", "status_known", "pump_isolated"}),
+                frozenset({"pump_repaired"}),
+            )
+            if [a.verb for a in planned.actions if a.verb == "repair"] != ["repair"]:
+                raise RuntimeError("GOAP cannot restore this state")
+            pending["repair_expansions"] = planned.expanded_states
+
+        repair = await ledger.run(
+            "repair", active, "repair_pump", "pump", port,
+            prepare=prepare_repair, interrupt_at=interrupt_at,
+        )
+        if repair.status != "succeeded" or not repair.source_event_id:
+            raise RuntimeError("No world-confirmed repair receipt")
+        # A crash after commissioning must not reassert that P-01 is
+        # REPAIRED when a later recorded stage has made it NORMAL.
+        if "commission" not in ledger.steps:
+            reading = await inspect(worker)
+            engineer.observe_local("World verification of repaired P-01", reading)
+            if "REPAIRED" not in reading:
+                raise RuntimeError("World repair receipt disagrees with local state")
+
+        async def prepare_request() -> None:
+            ask = engineer.choose(
+                CommandOption("Request separate safety inspection", "oxrequest"),
+                alternative="Keep repaired equipment isolated",
+            )
+            engineer.require(ask, "oxrequest")
+            engineer.selected_procedure(ask)
+
+        request = await ledger.run(
+            "request", active, "request", "ship", port,
+            prepare=prepare_request, interrupt_at=interrupt_at,
+        )
+        if not request.source_event_id:
+            raise RuntimeError("World did not emit a safety release request")
+        # The reviewer must actually have received the request. The
+        # private inbox remains authoritative across dropped OOB packets.
+        reviewer_events = await self.read_inbox(reviewer)
+        requested = next(
+            (e for e in reviewer_events
+             if e["event_id"] == request.source_event_id
+             and e["kind"] == "release_request"), None,
+        )
+        if requested is None or requested["sender_dbref"] != self.ids[active]:
+            raise PermissionError("No addressed, engineer-authored safety request")
         inspecting.observe_event(requested)
-        choice = inspecting.choose(
-            CommandOption("Perform independent local safety inspection", "inspect_pump"),
-            alternative="Withhold approval without safety inspection",
+
+        async def prepare_approval() -> None:
+            choice = inspecting.choose(
+                CommandOption(
+                    "Perform independent local safety inspection", "inspect_pump",
+                ),
+                alternative="Withhold approval without safety inspection",
+            )
+            inspecting.require(choice, "inspect_pump")
+            reading = await inspect(reviewer_client)
+            inspecting.observe_local("Independent safety inspection", reading)
+            inspecting.selected_procedure(choice)
+            if "REPAIRED" not in reading:
+                raise RuntimeError("Reviewer cannot verify repaired pump")
+            consent = inspecting.choose(
+                CommandOption(
+                    "Authorize commissioning after inspection", "oxapprove",
+                ),
+                alternative="Decline to authorize commissioning",
+            )
+            inspecting.require(consent, "oxapprove")
+            inspecting.selected_procedure(consent)
+
+        approval = await ledger.run(
+            "approve", reviewer, "approve", "ship",
+            DurableEvenniaPort(reviewer_client),
+            prepare=prepare_approval, interrupt_at=interrupt_at,
         )
-        inspecting.require(choice, "inspect_pump")
-        reading = await inspect(reviewer_client)
-        inspecting.observe_local("Independent inspection", reading)
-        inspecting.selected_procedure(choice)
-        if "REPAIRED" not in reading:
-            raise RuntimeError("Independent reviewer cannot verify repairs")
-        consent = inspecting.choose(
-            CommandOption("Authorize commissioning after inspection", "oxapprove"),
-            alternative="Decline to authorize commissioning",
+        if not approval.source_event_id:
+            raise RuntimeError("World safety approval has no addressed source")
+        worker_events = await self.read_inbox(active)
+        grant = next(
+            (e for e in worker_events
+             if e["event_id"] == approval.source_event_id
+             and e["kind"] == "release_granted"), None,
         )
-        inspecting.require(consent, "oxapprove")
-        await reviewer_client.send_line("oxapprove")
-        recorded = await next_event(
-            reviewer_client, "release_recorded", self.memories[reviewer]
-        )
-        inspecting.confirm(consent, recorded)
-        grant = await next_event(worker, "release_granted", self.memories[active])
+        if grant is None or grant["sender_dbref"] != self.ids[reviewer]:
+            raise PermissionError("Separate reviewer has not granted commissioning")
         engineer.observe_event(grant)
-        commission = await port.submit(ActionRequest(
-            uuid.uuid4().hex, self.ids[active], "commission_pump", "pump"
-        ))
+
+        async def prepare_commission() -> None:
+            reading = await inspect(worker)
+            engineer.observe_local("Pre-commission pump inspection", reading)
+            if "REPAIRED" not in reading:
+                raise RuntimeError("Pump cannot be commissioned from this state")
+
+        commission = await ledger.run(
+            "commission", active, "commission_pump", "pump", port,
+            prepare=prepare_commission, interrupt_at=interrupt_at,
+        )
         if commission.status != "succeeded" or not commission.source_event_id:
-            raise RuntimeError("World withheld commissioning")
-        reading = await inspect(worker)
-        engineer.observe_local("Post-commission inspection", reading)
-        if "NORMAL" not in reading:
-            raise RuntimeError("Pressure not verified normal")
-        closing = engineer.choose(
-            CommandOption("Report physically verified resolution", "oxresolve"),
-            alternative="Keep incident open",
+            raise RuntimeError("World withheld pump commissioning")
+
+        async def prepare_resolution() -> None:
+            reading = await inspect(worker)
+            engineer.observe_local("Post-commission inspection", reading)
+            if "NORMAL" not in reading:
+                raise RuntimeError("Pressure not independently verified normal")
+            closing = engineer.choose(
+                CommandOption(
+                    "Report physically verified resolution", "oxresolve",
+                ),
+                alternative="Keep incident open",
+            )
+            engineer.require(closing, "oxresolve")
+            engineer.selected_procedure(closing)
+
+        resolution = await ledger.run(
+            "resolve", active, "resolve", "ship", port,
+            prepare=prepare_resolution, interrupt_at=interrupt_at,
         )
-        engineer.require(closing, "oxresolve")
-        await worker.send_line("oxresolve")
-        bridge_notice = await next_event(
-            self.clients["lin"], "incident_resolved", self.memories["lin"]
+        if not resolution.source_event_id:
+            raise RuntimeError("Resolved incident lacks a world event")
+        bridge_events = await self.read_inbox("lin")
+        bridge_notice = next(
+            (e for e in bridge_events
+             if e["event_id"] == resolution.source_event_id
+             and e["kind"] == "incident_resolved"), None,
         )
-        reviewer_notice = await next_event(
-            reviewer_client, "incident_resolved", self.memories[reviewer]
+        if bridge_notice is None:
+            raise PermissionError("Bridge never received world incident resolution")
+        reviewer_events = await self.read_inbox(reviewer)
+        reviewer_notice = next(
+            (e for e in reviewer_events
+             if e["kind"] == "incident_resolved"
+             and e["data"].get("alarm_id") == pending["alarm_id"]), None,
         )
-        engineer.record_unknown(closing)
+        if reviewer_notice is None:
+            raise PermissionError("Reviewer never received incident resolution")
         self.brains["lin"].observe_event(bridge_notice)
         inspecting.observe_event(reviewer_notice)
+
         verdict = {
             "alarm_id": pending["alarm_id"],
             "active_engineer": active,
             "independent_reviewer": reviewer,
-            "reconciled_isolation": receipt.source_event_id,
+            "reconciled_isolation": isolation.source_event_id,
             "repair_event": repair.source_event_id,
             "commission_event": commission.source_event_id,
-            "goap_expansions": pending["goap_expansions"] + planned.expanded_states,
+            "resolution_event": resolution.source_event_id,
+            "goap_expansions": (
+                pending["goap_expansions"]
+                + pending.get("repair_expansions", 0)
+            ),
             "inference_calls_this_run": {
                 role: brain.inference_calls for role, brain in self.brains.items()
             },
@@ -632,6 +720,20 @@ async def main_async(mode: str) -> None:
             print("OX_P4B_RESTORED_ENGINEER_RESOLVED_SECOND_INCIDENT")
         elif mode == "serve":
             await supervisor.serve()
+        elif mode.startswith("resume-interrupt-"):
+            parts = mode.removeprefix("resume-interrupt-").split("-")
+            if (len(parts) != 2
+                    or parts[0] not in (
+                        "repair", "request", "approve", "commission", "resolve",
+                    )
+                    or parts[1] not in ("prepared", "committed", "ack")):
+                raise ValueError("Unsupported work interruption point")
+            try:
+                await supervisor.resume(interrupt_at=":".join(parts))
+            except SimulatedWorkInterruption:
+                print("OX_P4H_WORLD_STEP_INTERRUPTED " + ":".join(parts))
+                return
+            raise RuntimeError("Requested stage interruption never occurred")
         else:
             raise ValueError("Unknown supervisor mode")
     finally:
@@ -640,9 +742,12 @@ async def main_async(mode: str) -> None:
 
 def main() -> None:
     import sys
-    if len(sys.argv) != 2 or sys.argv[1] not in ("begin", "resume", "serve"):
+    if (len(sys.argv) != 2
+            or not (sys.argv[1] in ("begin", "resume", "serve")
+                    or sys.argv[1].startswith("resume-interrupt-"))):
         raise SystemExit(
-            "Usage: python -m ox_ai.runtime.watch_service begin|resume|serve"
+            "Usage: python -m ox_ai.runtime.watch_service "
+            "begin|resume|serve|resume-interrupt-<stage>-<point>"
         )
     asyncio.run(main_async(sys.argv[1]))
 

@@ -5,7 +5,7 @@ Ox-specific documentation. Earlier ADRs and P2/P3 scenario documents preserve
 the design and acceptance criteria of those milestones; they are not live
 feature inventories.
 
-**Forward plan (not implemented):** [reliability-to-autonomy roadmap](ROADMAP.md) and [ADR 0009](decisions/0009-durable-events-and-work.md). Phase 0 planning merged in [PR #21](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/21). GitHub Issues were disabled when tracking was attempted.
+**Forward plan (later milestones not implemented):** [reliability-to-autonomy roadmap](ROADMAP.md) and [ADR 0009](decisions/0009-durable-events-and-work.md). Phase 0 planning merged in [PR #21](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/21). GitHub Issues were disabled when tracking was attempted.
 
 ## Verified implementation
 
@@ -23,7 +23,7 @@ feature inventories.
 | P4d — specialist ship departments | Tested and merged | [PR #17](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/17); seven compartments, cargo and atmosphere state machines, five persistent crew bodies, authority and inventory tests |
 | P4e — five independently autonomous crew | Tested and merged | [PR #19](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/19); two additional nonprivileged Concordia actors, world-confirmed cargo/environmental work and a lost-ACK cartridge-replacement gate |
 | P4f — indexed, paginated crew events | Tested and merged | [PR #22](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/22); world-owned indexed journal, schema-v2 recipient replay, safe legacy import, private handler checkpoints; all 14 applicable CI workflows passed before merge. |
-| P4g stage 1 — global world work receipts | PR validation | New typed `oxwork` / `oxworkreceipt` interface, one world-wide unique request ID for physical and social actions, transactional receipt and world effects; old commands preserved. No claim of general mid-scene handler restart yet. |
+| P4g stage 1 — global world work receipts | Tested and merged | [PR #23](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/23); typed `oxwork` / `oxworkreceipt` interface, global actor-bound receipt IDs, transactional effects; all 15 applicable workflows passed. |\n| P4h — restartable pump stages | PR validation | World receipt IDs persisted before repair, request, independent approval, commissioning and resolution. Multiple killed external handler processes must reconcile the identical IDs without duplicate effects; does not cover arbitrary hail/handover crashes. |
 | P5 — browser observatory | **Deferred / not built** | No browser UI, joined handler/world API, or operator dashboard |
 
 **Naming note:** the original Prototype 1 plan used “P4” for the first

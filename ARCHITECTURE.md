@@ -9,6 +9,25 @@ cartridge replacement without duplicating inventory use. This is not a
 deployed freighter or general social simulation.
 [Verified feature matrix](design/STATUS.md) · [Development setup](INSTALL.md).
 
+## P4h: restartable engineering work stages
+
+`services/ai-handler/src/ox_ai/runtime/work_steps.py` owns the handler's
+persisted **intent ledger** for each named action within a pump incident.
+Before transmission it records a fresh 32-digit request ID, actor, target,
+operation and bounded arguments. A resumed handler first checks the world's
+`oxworkreceipt` for that original ID. Only an explicit authenticated
+`no_authorised_receipt` can permit retransmission of the *same* ID;
+unknown transport state fails closed. World acknowledgments are saved
+before a stage completes; replayed observations are deduplicated.
+
+The watch supervisor's `resume` path uses this ledger for pump repair,
+engineer release request, reviewer approval, commissioning and resolution.
+Safety decisions and physical inspections remain character-local and
+Evennia still decides their validity. A committed prior stage is never
+executed again, even if the handler stops between receipt and checkpoint.
+The initial isolation still uses the backwards-compatible P4b receipt;
+scheduled handover and human hails are **not** yet migrated.
+
 ## P4g stage 1: world-owned work receipts
 
 A versioned Django `world.WorkReceipt` record binds one globally unique
@@ -20,10 +39,7 @@ existing P3–P4e clients. World-side permission and physical-presence tests
 remain unchanged. A refused action is also a durable outcome and cannot
 later be retried under the same ID to acquire new authority.
 
-This is an **additive protocol**, not yet universal recovery: old repair,
-commissioning, player-hail and watch supervisor procedures are still not
-entirely checkpointed by this API. Handler-side step ledgers and interrupted
-social-work recovery remain the next implementation dependency.
+PR #23 merged this additive world protocol, but the independent handler\nstill needed a durable stage ledger. P4h uses that protocol for the pump's\nrepair, safety request, separate reviewer approval, commissioning and final\nresolution. Watch handovers, player hails, initial alarm radio and specialist\nfixtures still need migration to the same resumable work pattern.
 
 ## P4f addressed, indexed world-event journal
 
