@@ -144,6 +144,88 @@ class CoordinatedCoolantTests(unittest.TestCase):
         )
         self.assertEqual(self.world.pump_state, "normal")
 
+    def test_chief_agent_waits_for_world_confirmation_before_believing_release(self):
+        self.world.advance_to(180)
+        self.world.trigger_fault()
+        for ident, verb in (
+            ("probe", "inspect_pump"),
+            ("isolation", "isolate_pump"),
+            ("fix", "repair_pump"),
+            ("ask-chief", "request_release"),
+        ):
+            self.assertEqual(
+                self.world.submit(
+                    ActionRequest(ident, "ari", verb, "pump")
+                ).status, "succeeded",
+            )
+
+        # Drain the queued event ledger only for the addressed request.
+        request_event = None
+        while self.world.pending_observations:
+            who, event = self.world.next_observation()
+            if who == "iona" and event.kind == "release_request":
+                request_event = event
+                break
+        self.assertIsNotNone(request_event)
+        chief = self.supervisor.agents["iona"]
+        inspection = chief.observe(request_event)
+        self.assertEqual(inspection.verb, "inspect_pump")
+        self.assertFalse(chief._chief_inspected)
+        self.assertNotIn("chief_release", chief.beliefs)
+        self.supervisor._submit(inspection)
+
+        readout = None
+        while self.world.pending_observations:
+            who, event = self.world.next_observation()
+            if who == "iona" and event.kind == "pump_readout":
+                readout = event
+                break
+        self.assertIsNotNone(readout)
+        approval = chief.observe(readout)
+        self.assertEqual(approval.verb, "approve_release")
+        self.assertTrue(chief._chief_inspected)
+        self.assertNotIn("chief_release", chief.beliefs)
+        self.assertFalse(self.world.chief_released)
+
+        self.supervisor._submit(approval)
+        self.assertTrue(self.world.chief_released)
+        self.assertNotIn("chief_release", chief.beliefs)
+        receipt = None
+        while self.world.pending_observations:
+            who, event = self.world.next_observation()
+            if who == "iona" and event.kind == "release_recorded":
+                receipt = event
+                break
+        self.assertIsNotNone(receipt)
+        chief.observe(receipt)
+        self.assertIn("chief_release", chief.beliefs)
+
+    def test_world_blocks_physical_work_after_urgent_alert_until_reinspection(self):
+        self.world.advance_to(180)
+        self.world.trigger_fault()
+        self.assertEqual(
+            self.world.submit(ActionRequest(
+                "initial-probe", "ari", "inspect_pump", "pump"
+            )).status, "succeeded",
+        )
+        self.world.urgent_safety_recheck()
+        denied = self.world.submit(ActionRequest(
+            "outdated-isolate", "ari", "isolate_pump", "pump"
+        ))
+        self.assertEqual(denied.status, "failed")
+        self.assertEqual(self.world.pump_state, "low_pressure")
+        self.assertEqual(len(self.world.pump_history), 1)
+        self.assertEqual(
+            self.world.submit(ActionRequest(
+                "safety-reinspect", "ari", "inspect_pump", "pump"
+            )).status, "succeeded",
+        )
+        self.assertEqual(
+            self.world.submit(ActionRequest(
+                "fresh-isolate", "ari", "isolate_pump", "pump"
+            )).status, "succeeded",
+        )
+
     def test_urgent_interruption_discards_stale_choice_before_physical_execution(self):
         self.world.advance_to(180)
         self.world.trigger_fault()
