@@ -196,7 +196,9 @@ class LiveCrewBrain:
         expected_id = (f"ox.person.{restored_blueprint.person_id}"
                        if restored_blueprint is not None else f"ox.live.{role}")
         if (restored.agent.identity.character_id != character_dbref
-                or restored.agent.identity.agent_id != expected_id):
+                or restored.agent.identity.agent_id != expected_id
+                or restored.agent.identity.duty != ROLES[role][1]
+                or restored.agent.identity.goal != ROLES[role][2]):
             raise PermissionError("Checkpoint cannot control a different identity")
         restored._game_time = float(restored.agent.snapshot()["last_game_time"] or 0)
         return restored
