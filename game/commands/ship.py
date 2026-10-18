@@ -138,3 +138,22 @@ class CmdShipEngineer(Command):
         self.caller.db.crew_role = "watch_engineer"
         self.caller.db.duty_title = "Engineering watch (developer test)"
         self.caller.msg("You are authorised for the prototype engineering watch.")
+
+
+class CmdOxIdentity(Command):
+    """Report the caller's own character dbref in response to a fresh nonce.
+
+    This is a normal, non-privileged, character-scoped command. It exposes
+    nothing beyond the identity of the character issuing the command.
+    """
+
+    key = "oxidentity"
+    locks = "cmd:all()"
+
+    def func(self) -> None:
+        import re
+        nonce = self.args.strip()
+        if not re.fullmatch(r"[0-9a-f]{32}", nonce):
+            self.caller.msg("Usage: oxidentity <32 hex digit challenge>")
+            return
+        self.caller.msg(f"OX_IDENTITY {nonce} {self.caller.dbref}")

@@ -5,6 +5,7 @@ from evennia.commands.default.cmdset_character import CharacterCmdSet as BaseCmd
 from commands.ship import (
     CmdCommission,
     CmdInspect,
+    CmdOxIdentity,
     CmdIsolate,
     CmdRepair,
     CmdShipEngineer,
@@ -22,6 +23,7 @@ class CharacterCmdSet(BaseCmdSet):
         super().at_cmdset_creation()
         for command in (
             CmdInspect,
+            CmdOxIdentity,
             CmdIsolate,
             CmdRepair,
             CmdCommission,
