@@ -1,0 +1,121 @@
+name: Ox P4j cargo and environmental receipt recovery
+
+on:
+  pull_request:
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-p4j-specialist-recovery.yml"
+  push:
+    branches: [main]
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-p4j-specialist-recovery.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  specialist-recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [mara, teo, legacy]
+    env:
+      OX_SCENARIO: ${{ matrix.scenario }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install actual Evennia native Concordia and client transport
+        run: |
+          python -m pip install .
+          python -m pip install -e './services/ai-handler[concordia,transport]'
+          python -m compileall -q game services/ai-handler/src services/ai-handler/tests
+      - name: Generate disposable five-crew credentials
+        shell: bash
+        run: |
+          TOKEN="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          OWNER="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          echo "::add-mask::$TOKEN"
+          echo "::add-mask::$OWNER"
+          echo "OX_PROBE_PASSWORD=$TOKEN" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_PASSWORD=$OWNER" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_USERNAME=OxTrialOwner" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_EMAIL=owner@example.invalid" >> "$GITHUB_ENV"
+      - name: Provision a separate live world with one specialist fault
+        working-directory: game
+        shell: bash
+        run: |
+          set -euo pipefail
+          evennia migrate --noinput
+          evennia shell --command="from world.transport_probe import provision; provision(include_specialists=True); from world.live_crew import fixture_setup; fixture_setup(scheduled_clock=True); print('OX_P4J_SHIP_READY')"
+          if [ "$OX_SCENARIO" = "teo" ]; then
+            evennia shell --command="from world.bootstrap import build_ship; s=build_ship(); assert s['scrubber'].inject_fault()[0]; print('OX_P4J_ENVIRONMENT_FAULT')"
+          else
+            evennia shell --command="from world.bootstrap import build_ship; s=build_ship(); assert s['cradle'].inject_fault()[0]; print('OX_P4J_CARGO_FAULT')"
+          fi
+          if [ "$OX_SCENARIO" = "legacy" ]; then
+            evennia shell --command="from world.bootstrap import build_ship; from world.live_crew import inbox; from pathlib import Path; import json; s=build_ship(); c=s['cradle']; mara=s['cargo']; alarm=[e for e in inbox(mara) if e['kind']=='cargo_shift'][-1]; c.note_inspection(mara); rid='a'*32; assert c.durable_action(rid,'restow',mara)['status']=='succeeded'; st={'version':1,'phase':'idle','handled_alarms':[],'current':None,'completed':[],'specialist_jobs':{'mara':{'event_id':alarm['event_id'],'index':1,'pending':{'request_id':rid,'operation':'restow','index':1},'deferred':False,'effects':[]},'teo':None},'specialist_handled':{'mara':[alarm['event_id']],'teo':[]},'specialist_completed':[]}; p=Path('../.ox-state/p4e-supervisor.json'); p.parent.mkdir(parents=True,exist_ok=True); p.write_text(json.dumps(st)); print('OX_P4J_LEGACY_PENDING_CHECKPOINT_SEEDED')"
+          fi
+      - name: Start independent, actual server and wait for ordinary sockets
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd game && evennia start)
+          python - <<'PY'
+          import socket,time
+          for _ in range(90):
+              try:
+                  with socket.create_connection(("127.0.0.1",4002),timeout=1):
+                      break
+              except OSError:
+                  time.sleep(1)
+          else:
+              raise RuntimeError("Evennia normal client websocket unavailable")
+          PY
+          sleep 5
+      - name: Crash between prep and commit and reconcile original stage
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$OX_SCENARIO" = "mara" ]; then
+            python -m ox_ai.runtime.five_crew_service interrupt-mara-restow-prepared
+            python -m ox_ai.runtime.five_crew_service interrupt-mara-restow-committed
+            python -m ox_ai.runtime.five_crew_service finish-mara
+          elif [ "$OX_SCENARIO" = "teo" ]; then
+            python -m ox_ai.runtime.five_crew_service interrupt-teo-replace-prepared
+            python -m ox_ai.runtime.five_crew_service interrupt-teo-replace-committed
+            python -m ox_ai.runtime.five_crew_service finish-teo
+          else
+            python -m ox_ai.runtime.five_crew_service finish-mara
+          fi
+      - name: Shut down server before independent world verdict
+        if: always()
+        working-directory: game
+        run: evennia stop || true
+      - name: Verify actual global receipts and no duplicated equipment effects
+        working-directory: game
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$OX_SCENARIO" = "teo" ]; then
+            evennia shell --command="from world.bootstrap import build_ship; from world.models import WorkReceipt; s=build_ship(); a=s['scrubber']; assert a.state=='nominal' and a.db.spare_cartridges==1; assert [e['operation'] for e in a.db.event_history]==['saturate','isolate','replace','restart']; assert [(r.target,r.operation) for r in WorkReceipt.objects.order_by('game_time')]==[('scrubber','isolate'),('scrubber','replace'),('scrubber','restart')]; print('OX_P4J_ENVIRONMENT_GLOBAL_RECEIPTS_PASS')"
+          elif [ "$OX_SCENARIO" = "mara" ]; then
+            evennia shell --command="from world.bootstrap import build_ship; from world.models import WorkReceipt; s=build_ship(); c=s['cradle']; assert c.state=='secured'; assert [e['operation'] for e in c.db.event_history]==['shift','restow','certify']; assert [(r.target,r.operation) for r in WorkReceipt.objects.order_by('game_time')]==[('cargo','restow'),('cargo','certify')]; print('OX_P4J_CARGO_GLOBAL_RECEIPTS_PASS')"
+          else
+            evennia shell --command="from world.bootstrap import build_ship; from world.models import WorkReceipt; s=build_ship(); c=s['cradle']; assert c.state=='secured'; assert [e['operation'] for e in c.db.event_history]==['shift','restow','certify']; assert WorkReceipt.objects.filter(target='cargo',operation='restow').count()==0; assert WorkReceipt.objects.filter(target='cargo',operation='certify').count()==1; assert len(c.db.ox_action_receipts)==1; print('OX_P4J_OLD_PENDING_ID_RECOVERED_NO_REPLAY_PASS')"
+          fi
+      - name: Preserve disposable specialist diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-p4j-${{ matrix.scenario }}
+          path: .ox-state/p4e-supervisor.json
+          if-no-files-found: ignore
+          retention-days: 7
