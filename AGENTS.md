@@ -9,13 +9,13 @@ This is an **Evennia fork plus an implemented Ox prototype**, not a new
 - **World authority:** only Evennia changes rooms, pumps, assigned duties,
   safety approvals and physical outcomes. Models propose actions.
 - **Cognition:** Concordia is the chosen foundation; GOAP handles routine
-  engineering. Three live crew have separate identities and private memory.
+  engineering. Five live crew have separate identities and private memory; the historical three-crew runtime remains a regression fixture.
 - **Transport:** ordinary authenticated Evennia WebSocket sessions,
   world-issued receipt IDs, recipient-scoped events; never fabricate an ACK.
 - **Recovery:** reconcile unknown physical actions by request ID, never
   blindly retry. Generic mid-scene crash recovery is still incomplete.
-- **Runtime:** `ox_ai.runtime.watch_service serve` is implemented, but is
-  not a managed deployment. Only deterministic CI cognition is proven.
+- **Runtime:** `ox_ai.runtime.five_crew_service serve` controls the five-crew fixture; the legacy `watch_service serve` must never run concurrently against the same ship. Neither is
+  a managed deployment. Only deterministic CI cognition is proven.
 - **UI:** deferred; no public handler API or observatory. Do not claim one.
 - **Isolation:** keep Ox changes in `game/`, `services/`, `contracts/`,
   `design/`, `scenarios/` unless a justified upstream engine change is required.
@@ -23,6 +23,7 @@ This is an **Evennia fork plus an implemented Ox prototype**, not a new
   matrix is manual. Never publish upstream Evennia images from this fork.
 
 ## Pointers
+
 
 - [Ox component/test map](design/README.md)
 - [Active ship and local commands](game/README.md)
