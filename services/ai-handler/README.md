@@ -46,7 +46,9 @@ identity are refused before the client sends anything.
 The legacy `submit()` and `reconcile()` methods remain in place so that
 P3–P4e integration tests keep their existing command behavior. The
 new methods do **not**, by themselves, persist intent prior to transmission:
-callers must checkpoint the request ID first. The new P4h pump procedure uses this ledger for five later stages;\nhandover and hail stages still need conversion.
+callers must checkpoint the request ID first. The merged P4h pump
+supervisor now uses this ledger for five later stages; handover and hail
+stages still need conversion.
 
 ## P4f complete addressed event replay (PR #22)
 
@@ -103,6 +105,7 @@ All 13 focused Ox workflows passed on the final PR commit; P4e is merged.
 | `src/ox_ai/ports/evennia/client.py` | Normal `v1.evennia.com` authenticated WebSocket and character identity proof |
 | `src/ox_ai/ports/evennia/durable.py` | World-owned actor-bound equipment action receipts and recovery queries |
 | `src/ox_ai/runtime/watch_service.py` | Historical three-crew watch supervisor with `serve`, `begin` and `resume` |
+| `src/ox_ai/runtime/work_steps.py` | P4h private durable intent ledger, world-work reconciliation and explicit pre-send/post-commit interruption gates |
 | `src/ox_ai/runtime/five_crew_service.py` | P4e five-crew event-driven watch, cargo and environmental work with a durable interrupted-cartridge test |
 | `src/ox_ai/scenarios/` | Historical P2 mocks and real P3/P4 integration demonstrations |
 | `src/ox_ai/scheduler/`, `src/ox_ai/ports/mock/` | Deterministic P2 mock-world supervision and fault acceptance |
@@ -275,15 +278,19 @@ and [P4b runtime](../../design/prototypes/p4b-autonomous-watch.md).
 
 ## Known runtime limits
 
-1. The current proof covers **three existing crew** and **one real pump**,
-   not general skill progression, an entire starship or social AI.
+1. The current implementation covers **five distinct crew** across
+   cooling, cargo and environmental departments, not general skill
+   progression, a complete freighter or unscripted social AI.
 2. `serve` is code that can run as a separate process; no init system,
    deployment recipe, load testing or long-running uptime guarantee
    has been validated.
-3. Restart-after-unknown-**isolation** is tested. Later non-idempotent
-   social commands and arbitrary mid-episode service failures do not
-   yet have a general crash-safe workflow. The handler must fail
-   closed instead of fabricating completion or blindly replaying.
+3. P4h tested exact-ID reconciliation of **repair, release request,
+   independent reviewer approval, commissioning and resolution** across
+   several handler process restarts, building on P4b isolation recovery.
+   Initial radio, autonomous watch handovers, player hails and specialist
+   work bookkeeping still lack a universal all-action restart guarantee.
+   Unverifiable results fail closed rather than being fabricated or
+   retried under a new ID.
 4. CI does not measure generalized unscripted hosted-model behavior,
    tokens or economics for many concurrently acting agents.
 5. There is **no public handler API** or browser observatory; P5 was
