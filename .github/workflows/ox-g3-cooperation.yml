@@ -127,9 +127,12 @@ jobs:
           assert [x["role"] for x in st["specialist_completed"]]==["teo"]
           epistemics=st["epistemics"]
           assert epistemics["mara"]["observations"]["cargo.reserve"]["value"]==1
-          # Teo verified the delivered physical item before consuming it.
-          proof=epistemics["teo"]["observations"]["scrubber.spares"]
-          assert any(x["value"]==1 for x in proof["history"]),proof
+          # Mutable present stock may be zero after maintenance, while
+          # distinct immutable historical delivery evidence remains.
+          receipt=epistemics["teo"]["observations"]["scrubber.verified_delivery"]
+          assert receipt["value"].startswith("oxitem-") and receipt["source"]=="world_local",receipt
+          latest=epistemics["teo"]["observations"]["scrubber.spares"]
+          assert latest["value"]==0,latest
           print("OX_G3_EVIDENCE_SEPARATE_FROM_RUMOR_AND_REPLACEMENT_VERIFIED")
           PY
       - name: Stop real server for independent authoritative world verdict

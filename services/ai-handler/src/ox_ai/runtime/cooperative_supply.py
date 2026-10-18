@@ -116,6 +116,14 @@ class CooperativeSupply:
         job = self.sup.state["specialist_jobs"]["teo"]
         if job is None or not job["deferred"]:
             return False
+        # A private model deferral is not proof of resource shortage.
+        # Require the exact, irreversibly refused world replacement receipt
+        # and a blocked agenda, before preparing any supply request.
+        task = self.sup.agendas["teo"].task(job["event_id"])
+        failed = job.get("work_steps", {}).get("physical-3-replace")
+        if (job["index"] != 3 or task is None or task["status"] != "blocked"
+                or failed is None or failed.get("status") != "failed"):
+            return False
         await self.sup.ensure_station("teo", "Environmental Plant")
         observed = await InventoryPort(self.sup.clients["teo"]).observe()
         if observed.local_cartridges is None:
@@ -166,23 +174,29 @@ class CooperativeSupply:
         if not await self._work("accept", "mara", "accept_supply", order_id=order_id):
             return "mara_deferred"
 
-        if self._stage_state("collect") != "succeeded":
+        collect_state = self._stage_state("collect")
+        if collect_state != "succeeded":
             await self.sup.ensure_station("mara", "Cargo Hold")
-            reading = await InventoryPort(self.sup.clients["mara"]).observe()
-            if reading.local_cartridges is None:
-                return "stock_unknown"
-            self.sup.epistemics["mara"].observe_verified(
-                "cargo.reserve", reading.local_cartridges,
-                evidence_id="worldinv-" + uuid.uuid4().hex,
-                at=reading.game_time, valid_for=0, source="world_local",
-            )
-            if reading.local_cartridges == 0:
-                self.sup.epistemics["mara"].ask(
-                    "cargo.next_restock_at",
-                    reason="No replenishment is physically observed at Cargo Hold",
+            if collect_state is None:
+                reading = await InventoryPort(self.sup.clients["mara"]).observe()
+                if reading.local_cartridges is None:
+                    return "stock_unknown"
+                self.sup.epistemics["mara"].observe_verified(
+                    "cargo.reserve", reading.local_cartridges,
+                    evidence_id="worldinv-" + uuid.uuid4().hex,
+                    at=reading.game_time, valid_for=0, source="world_local",
                 )
-                self.sup.checkpoint()
-                return "awaiting_cargo_stock"
+                if reading.local_cartridges == 0:
+                    self.sup.epistemics["mara"].ask(
+                        "cargo.next_restock_at",
+                        reason="No replenishment is physically observed at Cargo Hold",
+                    )
+                    self.sup.checkpoint()
+                    return "awaiting_cargo_stock"
+            # A prepared collection may have *already* succeeded before an
+            # ACK was lost. Reconcile its original work ID BEFORE consulting
+            # stock again, so an empty now-depleted bay is not mistaken for
+            # evidence that the original pickup failed.
             if not await self._work("collect", "mara", "collect_supply", order_id=order_id):
                 return "mara_deferred"
 
@@ -215,6 +229,14 @@ class CooperativeSupply:
             return "delivery_not_locally_confirmed"
         self.sup.epistemics["teo"].observe_verified(
             "scrubber.spares", stock.local_cartridges,
+            evidence_id="worldinv-" + uuid.uuid4().hex,
+            at=stock.game_time, valid_for=0, source="world_local",
+        )
+        # Delivery is a past *event* witnessed by this body; quantity is
+        # mutable current state. Consumption must not erase historical
+        # evidence of exactly which serialised cartridge arrived.
+        self.sup.epistemics["teo"].observe_verified(
+            "scrubber.verified_delivery", item_id,
             evidence_id="worldinv-" + uuid.uuid4().hex,
             at=stock.game_time, valid_for=0, source="world_local",
         )

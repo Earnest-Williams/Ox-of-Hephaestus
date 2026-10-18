@@ -37,6 +37,10 @@ durable WorkReceipt; the model never directly edits stock or orders.
    blocked agenda, submit a new replacement request after the
    permanently failed old one, and consume the real delivered
    cartridge. A-01's world-owned state machine validates all steps.
+   The ledger retains a separate historical scrubber.verified_delivery
+   fact identifying the observed item serial, distinct from the changing
+   current scrubber.spares count. Consuming a cartridge must not erase
+   the evidence that the delivery actually occurred.
 
 ## Faults and persistence
 
