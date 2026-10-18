@@ -26,6 +26,6 @@ class EventTests(unittest.IsolatedAsyncioTestCase):
     async def test_other_recipient_denied(self):
         event = {"event_id": "oxevt-0001", "recipient_dbref": "#99",
                  "kind": "coolant_alarm", "data": {"alarm_id": "p01-0001"}}
-        client = _Client([WebPacket("ox_event", (event,), {})])
+        client = _Client([WebPacket("ox_event", (json.dumps(event),), {})])
         with self.assertRaises(PermissionError):
             await next_event(client, "coolant_alarm", [])
