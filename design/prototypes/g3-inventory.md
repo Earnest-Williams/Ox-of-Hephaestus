@@ -62,6 +62,8 @@ New ordinary oxinventory <nonce> reports only the authenticated
 character's current compartment stock and physically carried items.
 For compartments without relevant sensors/stock affordances,
 local_cartridges is **null (not verified)**, not a fabricated zero.
+Each typed observation carries the world's own game-time timestamp; the
+handler does not invent a clock reading from its last remembered event.
 No omniscient shipwide count or order list is exposed. Order messages
 arrive only through the existing recipient-addressed journal. The
 handler checks nonce, actor DBref, version, item IDs and integer

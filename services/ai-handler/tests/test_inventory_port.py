@@ -14,6 +14,7 @@ class InventorySchemaTests(unittest.TestCase):
         return {
             "version": 1, "nonce": NONCE, "actor_dbref": ACTOR,
             "room_dbref": "#18", "local_cartridges": 1,
+            "game_time": 47.25,
             "carried": ["oxitem-" + "a" * 32],
         }
 
@@ -38,6 +39,8 @@ class InventorySchemaTests(unittest.TestCase):
             ("local_cartridges", "0"),
             ("local_cartridges", -1),
             ("room_dbref", "Engineering"),
+            ("game_time", float("nan")),
+            ("game_time", -1),
         ):
             with self.subTest(key=key):
                 sample = self.example()

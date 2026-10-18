@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 import json
+import math
 import re
 import secrets
 
@@ -22,13 +23,14 @@ class InventoryObservation:
     actor_dbref: str
     room_dbref: str | None
     local_cartridges: int | None
+    game_time: float
     carried_items: tuple[str, ...]
 
     @classmethod
     def parse(cls, raw, *, actor_dbref: str, nonce: str):
         if not isinstance(raw, dict) or set(raw) != {
             "version", "nonce", "actor_dbref", "room_dbref",
-            "local_cartridges", "carried"
+            "local_cartridges", "carried", "game_time"
         } or type(raw["version"]) is not int or raw["version"] != 1:
             raise ValueError("Invalid world inventory observation protocol")
         if (not isinstance(actor_dbref, str) or not _REF.fullmatch(actor_dbref)
@@ -45,12 +47,16 @@ class InventoryObservation:
             type(count) is not int or not 0 <= count <= 1000000 or room is None
         ):
             raise ValueError("Missing/unobservable stock cannot be asserted zero")
+        game_time = raw["game_time"]
+        if (type(game_time) not in (int, float)
+                or not math.isfinite(game_time) or game_time < 0):
+            raise ValueError("Inventory evidence has no valid world timestamp")
         carried = raw["carried"]
         if (not isinstance(carried, list) or len(carried) > 16
                 or any(not isinstance(x, str) or not _ITEM.fullmatch(x) for x in carried)
                 or len(set(carried)) != len(carried)):
             raise ValueError("Invalid self-carried inventory")
-        return cls(actor_dbref, room, count, tuple(carried))
+        return cls(actor_dbref, room, count, float(game_time), tuple(carried))
 
 
 class InventoryPort:

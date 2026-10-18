@@ -229,5 +229,6 @@ def local_stock_for(actor, nonce: str) -> dict:
     return {
         "version": 1, "nonce": nonce, "actor_dbref": actor.dbref,
         "room_dbref": at.dbref if at is not None else None,
+        "game_time": float(gametime.gametime(absolute=True)),
         "local_cartridges": total, "carried": carried,
     }
