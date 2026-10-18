@@ -4,9 +4,9 @@ Ox of Hephaestus is an early-stage independent project built on a fork of [Evenn
 
 ## Before proposing a change
 
-Read the [project overview](README.md) and [initial architecture](ARCHITECTURE.md). Much of the repository remains unmodified Evennia code and documentation, and the ship simulation and AI handler are not yet implemented.
+Read the [project overview](README.md) and [initial architecture](ARCHITECTURE.md). Most of the repository remains inherited Evennia code and documentation. New service skeletons exist, but neither the ship simulation, Concordia integration nor human interface is implemented. Read the [decision records](design/README.md) and [Prototype 1 plan](design/prototypes/01-autonomous-crew.md).
 
-Useful initial contributions may include project design notes, small and testable AI-client prototypes, shipboard duty and skill mechanics, operational-observability ideas, and reproducible development improvements. These are possible areas of work, not a claim that the corresponding systems already exist.
+Useful early contributions include Concordia entity experiments against a deterministic world adapter, limited AI-client prototypes, shipboard duty and skill mechanics, operational-observability designs and reproducible developer tooling. These are possible areas of work, not a claim that the corresponding systems already exist.
 
 ## Issues and pull requests
 

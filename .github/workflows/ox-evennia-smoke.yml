@@ -1,0 +1,41 @@
+# Fast root Evennia packaging check for Ox. Not the upstream test matrix.
+# The main Ox service tests live in ox-scaffold.yml.
+name: Ox Evennia package smoke
+
+on:
+  pull_request:
+    paths:
+      - "evennia/**"
+      - "pyproject.toml"
+      - "setup.py"
+      - ".github/workflows/ox-evennia-smoke.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "evennia/**"
+      - "pyproject.toml"
+      - "setup.py"
+      - ".github/workflows/ox-evennia-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  packaging:
+    name: Install and inspect Evennia package (Python 3.12)
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install root Evennia distribution
+        run: python -m pip install .
+      - name: Verify package requirements and launcher
+        run: |
+          python -m pip check
+          python -c "from importlib.metadata import distribution; print('Installed:', distribution('evennia').version)"
+          evennia --version

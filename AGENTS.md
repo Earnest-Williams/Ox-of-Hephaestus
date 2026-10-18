@@ -8,24 +8,45 @@ Evennia is a Python (>= 3.12) framework for building text-based multiplayer onli
 
 **Read [README.md](README.md) and [ARCHITECTURE.md](ARCHITECTURE.md) before changing this fork.**
 This repository hosts the *planned* Ox of Hephaestus spaceship MUD and autonomous
-crew simulation, built on Evennia. The game systems and AI handler do **not**
-exist yet in the current checkout; most existing source and docs are inherited
-from upstream Evennia.
+crew simulation, built on Evennia. The newly added `services/` packages,
+`contracts/`, `design/`, and `scenarios/` are scaffolding, **not operational**
+game and AI systems. Existing core engine code is inherited upstream.
 
 - Preserve the upstream `evennia/` package, its metadata, license, and attribution
   unless a specific justified task requires an engine change.
 - Prefer isolated game extensions and a **separately running AI handler** rather
   than modifying the engine to embed each agent.
+- **Prototype 1 uses Concordia entities**, not PydanticAI or LangGraph. See
+  [ADR 0001](design/decisions/0001-concordia-first.md) and
+  [Prototype 1](design/prototypes/01-autonomous-crew.md).
+- Concordia's upstream interrupt scheduler is absent from PyPI 2.4.0.
+  Preserve the reviewed optional Git revision pin in
+  `services/ai-handler/pyproject.toml` until dependencies are re-evaluated.
+- The minimal GM is deterministic; an action attempt never mutates the
+  authoritative world by assertion. Mock/Evennia adapters own outcomes
+  and game-time, and observations must respect character visibility.
+- Pending/unknown action outcomes must be reconciled, not blindly retried.
 - First integration: each AI character connects through a normal game client;
   eventual integration: an authenticated dedicated service API. Keep the
   communication adapter replaceable.
 - NPC agents may have distinct memory, goals, and schedules, but must follow the
   same world rules and permissions as ordinary characters.
+- Treat the human interface as a **third independent component**. It consumes
+  an Evennia-facing API for world truth and game actions, and an AI-handler API
+  for agent state, inspection, and authorised operator controls.
+- Keep the interface out of both databases; distinguish player permissions
+  from privileged AI-observability and operator permissions. The game and
+  agents must run without a connected interface.
 - Background world progress can use meaningful events, deferred catch-up, and
   coarse ticks; do not assume an always-detailed real-time AI call for every NPC.
 - Do not describe unimplemented Ox features as operational.
-- Engine-specific development commands and the existing links below remain
-  useful for work on inherited Evennia components.
+- The inherited development commands and links below apply to Evennia.
+  New service packages have separate install and test instructions, and the
+  skeletons do not yet contain launchable backends.
+- Use focused Ox CI by default; inherited 3x3 Evennia matrix is **manual only**.
+  See [ADR 0004](design/decisions/0004-ci-scope.md). Never republish upstream
+  Evennia Docker images or documentation from this fork.
+
 ## Quick Reference
 
 Use `uv run` to execute commands in the project venv. Prefer `uv` over `pip`.

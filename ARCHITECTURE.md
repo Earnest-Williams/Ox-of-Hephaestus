@@ -1,6 +1,6 @@
 # Ox of Hephaestus — preliminary architecture
 
-> **Status:** Design sketch, October 2026. This document describes intended boundaries and experiments, **not an existing implementation**. Decisions remain revisable.
+> **Status:** Agreed prototype architecture and package skeleton, October 2026. Concordia is selected for Prototype 1, but the agents, game adapters and UI described here are not operational.
 
 ## 1. System boundaries
 
@@ -14,18 +14,31 @@
 **External AI handler (a separate service)**
 
 - Manages many distinct, persistent AI-controlled characters.
-- Maintains or coordinates each agent's memory, beliefs, goals, duties, plans, and decision state.
+- Maintains or coordinates each agent's memory, beliefs, goals, interpretation of duties, plans, and decision state; official in-world duty assignments remain game state.
 - Schedules cognition and shares model/inference resources among agents; one NPC is not one AI server process.
 - Converts perceptions into proposed actions and receives the results through a transport adapter.
 - Does not own or silently override authoritative ship or character state.
 
-**Operational interface (planned)**
+**Human interface (a distinct, separately operable component)**
 
-- Exposes ship-wide overviews and drill-downs for crew, departments, cargo, machinery, incidents, and time-series data.
-- Makes decisions and outcomes inspectable without treating the UI as a source of game truth.
-- May coexist with traditional MUD clients; the display and interaction design is not yet settled.
+- Presents traditional gameplay where useful, ship-wide views, departments, cargo, machinery, crew, incidents, and historical charts.
+- Obtains **authoritative world data and game actions from Evennia's interfaces**, using narrowly scoped Ox-specific endpoints when the existing Evennia facilities are insufficient.
+- Obtains **agent-owned information through an API exposed by the external AI handler**: agent status, beliefs, goals, intended actions, recorded decisions, and execution history, subject to permissions.
+- Combines those sources for human inspection without becoming a third authoritative store for physical or cognitive state.
+- May include a lightweight backend-for-frontend for authenticated requests, event aggregation, and access control. Its deployment shape and screen design remain open.
+- Is optional to the autonomous operation of the ship; closing all dashboards must not halt the game or its crew.
 
-## 2. Transport: start conventional, then specialise
+## 2. Concordia cognitive foundation and minimal Game Master
+
+**Decision:** Adopt [Concordia](https://github.com/google-deepmind/concordia) (Apache-2.0, distribution `gdm-concordia`) for Prototype 1. Each full NPC is represented by a Concordia `EntityAgentWithLogging`. An independent Ox handler supervises entities, inference budgets, memory persistence, scheduling and game transport.
+
+Start with observation, memory and acting components, adding Ox-specific duties, commitments and procedures. Use rich deliberative components selectively rather than running several expensive model requests for every routine action.
+
+A Concordia Game Master **can be deterministic**. In the mock-world experiment, explore its interrupt-driven event masks and timers, but the **mock world**, not a generative GM, resolves physical actions. In the live Evennia mode, the handler may invoke `observe()` and `act()` directly without adopting Concordia's world-driving simulation loop or clock. The Evennia world remains authoritative.
+
+Concordia's published v2.4.0 release lacks the newer interrupt-driven scheduler. The handler's optional dependency is pinned to a [reviewed upstream revision](https://github.com/google-deepmind/concordia/tree/4b7e02a94b719e56f10989046af32d79bbbc3b9c), as described in [ADR 0001](design/decisions/0001-concordia-first.md). See [ADR 0002](design/decisions/0002-game-master-world-authority.md) for GM boundaries and [Prototype 1](design/prototypes/01-autonomous-crew.md) for build gates.
+
+## 3. Transport: start conventional, then specialise
 
 ### Phase A — normal client connections
 
@@ -43,7 +56,52 @@ That endpoint must resolve the acting character, apply the normal authorization 
 
 The endpoint is an intended optimization and integration improvement, not a prerequisite for the first prototype.
 
-## 3. Agent identity and knowledge
+## 4. Interface and API contracts
+
+**The interface must consume both backends, through clearly separate interfaces.** This is a planned architectural requirement, not a claim that the needed endpoints already exist.
+
+```text
+      Human players / observers / operators
+                        |
+                Interface component
+                  /           \
+     Evennia-facing API     AI-handler API
+            |                    |
+      Evennia server <------> AI handler
+        world truth       agent transport and cognition
+```
+
+The interface may make both requests itself or use an interface-owned backend-for-frontend to consolidate auth, events, and presentation-friendly responses. That backend is a gateway/read-model layer, not a fourth simulation authority.
+
+### Evennia-facing data and actions
+
+- Read ship and game facts: rooms, equipment, cargo, crew positions, in-world duty assignments, events, and operational measurements when available to the requesting identity.
+- Perform normal in-world commands or appropriately authorised ship operations through Evennia. Game rules remain authoritative regardless of whether a human used a text client or dashboard.
+- Reuse supported Evennia networking and API mechanisms. Where stock Evennia lacks ship-specific read models, add explicit extensions rather than reach into its database from the UI. No claim is made that the complete dashboard API currently exists.
+
+### AI-handler-facing data and controls
+
+The independent handler should offer its **own versioned, authenticated API**, ideally separate from its transport to the game server. Candidate capabilities include:
+
+- List managed agents and expose their online/offline status, current decision activity, goals, intended next actions, and handler-side schedules.
+- Inspect recorded observations, beliefs, memory summaries, decisions, attempted game commands, and the outcomes agents received—subject to viewing permissions.
+- Expose operational diagnostics such as action queues, inference workload, errors, and event histories.
+- Support explicitly authorised **operator controls** such as pausing/resuming an agent or changing an administrative execution setting; these are not ordinary in-world character actions.
+
+These describe information and action categories rather than fixed REST paths or a selected protocol. Preserve an explicit distinction between an agent's **belief** and an authoritative fact, and between a decision explanation logged by the handler and any unrecorded internal model reasoning.
+
+### Joining both sides without losing provenance
+
+A stable mapping between an Evennia character ID and a handler agent ID will let the UI assemble a crew profile from both sources. Correlatable event IDs, game-time and wall-time timestamps, and distinguishable observed / attempted / succeeded / failed states are useful targets for the eventual API schemas.
+
+- A pump's actual condition comes from **Evennia**; an engineer's belief that it is broken comes from **the AI handler**.
+- An issued duty assignment comes from **Evennia**; how the agent plans to fulfil it comes from **the AI handler**.
+- A human's command to operate a pump routes to **Evennia**; an administrator's command to pause an AI agent routes to **the handler**.
+- Displaying or exporting diagnostic cognition must not leak private agent information to ordinary players or grant them omniscience.
+
+For an initial prototype, polling suitable endpoints is acceptable. Streaming updates (for example via WebSockets or server-sent events) can be introduced where supported or deliberately implemented; it is not a prerequisite to begin. The handler and game continue without any interface connection.
+
+## 5. Agent identity and knowledge
 
 Every significant NPC should have distinct persistent identity and continuity. Their own goals, assigned duties, skills, remembered experiences, and imperfect understanding of events may differ from the canonical ship state.
 
@@ -54,15 +112,15 @@ In particular:
 - Skills are intended to advance from practice, training, and use, not fixed classes or character levels.
 - A duty roster creates obligations and opportunities, but it should not dictate every decision by script.
 
-Whether memories and plans use files, a database, or another persistence layer remains open.
+Prototype 1 will begin with Concordia component snapshots and an append-only decision/event journal; the durable storage backend and retrieval approach remain to be implemented. The skeleton `WorldPort` contract in `services/ai-handler/` is not a finished transport implementation.
 
-## 4. Time and workload
+## 6. Time and workload
 
 The ship should be able to progress without a human connected. That does **not** imply one high-frequency LLM call per NPC or a fully detailed real-time simulation of every compartment at every instant.
 
 An initial implementation can combine scheduled duties, meaningful events, asynchronous decision queues, coarse background ticks, and deferred catch-up. Work should remain causally consistent with Evennia's authoritative state and become detailed when consequences require it.
 
-## 5. First proving-ground scenario
+## 7. First proving-ground scenario
 
 Start with a handful of rooms and crew rather than the full freighter:
 
@@ -71,11 +129,12 @@ Start with a handful of rooms and crew rather than the full freighter:
 3. A routine maintenance or watchkeeping schedule.
 4. A failure such as a cooling pump fault, observable by appropriate crew or instruments.
 5. Logs that show who noticed what, what they believed, whom they contacted, and what they tried.
+6. A minimal read-only interface combining a pump/room status view from Evennia with each engineer's status and recorded decisions from the AI handler.
 
-Success means meaningful autonomous coordination and valid in-world actions, not merely convincing dialogue.
+Success means meaningful autonomous coordination, valid in-world actions, and correctly attributed observations—not merely convincing dialogue.
 
-## 6. Deliberately undecided
+## 8. Deliberately undecided
 
-The AI model, inference backend, message/event schema, storage engine for agent cognition, final dedicated API shape, ship-system fidelity, and dashboard technology have **not** been chosen here.
+The Concordia framework and deterministic GM authority boundary are chosen for Prototype 1. The specific model, inference server, durable storage, event/wire schema, dedicated Evennia API, UI framework and ship-system fidelity remain open.
 
-The early priority is a testable separation of concerns: **the game determines what is true and possible; the agents decide what to try; the transport lets us change how they communicate.**
+The early priority is a testable separation of concerns: **the game determines what is true and possible; the agents decide what to try; the interface exposes both without silently changing either; the transport lets us change how they communicate.**

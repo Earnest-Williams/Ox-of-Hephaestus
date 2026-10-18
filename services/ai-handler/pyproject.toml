@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ox-ai-handler"
+version = "0.0.0"
+description = "Preparatory package for the Ox of Hephaestus autonomous crew handler"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.optional-dependencies]
+# The upstream 2.4.0 release does not contain the interrupt-driven scheduler.
+# Deliberately pin a reviewed upstream commit, not a floating main branch.
+concordia = [
+  "gdm-concordia[openai] @ git+https://github.com/google-deepmind/concordia.git@4b7e02a94b719e56f10989046af32d79bbbc3b9c",
+]
+dev = ["pytest>=8,<10"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["ox_ai*"]
