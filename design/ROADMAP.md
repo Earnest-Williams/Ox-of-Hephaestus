@@ -117,7 +117,7 @@ The old provisional PR 25 is implemented in two real PRs: [#35](https://github.c
 
 [PR #38](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/38) establishes per-character open-world observations, beliefs, explicit unanswered questions and retrospective surprises. [PR #39](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/39) implements physical serialized cartridges, real carriers, actor-local stock evidence, and a bounded supply order with globally typed idempotent request/accept/collect/deliver commands. Two orders cannot consume the same last item. These are narrower than the provisional generalized inventory/order PR 26–27 language. [Epistemics](prototypes/g3-epistemics.md) · [Inventory](prototypes/g3-inventory.md).
 
-### G3 epistemic clarification — systemic but actor-hidden unknown unknowns (PR #42)
+### G3 epistemic clarification — systemic but actor-hidden unknown unknowns (merged PR #42)
 
 An authoritative world fact can be an **unknown unknown to a particular
 character right now**, without a future revelation or surprise. In a mostly
