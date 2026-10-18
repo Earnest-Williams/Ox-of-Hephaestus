@@ -10,7 +10,23 @@ This is not a
 deployed freighter or general social simulation.
 [Verified feature matrix](design/STATUS.md) · [Development setup](INSTALL.md).
 
-## P4i: restartable addressed crew coordination (proposed PR)
+## P4j: one global receipt namespace for specialist work (proposed PR)
+
+Cargo C-01 and environmental scrubber A-01 **new work** now use the
+existing handler-owned `WorkStepLedger` for each named physical step,
+persisting one global world-work ID before submission. A restarted handler
+reconciles that ID first; authenticated `no_authorised_receipt` is the
+only reason to resend the **same** ID. Real equipment transitions and
+cartridge consumption remain owned by Evennia.
+
+An in-flight pre-P4j specialist checkpoint may already contain the old
+fixture-specific `pending` request ID. It remains valid: such work
+reconciles against the original `oxreceipt` fixture namespace before
+subsequent stages migrate to the global ledger. Never mint a new ID to
+replace an ambiguous legacy operation. Skills, actor goals, interdepartment
+inventory transfer and PostgreSQL contention validation remain future work.
+
+## P4i: restartable addressed crew coordination (merged PR #26)
 
 The bridge now persists a `begin_alarm` incident before any radio relay,
 then issues that world-validated social operation using a stable `WorkStepLedger`
