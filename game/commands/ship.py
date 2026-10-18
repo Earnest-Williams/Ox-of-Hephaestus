@@ -182,7 +182,7 @@ class CmdOxAction(Command):
             result = {"request_id": args[0], "actor_dbref": self.caller.dbref,
                       "operation": args[1], "status": "failed",
                       "reason": "request_collision", "source_event_id": None}
-        self.caller.msg(ox_receipt=(result,))
+        self.caller.msg(ox_receipt=([result], {}))
 
 
 class CmdOxReceipt(Command):
@@ -202,4 +202,4 @@ class CmdOxReceipt(Command):
         if not isinstance(pump, CoolingPump):
             self.caller.msg("P-01 unavailable.")
             return
-        self.caller.msg(ox_receipt=(pump.durable_receipt(request_id, self.caller),))
+        self.caller.msg(ox_receipt=([pump.durable_receipt(request_id, self.caller)], {}))
