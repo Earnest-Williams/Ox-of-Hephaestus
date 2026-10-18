@@ -109,3 +109,66 @@ class CmdOxAnswer(Command):
             return
         _success, result = answer_hail(self.caller, *parts)
         self.caller.msg(result)
+
+
+class CmdOxWork(Command):
+    """Submit a world-owned, idempotent ship or equipment request.
+
+    Usage:
+        oxwork <32-hex-id> <radio|request|approve|resolve|offer|accept> ship
+        oxwork <32-hex-id> answer ship <hail-id> <status|ack|decline>
+        oxwork <32-hex-id> <operation> <pump|cargo|scrubber>
+
+    Every command is checked again by the world. No client may grant its
+    own work permission by offering a model-generated command.
+    """
+
+    key = "oxwork"
+    locks = "cmd:all()"
+
+    def func(self) -> None:
+        import re
+        from world.work_actions import execute_work
+        parts = self.args.strip().split()
+        usage = "Usage: oxwork <32-hex-id> <operation> <target> [hail-id mode]"
+        if (len(parts) not in (3, 5)
+                or re.fullmatch(r"[0-9a-f]{32}", parts[0]) is None):
+            self.caller.msg(usage)
+            return
+        request_id, operation, target = parts[:3]
+        arguments = None
+        if len(parts) == 5:
+            arguments = {"hail_id": parts[3], "mode": parts[4]}
+        try:
+            result = execute_work(
+                self.caller, request_id, operation, target,
+                arguments=arguments,
+            )
+        except (ValueError, PermissionError):
+            # Never leak details about another character's receipt.
+            result = {
+                "request_id": request_id,
+                "actor_dbref": self.caller.dbref,
+                "status": "failed",
+                "reason": "invalid_or_colliding_request",
+                "source_event_id": None,
+            }
+        self.caller.msg(ox_receipt=([result], {}))
+
+
+class CmdOxWorkReceipt(Command):
+    """Reconcile one work request against the private world-owned ledger."""
+
+    key = "oxworkreceipt"
+    locks = "cmd:all()"
+
+    def func(self) -> None:
+        import re
+        from world.work_actions import work_receipt
+        request_id = self.args.strip()
+        if re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
+            self.caller.msg("Usage: oxworkreceipt <32-hex-id>")
+            return
+        self.caller.msg(ox_receipt=([
+            work_receipt(self.caller, request_id)
+        ], {}))
