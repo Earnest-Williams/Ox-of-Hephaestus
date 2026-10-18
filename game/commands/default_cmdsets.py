@@ -5,6 +5,7 @@ from evennia.commands.default.cmdset_character import CharacterCmdSet as BaseCmd
 from commands.crew import (
     CmdOxInbox, CmdOxRadioAlarm, CmdOxRequestRelease,
     CmdOxApproveRelease, CmdOxResolve, CmdOxOfferWatch, CmdOxAcceptWatch,
+    CmdOxHail, CmdOxAnswer,
 )
 
 from commands.ship import (
@@ -45,5 +46,7 @@ class CharacterCmdSet(BaseCmdSet):
             CmdOxResolve,
             CmdOxOfferWatch,
             CmdOxAcceptWatch,
+            CmdOxHail,
+            CmdOxAnswer,
         ):
             self.add(command())
