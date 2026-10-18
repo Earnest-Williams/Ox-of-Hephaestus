@@ -21,6 +21,7 @@ from commands.ship import (
     CmdIsolate,
     CmdRepair,
     CmdShipEngineer,
+    CmdShipRole,
     CmdShipFault,
 )
 
@@ -43,6 +44,7 @@ class CharacterCmdSet(BaseCmdSet):
             CmdCommission,
             CmdShipFault,
             CmdShipEngineer,
+            CmdShipRole,
             CmdRestow,
             CmdCertify,
             CmdReplaceCartridge,
