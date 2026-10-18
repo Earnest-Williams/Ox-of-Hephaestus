@@ -6,6 +6,8 @@ objects. It cannot alter pump Attributes directly or claim repair via prose.
 
 from __future__ import annotations
 
+from django.db import transaction
+
 from evennia.objects.objects import DefaultCharacter, DefaultObject, DefaultRoom
 from evennia.utils import gametime
 
@@ -136,6 +138,52 @@ class CoolingPump(FixedFixture):
     def commission(self, actor) -> tuple[bool, str]:
         """Return an already repaired loop to normal service."""
         return self._transition("commission", actor=actor)
+
+
+    def durable_action(self, request_id: str, operation: str, actor) -> dict:
+        """Commit an actor-bound physical operation and its receipt atomically."""
+        import re
+        if not re.fullmatch(r"[0-9a-f]{32}", request_id):
+            raise ValueError("Action ID must be 32 lowercase hex digits")
+        if operation not in ("isolate", "repair", "commission"):
+            raise ValueError("Invalid physical operation")
+        if actor is None:
+            raise PermissionError("Physical commands require a character")
+        with transaction.atomic():
+            ledger = dict(self.db.ox_action_receipts or {})
+            previous = ledger.get(request_id)
+            if previous is not None:
+                if (previous["actor_dbref"], previous["operation"]) != (actor.dbref, operation):
+                    raise PermissionError("Request ID already bound to different work")
+                return dict(previous)
+            succeeded, _message = self._transition(operation, actor=actor)
+            history = list(self.db.event_history or [])
+            receipt = {
+                "request_id": request_id, "actor_dbref": actor.dbref,
+                "operation": operation,
+                "status": "succeeded" if succeeded else "failed",
+                "reason": "transition_applied" if succeeded else "world_refused",
+                "source_event_id": history[-1]["event_id"] if succeeded else None,
+                "state": self.state if succeeded else None,
+                "game_time": float(gametime.gametime(absolute=True)),
+            }
+            ledger[request_id] = receipt
+            self.db.ox_action_receipts = ledger
+            return dict(receipt)
+
+    def durable_receipt(self, request_id: str, actor) -> dict:
+        """Read only the caller's own recorded action, with no remote state leak."""
+        import re
+        if not re.fullmatch(r"[0-9a-f]{32}", request_id):
+            raise ValueError("Action ID must be 32 lowercase hex digits")
+        if actor is None:
+            raise PermissionError("A character identity is required")
+        stored = dict(self.db.ox_action_receipts or {}).get(request_id)
+        if stored is None or stored["actor_dbref"] != actor.dbref:
+            return {"request_id": request_id, "actor_dbref": actor.dbref,
+                    "status": "unknown", "reason": "no_authorised_receipt",
+                    "source_event_id": None}
+        return dict(stored)
 
 
 class StatusConsole(FixedFixture):
