@@ -128,6 +128,19 @@ class MockWatchWorld:
             data={"summary": summary},
         )
 
+    def bridge_navigation_update(self, summary: str) -> str:
+        """Deliver a routine bridge instrument event to its duty officer only."""
+        if not summary.strip() or len(summary) > 320:
+            raise ValueError("Bridge status must contain at most 320 characters")
+        watch_id = self.active_watch["bridge"]
+        if self.crew[watch_id].location != "bridge":
+            raise RuntimeError("Bridge officer is not at the console")
+        return self._emit(
+            watch_id, kind="bridge_status",
+            text=f"Bridge plot: {summary}",
+            data={"summary": summary},
+        )
+
     def announce_handover_due(self) -> bool:
         """One world-authorised duty event, due at 07:55 game time."""
         if self.minute < self.ENGINEERING_HANDOVER_MINUTE:
