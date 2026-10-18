@@ -875,6 +875,46 @@ async def main_async(mode: str) -> None:
             print("OX_P4B_RESTORED_ENGINEER_RESOLVED_SECOND_INCIDENT")
         elif mode == "serve":
             await supervisor.serve()
+        elif mode.startswith("begin-radio-interrupt-"):
+            point = mode.removeprefix("begin-radio-interrupt-")
+            if point not in ("prepared", "committed", "ack"):
+                raise ValueError("Unsupported radio interruption point")
+            try:
+                await supervisor.begin(interrupt_at="radio:" + point)
+            except SimulatedWorkInterruption:
+                print("OX_P4I_RADIO_INTERRUPTED " + point)
+                return
+            raise RuntimeError("Radio interruption never occurred")
+        elif mode == "handover-once":
+            if not await supervisor.handover_if_due():
+                raise RuntimeError("No authorized posted handover was completed")
+            print("OX_P4I_HANDOVER_DONE")
+        elif mode.startswith("handover-interrupt-"):
+            parts = mode.removeprefix("handover-interrupt-").split("-")
+            if (len(parts) != 2
+                    or parts[0] not in ("offer", "accept")
+                    or parts[1] not in ("prepared", "committed", "ack")):
+                raise ValueError("Unsupported handover interruption point")
+            try:
+                await supervisor.handover_if_due(interrupt_at=":".join(parts))
+            except SimulatedWorkInterruption:
+                print("OX_P4I_HANDOVER_INTERRUPTED " + ":".join(parts))
+                return
+            raise RuntimeError("Handover interruption never occurred")
+        elif mode == "hails-once":
+            if not await supervisor.respond_to_hails():
+                raise RuntimeError("No authorized recipient hail was answered")
+            print("OX_P4I_HAIL_DONE")
+        elif mode.startswith("hails-interrupt-answer-"):
+            point = mode.removeprefix("hails-interrupt-answer-")
+            if point not in ("prepared", "committed", "ack"):
+                raise ValueError("Unsupported hail interruption point")
+            try:
+                await supervisor.respond_to_hails(interrupt_at="answer:" + point)
+            except SimulatedWorkInterruption:
+                print("OX_P4I_HAIL_INTERRUPTED " + point)
+                return
+            raise RuntimeError("Hail interruption never occurred")
         elif mode.startswith("resume-interrupt-"):
             parts = mode.removeprefix("resume-interrupt-").split("-")
             if (len(parts) != 2
@@ -898,11 +938,16 @@ async def main_async(mode: str) -> None:
 def main() -> None:
     import sys
     if (len(sys.argv) != 2
-            or not (sys.argv[1] in ("begin", "resume", "serve")
-                    or sys.argv[1].startswith("resume-interrupt-"))):
+            or not (sys.argv[1] in (
+                "begin", "resume", "serve", "handover-once", "hails-once",
+            )
+                    or any(sys.argv[1].startswith(prefix) for prefix in (
+                        "resume-interrupt-", "begin-radio-interrupt-",
+                        "handover-interrupt-", "hails-interrupt-answer-",
+                    )))):
         raise SystemExit(
             "Usage: python -m ox_ai.runtime.watch_service "
-            "begin|resume|serve|resume-interrupt-<stage>-<point>"
+            "begin|resume|serve|handover-once|hails-once|<stage>-interrupt-<point>"
         )
     asyncio.run(main_async(sys.argv[1]))
 
