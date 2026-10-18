@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from html import unescape
 import os
 from pathlib import Path
 import re
@@ -80,7 +81,10 @@ def newest_unseen_alarm(events: list[dict], handled: set[str]) -> tuple[dict | N
 
 def active_watch_from_roster(text: str) -> str:
     """Interpret only an authenticated, local posted-roster readout."""
-    matches = re.findall(r"(?m)^Active engineering watch: (.+)$", text)
+    # Evennia's legacy browser wire format converts text into HTML.
+    # Parse the character-visible readout, not markup or operator state.
+    plain = re.sub(r"<[^>]*>", "", unescape(text)).replace("\r", "")
+    matches = re.findall(r"(?m)^\s*Active engineering watch:\s*(.+?)\s*$", plain)
     if len(matches) != 1:
         raise RuntimeError("Active engineering watch not observable")
     name = matches[0].strip()
