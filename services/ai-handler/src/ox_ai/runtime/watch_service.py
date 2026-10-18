@@ -415,13 +415,128 @@ class CrewWatchSupervisor:
         self.checkpoint()
         return verdict
 
+    async def handover_if_due(self) -> bool:
+        """Independently react to world-issued duty events, even with no fault."""
+        if self.state["phase"] != "idle":
+            return False
+        # Only a real addressed due event can authorize this procedure.
+        old = self.clients["ari"]
+        incoming = self.clients["iona"]
+        history = await self.read_inbox("ari")
+        due = [e for e in history if e["kind"] == "handover_due"]
+        if not due:
+            return False
+        await old.send_line("inspect roster")
+        current = active_watch_from_roster(
+            await old.expect_text("Active engineering watch:", timeout=10)
+        )
+        if current != "ari":
+            return False
+        # The receiving crewmember must also have been sent the duty event.
+        if not any(e["kind"] == "handover_due" for e in
+                   await self.read_inbox("iona")):
+            return False
+        ari = self.brains["ari"]
+        iona = self.brains["iona"]
+        ari.observe_event(due[-1])
+        offer = ari.choose(
+            CommandOption("Offer posted watch at due time", "oxhandover"),
+            alternative="Defer handover for an unresolved safety concern",
+        )
+        if offer.verb != "oxhandover":
+            ari.record_unknown(offer)
+            self.checkpoint()
+            return False
+        await old.send_line("oxhandover")
+        offered = await replayable_event(incoming, "handover_offer",
+                                         self.memories["iona"])
+        ari.record_unknown(offer)
+        iona.observe_event(offered)
+        take = iona.choose(
+            CommandOption("Accept scheduled engineering watch", "oxaccept"),
+            alternative="Decline to assume the scheduled watch",
+        )
+        if take.verb != "oxaccept":
+            iona.record_unknown(take)
+            self.checkpoint()
+            return False
+        await incoming.send_line("oxaccept")
+        transferred = await replayable_event(
+            incoming, "watch_transferred", self.memories["iona"]
+        )
+        iona.confirm(take, transferred)
+        self.checkpoint()
+        return True
+
+    async def respond_to_hails(self) -> int:
+        """Consume recipient-private hails, with world-side duplicate defence."""
+        count = 0
+        for role in CREW_ACCOUNTS:
+            events = await self.read_inbox(role)
+            answered = {e["data"]["hail_id"] for e in events
+                        if e["kind"] == "hail_answered"}
+            for event in events:
+                if event["kind"] != "crew_hail":
+                    continue
+                hail_id = event["data"]["hail_id"]
+                if hail_id in answered:
+                    continue
+                brain = self.brains[role]
+                brain.observe_event(event)
+                proposal = brain.choose(
+                    CommandOption("Give an authoritative station status", "status"),
+                    alternative="Acknowledge request without unverified claims",
+                )
+                mode = proposal.verb if proposal.verb == "status" else "ack"
+                await self.clients[role].send_line(
+                    f"oxanswer {hail_id} {mode}"
+                )
+                # Re-read the world-owned durable event before recording success.
+                result = await self.read_inbox(role)
+                confirmed = [e for e in result if e["kind"] == "hail_answered"
+                             and e["data"]["hail_id"] == hail_id]
+                if not confirmed:
+                    brain.record_unknown(proposal)
+                    raise RuntimeError("Hail answer unconfirmed by world")
+                brain.confirm(proposal, confirmed[-1])
+                answered.add(hail_id)
+                count += 1
+                self.checkpoint()
+        return count
+
     async def serve(self) -> None:
-        """Run indefinitely, but remain dormant between legitimate world events."""
+        """Independent multi-source event dispatch; no idle model polling."""
         if self.state["phase"] in ("unknown_isolate", "isolate_verified"):
             await self.resume()
         while True:
-            if await self.begin(block=True, drop_ack=False):
+            # First reconcile world-owned pending duties on reconnect.
+            if await self.begin(block=False, drop_ack=False):
                 await self.resume()
+                continue
+            if await self.handover_if_due():
+                continue
+            if await self.respond_to_hails():
+                continue
+            # Wait for ANY addressed character event, not only bridge faults.
+            # No concurrent consumer reads a socket during another protocol.
+            pending = {
+                asyncio.create_task(client.receive()): role
+                for role, client in self.clients.items()
+            }
+            try:
+                done, _ = await asyncio.wait(
+                    pending, return_when=asyncio.FIRST_COMPLETED
+                )
+                for task in done:
+                    packet = task.result()
+                    event = decode_event(packet, self.ids[pending[task]])
+                    if event is not None:
+                        self.memories[pending[task]].append(event)
+            finally:
+                for task in pending:
+                    if not task.done():
+                        task.cancel()
+                await asyncio.gather(*pending, return_exceptions=True)
 
 
 async def main_async(mode: str) -> None:
