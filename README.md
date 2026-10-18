@@ -2,11 +2,11 @@
 
 **An autonomous spaceship MUD and shipboard simulation, built on [Evennia](https://www.evennia.com/).**
 
-> **Project status: first playable test ship and first Concordia entity integration candidate.** The standalone `game/` directory contains real Evennia rooms, a pump, bridge telemetry and idle crew bodies. The `services/ai-handler/` package has a tested single-agent Concordia lifecycle, but **the agent is not yet connected to the ship**; the handler server, autonomous crew orchestration and dashboard do not exist.
+> **Project status: first playable test ship and first Concordia entity integration candidate.** The standalone `game/` directory contains real Evennia rooms, a pump, bridge telemetry and idle crew bodies. The `services/ai-handler/` package has a tested single-agent Concordia lifecycle and a short-lived, in-process experiment now drives one engineer through real Evennia commands. **The independent handler transport, autonomous crew orchestration and dashboard do not exist.**
 
 ## Try the little ship
 
-A real, playable **three-compartment Ox ship** is now available in [`game/`](game/README.md), without changing Evennia's engine. The game fixture creates a bridge, connecting passage, and engineering space, three idle crew, a live bridge cooling readout, a duty board and a stateful P-01 cooling pump. It can be explored with a normal MUD client, and an authorised test engineer can inject, isolate, repair and commission a pump failure through in-world commands. Its world state persists in Evennia's database; there is not yet AI commanding it.
+A real, playable **three-compartment Ox ship** is now available in [`game/`](game/README.md), without changing Evennia's engine. The game fixture creates a bridge, connecting passage, and engineering space, three idle crew, a live bridge cooling readout, a duty board and a stateful P-01 cooling pump. It can be explored with a normal MUD client, and an authorised test engineer can inject, isolate, repair and commission a pump failure through in-world commands. Its world state persists in Evennia's database. A [bounded Concordia repair experiment](game/README.md#experiment-can-an-ai-engineer-physically-fix-p-01) can now drive Ari through ordinary commands inside the local game process; this is not yet external agent transport.
 
 The game lives outside the `evennia/` library and has its own [targeted database-backed tests](.github/workflows/ox-ship-world.yml). See [quickstart and commands](game/README.md) before trying it locally.
 
@@ -75,6 +75,7 @@ The order and design may change as prototypes reveal what works.
 | Location | What it contains |
 | --- | --- |
 | `evennia/` | Inherited Evennia framework; untouched by the Ox service scaffold. |
+| `game/` | Playable three-room ship and local agent-driven pump-repair experiment. |
 | `services/ai-handler/` | Standalone Python skeleton for Concordia NPCs, supervisor and game adapters. |
 | `services/interface/` | Standalone interface Python skeleton for dual-API views and a future frontend. |
 | `contracts/` | Cross-service boundary principles and future wire schemas. |
@@ -84,7 +85,7 @@ The order and design may change as prototypes reveal what works.
 | `ARCHITECTURE.md` | The three-system architecture and source-of-truth rules. |
 | `INSTALL.md` | Stock Evennia setup and optional new service scaffolding setup. |
 
-**No functional Ox AI service, ship scenario or dashboard exists yet.**
+**A runnable Ox ship and bounded agent-driven repair experiment now exist.** No independent AI service transport, multi-agent simulator or dashboard exists yet.
 
 ## Built on Evennia
 

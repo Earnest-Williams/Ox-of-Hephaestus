@@ -143,4 +143,23 @@ The early priority is a testable separation of concerns: **the game determines w
 
 The standalone [`game/`](game/README.md) directory is now a **playable fixture**, not an invented model observation. Its idempotent builder (`game/world/bootstrap.py`) creates a bridge, connecting passage, engineering compartment, four physical exits, three initially idle crew bodies, a pump, status console and posted roster. If Evennia has generated Limbo, an additional boarding exit makes the ship accessible from the default entry room. The pump's `normal -> low_pressure -> isolated -> repaired -> normal` transitions and event history persist as game-owned state. The read-only bridge telemetry reads its actual state; physical commands require presence and an authorised character role.
 
-This does **not** mark P2, P3 or P4 complete: there is no multi-agent mock scenario, no agent-to-Evennia transport and no integrated AI-driven repair. The dedicated `ox-ship-world.yml` workflow exercises game mechanics on an isolated Django test database. The existing P1 Concordia agent operates separately until an ordinary client transport is implemented.
+This does **not** mark P2, P3 or P4 complete: there is no multi-agent mock scenario or external agent-to-Evennia transport. A local in-process repair experiment now lets one Concordia entity attempt normal Evennia commands, but it does not exercise a remote session or establish unscripted model competence. The dedicated `ox-ship-world.yml` workflow exercises game mechanics on an isolated Django test database. The existing P1 Concordia agent operates separately until an ordinary client transport is implemented.
+
+## 10. Single-character in-process command experiment
+
+`game/world/ai_repair.py` is a deliberately limited **developer harness**:
+a Concordia entity is paired with the actual Evennia engineer object. An
+operator places the engineer on the bridge and injects a pump fault. The
+entity receives only in-game text returned by ordinary commands and a list
+of locally visible command options. Each selected action goes through
+`DefaultCharacter.execute_cmd`, not a new privileged endpoint or direct
+Attribute mutation. Evennia determines movement, permissions and pump state.
+An external evaluator inspects the game-owned event log only **after** the
+agent has stopped, requiring a real pump recovery attributed to the
+engineer's character ID.
+
+Scripted-choice CI proves command-dispatch wiring, not planning. The opt-in
+`live_trial` permits an actual LLM to choose actions; users must supply an
+inference endpoint and inspect whether it succeeds. This exception to our
+planned three-service topology is temporary: normal network character
+sessions and a genuine independently running handler remain required.

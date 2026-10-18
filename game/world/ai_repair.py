@@ -302,11 +302,8 @@ def live_trial() -> TrialResult:
       OX_LLM_MODEL         Model ID, e.g. a local model ID or API model name.
       OX_LLM_BASE_URL      Optional OpenAI-compatible URL for local inference.
       OX_TRIAL_TRACE       Optional path for a JSONL decision/observation log.
+      OX_TRIAL_MAX_STEPS   Limit choices to 1..50 (default 16).
     """
-    from concordia.contrib.language_models.openai.gpt_model import (
-        GptLanguageModel,
-    )
-
     model_name = os.getenv("OX_LLM_MODEL")
     api_key = os.getenv("OPENAI_API_KEY")
     if not model_name or not api_key:
@@ -314,14 +311,28 @@ def live_trial() -> TrialResult:
             "Set OX_LLM_MODEL and OPENAI_API_KEY explicitly; no live "
             "inference will be initiated without them."
         )
-    model = GptLanguageModel(
-        model_name=model_name,
-        api_key=api_key,
-        api_base=os.getenv("OX_LLM_BASE_URL") or None,
-    )
+    api_base = os.getenv("OX_LLM_BASE_URL")
+    if api_base:
+        # Compatible local endpoints frequently reject OpenAI-specific
+        # reasoning_effort / verbosity parameters used by Concordia's GPT
+        # adapter; use our small portable wrapper instead.
+        from ox_ai.inference.compatible_chat import CompatibleChatModel
+
+        model = CompatibleChatModel(
+            model_name=model_name, api_key=api_key, api_base=api_base
+        )
+    else:
+        from concordia.contrib.language_models.openai.gpt_model import (
+            GptLanguageModel,
+        )
+
+        model = GptLanguageModel(model_name=model_name, api_key=api_key)
     raw = os.getenv("OX_TRIAL_TRACE")
+    max_steps = int(os.getenv("OX_TRIAL_MAX_STEPS", "16"))
     result = conduct_repair_trial(
-        model, trace_path=Path(raw) if raw else None
+        model,
+        max_steps=max_steps,
+        trace_path=Path(raw) if raw else None,
     )
     for num, step in enumerate(result.steps, start=1):
         print(f"\n[{num}] Ari enters: {step.command}\n{step.response}")

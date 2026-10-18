@@ -1,6 +1,6 @@
 # Prototype 1 — Autonomous Crew
 
-**Status:** P0 merged and CI-green. P1 native Concordia entity integration has passed its initial dedicated CI tests on the open PR; game-to-agent integration is still absent. A playable three-compartment Evennia fixture is included ahead of P3/P4, but P2–P5 remain incomplete.
+**Status:** P0 merged and CI-green. P1 native Concordia entity integration has passed dedicated CI. A playable three-compartment Evennia fixture and a short-lived, **in-process** Concordia-controlled repair harness are on the open PR; P2–P5 remain incomplete because there is no independently running external handler or demonstrated unscripted multi-agent coordination.
 
 ## Aim
 
@@ -43,7 +43,7 @@ Concordia's interrupt-driven Game Master can run the mock scenario, but it must 
 
 ## Preparatory game fixture (not a completed integration gate)
 
-The standalone [`game/`](../../game/README.md) test ship gives us real Evennia compartments and pump mechanics before hooking up the agents: bridge, passage, engineering, three idle NPC characters, a status console, a static watch roster and persistent pump state. It is populated once at initial startup (or through an idempotent manual bootstrap) and verified by separate SQLite-backed CI tests. **A playable game object does not imply the Concordia engineer can operate it.** P3 still requires normal-client connections, and P4 still requires an end-to-end AI-driven fault scenario.
+The standalone [`game/`](../../game/README.md) test ship gives us real Evennia compartments and pump mechanics before hooking up the agents: bridge, passage, engineering, three idle NPC characters, a status console, a static watch roster and persistent pump state. It is populated once at initial startup (or through an idempotent manual bootstrap) and verified by separate SQLite-backed CI tests. A [local in-process trial](../../game/README.md#experiment-can-an-ai-engineer-physically-fix-p-01) now passes proposed Concordia commands through the regular Evennia command dispatcher, with a strict independent physical outcome verdict. CI's scripted-choice model only proves the wiring. P3 still requires normal-client connections, and P4 still requires autonomous fault resolution evidence from a live model.
 
 ## First scenarios
 
