@@ -31,6 +31,14 @@ jobs:
           python -m pip install .
           python -m pip install -e ./services/ai-handler
           python -m compileall -q game services/ai-handler/src services/ai-handler/tests
+      - name: Provision ephemeral Evennia owner
+        shell: bash
+        run: |
+          TOKEN="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          echo "::add-mask::$TOKEN"
+          echo "EVENNIA_SUPERUSER_PASSWORD=$TOKEN" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_USERNAME=OxCI" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_EMAIL=oxci@example.invalid" >> "$GITHUB_ENV"
       - name: Apply and audit Django migrations
         working-directory: game
         run: |
@@ -39,7 +47,7 @@ jobs:
       - name: Real game journal, migration, and existing crew tests
         working-directory: game
         run: |
-          evennia test world.tests.test_event_journal world.tests.test_live_cooperation world.tests.test_crew_interaction --verbosity=2
+          evennia --settings settings.py test world.tests.test_event_journal world.tests.test_live_cooperation world.tests.test_crew_interaction --verbosity=2
       - name: Independent handler paging and restart contract tests
         run: |
           python -m unittest discover -s services/ai-handler/tests -p 'test_paged_inbox.py' -v
