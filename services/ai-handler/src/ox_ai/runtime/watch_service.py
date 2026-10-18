@@ -720,6 +720,20 @@ async def main_async(mode: str) -> None:
             print("OX_P4B_RESTORED_ENGINEER_RESOLVED_SECOND_INCIDENT")
         elif mode == "serve":
             await supervisor.serve()
+        elif mode.startswith("resume-interrupt-"):
+            parts = mode.removeprefix("resume-interrupt-").split("-")
+            if (len(parts) != 2
+                    or parts[0] not in (
+                        "repair", "request", "approve", "commission", "resolve",
+                    )
+                    or parts[1] not in ("prepared", "committed", "ack")):
+                raise ValueError("Unsupported work interruption point")
+            try:
+                await supervisor.resume(interrupt_at=":".join(parts))
+            except SimulatedWorkInterruption:
+                print("OX_P4H_WORLD_STEP_INTERRUPTED " + ":".join(parts))
+                return
+            raise RuntimeError("Requested stage interruption never occurred")
         else:
             raise ValueError("Unknown supervisor mode")
     finally:
@@ -728,9 +742,12 @@ async def main_async(mode: str) -> None:
 
 def main() -> None:
     import sys
-    if len(sys.argv) != 2 or sys.argv[1] not in ("begin", "resume", "serve"):
+    if (len(sys.argv) != 2
+            or not (sys.argv[1] in ("begin", "resume", "serve")
+                    or sys.argv[1].startswith("resume-interrupt-"))):
         raise SystemExit(
-            "Usage: python -m ox_ai.runtime.watch_service begin|resume|serve"
+            "Usage: python -m ox_ai.runtime.watch_service "
+            "begin|resume|serve|resume-interrupt-<stage>-<point>"
         )
     asyncio.run(main_async(sys.argv[1]))
 
