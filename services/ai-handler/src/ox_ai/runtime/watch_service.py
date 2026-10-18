@@ -84,8 +84,8 @@ def active_watch_from_roster(text: str) -> str:
     # Evennia's legacy browser wire format converts text into HTML.
     # Parse the character-visible readout, not markup or operator state.
     plain = unescape(text)
-    plain = re.sub(r"(?i)<br\\s*/?>|</(?:p|div)>", "\\n", plain)
-    plain = re.sub(r"<[^>]*>", "", plain).replace("\\r", "")
+    plain = re.sub(r"(?i)<br\s*/?>|</(?:p|div)>", "\n", plain)
+    plain = re.sub(r"<[^>]*>", "", plain).replace("\r", "")
     matches = re.findall(r"(?m)^\s*Active engineering watch:\s*(.+?)\s*$", plain)
     if len(matches) != 1:
         raise RuntimeError("Active engineering watch not observable")
