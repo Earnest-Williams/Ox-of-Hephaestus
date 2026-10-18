@@ -7,6 +7,8 @@ The opt-in live_trial in world.ai_repair is the intelligence experiment.
 
 from __future__ import annotations
 
+import re
+
 from evennia.utils.test_resources import EvenniaTestCase
 
 from world.ai_repair import conduct_repair_trial
@@ -24,11 +26,22 @@ class ScriptedChoices:
         if not self._choices:
             raise AssertionError("Model was called more times than expected")
         choice = self._choices.pop(0)
-        if choice not in responses:
-            raise AssertionError(
-                f"Script offered {choice!r}, but available options are {responses}"
+        # Concordia's InteractiveDocument shows (a) Full label in the
+        # prompt, but passes only ('a', 'b', ...) to sample_choice.
+        options = dict(
+            (label.strip(), letter)
+            for letter, label in re.findall(
+                r"^\\s*\\(([a-z])\\)\\s+(.+)$", prompt, flags=re.MULTILINE
             )
-        return responses.index(choice), choice, {}
+        )
+        if choice not in options:
+            raise AssertionError(
+                f"Script requested {choice!r}, but Concordia offered {options}"
+            )
+        letter = options[choice]
+        if letter not in responses:
+            raise AssertionError("Concordia option letter was not valid")
+        return responses.index(letter), letter, {}
 
     def sample_text(self, *args, **kwargs):
         raise AssertionError("Unexpected free-text generation")
