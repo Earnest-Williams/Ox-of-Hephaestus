@@ -50,12 +50,16 @@ async def next_event(client, expected: str, memory: list[dict],
                     safe_text_samples.append(diagnostic[:260])
                 if packet.kind != "ox_event":
                     continue
-                if len(packet.args) == 1 and isinstance(packet.args[0], str):
-                    event = json.loads(packet.args[0])
-                else:
+                if len(packet.args) != 1 or not isinstance(packet.args[0], dict):
                     raise ValueError("Malformed private observation framing")
-                if not isinstance(event, dict) or not isinstance(event.get("data"), dict):
-                    raise ValueError("Malformed world event content")
+                wire = packet.args[0]
+                if "data" in wire:
+                    raise ValueError("Nested world observation is forbidden")
+                event = {key: value for key, value in wire.items()
+                         if not key.startswith("datum_")}
+                event["data"] = {key[len("datum_"):]: value
+                                 for key, value in wire.items()
+                                 if key.startswith("datum_")}
                 if event.get("recipient_dbref") != client.character_dbref:
                     raise PermissionError("Another character's memory leaked")
                 event_id = event.get("event_id")
