@@ -2,6 +2,8 @@
 
 from evennia.commands.default.cmdset_character import CharacterCmdSet as BaseCmdSet
 
+from commands.capabilities import CmdOxCapabilities
+
 from commands.crew import (
     CmdOxInbox, CmdOxRadioAlarm, CmdOxRequestRelease,
     CmdOxApproveRelease, CmdOxResolve, CmdOxOfferWatch, CmdOxAcceptWatch,
@@ -36,6 +38,7 @@ class CharacterCmdSet(BaseCmdSet):
         super().at_cmdset_creation()
         for command in (
             CmdInspect,
+            CmdOxCapabilities,
             CmdOxIdentity,
             CmdOxAction,
             CmdOxReceipt,

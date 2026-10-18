@@ -1,0 +1,35 @@
+name: Ox G2 local capability discovery
+
+on:
+  pull_request:
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-g2-capabilities.yml"
+  push:
+    branches: [main]
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-g2-capabilities.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  world-local-capabilities:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install real Evennia and compile game sources
+        run: |
+          python -m pip install .
+          python -m compileall -q game
+      - name: Verify room, lock, duty and inspection-scoped capability ads
+        working-directory: game
+        run: python -m world.test_runner world.tests.test_capabilities --verbosity=2
