@@ -1,6 +1,6 @@
 # Ox of Hephaestus — architecture and authority boundaries
 
-**Current implementation:** P4a–P4h passed focused real-Evennia tests and
+**Current implementation:** P4a–P4j passed focused real-Evennia tests and
 are merged. Five separately authenticated native Concordia crew operate
 across a **seven-room, three-equipment-system ship**. The world validates
 cooling repairs, cargo work, atmospheric cartridge servicing, hails and
@@ -10,7 +10,28 @@ This is not a
 deployed freighter or general social simulation.
 [Verified feature matrix](design/STATUS.md) · [Development setup](INSTALL.md).
 
-## P4j: one global receipt namespace for specialist work (proposed PR)
+## G1 PostgreSQL concurrency gate (under validation)
+
+The default Ox game remains a loopback-only SQLite development fixture.
+`server.conf.settings_postgres_ci` is a separate, explicitly opt-in
+Django settings module for disposable PostgreSQL CI only. Its database
+has no durable gameplay state and is not a production deployment
+recommendation.
+
+The real concurrency probe uses two independent database connections
+to race the same actor and request ID (exactly one world receipt),
+then races two appropriately credentialled world characters for one
+replacement scrubber cartridge (one success, one lasting refusal).
+It also holds a genuine PostgreSQL `SELECT FOR UPDATE` lock and proves
+another writer cannot commit ahead of the releasing transaction, and
+tests rollback of world events and work receipts together.
+
+This exercises **world-owned** transactions. No AI agent is permitted
+to connect directly to the database, and no new gameplay capability
+is inferred from the test. Migration, backups, production database
+configuration and load/endurance validation remain separate concerns.
+
+## P4j: one global receipt namespace for specialist work (merged PR #27)
 
 Cargo C-01 and environmental scrubber A-01 **new work** now use the
 existing handler-owned `WorkStepLedger` for each named physical step,

@@ -61,20 +61,27 @@ watch handover, player hail responses and specialist work to the common
 resumable pattern, plus explicit PostgreSQL contention validation. Do not
 mistake the P4h stage test for all-action recovery.
 
-**P4i (under validation):** The next incremental G1 work
+**P4i (merged PR #26):** The next incremental G1 work
 migrates bridge alarm relay, scheduled engineering offer/accept and
 addressed hail answers to persistent handler intent records with
 actor-bound world receipt reconciliation. The old ordinary character
 commands remain supported. The remaining G1 obligations are specialist
 stage migration and real PostgreSQL contention/recovery tests.
 
-**P4j (under validation):** Both specialist departments' newly
+**P4j (merged PR #27):** Both specialist departments' newly
 scheduled physical steps now use the global world-work namespace
 and handler-side stage ledger. Old P4e pending IDs retain the
 fixture-specific recovery path; after safe reconciliation the
 remaining steps migrate. Three isolated server tests exercise
 pre-send, post-commit and old-checkpoint recovery. PostgreSQL
 multi-writer contention remains the final outstanding G1 gate.
+
+**G1-PG (under validation):** A dedicated PostgreSQL CI job now
+races independent world writers and verifies the actual row lock,
+global request ID uniqueness, one-unit resource consumption and
+rollback of world-owned event/receipt records. This does not
+constitute a production-grade Postgres deployment recipe, nor a
+general property proof for every future inventory system.
 
 ## G2: Individual autonomy
 
