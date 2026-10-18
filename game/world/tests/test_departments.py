@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from evennia.utils.test_resources import EvenniaTestCase
 from commands.departments import CmdCertify, CmdReplaceCartridge, CmdRestartScrubber, CmdRestow
-from commands.ship import CmdInspect, CmdIsolate, CmdShipFault
+from commands.ship import CmdInspect, CmdIsolate, CmdShipFault, CmdShipRole
 from world.bootstrap import build_ship, find_fixture
 from world.live_crew import inbox
 
@@ -143,6 +143,36 @@ class DepartmentWorldTests(EvenniaTestCase):
         self.assertFalse(ship["scrubber"].isolate(self.lin)[0])
         self.assertFalse(ship["cradle"].access(self.cargo, "get"))
         self.assertFalse(ship["scrubber"].access(self.tech, "get"))
+
+    def test_developer_can_try_both_specialist_roles_without_npc_puppeting(self):
+        player = self.char1
+        player.move_to(self.ship["cargo_hold"], quiet=True)
+        with patch.object(player, "check_permstring", return_value=False):
+            self.assertIn("Only developers",
+                          self.command(CmdShipRole, player, "cargo"))
+        self.assertNotEqual(player.db.crew_role, "cargo_officer")
+        with patch.object(player, "check_permstring", return_value=True):
+            self.assertIn("specialist duty",
+                          self.command(CmdShipRole, player, "cargo"))
+        self.assertEqual(player.db.crew_role, "cargo_officer")
+        cradle = self.ship["cradle"]
+        self.assertTrue(cradle.inject_fault()[0])
+        cradle.note_inspection(player)
+        self.assertTrue(cradle.restow(player)[0])
+        cradle.note_inspection(player)
+        self.assertTrue(cradle.certify(player)[0])
+        with patch.object(player, "check_permstring", return_value=True):
+            self.assertIn("specialist duty",
+                          self.command(CmdShipRole, player, "environment"))
+        player.move_to(self.ship["environmental"], quiet=True)
+        self.assertEqual(player.db.crew_role, "environment_tech")
+        scrubber = self.ship["scrubber"]
+        self.assertTrue(scrubber.inject_fault()[0])
+        scrubber.note_inspection(player)
+        self.assertTrue(scrubber.isolate(player)[0])
+        self.assertTrue(scrubber.replace(player)[0])
+        scrubber.note_inspection(player)
+        self.assertTrue(scrubber.restart(player)[0])
 
     def test_unprivileged_fault_command_cannot_mutate_systems(self):
         # Command security is enforced even if called without Evennia's parser.
