@@ -154,6 +154,35 @@ class CmdShipEngineer(Command):
         self.caller.msg("You are authorised for the prototype engineering watch.")
 
 
+class CmdShipRole(Command):
+    """Assume a specialist test duty in a disposable development world.
+
+    Usage: shiprole <cargo|environment>
+
+    Not an in-world promotion system. No production player can change
+    their own specialist qualifications or engineering authority this way.
+    """
+
+    key = "shiprole"
+    locks = "cmd:perm(Developer)"
+
+    def func(self) -> None:
+        if not self.caller.check_permstring("Developer"):
+            self.caller.msg("Only developers may assume a test department role.")
+            return
+        assignments = {
+            "cargo": ("cargo_officer", "Cargo test duty"),
+            "environment": ("environment_tech", "Environmental test duty"),
+        }
+        role = assignments.get(self.args.strip().lower())
+        if role is None:
+            self.caller.msg("Usage: shiprole <cargo|environment>")
+            return
+        self.caller.db.crew_role, self.caller.db.duty_title = role
+        self.caller.msg("Developer specialist duty set; physical access still required.")
+
+
+
 class CmdOxIdentity(Command):
     """Report the caller's own character dbref in response to a fresh nonce.
 
