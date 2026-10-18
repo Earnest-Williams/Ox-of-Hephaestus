@@ -96,6 +96,10 @@ class EvenniaWebSocketClient:
         # Ordering on one WebSocket is preserved. An incorrect password,
         # unauthorized puppet or stale session cannot answer the challenge.
         await self.send_line("connect " + self.username + " " + self._password)
+        # Login is asynchronous in Evennia's Portal/Server bridge. Sending
+        # puppet commands before the logged_in OOB acknowledgement races
+        # the authenticated session transition (particularly for account 2).
+        await self._await_login()
         await self.send_line("ic " + self.character_dbref)
         await self.send_line("oxidentity " + challenge)
         marker = "OX_IDENTITY " + challenge + " " + self.character_dbref
@@ -104,6 +108,19 @@ class EvenniaWebSocketClient:
         except (TimeoutError, ConnectionError, RuntimeError) as exc:
             raise IdentityMismatch("Character identity challenge failed") from exc
         self._verified = True
+
+    async def _await_login(self) -> None:
+        try:
+            async with asyncio.timeout(self.timeout):
+                for _ in range(256):
+                    packet = await self.receive()
+                    if packet.kind == "logged_in":
+                        return
+                    if "incorrect" in packet.text.lower() or "login failures" in packet.text.lower():
+                        raise IdentityMismatch("Account authentication refused")
+        except TimeoutError as exc:
+            raise IdentityMismatch("Timed out before authenticated session acknowledgement") from exc
+        raise IdentityMismatch("No authenticated session acknowledgement")
 
     async def send_line(self, line: str) -> None:
         if self._socket is None:
