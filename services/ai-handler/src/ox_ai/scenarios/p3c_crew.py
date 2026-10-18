@@ -39,6 +39,22 @@ async def next_event(client, expected: str, memory: list[dict]) -> dict:
                 raise ValueError("Malformed private observation")
             if event.get("recipient_dbref") != client.character_dbref:
                 raise PermissionError("Another character's memory leaked")
+            # Evennia's outgoing OOB machinery can represent a nested
+            # mapping as a singleton positional wrapper. Normalize the
+            # *data* field without relaxing the recipient/ID checks.
+            value = event.get("data", {})
+            if isinstance(value, dict):
+                event["data"] = value
+            elif isinstance(value, list) and len(value) == 1 and isinstance(value[0], dict):
+                event["data"] = value[0]
+            elif isinstance(value, list) and all(
+                isinstance(pair, list) and len(pair) == 2 and isinstance(pair[0], str)
+                for pair in value
+            ):
+                event["data"] = dict(value)
+            else:
+                raise TypeError("Unexpected private event data shape: "
+                                + str(type(value).__name__) + " " + repr(value)[:200])
             memory.append(event)
             if event.get("kind") == expected:
                 return event
