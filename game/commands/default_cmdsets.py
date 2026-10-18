@@ -6,6 +6,8 @@ from commands.ship import (
     CmdCommission,
     CmdInspect,
     CmdOxIdentity,
+    CmdOxAction,
+    CmdOxReceipt,
     CmdIsolate,
     CmdRepair,
     CmdShipEngineer,
@@ -24,6 +26,8 @@ class CharacterCmdSet(BaseCmdSet):
         for command in (
             CmdInspect,
             CmdOxIdentity,
+            CmdOxAction,
+            CmdOxReceipt,
             CmdIsolate,
             CmdRepair,
             CmdCommission,

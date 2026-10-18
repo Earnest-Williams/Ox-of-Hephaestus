@@ -8,6 +8,19 @@ from pathlib import Path
 from ox_ai.ports.evennia.client import EvenniaWebSocketClient, IdentityMismatch
 
 
+async def read_only(client, line: str, expected: str) -> str:
+    # Look/inspect are safe to repeat after a Server startup reload; do not
+    # apply this policy to speech, repairs, valves or other side effects.
+    for attempt in range(3):
+        await client.send_line(line)
+        try:
+            return await client.expect_text(expected, timeout=6)
+        except TimeoutError:
+            if attempt == 2:
+                raise
+    raise RuntimeError("Read-only observation unavailable")
+
+
 async def main() -> None:
     crew = json.loads(Path(".ox-state/p3a-ids.json").read_text())
     password = os.environ["OX_PROBE_PASSWORD"]
@@ -15,19 +28,15 @@ async def main() -> None:
     async with EvenniaWebSocketClient(
         url, "OxBotAri", password, crew["ari"], timeout=15,
     ) as ari:
-        await ari.send_line("look")
-        await ari.expect_text("Engineering")
-        await ari.send_line("inspect pump")
-        await ari.expect_text("Cooling Pump P-01")
+        await read_only(ari, "look", "Engineering")
+        await read_only(ari, "inspect pump", "Cooling Pump P-01")
         await ari.send_line("say reporting for engineering watch")
         await ari.expect_text("reporting for engineering watch")
     async with EvenniaWebSocketClient(
         url, "OxBotLin", password, crew["lin"], timeout=15,
     ) as lin:
-        await lin.send_line("look")
-        await lin.expect_text("Bridge")
-        await lin.send_line("inspect console")
-        await lin.expect_text("BRIDGE COOLING TELEMETRY")
+        await read_only(lin, "look", "Bridge")
+        await read_only(lin, "inspect console", "BRIDGE COOLING TELEMETRY")
 
     # A correct account but the wrong character must never be accepted.
     try:

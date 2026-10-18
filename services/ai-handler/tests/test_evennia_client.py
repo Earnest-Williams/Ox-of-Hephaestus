@@ -60,8 +60,10 @@ class ClientTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(client.authenticated)
 
     async def test_another_character_cannot_complete_identity_handshake(self):
-        socket = FakeSocket(correct="#77")
+        sockets = []
         async def connector(*args, **kwargs):
+            socket = FakeSocket(correct="#77")
+            sockets.append(socket)
             return socket
         client = EvenniaWebSocketClient(
             "ws://localhost:4002", "OxBotAri",
@@ -70,7 +72,7 @@ class ClientTests(unittest.IsolatedAsyncioTestCase):
         )
         with self.assertRaises(IdentityMismatch):
             await client.open()
-        self.assertTrue(socket.closed)
+        self.assertTrue(all(socket.closed for socket in sockets))
         self.assertFalse(client.authenticated)
 
     async def test_guard_against_credential_exposure_and_bad_frames(self):

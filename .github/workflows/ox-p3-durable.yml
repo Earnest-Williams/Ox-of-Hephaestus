@@ -1,0 +1,90 @@
+name: Ox P3 durable external GOAP
+
+on:
+  pull_request:
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-p3-durable.yml"
+  push:
+    branches: [main]
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-p3-durable.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  durable-goap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install game and handler
+        run: |
+          python -m pip install .
+          python -m pip install -e './services/ai-handler[transport]'
+      - name: Test handler's structured receipt boundary
+        run: python -m unittest discover -s services/ai-handler/tests -p 'test_durable_port.py' -v
+      - name: Generate private ephemeral credentials
+        shell: bash
+        run: |
+          TOKEN="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          OWNER="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          echo "::add-mask::$TOKEN"
+          echo "::add-mask::$OWNER"
+          echo "OX_PROBE_PASSWORD=$TOKEN" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_PASSWORD=$OWNER" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_USERNAME=OxTrialOwner" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_EMAIL=owner@example.invalid" >> "$GITHUB_ENV"
+      - name: Verify physical action ledger in a real test database
+        working-directory: game
+        run: |
+          evennia migrate --noinput
+          evennia test world.tests.test_durable_actions --verbosity=2
+      - name: Provision real crew and inject actual cooling fault
+        working-directory: game
+        run: |
+          evennia shell --command="from world.transport_probe import provision; provision(); print('OX_ACCOUNTS_READY')"
+          evennia shell --command="from world.bootstrap import build_ship; p=build_ship()['pump']; assert p.inject_fault()[0]; print('OX_FAULT_READY')"
+      - name: Run two distinct external handler processes over actual WebSocket
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd game && evennia start)
+          python - <<'PY'
+          import socket, time
+          for _ in range(90):
+              try:
+                  with socket.create_connection(("127.0.0.1", 4002), timeout=1):
+                      break
+              except OSError:
+                  time.sleep(1)
+          else:
+              raise RuntimeError("External websocket is unavailable")
+          PY
+          sleep 5
+          python -m ox_ai.scenarios.p3b_goap start
+          python -m ox_ai.scenarios.p3b_goap resume
+      - name: Stop game server before independent SQLite verdict
+        if: always()
+        working-directory: game
+        run: evennia stop || true
+      - name: Check exact physical transitions and persistent action IDs
+        working-directory: game
+        run: |
+          evennia shell --command="from world.bootstrap import build_ship; p=build_ship()['pump']; ops=[e['operation'] for e in p.db.event_history]; assert p.state=='normal' and ops==['fault','isolate','repair','commission'], ops; assert len(p.db.ox_action_receipts)==3; print('OX_P3B_PHYSICAL_VERDICT_PASS')"
+      - name: Save operator-only trace
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-p3b-goap-recovery
+          path: .ox-state/p3b-verdict.json
+          if-no-files-found: ignore
+          retention-days: 7
