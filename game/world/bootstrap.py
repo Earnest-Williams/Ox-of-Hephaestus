@@ -11,7 +11,7 @@ from evennia.utils.create import create_object
 
 FIXTURE_CATEGORY = "ox_ship_prototype"
 
-CREW_MARKERS = ("crew-chief", "crew-watch", "crew-bridge")
+CREW_MARKERS = ("crew-chief", "crew-watch", "crew-bridge", "crew-cargo", "crew-environment")
 
 
 def find_fixture(marker: str):
@@ -56,7 +56,7 @@ def _exit(marker: str, name: str, origin, destination, aliases=()):
 
 
 def build_ship() -> dict[str, object]:
-    """Install three linked rooms, equipment and three initially idle crew.
+    """Install a navigable departmental ship and five initially idle crew.
 
     This can be run repeatedly, from the one-time startup hook or via shell.
     It does not create accounts, sessions, autonomous cognition or a timed AI
@@ -94,6 +94,42 @@ def build_ship() -> dict[str, object]:
     )
     _exit("exit-engineering-passage", "out", engineering, passage, aliases=("fore",))
 
+    cargo = _room(
+        "room-cargo", "Cargo Hold",
+        "Twelve freight restraint positions line the central cargo aisle. "
+        "Eight sealed containers are lashed beneath the overhead handling "
+        "rail. The connecting passage lies to port.",
+    )
+    environmental = _room(
+        "room-environmental", "Environmental Plant",
+        "Atmospheric treatment ducts and cartridge housings share this "
+        "compartment with environmental monitoring instruments. "
+        "The passage leads starboard.",
+    )
+    mess = _room(
+        "room-mess", "Crew Mess",
+        "A compact galley, folding tables and duty notices provide a "
+        "shared area between watches. A hatch leads to the passage.",
+    )
+    workshop = _room(
+        "room-workshop", "Machine Shop",
+        "A bench, tool cabinets and a secured fabrication station await "
+        "maintenance work. Engineering lies through the return hatch.",
+    )
+
+    _exit("exit-passage-cargo", "starboard", passage, cargo, aliases=("cargo",))
+    _exit("exit-cargo-passage", "port", cargo, passage, aliases=("passage",))
+    _exit("exit-passage-environmental", "port", passage, environmental,
+          aliases=("environmental", "life support"))
+    _exit("exit-environmental-passage", "starboard", environmental, passage,
+          aliases=("passage",))
+    _exit("exit-passage-mess", "mess", passage, mess, aliases=("galley",))
+    _exit("exit-mess-passage", "out", mess, passage, aliases=("passage",))
+    _exit("exit-engineering-workshop", "workshop", engineering, workshop,
+          aliases=("shop",))
+    _exit("exit-workshop-engineering", "out", workshop, engineering,
+          aliases=("engineering",))
+
     # Limbo is Evennia's first-run entry room (#2); it may not exist in tests
     # or before initial_setup. Do not create a fake Limbo in that situation.
     limbo = ObjectDB.objects.filter(id=2).first()
@@ -129,6 +165,41 @@ def build_ship() -> dict[str, object]:
         aliases=["roster", "duty roster"],
     )
 
+    cradle = _ensure(
+        "cargo-cradle",
+        "typeclasses.departments.CargoCradle",
+        "Cargo Restraint Grid C-01",
+        location=cargo,
+        aliases=["cargo", "cradle", "c-01", "restraints"],
+    )
+    if not cradle.db.desc:
+        cradle.db.desc = "Mechanical freight lashings on a twelve-cell frame."
+
+    scrubber = _ensure(
+        "atmosphere-scrubber",
+        "typeclasses.departments.AtmosphereScrubber",
+        "Atmosphere Scrubber A-01",
+        location=environmental,
+        aliases=["scrubber", "a-01", "atmosphere"],
+    )
+    if not scrubber.db.desc:
+        scrubber.db.desc = "A replaceable-cartridge atmosphere processing unit."
+
+    operations = _ensure(
+        "panel-operations",
+        "typeclasses.departments.OperationsConsole",
+        "Operations Console",
+        location=bridge,
+        aliases=["operations", "ops"],
+    )
+    duties = _ensure(
+        "board-duties",
+        "typeclasses.departments.DutyBoard",
+        "Department Duty Board",
+        location=passage,
+        aliases=["duties", "task board"],
+    )
+
     crew_spec = (
         (
             "crew-chief",
@@ -154,6 +225,22 @@ def build_ship() -> dict[str, object]:
             "Bridge watch; navigation and ship systems",
             "00:00–08:00",
         ),
+        (
+            "crew-cargo",
+            "Cargo Officer Mara Voss",
+            cargo,
+            "cargo_officer",
+            "Freight restraint inspection and load certification",
+            "Cargo duty",
+        ),
+        (
+            "crew-environment",
+            "Technician Teo Hale",
+            environmental,
+            "environment_tech",
+            "Atmospheric servicing and cartridge replacement",
+            "Environmental duty",
+        ),
     )
     members = {}
     for marker, key, room, role, duty, watch in crew_spec:
@@ -176,10 +263,20 @@ def build_ship() -> dict[str, object]:
         "bridge": bridge,
         "passage": passage,
         "engineering": engineering,
+        "cargo_hold": cargo,
+        "environmental": environmental,
+        "mess": mess,
+        "workshop": workshop,
         "pump": pump,
+        "cradle": cradle,
+        "scrubber": scrubber,
+        "operations": operations,
+        "duties": duties,
         "console": console,
         "roster": roster,
         "chief": members["crew-chief"],
         "watch": members["crew-watch"],
         "officer": members["crew-bridge"],
+        "cargo": members["crew-cargo"],
+        "environment": members["crew-environment"],
     }
