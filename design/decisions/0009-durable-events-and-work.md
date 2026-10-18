@@ -1,6 +1,9 @@
 # ADR 0009 — World events, work obligations, and crash safety
 
-**Status:** Proposed (18 October 2026). This records the design direction only; code remains P4e until a passing implementation PR merges.
+**Status:** Accepted; incrementally implemented (18 October 2026).
+The world event journal, global work receipts and restartable pump stages
+have merged. General world work orders, private agendas, all-action
+handler recovery and concurrent-writer guarantees remain future work.
 
 ## Decision
 
@@ -23,6 +26,23 @@ World-owned `WorkOrder` records represent externally assigned obligations. The p
 ## Compatibility and rollout
 
 Preserve three-crew/old command regressions. Stage additive migrations with an idempotent import of old P-01 private events and explicit verification. Maintain a reversible pre-cutover snapshot. Introduce indexed Django tables for event and receipt history if transaction/isolation tests prove appropriate. Run PostgreSQL contention tests before promising concurrent writer safety.
+
+## Implementation evidence
+
+- [PR #22](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/22):
+  indexed world-owned `CrewEvent`, authenticated paged replay, safe
+  migration, committed-only delivery and per-actor handler observation cursors.
+- [PR #23](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/23):
+  global typed `WorkReceipt`, authenticated `oxwork` and
+  `oxworkreceipt`, equipment and bounded social-effect deduplication.
+- [PR #24](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/24):
+  private durable `WorkStepLedger` integrated into five pump-cycle
+  stages and tested with seven independent handler process starts.
+
+The original legacy `oxaction` paths remain supported. This ADR is not
+a claim that all existing social/specialist procedures use the new ledger;
+the remaining G1 acceptance and PostgreSQL resource contention work is
+tracked in [the roadmap](../ROADMAP.md).
 
 ## Validation
 
