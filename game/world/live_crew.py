@@ -6,6 +6,8 @@ Physical operations remain in CoolingPump; private events are world-owned.
 """
 from __future__ import annotations
 
+import json
+
 from evennia.utils import gametime
 from world.bootstrap import build_ship, find_fixture
 
@@ -29,7 +31,9 @@ def emit(pump, recipient, kind: str, *, sender=None, data=None, text="") -> dict
     }
     items.append(event)
     pump.db.ox_private_events = items
-    recipient.msg(ox_event=([event], {}))
+    # Nested dicts are lossy in the Evennia Portal/Server OOB scrubber.
+    # Transmit the scoped event as one serialized JSON positional argument.
+    recipient.msg(ox_event=([json.dumps(event, sort_keys=True)], {}))
     return event
 
 
