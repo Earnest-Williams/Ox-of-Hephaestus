@@ -113,11 +113,15 @@ The old provisional PR 25 is implemented in two real PRs: [#35](https://github.c
 
 ## G3: Cooperative shipboard operations
 
-### PR 26 — inventory, ownership and atomic handoff
-**Dependency:** PRs 22, 25. World-owned items, quantities, locations, carriers, reservations and real scarcity; idempotent move/transfer/consume receipts. **Acceptance:** two actors contest the final cartridge; no double consumption, duplication or loss across crash.
+### G3a / G3b — character epistemics and authoritative inventory (merged PRs #38–39)
 
-### PR 27 — interdepartment work orders and dependencies
-**Dependency:** PR 26. Authenticated requests, assignment, acceptance, completion evidence, escalations and handoff. **Acceptance:** Teo requests a cartridge, Mara fetches and delivers it, Teo resumes maintenance, and a competing coolant emergency interrupts without deleting either responsibility.
+[PR #38](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/38) establishes per-character open-world observations, beliefs, explicit unanswered questions and retrospective surprises. [PR #39](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/39) implements physical serialized cartridges, real carriers, actor-local stock evidence, and a bounded supply order with globally typed idempotent request/accept/collect/deliver commands. Two orders cannot consume the same last item. These are narrower than the provisional generalized inventory/order PR 26–27 language. [Epistemics](prototypes/g3-epistemics.md) · [Inventory](prototypes/g3-inventory.md).
+
+### G3c — real world-receipted Teo/Mara delivery (PR #40)
+
+[PR #40](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/40) connects those world contracts to the five-crew supervisor: Teo's world-verified shortage triggers a real request, Mara receives an independently addressed assignment, physically inspects/collects and navigates an actual item, then Teo verifies real delivery and resumes repair. A lost delivery acknowledgment is reconciled with the SAME persisted ID across handler and Evennia restart. This is an opt-in bounded single-order vertical slice, **not** general multi-order coordination. [Design](prototypes/g3-cooperation.md).
+
+Generalised work orders, deadline escalation, cross-department prioritisation under simultaneously urgent incidents, reservation expiry and use-based skills remain later G3 increments.
 
 ### PR 28 — continuous skills and evidence
 **Dependency:** PRs 22, 27. World-owned competency vectors, bounded practice/learning tied to verified consequential receipts, task difficulty, novelty and actual contribution; distinguish skill from role and authorization. **Acceptance:** proficiency changes through real work, not repeated IDs or meaningless repetitions; skilled actors still need permission.

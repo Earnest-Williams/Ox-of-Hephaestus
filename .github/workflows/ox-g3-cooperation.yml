@@ -1,0 +1,170 @@
+name: Ox G3 real crew cartridge cooperation and lost-ACK recovery
+
+on:
+  pull_request:
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-g3-cooperation.yml"
+  push:
+    branches: [main]
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-g3-cooperation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  physical-crew-handoff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install actual Evennia, Concordia and authenticated transport
+        run: |
+          python -m pip install .
+          python -m pip install -e './services/ai-handler[concordia,transport]'
+          python -m compileall -q game services/ai-handler/src
+      - name: Generate disposable ordinary crew credentials
+        shell: bash
+        run: |
+          TOKEN="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          OWNER="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          echo "::add-mask::$TOKEN"
+          echo "::add-mask::$OWNER"
+          echo "OX_PROBE_PASSWORD=$TOKEN" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_PASSWORD=$OWNER" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_USERNAME=OxSupplyTrial" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_EMAIL=supply@example.invalid" >> "$GITHUB_ENV"
+      - name: Create world shortage, genuine cargo unit and nonprivileged crew
+        working-directory: game
+        run: |
+          evennia migrate --noinput
+          evennia shell --command="from world.transport_probe import provision; ids=provision(include_specialists=True); from world.live_crew import fixture_setup; fixture_setup(scheduled_clock=True); from world.bootstrap import build_ship; from world.supply import seed_disposable_cargo_cartridges; s=build_ship(); assert s['scrubber'].inject_fault()[0]; s['scrubber'].db.spare_cartridges=0; serial,=seed_disposable_cargo_cartridges(count=1); assert s['environment'].location==s['environmental'] and s['cargo'].location==s['cargo_hold']; print('OX_G3_ONE_PHYSICAL_CARGO_CARTRIDGE',serial)"
+      - name: Boot real service and connect five independent clients
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd game && evennia start)
+          python - <<'PY'
+          import socket,time
+          for attempt in range(90):
+              try:
+                  with socket.create_connection(("127.0.0.1",4002),timeout=1):
+                      break
+              except OSError:
+                  time.sleep(1)
+          else:
+              raise RuntimeError("Ordinary crew portal unavailable")
+          PY
+          sleep 4
+      - name: Teo inspects local zero, records known unknown and requests actual order
+        run: |
+          python -m ox_ai.runtime.supply_trial request
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          st=json.loads(Path(".ox-state/p4e-supervisor.json").read_text())
+          job=st["specialist_jobs"]["teo"]
+          assert job and job["deferred"] and job["index"]==3,job
+          order=st["g3_supply"]
+          assert order["work_steps"]["request"]["status"]=="succeeded",order
+          assert st["epistemics"]["teo"]["questions"]["cargo.reserve"]["status"]=="open"
+          assert st["epistemics"]["teo"]["observations"]["scrubber.spares"]["value"]==0
+          assert "cargo.reserve" not in st["epistemics"]["mara"]["observations"]
+          print("OX_G3_TEOS_KNOWN_UNKNOWN_NO_PSYCHIC_CARGO_COUNT")
+          PY
+      - name: Mara accepts, physically collects and delivers while ACK is lost
+        run: |
+          python -m ox_ai.runtime.supply_trial drop-delivery-ack
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          st=json.loads(Path(".ox-state/p4e-supervisor.json").read_text())
+          steps=st["g3_supply"]["work_steps"]
+          assert [steps[x]["status"] for x in ("request","accept","collect")]==["succeeded"]*3
+          assert steps["deliver"]["status"]=="prepared",steps
+          assert not st["g3_supply"]["delivered"]
+          assert st["epistemics"]["mara"]["observations"]["cargo.reserve"]["value"]==1
+          print("OX_G3_ORIGINAL_DELIVERY_ID_PERSISTED",steps["deliver"]["request_id"])
+          PY
+      - name: Restart Evennia between physical commit and ACK reconciliation
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd game && evennia stop)
+          (cd game && evennia start)
+          python - <<'PY'
+          import socket,time
+          for attempt in range(90):
+              try:
+                  with socket.create_connection(("127.0.0.1",4002),timeout=1):
+                      break
+              except OSError:
+                  time.sleep(1)
+          else:
+              raise RuntimeError("Restarted world unavailable")
+          PY
+          sleep 4
+      - name: Reconcile same delivery ID and let Teo consume genuinely arrived unit
+        run: |
+          python -m ox_ai.runtime.supply_trial finish
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          st=json.loads(Path(".ox-state/p4e-supervisor.json").read_text())
+          g=st["g3_supply"]
+          assert g["delivered"] and g["completed"],g
+          assert all(g["work_steps"][k]["status"]=="succeeded"
+                     for k in ("request","accept","collect","deliver")),g
+          assert st["specialist_jobs"]["teo"] is None,st
+          assert [x["role"] for x in st["specialist_completed"]]==["teo"]
+          epistemics=st["epistemics"]
+          assert epistemics["mara"]["observations"]["cargo.reserve"]["value"]==1
+          # Mutable present stock may be zero after maintenance, while
+          # distinct immutable historical delivery evidence remains.
+          receipt=epistemics["teo"]["observations"]["scrubber.verified_delivery"]
+          assert receipt["value"].startswith("oxitem-") and receipt["source"]=="world_local",receipt
+          latest=epistemics["teo"]["observations"]["scrubber.spares"]
+          assert latest["value"]==0,latest
+          print("OX_G3_EVIDENCE_SEPARATE_FROM_RUMOR_AND_REPLACEMENT_VERIFIED")
+          PY
+      - name: Stop real server for independent authoritative world verdict
+        if: always()
+        working-directory: game
+        run: evennia stop || true
+      - name: Verify zero duplication, same serial, private journal and world receipts
+        working-directory: game
+        run: |
+          evennia shell --command="from world.bootstrap import build_ship; from world.models import InventoryItem,SupplyOrder,WorkReceipt; from world.event_journal import inbox; s=build_ship(); a=s['scrubber']; items=list(InventoryItem.objects.all()); orders=list(SupplyOrder.objects.all()); assert len(items)==1 and items[0].state=='consumed' and items[0].consumed_by_dbref==s['environment'].dbref; assert len(orders)==1 and orders[0].status=='delivered' and orders[0].item_id==items[0].item_id; assert a.state=='nominal' and a.db.spare_cartridges==0; assert [e['operation'] for e in a.db.event_history]==['saturate','isolate','replace','restart']; assert WorkReceipt.objects.filter(target='inventory').count()==4; replacements=WorkReceipt.objects.filter(target='scrubber',operation='replace'); assert sorted(e.outcome['status'] for e in replacements)==['failed','succeeded']; assert s['cargo'].location==s['environmental'] and s['environment'].location==s['environmental']; assert [e['kind'] for e in inbox(s['environment'])].count('supply_replenished')==1; assert [e['kind'] for e in inbox(s['cargo'])].count('supply_request')==1; assert all(not e['kind'].startswith('supply_') for e in inbox(s['watch'])); print('OX_G3_REAL_ITEM_AND_RESTART_COOPERATION_PASS')"
+      - name: Attach scoped trial evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-g3-real-cooperation
+          path: |
+            .ox-state/g3-supply-report.json
+            .ox-state/p4e-supervisor.json
+          retention-days: 7
+          if-no-files-found: ignore
+
+  private-knowledge-gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify separate recipient evidence and actor-bound handoff
+        run: |
+          python -m pip install -e ./services/ai-handler
+          python -m compileall -q services/ai-handler/src services/ai-handler/tests
+          python -m unittest discover -s services/ai-handler/tests -p 'test_cooperative_supply.py' -v
+          python -m unittest discover -s services/ai-handler/tests -p 'test_epistemics.py' -v

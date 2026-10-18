@@ -9,6 +9,31 @@ ACK across a handler restart. This is **not** deployed production software
 or proof of unconstrained multi-agent intelligence.
 [Current status](../../design/STATUS.md).
 
+## G3 actor knowledge and real interdepartment supply (PRs #38–40)
+
+Each of five minds has a persistent private epistemic ledger distinguishing
+time-scoped world observations from beliefs and source testimony, explicit
+known unknowns, unmodeled gaps, and world-evidenced retrospective surprises.
+Absence of an observation is never automatically zero or false.
+
+The world now owns serialised physical cartridge stock and supply orders.
+An ordinary oxinventory command reveals only the authenticated actor's
+local observable stock, carried items and Evennia timestamp (null means
+unverified). Real global WorkReceipt operations request_supply,
+accept_supply, collect_supply and deliver_supply move a single physical
+item through Mara's own carrier and local station, and only A-01 physically
+consumes it in the end.
+
+The optional five-crew cooperative dispatcher makes Teo and Mara reason and
+act separately using individually addressed events and world readings.
+Enable with OX_G3_COOPERATIVE_SUPPLY=1 when launching five_crew_service
+serve. The real cross-restart acceptance trial uses
+ox_ai.runtime.supply_trial request, drop-delivery-ack and finish modes.
+No browser UI or general-purpose hiring/inventory economy has been added.
+[Epistemics](../../design/prototypes/g3-epistemics.md) ·
+[Supply model](../../design/prototypes/g3-inventory.md) ·
+[Cooperation](../../design/prototypes/g3-cooperation.md).
+
 ## G2c local capability discovery and GOAP ship travel (PRs #35–36)
 
 `ox_ai.ports.evennia.capabilities.CapabilityPort` asks the **world** for

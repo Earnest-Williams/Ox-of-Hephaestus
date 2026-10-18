@@ -16,7 +16,6 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-import re
 import uuid
 from pathlib import Path
 import sys
@@ -26,6 +25,7 @@ from ox_ai.agents.live_concordia import LiveCrewBrain, make_model
 from ox_ai.ports.base import ActionOutcome
 from ox_ai.ports.evennia.client import EvenniaWebSocketClient
 from ox_ai.ports.evennia.durable import DurableEvenniaPort
+from ox_ai.ports.evennia.inventory import InventoryPort
 from ox_ai.runtime.work_steps import WorkStepLedger, SimulatedWorkInterruption
 from ox_ai.runtime.crew_agenda import AgentAgenda, ACTIVE, WAITING
 from ox_ai.runtime.epistemics import AgentEpistemics
@@ -359,18 +359,20 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
                 reading = await client.expect_text(HEADERS[role], timeout=12)
                 brain.observe_local("Local specialist equipment inspection", reading)
                 if role == "teo":
-                    found = re.search(r"Local spare cartridges:\s*([0-9]+)\.", reading)
-                    if found is not None:
-                        # This numerical fact is derived ONLY from an
-                        # authenticated local sensor response. It is a timed
-                        # observation, not permanent knowledge or hearsay.
+                    # The earlier text readout does NOT include a world
+                    # timestamp, so using the brain's last event time would
+                    # misdate subsequent inspections. Query the separately
+                    # typed, authenticated LOCAL stock port for both amount
+                    # and actual source-world game time instead.
+                    snapshot = await InventoryPort(client).observe()
+                    if snapshot.local_cartridges is not None:
                         self.epistemics[role].observe_verified(
-                            "scrubber.spares", int(found.group(1)),
-                            evidence_id="localread-" + uuid.uuid4().hex,
-                            at=brain._game_time, valid_for=0,
+                            "scrubber.spares", snapshot.local_cartridges,
+                            evidence_id="worldinv-" + uuid.uuid4().hex,
+                            at=snapshot.game_time, valid_for=0,
                             source="world_local",
                         )
-                        if int(found.group(1)) == 0:
+                        if snapshot.local_cartridges == 0:
                             self.epistemics[role].ask(
                                 "scrubber.next_restock_at",
                                 reason="No actual future delivery has been confirmed",
@@ -538,20 +540,34 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
             return True
         return False
 
+    async def _maybe_supply_cooperation(self) -> bool:
+        """Opt-in bounded multi-actor handoff; preserves legacy world trials."""
+        if os.getenv("OX_G3_COOPERATIVE_SUPPLY", "0") != "1":
+            return False
+        from ox_ai.runtime.cooperative_supply import CooperativeSupply
+        coordinator = CooperativeSupply(self)
+        if coordinator.record is not None and coordinator.record["completed"]:
+            return False
+        result = await coordinator.advance()
+        return result in ("requested", "completed", "teo_work_in_progress")
+
     async def service_departments(self) -> bool:
-        """Choose from actual per-agent agendas, not a fixed crew ordering."""
+        """Choose actual duties, then consider blocked real supply dependencies."""
         for role in EXTRA_ACCOUNTS:
             await self._start_job(role)
         candidates = self._ready_specialists()
         if not candidates:
-            return False
+            return await self._maybe_supply_cooperation()
         role, urgent = candidates[0]
         for other, task in candidates[1:]:
             if self.agendas[other].interrupt(
                 task["task_id"], urgent=urgent,
             ):
                 self.checkpoint()
-        return await self._advance_job(role, allow_preemption=True)
+        progressed = await self._advance_job(role, allow_preemption=True)
+        if not progressed:
+            return await self._maybe_supply_cooperation()
+        return progressed
 
 
 async def run(mode: str) -> None:
