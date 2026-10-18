@@ -9,6 +9,7 @@ native Concordia state and reconcile outstanding requests after restoration.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from copy import deepcopy
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 import json
@@ -78,6 +79,9 @@ class CrewAgent:
         from concordia.components.agent import observation
 
         self.identity = identity
+        # Kept only inside this mind; cloned snapshots can use the same model
+        # backend without sharing observations or mutable Concordia components.
+        self._model = model
         if blueprint is not None:
             from ox_ai.agents.crew_blueprints import CrewBlueprint
             if not isinstance(blueprint, CrewBlueprint):
@@ -196,6 +200,62 @@ class CrewAgent:
             text=observation.text,
         )
         return True
+
+    def fork_for_inference(self) -> CrewAgent:
+        """Detached copy of cognition state; no live pending world intents.
+
+        Construct the fork on the event loop before scheduling the expensive
+        model invocation in a thread. Only the fork is mutated in the worker.
+        """
+        fork = CrewAgent(self.identity, self._model, blueprint=self.blueprint)
+        fork._entity.set_state(deepcopy(self._entity.get_state()))
+        fork._revision = self._revision
+        fork._seen_observations = set(self._seen_observations)
+        fork._last_game_time = self._last_game_time
+        return fork
+
+    def adopt_inference(
+        self, fork: CrewAgent, draft: ActionRequest,
+        offered: Sequence[CommandOption], *, expected_revision: int,
+    ) -> ActionRequest:
+        """Commit a validated *proposal* from a snapshot, never a world effect.
+
+        Called synchronously on the live agent's event-loop owner after a
+        bounded off-thread inference. Invalid/stale results cannot enter the
+        pending request ledger or overwrite newer observations.
+        """
+        if (not isinstance(fork, CrewAgent) or fork is self
+                or fork.identity != self.identity or fork.blueprint != self.blueprint):
+            raise PermissionError("Detached inference belongs to another person")
+        if self._revision != expected_revision or fork.revision != expected_revision:
+            self._record("stale_decision_discarded", inferred_revision=expected_revision)
+            raise StaleAgentRevision("World observation changed during cognition")
+        if (not isinstance(draft, ActionRequest)
+                or draft.character_id != self.identity.character_id
+                or draft.agent_revision != expected_revision
+                or fork._pending.get(draft.request_id) != draft
+                or draft.request_id in self._pending):
+            raise PermissionError("Unbound or previously adopted inference proposal")
+        # The model may only select a command in the original supplied menu.
+        if not any(
+            x.verb == draft.verb and x.target == draft.target
+            and dict(x.arguments) == dict(draft.arguments)
+            for x in offered
+        ):
+            raise PermissionError("Inferred action not in the finite offered menu")
+        # No suspension between the revision gate and state/proposal adoption.
+        # Preserve any native Concordia act-state evolution on successful work.
+        self._entity.set_state(fork._entity.get_state())
+        self.usage.choice_calls += fork.usage.choice_calls
+        self.usage.text_calls += fork.usage.text_calls
+        self._pending[draft.request_id] = draft
+        self._record(
+            "action_proposed", request_id=draft.request_id,
+            verb=draft.verb, target=draft.target,
+            model_requests=fork.usage.total_calls,
+            inference_mode="detached",
+        )
+        return draft
 
     def decide(
         self,
