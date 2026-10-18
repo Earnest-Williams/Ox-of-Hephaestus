@@ -13,6 +13,7 @@ from pathlib import Path
 import uuid
 
 from ox_ai.agents.crew import CommandOption, CrewAgent, CrewIdentity
+from ox_ai.agents.crew_blueprints import CrewBlueprint
 from ox_ai.ports.base import ActionOutcome, ActionRequest, WorldObservation
 
 
@@ -65,14 +66,20 @@ class LiveCrewBrain:
     def __init__(
         self, role: str, character_dbref: str, model,
         *, journal_path: Path | None = None,
+        blueprint: CrewBlueprint | None = None,
     ) -> None:
         if role not in ROLES:
             raise ValueError("Unknown crew assignment")
         name, duty, goal = ROLES[role]
+        if blueprint is not None:
+            if not isinstance(blueprint, CrewBlueprint):
+                raise TypeError("Expected validated CrewBlueprint")
+            name = blueprint.name
         self.role = role
         self.agent = CrewAgent(
             CrewIdentity(
-                agent_id=f"ox.live.{role}",
+                agent_id=(f"ox.person.{blueprint.person_id}" if blueprint is not None
+                          else f"ox.live.{role}"),
                 character_id=character_dbref,
                 name=name,
                 duty=duty,
@@ -80,6 +87,7 @@ class LiveCrewBrain:
             ),
             model,
             journal_path=journal_path,
+            blueprint=blueprint,
         )
         self._game_time: float = 0.0
 
@@ -184,8 +192,13 @@ class LiveCrewBrain:
         """Restore native Concordia state without replaying unknown actions."""
         restored = cls(role, character_dbref, model)
         restored.agent = CrewAgent.from_checkpoint(path, model)
+        restored_blueprint = restored.agent.blueprint
+        expected_id = (f"ox.person.{restored_blueprint.person_id}"
+                       if restored_blueprint is not None else f"ox.live.{role}")
         if (restored.agent.identity.character_id != character_dbref
-                or restored.agent.identity.agent_id != f"ox.live.{role}"):
+                or restored.agent.identity.agent_id != expected_id
+                or restored.agent.identity.duty != ROLES[role][1]
+                or restored.agent.identity.goal != ROLES[role][2]):
             raise PermissionError("Checkpoint cannot control a different identity")
         restored._game_time = float(restored.agent.snapshot()["last_game_time"] or 0)
         return restored
@@ -194,6 +207,7 @@ class LiveCrewBrain:
 def build_live_brains(
     ids: Mapping[str, str], *, provider: str | None = None,
     journal_dir: Path | None = None,
+    blueprints: Mapping[str, CrewBlueprint] | None = None,
 ) -> dict[str, LiveCrewBrain]:
     """Construct independent models/entities; not one shared omniscient actor."""
     # Historical P4a trials provision three accounts. The P4e supervisor
@@ -203,10 +217,16 @@ def build_live_brains(
     if (set(ids) not in (legacy, set(ROLES))
             or len(set(ids.values())) != len(ids)):
         raise ValueError("Requires three legacy or five distinct crew identities")
+    blueprints = {} if blueprints is None else dict(blueprints)
+    if (not set(blueprints).issubset(ids)
+            or any(not isinstance(p, CrewBlueprint) for p in blueprints.values())
+            or len({p.person_id for p in blueprints.values()}) != len(blueprints)):
+        raise ValueError("Profiles must be unique and match authorised crew slots")
     return {
         role: LiveCrewBrain(
             role, str(ids[role]), make_model(provider),
             journal_path=(journal_dir / f"{role}.jsonl") if journal_dir else None,
+            blueprint=blueprints.get(role),
         )
         for role in ids
     }
