@@ -33,6 +33,22 @@ jobs:
         working-directory: game
         run: evennia migrate
 
+      - name: Initialize first-run Evennia owner and ship (no model call)
+        working-directory: game
+        shell: bash
+        run: |
+          set -o pipefail
+          # Evennia's launcher insists on Account #1 before "evennia shell".
+          # On a headless Actions runner it otherwise retries the interactive
+          # createsuperuser command indefinitely and raises RecursionError.
+          # This random password exists only in this disposable job step.
+          export EVENNIA_SUPERUSER_USERNAME=OxTrialOwner
+          export EVENNIA_SUPERUSER_EMAIL=ox-trial@example.invalid
+          export EVENNIA_SUPERUSER_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(36))')"
+          mkdir -p ../.ox-state
+          evennia shell --command="from world.bootstrap import build_ship; ship = build_ship(); assert ship['pump']; print('OX_SHIP_BOOTSTRAP_READY')" | tee ../.ox-state/bootstrap.log
+          grep -Fq 'OX_SHIP_BOOTSTRAP_READY' ../.ox-state/bootstrap.log
+
       - name: Let Ari attempt the real pump repair with Gemini
         working-directory: game
         shell: bash
@@ -61,6 +77,7 @@ jobs:
         with:
           name: ox-gemini-pump-trial
           path: |
+            .ox-state/bootstrap.log
             .ox-state/gemini-pump.jsonl
             .ox-state/gemini-console.log
           if-no-files-found: ignore
