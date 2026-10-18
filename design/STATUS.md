@@ -17,6 +17,8 @@ feature inventories.
 | P3c — three live crew characters | Tested and merged | [PR #12](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/12); radio, inspection, safety approval, handover on real Evennia |
 | P4a — native Concordia across three live crew | Tested and merged | [PR #13](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/13); per-character Concordia entities, finite decisions, MockModel used in CI |
 | P4b — ongoing watch supervisor and repeated incident | Tested and merged | [PR #14](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/14); Evennia duty Script, changed active engineer, two real pump incidents, two-process recovery |
+| P4c — unattended event dispatch and player hails | Tested and merged | [PR #16](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/16); one continuous supervisor processes pump repair, world-timed watch handover and an addressed human hail |
+| P4d — specialist ship departments | Tested in P4d CI / PR pending merge | [PR #17](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/17); seven compartments, cargo and atmosphere state machines, five persistent crew bodies, authority and inventory tests |
 | P5 — browser observatory | **Deferred / not built** | No browser UI, joined handler/world API, or operator dashboard |
 
 **Naming note:** the original Prototype 1 plan used “P4” for the first
@@ -34,9 +36,10 @@ The full focused CI suite passed on `main` following PR #14.
 
 ## What the prototype does today
 
-- **Evennia** owns the three-room ship, P-01 pump, the roster, engineering
-  access, role-local readouts, alarms, private recipient-specific events,
-  authoritative event timestamps and physical action receipts.
+- **Evennia** owns the seven-room ship, three stateful physical systems
+  (cooling P-01, cargo restraints C-01 and atmospheric scrubber A-01),
+  the roster, role-local readouts, alarms, private recipient-specific events,
+  authoritative timestamps and validated physical effects.
 - **One external handler** can connect as three separately authenticated
   characters (Ari, Lin, Iona) through ordinary Evennia WebSocket sessions.
   Each character has its own native Concordia state, observations, choice
@@ -44,10 +47,10 @@ The full focused CI suite passed on `main` following PR #14.
 - **Deterministic GOAP** plans familiar equipment operations; Concordia
   chooses bounded, explicitly offered actions. Evennia alone executes
   permitted actions and supplies the confirmed physical outcome.
-- **P4b's `serve` entry point** runs an event-driven watch supervisor in a
-  separate process. An Evennia Script determines when the initial handover is
-  due. An interrupted isolation can be reconciled by world request ID.
-  The supervisor does not call an LLM on idle cycles.
+- **P4c's `serve` entry point** runs the independent event-driven supervisor.
+  It handles pump alarms, the initial world-timed watch handover and addressed
+  human hails. An interrupted pump isolation can be reconciled by world
+  request ID. Idle operation does not require model polling.
 - After the handover, **Iona** is the active engineer and **Ari** is the
   separately authorised safety reviewer. Iona cannot certify her own
   commissioning. The first incident has the reverse arrangement.
@@ -59,16 +62,20 @@ The full focused CI suite passed on `main` following PR #14.
   single-engineer Gemini trial succeeded, but unconstrained multi-agent
   negotiation, novel diagnosis and language-based coordination are not
   validated by these workflows.
-- The ship is a **small proving-ground**: three compartments, a pump,
-  telemetry, roster and three crew. Cargo systems, propulsion, broader
-  crew professions, use-based progression and the larger bulk freighter
-  remain design goals.
+- This remains a **small proving-ground**, even with seven compartments
+  and five crew bodies. Mara (cargo) and Teo (environmental) are present
+  as ordinary world characters but not yet Concordia entities. C-01
+  and A-01 are locally actionable state machines, not general freight
+  commerce or high-fidelity life support. Propulsion, skill-by-use
+  progression, wider schedules and the full freighter remain future work.
 - `serve` is a runnable runtime, **not a hosted deployment or a system
   service**. A disposable CI trial demonstrates two incidents and one
   unknown-isolation recovery; no long-duration soak test or production
   operations guarantee exists.
-- Equipment commands have durable, actor-bound receipts. Not every social
-  command is an idempotent, crash-transactional operation. Arbitrary
+- **P-01 equipment** commands have durable, actor-bound receipts.
+  The new cargo and atmosphere verbs have physical journals but not yet
+  an AI-ready generic receipt/recovery protocol. Not every social
+  command is idempotent or crash-transactional. Arbitrary
   mid-scene service restarts must fail closed until reconciliation logic is
   added; they are not proven to resume every obligation automatically.
 - Development account provisioning uses a **disposable three-bot fixture**
@@ -82,7 +89,8 @@ The full focused CI suite passed on `main` following PR #14.
 - [AI-handler runtime and tests](../services/ai-handler/README.md)
 - [Architecture and authority boundaries](../ARCHITECTURE.md)
 - [Prototype 1 gates](prototypes/01-autonomous-crew.md)
-- [P4a](prototypes/p4a-live-cognition.md) and [P4b](prototypes/p4b-autonomous-watch.md)
+- [P4a](prototypes/p4a-live-cognition.md), [P4b](prototypes/p4b-autonomous-watch.md)
+  and [P4d departments](prototypes/p4d-ship-departments.md)
 - [Archived P2 test scenarios](../scenarios/shift_handover/README.md) and
   [cooling fault](../scenarios/coolant_fault/README.md)
 
