@@ -95,7 +95,7 @@ jobs:
           expected="blocked" if mode=="blocked" else "arrived"
           assert result["status"]==expected, result
           assert result["inference_calls"]==0, result
-          assert result["world_actions_submitted"]==0, result
+          assert result["equipment_work_submissions"]==0, result
           if mode=="direct":
               assert result["traversed_exits"]==["out","engineering"], result
           elif mode=="reroute":
@@ -183,4 +183,19 @@ jobs:
       - name: Verify actual world position, finite cartridge count and receipts
         working-directory: game
         run: |
-          evennia shell --command="from world.bootstrap import build_ship; from world.models import WorkReceipt; s=build_ship(); a=s['scrubber']; assert s['environment'].location==s['environmental']; assert a.state=='nominal' and a.db.spare_cartridges==1; assert [e['operation'] for e in a.db.event_history]==['saturate','isolate','replace','restart']; assert WorkReceipt.objects.filter(target='scrubber').count()==3; assert s['pump'].state=='normal' and s['cradle'].state=='secured'; print('OX_G2_SPECIALIST_NAVIGATION_PHYSICAL_RECEIPTS_PASS')"
+          evennia shell --command="from world.bootstrap import build_ship; from world.models import WorkReceipt; s=build_ship(); a=s['scrubber']; assert s['environment'].location==s['environmental']; assert a.state=='nominal' and a.db.spare_cartridges==1; assert [e['operation'] for e in a.db.event_history]==['saturate','isolate','replace','restart']; assert WorkReceipt.objects.filter(target='scrubber').count()==3; assert s['pump'].state=='low_pressure' and [e['operation'] for e in s['pump'].db.event_history]==['fault'] and s['cradle'].state=='secured'; print('OX_G2_SPECIALIST_NAVIGATION_PHYSICAL_RECEIPTS_PASS')"
+
+  physical-crew-presence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install the real game and test persistent character location on logout
+        run: |
+          python -m pip install .
+          python -m compileall -q game
+          cd game
+          python -m world.test_runner world.tests.test_crew_presence --verbosity=2

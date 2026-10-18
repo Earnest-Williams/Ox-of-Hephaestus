@@ -73,6 +73,16 @@ fails without sending physical work. No database is read from the handler.
 - All earlier Evennia, Concordia, PostgreSQL and recovery workflows run
   against the final code commit before merge.
 
+## Persistent physical crew on disconnect
+
+Upstream Evennia's DefaultCharacter ordinarily stows an unpuppeted body at
+`location=None` until reconnect. Ox's `CrewCharacter.at_post_unpuppet`
+instead preserves the actual room and remembers it across agent socket logout.
+Disconnecting a handler must not make the crew physically vanish or reset
+someone to their original workstation when they reconnect. Dedicated
+Evennia tests and the authenticated cross-session trial verify this.
+Puppeting permissions and world authority are unchanged.
+
 ## Explicit limits
 
 No omniscient long-distance map, autonomous mission selection, item handling,

@@ -29,6 +29,11 @@ preceded and followed by fresh world observations. Closed/stale exits are
 excluded for that run; if no route can be found, the character remains
 blocked without movement shortcuts or remote equipment operations.
 
+Shipboard `CrewCharacter` overrides stock Evennia's unpuppet storage.
+Disconnected AI or player sessions do not remove a crew person from the
+physical world; locations persist for other observers and on re-puppet.
+This makes a handler restart independent of a physical crew position.
+
 The live supervisors use this mechanism to verify engineering and
 specialist duty-station access before local work. A private map is not an
 authoritative location; restarts begin with a real local observation.

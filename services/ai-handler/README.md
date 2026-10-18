@@ -23,6 +23,10 @@ Live engineering and department work now explicitly verify that the assigned
 character can travel to the relevant station. Unreachable locations
 stop physical work; maps are private role-bound additive supervisor state.
 
+The physical `CrewCharacter` now remains at its last authoritative
+world location across a handler disconnection, instead of stock Evennia's
+offstage storage. This does not grant commands or movement permissions.
+
 A disposable real-server acceptance run:
 
     python -m ox_ai.runtime.navigation_trial direct

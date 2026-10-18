@@ -43,7 +43,7 @@ async def run(mode: str) -> dict:
             "actor_dbref": actor_id,
             "inference_calls": brain.inference_calls,
             "known_rooms": len(navigator.knowledge.rooms),
-            "world_actions_submitted": 0,
+            "equipment_work_submissions": 0,
         }
         atomic_json(ROOT / "g2c-navigation-result.json", report)
     print("OX_G2C_NAVIGATION_RESULT", json.dumps(report, sort_keys=True))
