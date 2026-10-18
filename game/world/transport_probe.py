@@ -28,7 +28,7 @@ def provision() -> dict[str, str]:
     for key, ship_key, username in CREW:
         if AccountDB.objects.filter(username__iexact=username).exists():
             raise RuntimeError("Refusing to replace an existing crew account")
-        account = create_account(username, password=password)
+        account = create_account(username, email=username.lower() + '@example.invalid', password=password)
         if account is None:
             raise RuntimeError("Unable to provision non-privileged account")
         char = ship[ship_key]
