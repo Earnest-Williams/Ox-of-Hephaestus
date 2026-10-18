@@ -19,6 +19,8 @@ class WorldObservation:
     game_time: float
     text: str
     source_event_id: str | None = None
+    kind: str = "text"
+    data: Mapping[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)

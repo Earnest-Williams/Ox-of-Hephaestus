@@ -1,6 +1,6 @@
 # Prototype 1 — Autonomous Crew
 
-**Status:** P0 merged and CI-green. P1 native Concordia entity integration has passed dedicated CI. A playable three-compartment Evennia fixture and a short-lived, **in-process** Concordia-controlled repair harness are on the open PR; P2–P5 remain incomplete because there is no independently running external handler or demonstrated unscripted multi-agent coordination.
+**Status:** P0 scaffold and P1 Concordia lifecycle are tested. Gemini and GOAP have each restored a real Evennia pump. P2 now includes a deterministic, event-driven, three-crew watch-handover mock with isolated memories and request reconciliation. The complete P2 fault-coordination gate, P3 external transport and P5 observer remain incomplete.
 
 ## Aim
 
@@ -44,6 +44,25 @@ Concordia's interrupt-driven Game Master can run the mock scenario, but it must 
 ## Preparatory game fixture (not a completed integration gate)
 
 The standalone [`game/`](../../game/README.md) test ship gives us real Evennia compartments and pump mechanics before hooking up the agents: bridge, passage, engineering, three idle NPC characters, a status console, a static watch roster and persistent pump state. It is populated once at initial startup (or through an idempotent manual bootstrap) and verified by separate SQLite-backed CI tests. A [local in-process trial](../../game/README.md#experiment-can-an-ai-engineer-physically-fix-p-01) now passes proposed Concordia commands through the regular Evennia command dispatcher, with a strict independent physical outcome verdict. CI's scripted-choice model only proves the wiring. P3 still requires normal-client connections, and P4 still requires autonomous fault resolution evidence from a live model.
+
+## P2 watch-handover checkpoint (2026-10-18)
+
+Scenario 0 now has a runnable deterministic mock:
+`ox_ai.ports.mock.watch_world.MockWatchWorld` owns a 07:55 engineering
+handover, physically scoped communications, monotonic clock, world events
+and roster changes. `ox_ai.scheduler.watch.WatchSupervisor` drives three
+distinct policies only when messages or scheduled duties arrive. Separate
+Ari/Iona/Lin memories establish that Iona learns an unverified concern
+from Ari's briefing while Lin never learns it by omniscience. Quiet periods
+cause no wakeups or inference. Handler checkpoint/restore reconciles an
+unknown world ACK using its request ID rather than resubmitting.
+
+See [Scenario 0](../../scenarios/shift_handover/README.md) and
+[ADR 0007](../decisions/0007-three-crew-watch-supervision.md).
+
+**Gate assessment:** watch handover is tested, but P2 as defined above
+remains open pending cooling-fault mock coordination. The mock test is
+not a permanently running Evennia ship and does not satisfy P3.
 
 ## First scenarios
 
