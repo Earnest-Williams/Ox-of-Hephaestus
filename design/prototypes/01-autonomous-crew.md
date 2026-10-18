@@ -1,124 +1,147 @@
-# Prototype 1 — Autonomous Crew
+# Prototype 1 — autonomous crew implementation and test gates
 
-**Status (October 18, 2026):** P0–P3 are tested. P4a connects three separate native Concordia entities to ordinary Evennia clients, with bounded model actions and independent memories. P4b adds a persistent event-driven watch service, game-owned scheduling, second-watch safety delegation and crash/recovery acceptance tests. The P5 observatory is postponed.
+**Status: P0–P4b implemented/tested as bounded proofs; P5 deferred.**
+This supersedes earlier “P3 is still pending” prose in the original
+planning notes. See [current implementation matrix](../STATUS.md) and
+[system architecture](../../ARCHITECTURE.md) for the verified boundaries.
 
 ## Aim
 
-Prove persistent Concordia-powered NPC autonomy in a mechanically authoritative world, first with a deterministic mock fixture and then with ordinary Evennia clients. This is not a full spaceship or high-fidelity economic simulation.
+Prove three distinct persistent cognitive agents can observe the
+same authoritative Evennia spaceship from **different legitimate
+perspectives**, use model-free technical procedures and selective
+bounded decisions, and coordinate consequential in-world work
+without a second omniscient Game Master.
 
-## Non-goals
+This is **not** yet a full bulk cargo ship, a generic NPC personality
+system or a high-fidelity real-time economic simulation.
 
-Do not change inherited `evennia/` engine code, add a privileged AI game API, build ship-wide mechanics, adopt a second agent framework, simulate every NPC at high frequency, or commit to a final web frontend or model.
+## Implemented gates
 
-## Work packages and gates
-
-| Gate | Implementation | Acceptance |
+| Gate | Current status | Executable evidence |
 | --- | --- | --- |
-| P0 — scaffold | Separate handler/interface packages, ADRs, contract and scenarios | Importable package skeleton and contract tests; no misleading runtime claims |
-| P1 — one entity | Concordia factory, model adapter, observe/act, structured traces, snapshot/restore | One engineer can observe, decide and restore their history |
-| P2 — mock crew | Three entities, minimal deterministic GM, mock rooms/communication/clock, scoped event dispatch | Pass watch-handover and cooling-fault fixtures without GM model calls |
-| P3 — live transport | Ordinary Evennia WebSocket clients, account/character binding, command framing, reconnect and game-time sync | Three NPCs move, look, speak and perform handover in a stock Evennia game |
-| P4 — one Ox mechanic | Game-template pump object with inspect/fault/isolate/repair commands | Same fault scenario resolved by authoritative Evennia commands |
-| P5 — observer | Read-only handler API and UI joined with authorised Evennia data | Inspect live ship condition, individual beliefs, attempted actions and outcomes |
+| P0 — separate packages/contracts | **Passed** | Importable handler and interface scaffolds, focused contract tests |
+| P1 — one Concordia engineer | **Passed** | Native component graph, observe/act, journal, checkpoint/restore |
+| P2 — deterministic mock three-crew | **Passed** | Scenario 0 watch handover and Scenario 1 GOAP coolant fault, mock receipts and scope tests |
+| P3a — ordinary client transport | **Passed** | Per-account WebSocket authentication and character binding, real Evennia sessions ([PR #10](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/10)) |
+| P3b — durable physical actions | **Passed** | World-held receipt IDs and GOAP restart/reconcile test ([PR #11](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/11)) |
+| P3c — live three-crew coordination | **Passed** | Game-authoritative radio, physical inspection, chief release, handover and private events ([PR #12](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/12)) |
+| P4a — three native Concordia actors | **Passed (deterministic test model)** | Each character independently observes and chooses from bounded options on real Evennia ([PR #13](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/13)) |
+| P4b — persistent event-driven runtime | **Passed (bounded two-incident trial)** | Game-owned duty timer, changed duty/reviewer, handler process restart, no duplicate isolation ([PR #14](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/14)) |
+| P5 — observatory | **Deferred / unimplemented** | No joint world/cognition web view or published inspection APIs |
 
-A gate is complete only after runnable evidence is recorded; documentation alone does not qualify.
+**Historic naming:** The *original* milestone called “P4” meant
+installing a simple Ox-specific pump mechanic in the Evennia game,
+and that mechanic was completed *before* the later P4a/P4b PRs.
+P4a and P4b refer to further cognition/autonomy work, not delayed
+construction of P-01.
 
-## Cognitive baseline
+A gate is marked passed only within the acceptance scope of its
+runnable tests; a model making a finite MockModel choice is **not**
+evidence of general unscripted reasoning.
 
-Build each Concordia entity from the minimal prefab or equivalent base. Start with identity, observation-to-memory, recent observations and list memory. Add Ox-specific duties, commitments and procedures. Introduce selective planning/reflection when a situation requires it.
+## Character cognition, GOAP and Game Master
 
-Routine actions may take a deterministic path; surprising or social situations may request inference. No one-LLM-call-per-tick design. Use one inference backend for all logical actors, with explicit concurrency limits and urgent-event priority.
+Each significant prototype crewmember has an individual native
+Concordia `EntityAgentWithLogging`, immutable character identity,
+personal observations and memory, duties, goals and a checkpointable
+pending-request record. Multiple logical agents are supervised by
+one external process, not one OS process per character.
 
-## World boundary
+Routine engineering decisions can use **zero-inference GOAP**
+search on known technical prerequisites and learned physical state.
+Selective Concordia decisions use a **finite, world-relevant
+menu**. A model may defer; there is no hidden direct world-write
+capability. The native deterministic MockModel used in CI verifies
+software integration and replayability. The earlier hosted Gemini
+experiment is a separate **single-engineer** evaluation.
 
-The temporary Python `WorldPort` contract lives in `services/ai-handler/src/ox_ai/ports/base.py`. It is provisional and not the eventual HTTP or WebSocket schema.
+The P2 Game Master is deterministic: it routes world events and
+validates scenarios but does not invent physical changes. In live
+Evennia the game itself is the sole physics, time and authority
+provider. The external handler invokes entities on genuine events
+without a narrating LLM GM or per-NPC calls every world tick.
 
-- `receive(character)` returns only observations that character could legitimately obtain.
-- `submit(request)` returns a world outcome or an explicit ambiguous/pending state.
-- Every request has an ID; agents carry state revisions to detect obsolete proposals.
-- Game time is read from the world backend, not independently advanced by the AI model.
-- On reconnect or restart, reconcile unknown actions; do not blindly retry a valve command.
+## Scope of legitimate observation and action
 
-Concordia's interrupt-driven Game Master can run the mock scenario, but it must not independently assert that text describing a repair makes that repair real. Live Evennia integration may call entities directly under an Ox supervisor without running Concordia's conventional simulation loop.
+- A Bridge alarm initially belongs to Lin. Ari or Iona learns it
+  only after an in-world radio delivery. A local pump readout is
+  delivered only to a character actually in Engineering.
+- Recipient-specific `ox_event` packets have stable event IDs,
+  explicit character dbrefs and game timestamps. Private inbox
+  catch-up is filtered by Evennia and checked again by the handler.
+- Physical `oxaction` operations require location, the active
+  engineering role, applicable pump state and any independent
+  commissioning authorization. A world `ox_receipt` confirms the
+  actual result; missing ACK means **unknown**.
+- World-owned `ShipDutyClock` fires due-watch events. After the
+  tested handover, Iona becomes the active engineer and Ari
+  the independent safety reviewer. They may not self-approve.
+- The handler checkpoints native memory and unresolved requests
+  and can reconcile the specifically tested lost-isolation ACK
+  without reapplying the physical command.
 
-## Preparatory game fixture (not a completed integration gate)
+See [P3a transport](p3a-transport.md), [P3b receipts](p3b-durable.md),
+[P3c live crew](p3c-live-crew.md),
+[P4a cognition](p4a-live-cognition.md) and
+[P4b runtime](p4b-autonomous-watch.md).
 
-The standalone [`game/`](../../game/README.md) test ship gives us real Evennia compartments and pump mechanics before hooking up the agents: bridge, passage, engineering, three idle NPC characters, a status console, a static watch roster and persistent pump state. It is populated once at initial startup (or through an idempotent manual bootstrap) and verified by separate SQLite-backed CI tests. A [local in-process trial](../../game/README.md#experiment-can-an-ai-engineer-physically-fix-p-01) now passes proposed Concordia commands through the regular Evennia command dispatcher, with a strict independent physical outcome verdict. CI's scripted-choice model only proves the wiring. P3 still requires normal-client connections, and P4 still requires autonomous fault resolution evidence from a live model.
+## How the demonstrations differ
 
-## P2 watch-handover checkpoint (2026-10-18)
+**Scenario 0/1 (P2):** zero-model, isolated Python mock ship and
+deterministic world clock. These are retained rapid regressions; they
+**do not** involve actual network characters.
 
-Scenario 0 now has a runnable deterministic mock:
-`ox_ai.ports.mock.watch_world.MockWatchWorld` owns a 07:55 engineering
-handover, physically scoped communications, monotonic clock, world events
-and roster changes. `ox_ai.scheduler.watch.WatchSupervisor` drives three
-distinct policies only when messages or scheduled duties arrive. Separate
-Ari/Iona/Lin memories establish that Iona learns an unverified concern
-from Ari's briefing while Lin never learns it by omniscience. Quiet periods
-cause no wakeups or inference. Handler checkpoint/restore reconciles an
-unknown world ACK using its request ID rather than resubmitting.
+**P3c:** three ordinary client sessions coordinate one game-owned
+incident with scripted role policies. Private information stays
+private, but broad cognitive autonomy is not claimed.
 
-See [Scenario 0](../../scenarios/shift_handover/README.md) and
-[ADR 0007](../decisions/0007-three-crew-watch-supervision.md).
+**P4a:** three native Concordia entities each make bounded choices,
+a GOAP engineer performs world-approved physical work, and the
+world enforces chief release and watch handover. CI is
+**deterministic**, not a hosted-model intelligence benchmark.
 
-**Gate assessment:** watch handover is tested, but P2 as defined above
-remains open pending cooling-fault mock coordination. The mock test is
-not a permanently running Evennia ship and does not satisfy P3.
+**P4b:** Evennia's real persistent duty Script (not the P3
+incident-close time jump) triggers watch handover. The second
+cooling incident belongs to Iona; Ari reviews. The external
+supervisor's process is restarted after an unknown isolation,
+which is reconciled against the same Evennia world receipt.
+Two complete pump cycles are independently verified.
 
-## P2 coordinated coolant-fault checkpoint (2026-10-18)
+The [P4b CI workflow](../../.github/workflows/ox-p4b-autonomy.yml)
+contains the most demanding present acceptance test.
 
-The second P2 mock scenario, [Scenario 1](../../scenarios/coolant_fault/README.md),
-is now executable. Lin receives the world-side bridge alarm, radios Ari,
-and Ari inspects the local pump and plans operations using the same
-dependency-free GOAP search engine. Iona receives a first-hand local
-inspection opportunity only after Ari requests chief safety release.
-The world validates permission, state transitions, the chief signoff and
-the final resolution report.
+## Remaining validation and development risks
 
-An urgent world event invalidates an Ari action proposal before it reaches
-the world; world permissions independently require a new safety readout.
-A separate test loses the ACK for successful isolation, checkpoints the
-handler, restores the three private cognitive states and reconciles the
-operation by request ID without replaying it. Quiet periods still wake
-no agents and use zero inference. See [ADR 0008](../decisions/0008-coordinated-coolant-incident.md).
+- **Not proven:** unscripted three-LLM discussion, novel
+  diagnosis, independent long-term objectives, adaptive free-form
+  escalation or broad skills/use-based progression.
+- **Limited recovery:** unknown physical-isolation reconciliation
+  passes; generic interruption during every later radio, approval,
+  handover or other non-idempotent action does not.
+- **No permanent deployment:** `serve` exists, but there is no
+  managed daemon/unit, lifecycle monitor, long-duration soak
+  test, public network hardening or multi-account secret manager.
+- **No interface:** P5's read-only joining of game truth and
+  individual beliefs is intentionally postponed.
+- **No full freighter:** only P-01, the roster, three crew and
+  three rooms are present.
 
-**P2 interpretation:** Both authored mock acceptance scenarios have runnable
-evidence for event routing, the mock world's authoritative clock, scoped
-communication and physical effects. The policies are deliberately
-deterministic; they do not prove open-ended emergent cooperation or three
-native Concordia actors. The mock chief-release interlock is not yet
-present in the actual Evennia pump fixture. P3 is the next substantial
-integration: normal per-character Evennia clients and a separately
-running, restartable supervisor.
+Reevaluate the architecture if synchronous Concordia work blocks
+urgent decisions, recovery fails under documented states, or
+per-agent inference demand becomes unmanageable. Keep the
+authoritative Evennia boundary intact even if the cognitive
+provider or transport changes.
 
-## First scenarios
+## Earlier mock phases and historical design
 
-1. [Scenario 0 — Watch handover](../../scenarios/shift_handover/README.md): minimal observation, communication, memory, duty timing and permissions.
-2. [Scenario 1 — Cooling fault](../../scenarios/coolant_fault/README.md): autonomous attention, diagnosis, coordination, interruption, physical resolution, and recovery.
+- [Watch handover fixture](../../scenarios/shift_handover/README.md)
+  with [ADR 0007](../decisions/0007-three-crew-watch-supervision.md).
+- [Cooling fault fixture](../../scenarios/coolant_fault/README.md)
+  with [ADR 0008](../decisions/0008-coordinated-coolant-incident.md).
+- [Concordia selection](../decisions/0001-concordia-first.md)
+  and [world causality](../decisions/0002-game-master-world-authority.md).
 
-## Evidence required for P2–P5
-
-Track inference requests/tokens, model latency, decision trigger, retrieved memory IDs, relevant beliefs, state revision, command ID, world event ID, known outcome, and wall/game time. Evaluate:
-
-- Three distinct coherent NPC identities with divergent legitimate knowledge.
-- Correct scope of all observations and no accidental omniscience.
-- Zero LLM calls by the deterministic GM and no pointless idle inference.
-- Plausible unscripted cooperative action (not merely convincing prose).
-- Correct response to an urgent event during a pending decision.
-- No duplicated physical action after transport disconnect, timeout or service restart.
-- Checkpoint and journal allow restoration of unfinished obligations.
-- At least one inspectable read-only view joins game state to cognitive records.
-
-## Stop / reevaluate conditions
-
-Reconsider the specific Concordia integration strategy if synchronous `act()` calls block urgent-event handling, the richer prefabs require unsustainable inference, entity state cannot be safely restored, or the native interrupt scheduler proves costly to decouple from its environment. Keep the externally visible world port stable so we can swap the cognitive execution strategy without restructuring the game.
-
-
-## P3 live three-crew acceptance
-
-The independently supervised real Evennia scenario is described in
-[P3c live crew](p3c-live-crew.md). It uses individual ordinary
-WebSocket sessions, game-validated radio, role-bound chief release,
-real pump actions, private event delivery and game-authoritative watch
-handover. It must pass both real-world database tests and a complete
-external three-client CI trial before P3 is considered achieved. The
-scripted test is **not** a claim of free-form three-model cooperation.
+The mock documents describe **historical steps** that led to P3/P4;
+their earlier “future P3” phrasing should not be interpreted as the
+current project status.
