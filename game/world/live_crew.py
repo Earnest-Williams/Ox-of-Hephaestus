@@ -6,6 +6,7 @@ Physical operations remain in CoolingPump; private events are world-owned.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from evennia.utils import gametime
 from world.bootstrap import build_ship, find_fixture
 
@@ -24,7 +25,7 @@ def wire_event(event: dict) -> dict:
     """
     result = {k: v for k, v in event.items() if k != "data"}
     detail = event.get("data", {})
-    if not isinstance(detail, dict):
+    if not isinstance(detail, Mapping):
         raise TypeError("World event details must be a mapping")
     for key, value in detail.items():
         if not isinstance(key, str) or not key.isidentifier():
