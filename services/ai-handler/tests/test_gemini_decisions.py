@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from io import BytesIO
 import unittest
 from urllib.error import HTTPError, URLError
 
@@ -79,7 +80,7 @@ class DecisionTests(unittest.TestCase):
         )
         self.assertEqual(
             payload["generationConfig"]["responseFormat"]["text"]["mimeType"],
-            "application/json",
+            "APPLICATION_JSON",
         )
 
     def test_unoffered_choice_is_rejected(self):
@@ -107,6 +108,47 @@ class DecisionTests(unittest.TestCase):
             provider.choose(self.question())
         self.assertIn("429", str(caught.exception))
         self.assertNotIn("private-test-key", str(caught.exception))
+
+    def test_http_400_includes_only_safe_google_error_metadata(self):
+        # The provider may echo the secret or original prompt in error text.
+        # Only recognised API status and field names belong in CI logs.
+        body = json.dumps({"error": {
+            "code": 400,
+            "status": "INVALID_ARGUMENT",
+            "message": (
+                "Invalid value at generation_config.response_format."
+                "text.mime_type for private-test-key and secret user text"
+            ),
+        }}).encode("utf-8")
+        fake = FakeHTTP(HTTPError(
+            "https://example.test", 400, "bad request", {},
+            BytesIO(body),
+        ))
+        provider = GeminiChoiceProvider("private-test-key", opener=fake)
+        with self.assertRaises(DecisionUnavailable) as caught:
+            provider.choose(self.question())
+        result = str(caught.exception)
+        self.assertIn("HTTP 400", result)
+        self.assertIn("INVALID_ARGUMENT", result)
+        self.assertIn(
+            "field=generation_config.response_format.text.mime_type",
+            result,
+        )
+        self.assertNotIn("private-test-key", result)
+        self.assertNotIn("secret user text", result)
+        self.assertNotIn("Invalid value", result)
+
+    def test_non_json_http_error_is_never_echoed(self):
+        fake = FakeHTTP(HTTPError(
+            "https://example.test", 403, "forbidden", {},
+            BytesIO(b"private-test-key"),
+        ))
+        provider = GeminiChoiceProvider("private-test-key", opener=fake)
+        with self.assertRaises(DecisionUnavailable) as caught:
+            provider.choose(self.question())
+        self.assertEqual(
+            str(caught.exception), "Gemini decision API returned HTTP 403"
+        )
 
     def test_network_failure_is_explicit(self):
         fake = FakeHTTP(URLError("network down"))
