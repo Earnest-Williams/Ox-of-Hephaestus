@@ -240,3 +240,21 @@ The free tier has changing quotas, and free-tier test prompts are subject
 to Google's data-use terms. Only synthetic ship data is used.
 The live-model scenario has not been validated against Google until
 someone launches this workflow with their own API key.
+
+### Troubleshooting: first-run account missing
+
+A previous live Actions run failed **before any Gemini inference** because a
+freshly migrated Evennia database had no initial owner account. The Evennia
+launcher tried to start an interactive `createsuperuser` command in the
+headless GitHub runner and ultimately raised `RecursionError`.
+
+The GitHub test workflow now creates a **disposable initial owner** using
+`EVENNIA_SUPERUSER_USERNAME`, `EVENNIA_SUPERUSER_EMAIL`, and a cryptographically
+random one-run `EVENNIA_SUPERUSER_PASSWORD`. It checks the ship fixture first
+and only then starts the Gemini step (which is the only step given the Gemini
+API key). The first-boot smoke check also runs in the offline pump repair CI.
+
+If the live run fails in the initial-owner or ship-bootstrap step, no hosted
+model requests have been made. An API failure or physically unsuccessful
+repair will instead fail inside the live Gemini step; inspect the run's
+per-step logs to distinguish these cases.
