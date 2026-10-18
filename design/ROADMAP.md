@@ -61,6 +61,13 @@ watch handover, player hail responses and specialist work to the common
 resumable pattern, plus explicit PostgreSQL contention validation. Do not
 mistake the P4h stage test for all-action recovery.
 
+**P4i (under validation):** The next incremental G1 work
+migrates bridge alarm relay, scheduled engineering offer/accept and
+addressed hail answers to persistent handler intent records with
+actor-bound world receipt reconciliation. The old ordinary character
+commands remain supported. The remaining G1 obligations are specialist
+stage migration and real PostgreSQL contention/recovery tests.
+
 ## G2: Individual autonomy
 
 ### PR 23 — persistent agendas and reconsideration
