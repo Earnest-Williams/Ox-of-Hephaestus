@@ -221,10 +221,11 @@ class AtmosphereScrubber(DepartmentFixture):
             "isolated": "Scrubber isolated for cartridge service",
             "serviced": "Cartridge replaced; restart check required",
         }
+        from world.supply import total_local_spares
         return (
             f"ATMOSPHERE SCRUBBER A-01: {self.state.upper()}\n"
             f"{readings[self.state]}.\n"
-            f"Local spare cartridges: {int(self.db.spare_cartridges or 0)}."
+            f"Local spare cartridges: {total_local_spares(self)}."
         )
 
     def inject_fault(self, actor=None) -> tuple[bool, str]:
@@ -247,14 +248,36 @@ class AtmosphereScrubber(DepartmentFixture):
         self._record("isolate", "isolated", actor=actor)
         return True, "A-01 safely isolated for service."
 
+    @transaction.atomic
     def replace(self, actor) -> tuple[bool, str]:
         if not self._authorized(actor, "environment_tech"):
             return False, "The environmental technician must attend A-01."
         if self.state != "isolated":
             return False, "Isolate A-01 before replacing its cartridge."
-        if int(self.db.spare_cartridges or 0) < 1:
-            return False, "No replacement cartridge remains in local stores."
-        self.db.spare_cartridges = int(self.db.spare_cartridges) - 1
+        legacy = int(self.db.spare_cartridges or 0)
+        if legacy > 0:
+            # Older worlds retain their existing physical local rack count;
+            # upgrading schema never duplicates or discards those stores.
+            self.db.spare_cartridges = legacy - 1
+        else:
+            from world.models import InventoryItem
+            from world.supply import KIND
+            # Newly delivered individually serialised supplies are equally
+            # physical. A consumed item remains in the world ledger and can
+            # never be collected or installed a second time.
+            item = InventoryItem.objects.select_for_update().filter(
+                kind=KIND, state="stored",
+                location_dbref=self.location.dbref,
+            ).order_by("item_id").first()
+            if item is None:
+                return False, "No replacement cartridge remains in local stores."
+            item.state = "consumed"
+            item.location_dbref = None
+            item.carrier_dbref = None
+            item.consumed_by_dbref = actor.dbref
+            item.save(update_fields=[
+                "state", "location_dbref", "carrier_dbref", "consumed_by_dbref",
+            ])
         self._record("replace", "serviced", actor=actor)
         return True, "A-01 cartridge replaced; verify before restart."
 

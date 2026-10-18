@@ -115,6 +115,21 @@ class DurableEvenniaPort:
                 if request.arguments:
                     raise ValueError("Ship work does not permit free-form arguments")
                 suffix = ""
+        elif request.target == "inventory":
+            operation = request.verb
+            if operation == "request_supply":
+                if request.arguments:
+                    raise ValueError("Supply request takes no freeform arguments")
+                suffix = ""
+            elif operation in ("accept_supply", "collect_supply", "deliver_supply"):
+                args = dict(request.arguments)
+                order_id = args.get("order_id")
+                if (set(args) != {"order_id"} or not isinstance(order_id, str)
+                        or re.fullmatch(r"[0-9a-f]{32}", order_id) is None):
+                    raise ValueError("Supply work requires one typed world order ID")
+                suffix = " " + order_id
+            else:
+                raise ValueError("Unsupported inventory operation")
         else:
             operation = _VERBS.get((request.verb, request.target))
             if operation is None or request.arguments:

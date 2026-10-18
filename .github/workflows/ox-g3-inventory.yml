@@ -1,0 +1,48 @@
+name: Ox G3 real physical supply and typed world receipts
+
+on:
+  pull_request:
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-g3-inventory.yml"
+  push:
+    branches: [main]
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-g3-inventory.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-scarcity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install real Evennia, compile schema and test physical inventory
+        run: |
+          python -m pip install .
+          python -m compileall -q game
+          cd game
+          python -m world.test_runner world.tests.test_supply --verbosity=2
+
+  typed-actor-inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run private, nonce-scoped stock observation contract
+        run: |
+          python -m pip install -e ./services/ai-handler
+          python -m compileall -q services/ai-handler/src services/ai-handler/tests
+          python -m unittest discover -s services/ai-handler/tests -p 'test_inventory_port.py' -v
