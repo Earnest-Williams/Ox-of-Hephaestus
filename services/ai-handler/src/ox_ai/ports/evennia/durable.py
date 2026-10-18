@@ -25,9 +25,14 @@ class DurableEvenniaPort:
                     packet = await self.client.receive()
                     if packet.kind != "ox_receipt":
                         continue
-                    if len(packet.args) != 1 or not isinstance(packet.args[0], dict):
+                    if len(packet.args) == 1 and isinstance(packet.args[0], dict):
+                        entry = packet.args[0]
+                    elif not packet.args and "request_id" in packet.options:
+                        # Some Evennia versions normalize a singleton dict
+                        # into OOB kwargs rather than positional args.
+                        entry = packet.options
+                    else:
                         raise ValueError("Malformed authenticated world receipt")
-                    entry = packet.args[0]
                     if entry.get("request_id") != request_id:
                         raise ValueError("Unexpected world request ID")
                     if entry.get("actor_dbref") != self.client.character_dbref:
