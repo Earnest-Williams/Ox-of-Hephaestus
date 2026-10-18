@@ -1,30 +1,81 @@
-# Cross-system contracts
+# Cross-system contracts: implemented transport and future APIs
 
-**Status: planned contracts and invariants, not a published API schema.**
+**Status (18 October 2026):** Ox has a working **ordinary Evennia
+WebSocket + game-command/OOB protocol**, and a provisional Python `WorldPort`
+type interface. It does **not** yet publish a versioned, independent
+multi-character service endpoint or a browser/handler API.
+See [implementation status](../design/STATUS.md).
 
-The independent AI handler and human interface will eventually exchange versioned information with Evennia and with each other. This directory will contain those schemas and examples. For now, the Python-only provisional `WorldPort` is in [services/ai-handler/src/ox_ai/ports/base.py](../services/ai-handler/src/ox_ai/ports/base.py).
+## Ownership rules
 
-## Source of truth
-
-| Information | Owner | Rule |
+| Information | Sole authority | Handler/view behavior |
 | --- | --- | --- |
-| Character location, equipment, cargo, skill, world conditions | Evennia | Must be queried or reported by the game |
-| Official in-world orders and assigned duties | Evennia | Agents can misunderstand or disregard them, but not redefine them |
-| Individual beliefs, episodic memories, plans and reasoning status | AI handler | Can be wrong about the world |
-| Charts, dashboards, joined incident timelines | Interface | Derived views, no independent authority |
+| Character identity, location, roles, watch, physical machinery | Evennia | Observe or propose via character-authorized game actions |
+| Real game time and scheduled due events | Evennia | Follow delivered timestamps/deadlines |
+| World physical operation receipts | Evennia | Reconcile unknown by request ID; never infer success from text |
+| Private observations legitimately delivered to a character | Evennia | Feed only that character's Concordia memory |
+| Beliefs, memories, plans, proposed decisions and unresolved actions | AI handler | May be stale; persist by individual agent |
+| Joined dashboards and charts | Future interface | Derived and permissioned; never world authority |
 
-## Contract invariants
+## Implemented ordinary-client wire path (P3/P4)
 
-- An **observation** is information legitimately delivered to a specific character, not a raw omniscient game event. Keep its source ID, recipient and authoritative game timestamp.
-- An **action request** is an intention to attempt something; it is not the corresponding world result. Attach request IDs and agent revisions for deduplication and stale-decision checks.
-- **Outcomes** may be pending or unknown. Traditional MUD commands may not supply unambiguous acknowledgments; reconnecting must trigger reconciliation rather than automatic re-execution.
-- An **agent memory** may cite an observation or conversation while preserving uncertainty. Do not equate a model's belief with a world fact.
-- The handler's future API is distinct from the **game transport**. Inspection by ordinary users and operator intervention require different scopes.
-- Game time comes from the active world backend: mock fixture or Evennia. Wall time is recorded separately for diagnostics.
-- Event subscriptions must enforce visibility before delivery. A catch-up summary may include missed but legitimately recorded events; it may not reveal events that were never observable.
+- Each AI character has its own ordinary Evennia account/session and an
+  account-bound puppet permission. The first handshake is `connect`,
+  `ic <character-dbref>` and a nonce-backed `oxidentity` proof.
+  Bot passwords are not stored in Ox source code.
+- The wire uses Evennia's existing `v1.evennia.com` JSON framing.
+  Character speech/text cannot stand in for a world receipt.
+- A private `ox_event` is an **addressed** game-produced OOB message:
+  `event_id`, `recipient_dbref`, `sender_dbref`, `kind`,
+  `game_time`, `text` and flat `datum_*` scalar fields for details.
+  Nested object dictionaries are **not** valid Evennia OOB payloads.
+- `oxinbox <after-sequence>` returns only the authenticated character's
+  own persisted events, followed by `ox_inbox_done`. The handler
+  verifies recipient, stable ID and framing before placing an event
+  in that character's memory.
+- `oxaction <32-lowercase-hex-request-id> <isolate|repair|commission>`
+  applies normal Evennia role, locality and pump-state checks, writing
+  an actor-bound record in the world. The reply is typed `ox_receipt`,
+  not arbitrary narrative. `oxreceipt <request-id>` queries it later.
+- `DurableEvenniaPort` accepts `succeeded`, `failed` or `unknown`.
+  On unknown, the handler must reconcile the **same ID** rather than
+  replay the command. An action proposal and a world-issued result are
+  different records.
+- Game-side release approval, radio and handover events are
+  recipient-scoped, but **not every social action** has a durable
+  physical-style receipt or crash-recovery guarantee.
 
-## Versioning approach
+This is **Ox's current convention on top of ordinary game commands**,
+not a stable publicly versioned network schema. See
+[`game/commands/ship.py`](../game/commands/ship.py),
+[`game/commands/crew.py`](../game/commands/crew.py),
+[`world.live_crew`](../game/world/live_crew.py), and the
+[external port](../services/ai-handler/src/ox_ai/ports/evennia/durable.py).
 
-Before exposing a real network endpoint, define an explicit schema version, stable game-character-to-agent identity mapping, correlation IDs, authentication, authorisation and endpoint semantics. Do not infer the final API shape from the Python type hints alone.
+## Python-only contract
 
-See [architecture](../ARCHITECTURE.md) and [prototype plan](../design/prototypes/01-autonomous-crew.md).
+`services/ai-handler/src/ox_ai/ports/base.py` defines `WorldObservation`,
+`ActionRequest`, `ActionOutcome` and the `WorldPort` async protocol.
+It is an **internal prototype abstraction**, not a claim that all
+implementations already satisfy a formal versioned remote schema.
+
+An observation is delivered to exactly one character with provenance.
+A request carries a stable ID, intended character/operation and agent
+revision. A missing/ambiguous receipt stays unknown. An agent's
+recorded narrative or belief is not an alternative source of physical
+truth. On restart the game may continue to progress even while the
+handler has missed private events, which must be replayed **only when
+legitimately addressed to that character**.
+
+## Planned API boundary (P5 postponed)
+
+Future human inspection requires **two separately authenticated APIs**:
+an Evennia-facing world read model and a handler-owned cognitive read
+model, joined in the interface with provenance and access control.
+Before making those public, design schema versions, pagination/cursors,
+stable agent-to-character IDs, access roles, operator-only endpoints and
+private-event retention. There is no live API server or published
+OpenAPI/JSON wire schema today.
+
+See the [architecture](../ARCHITECTURE.md) and
+[deferred interface](../services/interface/README.md).

@@ -1,27 +1,51 @@
-# P4a — Three native Concordia entities on the real ship (PR #13)
+# P4a — three native Concordia actors in real Evennia
 
-P3c proved an authored, model-free three-client cooling incident. P4a
-instantiates **three separate native Concordia entities** with independent
-identity, private observations, memories, revisions and persisted snapshots,
-then uses them to make **bounded choices** in that same real Evennia world.
-The handler connects as three non-privileged clients; it never reads
-Evennia's database or invents a physical outcome.
+**Status: implemented, tested and merged as
+[PR #13](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/13).**
+[Current feature matrix](../STATUS.md).
 
-Routine isolate/repair/commission procedures remain GOAP-driven and require
-Evennia's authoritative physical receipt. The chief must physically inspect,
-approve and hand over through normal commands. An entity may choose *defer*;
-this safely stops the bounded demo, rather than automatically falling back
-to a scripted action. The deterministic Concordia MockModel used by CI picks
-the first offered action; CI establishes integration and authority, **not
-emergent reasoning**. An opt-in Gemini evaluation sets
-OX_COGNITION_PROVIDER=gemini and GEMINI_API_KEY (no key in CI); model
-refusals or insufficient inference are explicitly not retried as effects.
+P3c proved a real networked three-crew cooling incident with
+authored deterministic role policies. P4a built **three
+independently instantiated native Concordia entities** whose
+observations, memory, revisions, journal and checkpoints are
+owned by their respective identities (Lin, Ari, Iona).
 
-Decisions prompted by received events are not synonymous with outcomes.
-The model is never given the other crew member's memory. Actions without
-an actor-visible durable receipt remain unknown; later stages must add
-acknowledgements for social actions, not silently treat text as proof.
+Each character receives only world-delivered private
+`ox_event` packets and readouts genuinely returned to its
+ordinary Evennia connection. Concordia selects among a
+**finite set of offered actions**, including deferral;
+unoffered or malformed decisions cannot become world
+commands. Routine equipment work still uses deterministic
+GOAP; physical success still requires world-owned receipts.
+A delayed private event may legitimately have an earlier
+game timestamp and is not rejected solely for arriving late.
 
-P4b introduces an independently running supervisor and a real world-clock
-scheduler, multiple incidents and handler crash recovery. The browser
-observatory remains intentionally postponed.
+## What the CI demonstrates
+
+The real-server [`ox-p4a-concordia-crew.yml`](../../.github/workflows/ox-p4a-concordia-crew.yml)
+runs three real clients and three native Concordia entities.
+It demonstrates character-private memory, model invocation at
+decision points, validated proposals, local inspection,
+P-01 isolation/repair, independent release approval,
+commissioning, closure and watch handover.
+
+**Crucial test boundary:** CI uses Concordia's deterministic
+`MockModel`, which selects expected offered options. This
+establishes correct integration, **not** unscripted creative
+cooperation or three actual Gemini reasoning processes.
+An optional hosted-model trial requires
+`OX_COGNITION_PROVIDER=gemini` and a privately supplied
+`GEMINI_API_KEY`; refusals and timeouts fail closed.
+A prior live Gemini success was for the bounded
+*single-engineer* harness.
+
+Actions without a suitable actor-visible acknowledgment
+remain unknown, not successfully completed merely because
+another character was seen acting. The model must never
+see a second character's private journal.
+
+**Next work is already implemented:** [P4b](p4b-autonomous-watch.md)
+adds a world-owned duty Script, a repeat incident under a
+different active engineer, an event-driven independent
+runtime and verified isolation reconciliation across
+handler processes. P5's browser observatory remains deferred.

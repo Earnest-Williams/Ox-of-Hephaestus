@@ -1,6 +1,8 @@
 # ADR 0008 — Model-free three-crew coolant cooperation
 
-**Status:** P2 deterministic mock experiment, 2026-10-18.
+**Status:** Historical P2 model-free mock (2026-10-18); its live counterpart and reviewer interlock now exist.
+
+> **Current implementation note:** The original “chief-release is mock-only” statement below was correct for the first mock experiment, not for the merged P3/P4 game code. Read the appended outcome for today's behavior.
 
 ## Motivation and relationship to P1/P2
 
@@ -66,3 +68,8 @@ world scenarios must not be represented as mechanically identical.
 
 Next: external handler-to-Evennia character transport, identity/session
 binding and durable reconnect reconciliation, then richer ship systems.
+
+
+## Later authoritative Evennia implementation (2026-10-18)
+
+[P3c](../prototypes/p3c-live-crew.md) brought actual world-enforced inspection, chief release and radio into ordinary authenticated Evennia sessions. [P4a](../prototypes/p4a-live-cognition.md) added three separate native Concordia actors making bounded decisions (deterministic test model in CI). [P4b](../prototypes/p4b-autonomous-watch.md) then implemented a world-owned duty deadline and a **second fault after handover**: Iona becomes the active engineer, while Ari is delegated independent safety-review authority. The game prevents Iona from signing off her own commissioning. Durable physical action receipts and the tested lost-isolation recovery remain world-authoritative; full arbitrary social-command crash recovery remains outstanding.

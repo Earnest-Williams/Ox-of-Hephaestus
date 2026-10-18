@@ -1,53 +1,79 @@
-# P4b — Persistent autonomous watch and world-owned game-time duties
+# P4b — event-driven watch service and two real cooling incidents
 
-This stage replaces the one-shot P3 test with a real long-lived service entry:
+**Status: implemented, tested and merged as
+[PR #14](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/14).**
+Nine focused workflows passed on the final PR commit and on
+the merge into `main`. [Implementation matrix](../STATUS.md).
 
-    python -m ox_ai.runtime.watch_service serve
+## Runtime now in the repository
 
-It connects three unprivileged normal Evennia accounts, restores the
-independent Concordia brains and their own observations, checks world-owned
-inbox catch-up on startup, and suspends on an actual WebSocket event between
-incidents instead of polling models on idle ticks. Each alarm is handled by
-the engineer who holds the posted watch, as read by the bridge character
-from its ordinary in-game roster. Approved GOAP operations are attempted
-through receipt-bearing physical commands. The model may defer work; the
-handler never replaces a refusal with a silent physical fallback.
+The external handler's normal entry point is:
 
-Evennia's persistent ShipDutyClock Script owns scheduled handovers: a world
-timestamp, not a model request or incident closure, fires the duty due
-event, exactly once. No hard-coded clock advance is used in this stage's
-live trial. The earlier P3 deterministic fixture is retained unchanged.
+~~~sh
+# From the repository root after installing dependencies and
+# provisioning nonprivileged accounts in a LOCAL development world:
+python -m ox_ai.runtime.watch_service serve
+~~~
 
-After Iona takes active engineering watch, the real world enforces that
-only Iona can operate P-01. Ari, now off watch, becomes the explicitly
-delegated *independent safety reviewer*, who must inspect personally
-before approving Iona's commission. Iona cannot sign off her own work.
-Role delegation, physical locality and pump transitions remain game state.
+`ox_ai.runtime.watch_service.CrewWatchSupervisor` maintains three
+independent character sessions, per-entity Concordia snapshots
+and a durable handler phase record under `.ox-state/`.
+When idle, it suspends on authenticated character events
+rather than polling models on game ticks.
 
-Recovery: the service writes its phase and native agent checkpoints before
-submitting a physical isolation request. If the handler crashes or loses its
-acknowledgment, restarting the service reconciles that exact actor-bound
-receipt. It never blindly retransmits the isolation action. The acceptance
-workflow executes two incidents against one persistent SQLite world, changes
-the active engineer between them, stops and starts the independent handler,
-then verifies the real game event ledger contains exactly one isolation per
-incident and the correct reviewer approval.
+The world-owned `world.live_clock.ShipDutyClock` is an Evennia
+**persistent Script**; it fires due-watch observations at an
+armed game timestamp. It never invokes Concordia or claims
+a social outcome. This supplants the original P3
+“incident ended, therefore it is 07:55” shortcut for
+the new P4b integration scenario.
 
-The CLI begin/resume modes deliberately test that recovery boundary in
-two distinct OS processes. The serve mode retains the normal world ACK,
-reconciles game truth before advancing and repeats the event-driven
-sequence for later alarms. Idle periods suspend indefinitely on a live
-character connection, without polling or model inference.
+## First watch, second watch
 
-**Boundaries:** This is an early operational service for one pump and three
-crew, not a generic scheduling service, broad language-based collaboration
-or an interface. The deterministic Concordia MockModel in CI proves native
-cognitive and world wiring, not generalized model reasoning. An actual
-model is opt-in with OX_COGNITION_PROVIDER=gemini. The service must be
-started by an operator/supervisor in an installed runtime; GitHub CI
-does not deploy a permanent spaceship server. The observatory is deferred.
+- The first P-01 fault arrives on the Bridge, is relayed
+  to Ari on engineering watch, and is repaired after Iona's
+  independent safety inspection.
+- The real duty Script enables a game-validated watch
+  handover to Iona.
+- A second P-01 fault is injected in the same world.
+  Iona, not Ari, is the authorized repairer. **Ari**
+  is now the separately assigned safety reviewer.
+  Iona cannot approve her own commissioning.
+- After a physical isolation has been committed, the test
+  deliberately loses its ACK and stops the **external
+  handler**. A new process reconnects as Iona, queries
+  the existing receipt ID and finishes safely.
+- An independent database verdict confirms both full pump
+  event sequences, Iona's actor identity for second-watch
+  operations, appropriate review and **no duplicate isolation**.
 
-**Remaining hardening:** The supervisor fails closed if it crashes midway
-through a later non-idempotent social command; generic recovery from every
-possible partially completed scene is not yet proved. The prototype is not
-installed as a managed system service and must be launched by an operator.
+The executable evidence is
+[`ox-p4b-autonomy.yml`](../../.github/workflows/ox-p4b-autonomy.yml).
+`begin`/`resume` are dedicated two-process failure-injection
+modes; normal ongoing operation uses `serve` and retains
+successful action acknowledgments.
+
+## What this does not establish
+
+- `serve` is implemented and can remain connected, but
+  no managed deployment, long-duration soak test or
+  production uptime guarantee has been delivered.
+- CI uses native Concordia with a deterministic
+  `MockModel`. It does not demonstrate arbitrary
+  hosted-model three-party negotiation or diagnosis.
+- Isolate/repair/commission have world-side durable
+  receipts. Generic crash-safe continuation of **every**
+  later non-idempotent social command remains future
+  work. A handler must fail closed rather than blindly
+  replaying an unconfirmed action.
+- The ship still has only three compartments, three crew
+  and one modelled piece of repairable machinery.
+  Cargo/propulsion, skills-by-use and the browser
+  observatory remain unimplemented. P5 was deliberately
+  postponed.
+
+See [getting started](../../INSTALL.md),
+[handler operations](../../services/ai-handler/README.md)
+and [world authority](../../ARCHITECTURE.md). The former
+P2/P3 scenario documents are useful historical regression
+cases, not alternative descriptions of the current runtime.

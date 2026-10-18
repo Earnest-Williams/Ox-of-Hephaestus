@@ -1,81 +1,86 @@
-# Scenario 1 — Cooperative cooling-pump fault (executable P2 mock)
+# Scenario 1 — deterministic P2 coordinated coolant fault
 
-**Status:** Implemented as a deterministic, zero-model, three-crew mock.
-A standalone GitHub Actions trial and regression tests exercise all
-equipment transitions and recipient-specific communication. This is NOT
-a persistent multi-character Evennia server; live network transport is P3.
+**Status:** Implemented **mock-world** regression with three
+distinct crew memories, GOAP and zero language-model calls. This
+file documents the historical P2 fixture, not the live P4 runtime.
+[P3c real-client test](../../design/prototypes/p3c-live-crew.md)
+and [P4b two-incident runtime](../../design/prototypes/p4b-autonomous-watch.md)
+are implemented separately. [Current verification](../../design/STATUS.md).
 
-## World and authority
+## Mock world and physical rules
 
-The mock ship has a Bridge, Connecting Passage and Engineering. Ari Sen is
-the on-duty engineer in Engineering, Iona Vek is the chief engineer also
-present there, and Lin Sato is the Bridge officer. The fixture world is the
-only authority for time, crew locations, permissions, the cooling pump's
-physical state, and communications deliveries.
+The deterministic P2 mock includes Bridge, Connecting Passage,
+Engineering, one cooling pump, Lin on the Bridge, Ari on
+engineering watch and Iona as independent chief. The mock world
+owns clock, permissions, visibility, machine state and each
+delivered communication.
 
-The mechanical sequence matches our real Evennia P-01 proof of concept:
-`normal -> low_pressure -> isolated -> repaired -> normal`. The scenario
-adds one world-enforced **chief safety release** after physical repair and
-before commissioning. This is a mock-only extra interlock, not yet an
-Evennia pump mechanic. The character must inspect P-01 locally; an
-individual's planned GOAP effects alone do not change machinery.
+The pump follows `normal → low_pressure → isolated → repaired
+→ normal`. In P2, we *added a mock chief-release interlock*
+before commissioning. **That interlock is no longer mock-only:**
+the later real Evennia implementation requires independent
+world-validated inspection and release, and P4b delegates review
+to Ari when Iona holds active watch. This file's scenario remains
+a deterministic historical reference.
 
-## Example event sequence (03:00 game time)
+## Authored event sequence (03:00 mock game time)
 
-1. The world faults P-01. **Only Lin** receives the bridge alarm initially.
-2. Lin sends a valid radio alert to the on-duty engineer Ari.
-3. Ari inspects P-01 locally. His actual readout reports low pressure.
-4. Ari searches the reusable symbolic GOAP domain for the minimum-cost
-   physical remedy and issues **isolate** then **repair** commands.
-5. Ari requests release. Only **Iona** receives that engineering request;
-   she cannot approve it until she inspects the actual repaired pump.
-6. Iona inspects and authorises commissioning through a separate,
-   validated world action. A notification reaches Ari.
-7. Ari commissions and **reinspects** P-01, verifying normal pressure.
-8. Ari reports the resolved incident to Lin and Iona. Neither recipient
-   is given a copy of the engineer's entire private memory.
+1. The world faults P-01. Initially only Lin receives the
+   Bridge cooling alarm.
+2. Lin legitimately radios Ari on engineering watch.
+3. Ari inspects locally and reads the genuine mock low-pressure
+   state, not a result inferred from GOAP.
+4. GOAP searches known technical operators; the mock world
+   confirms **isolate** and **repair**.
+5. Ari requests a separate safety release. Only Iona receives
+   that request, then she independently inspects the repaired pump.
+6. Iona requests authorization; only the world records it and
+   delivers approval to Ari.
+7. Ari commissions and directly verifies restored normal
+   pressure before reporting the outcome.
+8. Lin and Iona learn the verified resolution without
+   receiving Ari's private observation history.
 
-An operator-only log exposes the actual world transitions, character
-revisions and separately delivered observations. This is not an agent input.
+All model-free decisions are deterministic, though the GOAP
+planner performs real state-space search within an authored
+technical domain.
 
-### Failure injections and tests
+## Negative tests and resilience
 
-- A second, *urgent* safety reading arrives **after Ari has proposed**
-  isolation but before the request reaches the world. His revision changes;
-  the supervisor rejects the stale proposal. A new on-site inspection is
-  required even at the world permission boundary before operations resume.
-- The world commits **isolation** while its acknowledgement is lost.
-  The handler snapshots independent private memories and the pending
-  request ID, restarts against the still-live world, queries its receipt,
-  and continues. **No second isolation operation occurs.**
-- Invalid remote operations, unauthorized chief releases, forged completion,
-  and approvals without current first-hand inspection are all rejected.
+- An urgent safety recheck invalidates a previously prepared
+  physical action. Agent revision and the mock's preconditions
+  both prohibit acting on stale evidence.
+- A real mock-world isolation happens but its ACK is withheld.
+  Handler snapshots preserve the unknown request, and restore
+  reconciles the original receipt without a second isolation.
+- Remote/unauthorized operations, self-approval, forged
+  completion and approval without current first-hand inspection
+  do not alter the authoritative mock pump.
 
-## Run
+## Execute the historical test
 
-From repository root, Python 3.12+:
-
-```bash
+~~~sh
+# Repository root; Python 3.12+
 python -m pip install -e ./services/ai-handler
 python -m unittest discover -s services/ai-handler/tests -p 'test_coolant_*.py' -v
 python -m ox_ai.scenarios.coolant_fault
-```
+~~~
 
-Or, after this PR merges, open **Actions > Ox three-crew coolant incident >
-Run workflow** on `main`. The artifact `ox-three-crew-coolant-incident`
-contains a JSON transcript of independent memories, pump event history,
-world events, GOAP searches, expansion counts, and model-call accounting.
-No Gemini key, model download, Concordia dependency or game server is used.
+GitHub **Actions → Ox three-crew coolant incident → Run workflow**
+runs this credential-free mock suite and retains an operator-only
+diagnostic artifact. There is no hosted model or game-server
+process in **this** particular test.
 
-## Honest limitations
+## Scope and later implementation
 
-All domain operators, duties and escalation requirements are authored.
-There is a real state-space GOAP search for technical action selection,
-plus deterministic event-specific policies for communication. This does
-not establish emergent negotiation, arbitrary fault diagnosis, or three
-native Concordia entities interacting. Game time is advanced directly;
-a resident handler talking to real Evennia sessions has not been built.
+The world and escalation policies were authored for one specific
+fault; there is no free-form linguistic cooperation in P2. That
+limitation remains even though P4 uses separate native Concordia
+entities with finite choice menus.
 
-The next integration milestone is P3: normal authenticated Evennia
-character connections, per-character observations, action IDs/reconnect
-reconciliation, and eventually the read-only observatory.
+The subsequent real-world stages did add the originally missing
+capabilities: authenticated three-character Evennia transport,
+world-side receipt IDs, actual safety signoff, an Evennia-owned
+watch timer, independent post-handover reviewer and two-incident
+handler restart testing. This P2 mock **by itself** does not
+establish any of those real-server guarantees.

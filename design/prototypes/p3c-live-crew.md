@@ -1,27 +1,48 @@
-# P3c - Three real authenticated crew: coolant fault and watch handover
+# P3c — three real Evennia characters cooperate on P-01
 
-This integration composes P2 recipient-scoped events and genuine GOAP
-with the P3a independent authenticated WebSocket clients and P3b durable
-physical action receipts. Three separate, nonprivileged accounts each
-puppet one persistent Evennia NPC.
+**Status: implemented, tested and merged as
+[PR #12](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/12).**
+This phase uses **deterministic role policies** over three
+real independently authenticated clients, not three
+open-ended language-model deliberations.
+[Current implementation](../STATUS.md).
 
-Lin alone gets the bridge alarm. Lin radios Ari, who physically inspects
-P-01 and uses the zero-inference GOAP planner for isolation and repair.
-Iona receives a request only after repair and must independently inspect
-the local pump before she can authorize commissioning. Ari must inspect
-the commissioned pump and verify normal pressure before reporting closure.
-The authoritative world then advances the deterministic test watch clock
-to 07:55. Ari offers handover and Iona accepts, transferring actual
-game-side duty authority.
+## Real-world acceptance path
 
-The game persists recipient-specific private events and only delivers
-those addressed to a given character. Client input and character speech
-do not mutate pump state directly. All equipment effects and interlocks
-belong to Evennia and are independently verified using its database.
+Lin alone receives the world-issued Bridge coolant alarm. She
+radios engineering; Ari inspects P-01 in person and uses the
+dependency-free GOAP planner to isolate and repair the
+actual pump. Iona independently inspects the repaired
+equipment and grants the world-validated chief release.
+Ari commissions, re-inspects for normal pressure and reports
+resolution to the Bridge.
 
-Limitations: deterministic authored role policies, not general-language
-social autonomy or three Concordia deliberations; an explicit scripted
-world-clock advance for this test, not continuous background simulation.
-A further fault after Iona takes watch needs richer active-watch handling.
-A passing full-server CI run establishes only this authored three-crew
-cooperation and its negative tests, not general NPC intelligence.
+The world's watch roster then advances the **P3 test's
+synthetic clock**, enabling a co-located handover. Ari offers
+and Iona accepts, transferring *actual* duty authority.
+Every private `ox_event` has exactly one recipient, and
+`oxinbox` can replay only events addressed to the logging-in
+character. Physical commands are checked by Evennia, never
+by a model's promised effects.
+
+Tests check unauthorized/remote access, release prerequisites,
+private event scope, replay and the independent persisted
+SQLite pump/roster outcomes. The full-server
+[`ox-p3-three-crew.yml`](../../.github/workflows/ox-p3-three-crew.yml)
+run demonstrates this exact authored episode.
+
+## What came afterward
+
+The P3 test originally jumped its synthetic clock when the
+first incident closed. **P4b replaces that shortcut in its
+new acceptance test with the world-owned `ShipDutyClock`
+Script**, and allows a second pump fault after Iona assumes
+watch. At that point **Ari** becomes the independent
+safety reviewer, avoiding self-authorization. P4a first
+added native Concordia `EntityAgentWithLogging` instances
+for all three characters with finite decisions.
+
+See [P4a](p4a-live-cognition.md),
+[P4b](p4b-autonomous-watch.md) and
+[game mechanics](../../game/README.md). P3c alone did not
+prove unscripted cooperation or a persistent handler daemon.

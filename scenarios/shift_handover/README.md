@@ -1,84 +1,74 @@
-# Scenario 0 — Event-driven watch handover (runnable P2 mock)
+# Scenario 0 — deterministic P2 watch handover
 
-**Status:** Implemented mock-world scenario and regression tests in the handler.
-This is **not** yet an external Evennia connection, real-time ship server
-or general crew AI.
+**Status:** Implemented and retained as a **mock-world regression**.
+The scenario below is not a networked Evennia session; **later P3/P4
+milestones are**. The real-world counterpart is
+[P3c](../../design/prototypes/p3c-live-crew.md), extended with an
+[actual game-owned duty timer in P4b](../../design/prototypes/p4b-autonomous-watch.md).
+See [today's status](../../design/STATUS.md).
 
-## Cast and duty roster
+## Crew and authority in this historical fixture
 
-| Member | Location | Duty at 00:00 | After 07:55 handover |
+| Member | Room | Start duty | After due handover |
 | --- | --- | --- | --- |
-| Ari Sen | Engineering | Engineering watch, 00:00–08:00 | Relieved |
+| Ari Sen | Engineering | Engineering watch | Relieved |
 | Iona Vek | Engineering | Chief engineer, on call | Accepts engineering watch |
-| Lin Sato | Bridge | Bridge watch, 00:00–08:00 | Continues her bridge watch in this bounded mock |
+| Lin Sato | Bridge | Bridge watch | Remains on bridge; never reads private engineering note |
 
-Iona temporarily acts as Ari's relief; this first fixture does not
-introduce a fourth engineer. Her acceptance changes the mock world's
-authoritative engineering-watch roster. Lin is neither part of the
-engineering conversation nor given access to its contents.
+The P2 mock world owns the roster, locations, virtual clock,
+delivered observations, social-command receipts and actual duty
+transfer. None of these facts can be changed by describing a desired
+outcome in agent text.
 
-## Timeline
+## Deterministic virtual-clock timeline
 
-- 00:00–07:20: the mock clock advances. No observation or scheduled
-  obligation arrives. **No agent is awakened and no inference occurs.**
-- 07:30: the engineering sensor delivers an **unverified**
-  pressure-oscillation observation **only to Ari**. The bridge plot sends an
-  unrelated status **only to Lin**. Iona has received neither.
-- 07:54: the world clock advances again. No new work is initiated.
-- 07:55: a scheduled duty wakes Ari via a world-authorised event. He uses
-  his own remembered sensor note to deliver a handover report to Iona, who
-  is physically in the same Engineering compartment.
-- Iona is awakened by the **delivered report**, not by reading Ari's memory.
-  She accepts the briefing; only the mock world changes the active engineer.
-- The acceptance is delivered back to Ari and Iona. Lin still knows
-  nothing about the unverified engineering concern.
+1. `00:00–07:20`: the mock clock advances with no work waiting,
+   so there are no agent wake-ups or model calls.
+2. `07:30`: Ari receives a **private, unverified** sensor concern.
+   Lin receives an unrelated Bridge status; Iona does not learn
+   Ari's concern by omniscience.
+3. `07:54`: time advances again, without waking anyone.
+4. `07:55`: a due-duty observation wakes Ari; he briefs Iona
+   face to face in Engineering and preserves the concern as
+   **unverified**.
+5. The delivered report wakes Iona. Her acknowledgment authorizes
+   the **mock world** to change the active engineering watch.
+   The world reports the transfer back to the two engineers;
+   Lin does not acquire their private observations.
 
-This is deterministic event-driven policy, not generalized planning.
-No high-frequency NPC polling occurs. Actual time is advanced explicitly
-by the fixture; resident background process integration comes later.
+Policies and events are fully deterministic. This is deliberately
+not evidence of general conversational negotiation.
 
-## Run locally
+## Run the regression
 
-From the repository root, Python 3.12+:
+From the repository root with Python 3.12+:
 
-```bash
+~~~sh
 python -m pip install -e ./services/ai-handler
 python -m unittest discover -s services/ai-handler/tests -p 'test_watch_*.py' -v
 python -m ox_ai.scenarios.watch_handover
-```
+~~~
 
-Or after merge, on GitHub: **Actions > Ox three-crew watch handover >
-Run workflow** (branch main). This job needs neither the Gemini secret
-nor Concordia. Its JSON artifact contains an **operator-only** event ledger
-and independent character memories.
+Or select **GitHub Actions → Ox three-crew watch handover →
+Run workflow** on `main`. This test requires no LLM, Gemini secret
+or Evennia game server.
 
-## Invariants and acceptance
+## What it proves
 
-- Mock world authoritative for clock, rooms, character membership,
-  delivered communications and duty transfers.
-- Agents receive typed WorldObservation events addressed to their own
-  character. Privileged world operator logs are never delivered to policies.
-- Chief receives Ari's report as **secondhand testimony**, not as the
-  original sensor observation. Bridge officer never learns the concern.
-- A briefing requires a due handover and physical co-location. Iona
-  cannot take watch without a delivered, matching report.
-- Each request ID is executed at most once. After a lost acknowledgment,
-  a restarted handler queries world history rather than retrying.
-- Quiet simulated time means **zero wakeups** and zero model calls.
-- Tests cover scope isolation, clock, forged reports, delivery budget,
-  deduplication, snapshots and unknown outcomes.
+- Character-private observations and secondhand testimony remain
+  distinct; world operator logs never enter agent memories.
+- Only a due watch with physical co-location and a matching
+  briefing can change assigned duty.
+- The handler wakes on observations/duties, not each clock tick.
+- The mock world's idempotent action IDs permit lost-ACK recovery
+  after checkpoint/restore without replaying world effects.
 
-## Source boundaries
+Source: `ox_ai.ports.mock.watch_world`,
+`ox_ai.agents.mock_watch`,
+`ox_ai.scheduler.watch` and
+`ox_ai.scenarios.watch_handover`.
 
-- `services/ai-handler/src/ox_ai/ports/mock/watch_world.py` — mock roster,
-  world clock, scoped communications and audit history.
-- `services/ai-handler/src/ox_ai/agents/mock_watch.py` — three independent,
-  deterministic agent policies and private event memories.
-- `services/ai-handler/src/ox_ai/scheduler/watch.py` — wake-up routing, duty
-  events, checkpoint and world outcome reconciliation.
-- `services/ai-handler/src/ox_ai/scenarios/watch_handover.py` — runnable story.
-- `services/ai-handler/tests/test_watch_handover.py` — acceptance tests.
-
-**Still incomplete:** P2 mock coolant-fault coordination, P3 ordinary-client
-transport into Evennia, live duty scheduling, durable world/handler storage,
-and the read-only observatory. This test alone does not complete all P2 gates.
+**Later milestone:** P3 delivered normal Evennia sessions and real
+world-authoritative handover; P4b added a persistent Script-owned
+due-time event and tested two incidents across a watch change.
+Neither newer capability is asserted by this P2 mock alone.

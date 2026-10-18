@@ -1,6 +1,8 @@
 # ADR 0001 — Concordia is the first cognitive foundation
 
-**Status:** Accepted for Prototype 1 — 2026-10-18
+**Status:** Accepted (2026-10-18); native Concordia integration verified through P4a/P4b.
+
+> **Current implementation note:** Native Concordia entities, model metering, per-character memory and checkpoint/restore are now implemented. The original decision below records the framework selection, not the present TODO list.
 
 ## Context
 
@@ -29,3 +31,8 @@ The optional `[concordia]` dependency in `services/ai-handler/pyproject.toml` re
 ## Consequences and review trigger
 
 We inherit Concordia's synchronous entity lifecycle and component-state conventions. Ox still needs its own scheduler, durable state management and action-outcome boundary for a live server. If the cognitive component interfaces prove brittle or require too many model calls, reassess after a controlled prototype using equivalent observations and a common model.
+
+
+## Implementation outcome (2026-10-18)
+
+P1's single native `EntityAgentWithLogging` integration passed; [P4a](../prototypes/p4a-live-cognition.md) instantiated three separate entities behind real authenticated Evennia sessions. [P4b](../prototypes/p4b-autonomous-watch.md) added a runnable event-driven supervisor restoring individual checkpoints and reconciling a world-issued isolation receipt. The optional reviewed Concordia source pin remains; generic production lifecycle, concurrency and full arbitrary mid-episode recovery are not demonstrated.

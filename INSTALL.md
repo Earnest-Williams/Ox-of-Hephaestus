@@ -1,50 +1,141 @@
-# Development setup
+# Install and run the Ox prototype
 
-> **Current status:** This checkout is still primarily the **Evennia framework**. The steps below create and run a stock Evennia development game. They do **not** install a completed Ox of Hephaestus spaceship simulation or AI handler.
+> **Scope:** These are **local development** instructions for the playable
+> Evennia ship and the independent AI handler. They do not deploy a
+> publicly accessible MUD or the postponed observatory.
+> [Current feature status](design/STATUS.md).
 
-## Requirements
+## Prerequisites
 
-- Python **3.12 or later**, as required by the inherited `pyproject.toml`.
-- A Python virtual environment and the normal Evennia dependencies.
+- Python **3.12+**, a virtual environment, Git and dependency access.
+- A local machine capable of running Evennia; ports **4000**, **4001** and
+  **4002** must be available on loopback.
+- No LLM server, hosted API key or GPU is required for the **deterministic**
+  P4 integration tests.
 
-## Run a baseline Evennia game
+## 1. Install the game and service
 
-From the repository root:
+From the root of this checkout:
 
-```sh
+~~~sh
 python -m venv .venv
-# Activate .venv for your shell, then:
+# Activate .venv using your shell's normal command.
 python -m pip install -e .
-evennia --init ox-dev
-cd ox-dev
+python -m pip install -e './services/ai-handler[concordia,transport]'
+~~~
+
+Concordia is deliberately pinned to a reviewed Git commit; installing the
+`[concordia]` extra requires Git/network access. `[transport]` installs the
+Evennia WebSocket client dependency. The separate interface scaffold is
+optional: `python -m pip install -e ./services/interface`.
+
+## 2. Start the playable ship
+
+From the **game directory**:
+
+~~~sh
+cd game
 evennia migrate
 evennia start
-```
+~~~
 
-Evennia's standard local development client is available at `http://localhost:4001`, and traditional MUD clients can connect to `localhost:4000` with the default settings.
+First setup runs `game/server/conf/at_initial_setup.py` and builds the
+ship without modifying the inherited `evennia/` engine. If working with
+an older game database, run once in `game/`:
 
-This is a **framework smoke test**, not an Ox-specific playable build. In particular, there is no running AI handler or ship-specific game to launch yet.
+~~~sh
+evennia shell --command="from world.bootstrap import build_ship; build_ship()"
+~~~
 
-## Install the independent service skeletons
+Connect with a MUD client to `127.0.0.1:4000`, or open
+`http://127.0.0.1:4001` for Evennia's web client. From Limbo, `board`
+enters the Bridge; then `aft`, `engineering`, `inspect pump`,
+`inspect console` and `look roster` explore the fixture.
 
-These are **importable Python packages, not running daemons**. From the repository root in a Python 3.12+ virtual environment:
+Stop the local server with `evennia stop` from `game/`. Development
+settings bind to loopback, disable new account registration and use
+`LOCKDOWN_MODE`. Do not expose them to untrusted networks.
 
-```sh
-python -m pip install -e ./services/ai-handler
-python -m pip install -e ./services/interface
+## 3. Run tests
+
+Most handler tests need neither an Evennia server nor any hosted model:
+
+~~~sh
+# From the repository root:
 python -m unittest discover -s services/ai-handler/tests -v
-```
+python -m unittest discover -s services/ai-handler/tests -p 'test_p4a_cognition.py' -v
+python -m unittest discover -s services/ai-handler/tests -p 'test_p4b_watch_runtime.py' -v
+~~~
 
-When beginning Concordia integration, opt into the pinned source dependency:
+SQLite-backed game rule tests run from `game/`:
 
-```sh
-python -m pip install -e "./services/ai-handler[concordia]"
-```
+~~~sh
+cd game
+evennia test world.tests.test_ship world.tests.test_live_cooperation world.tests.test_autonomy --verbosity=2
+~~~
 
-This requires Git and network access; the released `gdm-concordia==2.4.0` package does not include the interrupt-driven scheduler used in our design. The model server, Concordia integration, NPC client logins and UI server are **not yet provided**. Use separate environments if the service dependencies diverge.
+Use `--verbosity=2`; Evennia treats `-v` as its version switch.
 
-See the [AI handler README](services/ai-handler/README.md), [interface README](services/interface/README.md) and [Prototype 1 plan](design/prototypes/01-autonomous-crew.md).
+**Recommended full integration:** GitHub **Actions → Ox P4b autonomous
+two-incident ship → Run workflow**, branch `main`. It creates throwaway
+accounts and a temporary game database and tests the entire two-incident
+handover and loss-of-ACK recovery from separate processes. It does not
+require you to supply a model key or maintain a local game database.
+Other focused P3/P4 Actions remain available; the inherited broad
+Evennia test matrix is not the default Ox workflow.
 
-The upstream [Evennia setup guide](https://www.evennia.com/docs/latest/Setup/Setup-Overview.html) is the authoritative source for engine installation details and platform-specific requirements.
+## 4. Run the external AI supervisor (development only)
 
-For the intended Ox components and development sequence, read [README.md](README.md) and [ARCHITECTURE.md](ARCHITECTURE.md). Do not rename or republish the inherited `evennia` Python package as Ox as part of this documentation setup.
+The handler is a real separate process, but the repository **does not**
+provide production-grade provisioning, a daemon unit or monitoring.
+Before starting it you need:
+
+1. An already-running Evennia ship with Ari, Lin and Iona;
+2. Dedicated accounts authorised to puppet their respective game
+   characters, and a local `.ox-state/p3a-ids.json` mapping;
+3. The `OX_PROBE_PASSWORD` environment variable matching the current
+   **development fixture** accounts.
+
+The test-only `game/world/transport_probe.py` module can provision these
+accounts *once on an empty, disposable database* (see the
+[handler README](services/ai-handler/README.md) and
+[P4b CI recipe](.github/workflows/ox-p4b-autonomy.yml)).
+Its shared test password and resettable fault fixture are not a secure
+production identity-management solution.
+
+With the test accounts provisioned and Evennia already started:
+
+~~~sh
+# Run from the repository root, NOT game/
+python -m ox_ai.runtime.watch_service serve
+~~~
+
+The external process opens the normal character WebSockets, restores its
+private checkpoints, responds to legitimately delivered ship events and
+sleeps on the socket between incidents. The scheduler itself does not
+inject faults or repeatedly call a model. The in-game Evennia Script owns
+the watch deadline. Do not run this service concurrently with a separate
+P4a scenario puppeting the **same** three accounts.
+
+For restart testing, `begin` and `resume` are **special acceptance
+commands**: they intentionally forget an isolation ACK so the next
+process can reconcile it without repeating the physical action. They
+are not normal operational commands; `serve` is the runtime entry point.
+
+## Model configuration and boundaries
+
+By default the Concordia actor factory uses a **deterministic MockModel**;
+this verifies wiring and access control, not emergent reasoning. For a
+separate opt-in hosted evaluation, set `OX_COGNITION_PROVIDER=gemini` and
+supply `GEMINI_API_KEY` privately. A failed, declined or malformed
+decision does not authorize a physical transition. The live
+three-agent hosted-model benchmark remains **unverified**.
+
+Equipment isolation, repair and commissioning have durable world-owned,
+actor-bound receipts. The two-process test exercises unknown-isolation
+recovery, **not arbitrary crash recovery during every later social
+command**. There is no permanent public server or browser observatory.
+
+See [game commands](game/README.md), [handler operations](services/ai-handler/README.md)
+and the [authority boundary](ARCHITECTURE.md). For framework-only install
+questions see the [upstream Evennia setup guide](https://www.evennia.com/docs/latest/).
