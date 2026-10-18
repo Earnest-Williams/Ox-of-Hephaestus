@@ -1,0 +1,212 @@
+name: Ox G2 persistent agent agendas and reconsideration
+
+on:
+  pull_request:
+    paths:
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-g2-crew-agendas.yml"
+  push:
+    branches: [main]
+    paths:
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-g2-crew-agendas.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pure-agenda:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install handler and run role-scoped agenda invariants
+        run: |
+          python -m pip install -e ./services/ai-handler
+          python -m compileall -q services/ai-handler/src services/ai-handler/tests
+          python -m unittest discover -s services/ai-handler/tests -p 'test_crew_agenda.py' -v
+
+  live-agenda:
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [urgent, restock]
+    env:
+      OX_G2_SCENARIO: ${{ matrix.scenario }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install real Evennia, native Concordia and authenticated transport
+        run: |
+          python -m pip install .
+          python -m pip install -e './services/ai-handler[concordia,transport]'
+          python -m compileall -q game services/ai-handler/src services/ai-handler/tests
+      - name: Disposable operator and five bot accounts
+        shell: bash
+        run: |
+          TOKEN="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          OWNER="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          echo "::add-mask::$TOKEN"
+          echo "::add-mask::$OWNER"
+          echo "OX_PROBE_PASSWORD=$TOKEN" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_PASSWORD=$OWNER" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_USERNAME=OxTrialOwner" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_EMAIL=owner@example.invalid" >> "$GITHUB_ENV"
+      - name: Prepare real world with one initially observed specialist duty
+        working-directory: game
+        shell: bash
+        run: |
+          set -euo pipefail
+          evennia migrate --noinput
+          evennia shell --command="from world.transport_probe import provision; provision(include_specialists=True); from world.live_crew import fixture_setup; fixture_setup(scheduled_clock=True); from world.bootstrap import build_ship; s=build_ship(); print('OX_G2_INITIAL_WORLD_READY')"
+          if [ "$OX_G2_SCENARIO" = "urgent" ]; then
+            evennia shell --command="from world.bootstrap import build_ship; s=build_ship(); assert s['cradle'].inject_fault()[0]; print('OX_G2_CARGO_FIRST')"
+          else
+            evennia shell --command="from world.bootstrap import build_ship; s=build_ship(); a=s['scrubber']; assert a.inject_fault()[0]; a.db.spare_cartridges=0; print('OX_G2_SCRUBBER_NO_SPARES')"
+          fi
+      - name: Boot real server on normal character sessions
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd game && evennia start)
+          python - <<'PY'
+          import socket,time
+          for _ in range(90):
+              try:
+                  with socket.create_connection(("127.0.0.1",4002),timeout=1):
+                      break
+              except OSError:
+                  time.sleep(1)
+          else:
+              raise RuntimeError("Five separate characters cannot connect")
+          PY
+          sleep 4
+      - name: Pause or block original world work with private checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$OX_G2_SCENARIO" = "urgent" ]; then
+            python -m ox_ai.runtime.five_crew_service agenda-pause-cargo
+          else
+            python -m ox_ai.runtime.five_crew_service agenda-once
+          fi
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          st=json.loads(Path(".ox-state/p4e-supervisor.json").read_text())
+          if os.environ["OX_G2_SCENARIO"]=="urgent":
+              assert st["specialist_jobs"]["mara"]["index"]==2, st
+              task=st["agendas"]["mara"]["tasks"][
+                  st["specialist_jobs"]["mara"]["event_id"]]
+              assert task["status"]=="in_progress", task
+              print("OX_G2_CARGO_JOB_RETAINED")
+          else:
+              job=st["specialist_jobs"]["teo"]
+              task=st["agendas"]["teo"]["tasks"][job["event_id"]]
+              assert job["deferred"] and task["status"]=="blocked", st
+              failed=job["work_steps"]["physical-3-replace"]
+              assert failed["status"]=="failed", failed
+              assert "supply_replenished" in task["reconsider"]["event_kinds"]
+              print("OX_G2_BLOCKED_RECEIPT_AND_TRIGGER_RETAINED")
+          PY
+      - name: Stop server before separate world-owned urgency or resupply event
+        working-directory: game
+        run: evennia stop
+      - name: Change world only through disposable operator, never AI memory
+        working-directory: game
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$OX_G2_SCENARIO" = "urgent" ]; then
+            evennia shell --command="from world.bootstrap import build_ship; s=build_ship(); assert s['scrubber'].inject_fault()[0]; print('OX_G2_URGENT_SCRUBBER_ALARM')"
+          else
+            evennia shell --command="from world.bootstrap import build_ship; from world.live_crew import emit; s=build_ship(); s['scrubber'].db.spare_cartridges=1; emit(s['pump'],s['environment'],'supply_replenished',data={'equipment':'A-01'},text='Operator resupplied a physical A-01 cartridge'); print('OX_G2_WORLD_RESTOCK_EVENT')"
+          fi
+      - name: Restart actual server with same world and checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd game && evennia start)
+          python - <<'PY'
+          import socket,time
+          for _ in range(90):
+              try:
+                  with socket.create_connection(("127.0.0.1",4002),timeout=1):
+                      break
+              except OSError:
+                  time.sleep(1)
+          else:
+              raise RuntimeError("Restarted character transport unavailable")
+          PY
+          sleep 4
+      - name: Select highest-priority new obligation or reconsider previously blocked work
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$OX_G2_SCENARIO" = "urgent" ]; then
+            python -m ox_ai.runtime.five_crew_service agenda-once
+            python - <<'PY'
+          import json
+          from pathlib import Path
+          st=json.loads(Path(".ox-state/p4e-supervisor.json").read_text())
+          assert [x["role"] for x in st["specialist_completed"]]==["teo"], st
+          job=st["specialist_jobs"]["mara"]
+          assert job and job["index"]==2, st
+          task=st["agendas"]["mara"]["tasks"][job["event_id"]]
+          assert task["status"]=="interrupted", task
+          assert any(x["to"]=="interrupted" for x in task["history"])
+          print("OX_G2_URGENT_PREEMPTED_LOWER_DUTY_PASS")
+          PY
+          fi
+          python -m ox_ai.runtime.five_crew_service agenda-finish
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          st=json.loads(Path(".ox-state/p4e-supervisor.json").read_text())
+          expected=(["teo","mara"] if os.environ["OX_G2_SCENARIO"]=="urgent"
+                    else ["teo"])
+          assert [x["role"] for x in st["specialist_completed"]]==expected, st
+          assert all(st["specialist_jobs"][role] is None for role in ("teo","mara"))
+          for role in expected:
+              records=st["agendas"][role]["tasks"]
+              assert len([x for x in records.values()
+                          if x["source_kind"] in ("cargo_shift","atmosphere_alarm")
+                          and x["status"]=="completed"])==1, records
+          if os.environ["OX_G2_SCENARIO"]=="restock":
+              task=next(iter(st["agendas"]["teo"]["tasks"].values()))
+              history=[x["to"] for x in task["history"]]
+              assert "blocked" in history and history.index("blocked")<history.index("accepted",history.index("blocked")+1), history
+              print("OX_G2_RESTOCK_RECONSIDERED_AFTER_RESTART")
+          else:
+              print("OX_G2_INTERRUPTED_CARGO_RESUMED_AFTER_URGENT_DUTY")
+          PY
+      - name: Stop world for independent source-of-truth verdict
+        if: always()
+        working-directory: game
+        run: evennia stop || true
+      - name: Check exact world effects, permanent failed receipts and scarce inventory
+        shell: bash
+        working-directory: game
+        run: |
+          set -euo pipefail
+          if [ "$OX_G2_SCENARIO" = "urgent" ]; then
+            evennia shell --command="from world.bootstrap import build_ship; from world.models import WorkReceipt; s=build_ship(); c=s['cradle']; a=s['scrubber']; assert c.state=='secured' and a.state=='nominal'; assert [e['operation'] for e in c.db.event_history]==['shift','restow','certify']; assert [e['operation'] for e in a.db.event_history]==['saturate','isolate','replace','restart']; assert WorkReceipt.objects.filter(target='cargo').count()==2; assert WorkReceipt.objects.filter(target='scrubber').count()==3; assert a.db.spare_cartridges==1; print('OX_G2_URGENT_WORLD_EXACT_EFFECTS_PASS')"
+          else
+            evennia shell --command="from world.bootstrap import build_ship; from world.models import WorkReceipt; s=build_ship(); a=s['scrubber']; assert a.state=='nominal' and int(a.db.spare_cartridges)==0; assert [e['operation'] for e in a.db.event_history]==['saturate','isolate','replace','restart']; rows=list(WorkReceipt.objects.filter(target='scrubber',operation='replace')); assert len(rows)==2 and sorted(r.outcome['status'] for r in rows)==['failed','succeeded']; assert len(set(r.request_id for r in rows))==2; assert WorkReceipt.objects.filter(target='scrubber',operation='isolate').count()==1; assert WorkReceipt.objects.filter(target='scrubber',operation='restart').count()==1; print('OX_G2_STORED_DENIAL_AND_SINGLE_REPLENISHED_REPLACEMENT_PASS')"
+          fi
+      - name: Preserve test-only agenda snapshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-g2-${{ matrix.scenario }}
+          path: .ox-state/p4e-supervisor.json
+          retention-days: 7
+          if-no-files-found: ignore
