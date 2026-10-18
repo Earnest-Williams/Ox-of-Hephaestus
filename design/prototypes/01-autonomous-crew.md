@@ -1,6 +1,6 @@
 # Prototype 1 — Autonomous Crew
 
-**Status:** P0/P1 are tested. Both Gemini and GOAP have repaired the real Evennia P-01. P2 includes verified deterministic mock watch-handover and coordinated coolant-fault scenarios with three scoped crew identities, GOAP repairs, urgent interruption, and lost-ACK recovery. Three Concordia-driven crew agents and P3 three-client Evennia integration is under test; general Concordia-driven unscripted cooperation and P5 observatory remain future work.
+**Status (October 18, 2026):** P0–P3 are tested. P4a connects three separate native Concordia entities to ordinary Evennia clients, with bounded model actions and independent memories. P4b adds a persistent event-driven watch service, game-owned scheduling, second-watch safety delegation and crash/recovery acceptance tests. The P5 observatory is postponed.
 
 ## Aim
 

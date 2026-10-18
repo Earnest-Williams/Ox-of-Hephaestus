@@ -2,7 +2,7 @@
 
 **An autonomous spaceship MUD and shipboard simulation, built on [Evennia](https://www.evennia.com/).**
 
-> **Project status: first playable test ship and first Concordia entity integration candidate.** The standalone `game/` directory contains real Evennia rooms, a pump, bridge telemetry and idle crew bodies. The `services/ai-handler/` package has a tested single-agent Concordia lifecycle and a short-lived, in-process experiment now drives one engineer through real Evennia commands. **The independent handler transport, autonomous crew orchestration and dashboard do not exist.**
+> **Project status (October 2026):** A three-character native Concordia/GOAP crew now connects to the persistent Evennia spaceship. A world-authoritative duty clock and independent event-driven watch supervisor have executable two-incident and crash-reconciliation tests. The observatory, additional ship systems, and production service deployment remain future work.
 
 ## Try the little ship
 

@@ -33,9 +33,11 @@ the active engineer between them, stops and starts the independent handler,
 then verifies the real game event ledger contains exactly one isolation per
 incident and the correct reviewer approval.
 
-The CLI's begin/resume modes deliberately test that recovery boundary in
-two distinct OS processes. The serve mode repeats the same event-driven
-sequence for later alarms. Idle periods do not invoke an LLM.
+The CLI begin/resume modes deliberately test that recovery boundary in
+two distinct OS processes. The serve mode retains the normal world ACK,
+reconciles game truth before advancing and repeats the event-driven
+sequence for later alarms. Idle periods suspend indefinitely on a live
+character connection, without polling or model inference.
 
 **Boundaries:** This is an early operational service for one pump and three
 crew, not a generic scheduling service, broad language-based collaboration
@@ -44,3 +46,8 @@ cognitive and world wiring, not generalized model reasoning. An actual
 model is opt-in with OX_COGNITION_PROVIDER=gemini. The service must be
 started by an operator/supervisor in an installed runtime; GitHub CI
 does not deploy a permanent spaceship server. The observatory is deferred.
+
+**Remaining hardening:** The supervisor fails closed if it crashes midway
+through a later non-idempotent social command; generic recovery from every
+possible partially completed scene is not yet proved. The prototype is not
+installed as a managed system service and must be launched by an operator.
