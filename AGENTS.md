@@ -24,7 +24,6 @@ This is an **Evennia fork plus an implemented Ox prototype**, not a new
 
 ## Pointers
 
-- [Reliability and autonomy execution roadmap](design/ROADMAP.md) (future work; do not claim implementation)
 
 - [Ox component/test map](design/README.md)
 - [Active ship and local commands](game/README.md)
