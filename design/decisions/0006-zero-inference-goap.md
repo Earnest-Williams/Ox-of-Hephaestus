@@ -1,6 +1,8 @@
 # ADR 0006 - Zero-inference GOAP engineer and shared pump test
 
-**Status:** Prototype experiment - 2026-10-18
+**Status:** Accepted prototype experiment (2026-10-18); GOAP repair and subsequent networked receipts verified.
+
+> **Current implementation note:** This note records the first in-process GOAP experiment. The text describing external transport as unimplemented reflects that earlier phase; P3 and P4 have since implemented it.
 
 ## Purpose
 
@@ -67,3 +69,8 @@ WorldPort transport and an asynchronous AI supervisor remain unimplemented.
 
 The first PR does not claim GOAP outperforms Gemini. Compare actual action
 counts, correctness, replanning and latency only after successful runs.
+
+
+## Later results (2026-10-18)
+
+The model-free GOAP benchmark remains a reusable deterministic control. [P3b](../prototypes/p3b-durable.md) used the same pump operations via actual authenticated Evennia WebSockets, adding durable world-owned request/receipt reconciliation. [P3c](../prototypes/p3c-live-crew.md) integrated the planner into a three-character incident. [P4a](../prototypes/p4a-live-cognition.md) and [P4b](../prototypes/p4b-autonomous-watch.md) preserved GOAP as authored equipment expertise under bounded Concordia decisions and a changed active watch. None of these milestones proves novel equipment discovery or generic planning for unmodeled machinery.

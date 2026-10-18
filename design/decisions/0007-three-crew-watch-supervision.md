@@ -1,6 +1,8 @@
 # ADR 0007 — Event-driven three-crew P2 watch supervision
 
-**Status:** Prototype experiment, 2026-10-18.
+**Status:** Historical accepted P2 mock design (2026-10-18); later P3/P4 live watch transfer implemented.
+
+> **Current implementation note:** This ADR concerns the original deterministic **mock** handover. Subsequent real Evennia integration and world-owned due scheduling are described in the implementation update below.
 
 ## Decision
 
@@ -45,3 +47,8 @@ database or taking authority over mechanical outcomes.
 
 Do not equate a passing deterministic mock with a persistent autonomous
 spaceship or general multi-agent intelligence.
+
+
+## Later live implementation (2026-10-18)
+
+[P3c](../prototypes/p3c-live-crew.md) implemented three individually authenticated ordinary Evennia clients and an in-world verified handover; that P3 fixture still used a synthetic incident-triggered clock jump. [P4b](../prototypes/p4b-autonomous-watch.md) instead runs a **persistent Evennia `ShipDutyClock` Script**, waits for a world-owned handover deadline, then transfers actual duty authority to Iona. The P4b second incident is repaired by Iona with Ari separately authorized as reviewer. The earlier P2 mock still supplies fast, model-free regression tests and does not itself establish live-server behavior.

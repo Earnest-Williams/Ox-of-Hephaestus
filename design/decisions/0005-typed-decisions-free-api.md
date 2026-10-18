@@ -1,6 +1,8 @@
 # ADR 0005 — Bounded decisions before local model deployment
 
-**Status:** Prototype experiment, 2026-10-18. No live API trial has been performed by CI.
+**Status:** Prototype adapter tested; the later single-engineer Gemini live run succeeded on 2026-10-18. Three-model cooperation remains unverified.
+
+> **Current implementation note:** This ADR preserves the earlier schema rejection and debugging record. Its original “no live success” statements are historical and were superseded by a verified single-engineer hosted-model run.
 
 ## Motivation
 
@@ -83,3 +85,10 @@ enum, asserts it in network-free tests, and extracts only safe provider status
 and field names from rejected responses. Raw error messages are never printed,
 since they can echo a crew member's observations or request data. We must
 repeat the live trial before claiming Gemini works.
+
+
+## Later result: successful hosted single-engineer trial (2026-10-18)
+
+The opt-in [Ox live Gemini pump repair workflow run 39088886933](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/39088886933) completed **successfully** after the earlier HTTP 400 investigation. That verified a bounded hosted Gemini model could make the offered sequence of actions in the **one-engineer local game harness**, with Evennia independently validating the real pump result.
+
+It did **not** evaluate unscripted three-crew dialogue. [P4a](../prototypes/p4a-live-cognition.md) later used three native Concordia entities and a deterministic `MockModel` to validate the live multiplayer wiring; hosted multi-agent model intelligence remains a separate opt-in benchmark. API model availability, quotas and data terms can change.

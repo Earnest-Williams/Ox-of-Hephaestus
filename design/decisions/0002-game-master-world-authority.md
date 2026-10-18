@@ -1,6 +1,8 @@
 # ADR 0002 — Minimal deterministic Game Master; world owns causality
 
-**Status:** Accepted for Prototype 1 — 2026-10-18
+**Status:** Accepted (2026-10-18); enforced in P2 mock and P3/P4 live tests.
+
+> **Current implementation note:** The distinction between model proposal, private observations and world-owned outcomes is now executable in both mock and real Evennia modes. Later acceptance milestones do not require a narrating generative Game Master.
 
 ## Decision
 
@@ -25,3 +27,8 @@ Do not force the native Concordia simulation engine to drive the live Evennia cl
 ## Later evolution
 
 Only after the ordinary-client approach works will we consider a dedicated authenticated Evennia service API acting for multiple characters. The game's normal rules remain authoritative through either transport. Avoid modifying inherited `evennia/` engine code for the first prototype.
+
+
+## Implementation outcome (2026-10-18)
+
+[P2](../../scenarios/coolant_fault/README.md) uses a deterministic mock world; [P3c](../prototypes/p3c-live-crew.md) and [P4a](../prototypes/p4a-live-cognition.md) operate with real ordinary Evennia characters. [P4b](../prototypes/p4b-autonomous-watch.md) assigns deadline delivery to Evennia's persistent `ShipDutyClock` rather than to Concordia. The live runtime invokes bounded Concordia choices only on relevant work. It does not make physical predictions authoritative, and it still lacks general crash-safe recovery for every social command.

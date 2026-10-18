@@ -1,6 +1,8 @@
 # ADR 0004 — Scope continuous integration to Ox
 
-**Status:** Accepted — 2026-10-18
+**Status:** Accepted (2026-10-18); focused P0–P4 suites are established.
+
+> **Current implementation note:** The CI decision below preceded the later P3/P4 workflows. Focused end-to-end server tests now complement, rather than replace, the original scaffold and root-package smoke checks.
 
 ## Context
 
@@ -27,3 +29,8 @@ Fix warnings in Ox-owned code when they occur. Track inherited Evennia and GitHu
 ## Future review
 
 Reconsider the CI split if Ox begins changing the inherited `evennia/` engine regularly, adopts multiple production database backends, or needs automated release images.
+
+
+## Implementation outcome (2026-10-18)
+
+The focused Ox suite now includes `ox-p3-live.yml`, `ox-p3-durable.yml`, `ox-p3-three-crew.yml`, `ox-p4a-concordia-crew.yml` and `ox-p4b-autonomy.yml`, alongside the base ship and handler workflows. These verify ordinary client transport, physical receipts, three-client cooperation, three native Concordia entities and two-incident restart recovery. All nine applicable focused workflows succeeded on `main` after [PR #14](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/14). The inherited broad Evennia matrix remains a separate manual engine-maintenance concern; a passing Ox scenario does not establish upstream compatibility across all database engines.
