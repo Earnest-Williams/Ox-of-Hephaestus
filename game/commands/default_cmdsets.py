@@ -8,6 +8,10 @@ from commands.crew import (
     CmdOxHail, CmdOxAnswer,
 )
 
+from commands.departments import (
+    CmdRestow, CmdCertify, CmdReplaceCartridge, CmdRestartScrubber,
+)
+
 from commands.ship import (
     CmdCommission,
     CmdInspect,
@@ -39,6 +43,10 @@ class CharacterCmdSet(BaseCmdSet):
             CmdCommission,
             CmdShipFault,
             CmdShipEngineer,
+            CmdRestow,
+            CmdCertify,
+            CmdReplaceCartridge,
+            CmdRestartScrubber,
             CmdOxInbox,
             CmdOxRadioAlarm,
             CmdOxRequestRelease,
