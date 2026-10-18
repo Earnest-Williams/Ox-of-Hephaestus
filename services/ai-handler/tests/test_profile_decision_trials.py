@@ -106,6 +106,8 @@ class NativeConcordiaDecisionTests(unittest.TestCase):
             self.assertEqual(restored.agent.blueprint, profiles["collaborative"])
             with self.assertRaises(PermissionError):
                 LiveCrewBrain.from_checkpoint("teo", "#999", MockModel(), file)
+            with self.assertRaises(PermissionError):
+                LiveCrewBrain.from_checkpoint("mara", "#105", MockModel(), file)
             state = json.loads(file.read_text())
             state["identity"]["agent_id"] = "ox.person.someone_else"
             file.write_text(json.dumps(state))
