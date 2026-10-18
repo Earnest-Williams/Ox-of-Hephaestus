@@ -126,12 +126,20 @@ class EvenniaWebSocketClient:
         # diagnostic messages must never include an echoed password.
         kinds = []
         notices = []
+        samples = []
         try:
             async with asyncio.timeout(self.timeout):
                 for _ in range(256):
                     packet = await self.receive()
                     kinds.append(packet.kind[:32])
                     message = packet.text.lower()
+                    # CI-only synthetic ship troubleshooting; redacted and
+                    # capped to prevent credentials in public runner logs.
+                    if packet.text and len(samples) < 3:
+                        from html import unescape
+                        safe = re.sub(r"<[^>]*>", "", unescape(packet.text))
+                        safe = safe.replace(self._password, "[REDACTED]")
+                        samples.append(re.sub(r"\s+", " ", safe)[:180])
                     if packet.kind == "logged_in":
                         return
                     for needle, code in (
@@ -149,6 +157,7 @@ class EvenniaWebSocketClient:
             raise IdentityMismatch(
                 "No login acknowledgement; packet kinds="
                 + ",".join(kinds[:15]) + " notices=" + ",".join(notices)
+                + " server_text=" + repr(samples)
             ) from exc
         raise IdentityMismatch("No authenticated session acknowledgement")
 
@@ -175,11 +184,19 @@ class EvenniaWebSocketClient:
         if not expected:
             raise ValueError("Expected marker must not be empty")
         # Preserve the total deadline over an arbitrary number of frames.
-        async with asyncio.timeout(timeout if timeout is not None else self.timeout):
-            for _ in range(256):
-                packet = await self.receive()
-                if expected in packet.text:
-                    return packet.text
+        samples = []
+        try:
+            async with asyncio.timeout(timeout if timeout is not None else self.timeout):
+                for _ in range(256):
+                    packet = await self.receive()
+                    if expected in packet.text:
+                        return packet.text
+                    if packet.text and len(samples) < 3:
+                        from html import unescape
+                        safe = re.sub(r"<[^>]*>", "", unescape(packet.text))
+                        samples.append(re.sub(r"\s+", " ", safe.replace(self._password, "[REDACTED]"))[:180])
+        except TimeoutError as exc:
+            raise TimeoutError("Expected game observation missing: " + repr(samples)) from exc
         raise RuntimeError("Expected character output not observed")
 
     async def close(self) -> None:
