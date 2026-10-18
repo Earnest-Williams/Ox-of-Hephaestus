@@ -94,10 +94,12 @@ From the repository root, install Evennia and run the targeted DB-backed suite:
 ```bash
 python -m pip install -e .
 cd game
-evennia --settings settings.py test world.tests --verbosity=2
+evennia test world.tests --verbosity=2
 ```
 
-Use `--verbosity=2` rather than `-v 2`: the latter is reserved by Evennia's launcher for `--version` and would silently skip the test suite.\n\nThis uses a temporary Django test database and exercises the actual
+Use `--verbosity=2` rather than `-v 2`: the latter is reserved by Evennia's launcher for `--version` and would silently skip the test suite. Do not pass Evennia's own `--settings` launcher option to this Django test pass-through: it would be forwarded to Django as a command. The separate CI bootstrap uses the actual game configuration.
+
+This uses a temporary Django test database and exercises the actual
 Evennia objects, exit topology, persisted pump state, permission and location
 checks, bounded inspection, roster, and idempotent bootstrap. The
 `Ox spaceship game tests` CI job runs these tests when `game/` changes.
