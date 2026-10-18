@@ -10,6 +10,40 @@ This is not a
 deployed freighter or general social simulation.
 [Verified feature matrix](design/STATUS.md) · [Development setup](INSTALL.md).
 
+## G3 — individual epistemics, real inventory and cooperative delivery (PRs #38–40)
+
+**Rumsfeld/open-world invariant:** a missing proposition is not false.
+Each agent has a separate versioned, DBref-bound epistemic ledger for (1)
+locally or world-receipt observed statements with time, provenance and
+expiry, (2) actor hypotheses and testimony that remain *beliefs* even at
+confidence 1.0, (3) explicitly posed known-unknown questions, and (4)
+as-yet-unmodeled propositions. Former unknown unknowns are recorded only
+*retrospectively* after world-evidenced surprise; no mechanism enumerates
+them in advance. Cross-character events and private memories are not
+readable by other agents.
+
+**World scarcity:** serialised InventoryItem rows contain a physical state,
+single real room or carrier, and permanent consumed status. Earlier A-01
+local spares remain separate preserved world stock; delivery of a new
+serialised unit does not reset or double-count existing inventory.
+SupplyOrder and globally unique WorkReceipt rows record Teo's request,
+Mara's accepted obligation, physical collection and delivery. An order
+or in-transit notice is not proof of physical stock. World events are
+recipient-addressed; local oxinventory observations use Evennia's clock
+and return null, never guessed zero, for unverifiable local stock.
+
+**Cooperation:** a separate five-person supervisor may coordinate the
+bounded Teo/Mara A-01 supply cycle. Mara cannot proceed before her own
+authenticated world assignment event. She must visit Cargo Hold, verify
+stock and carry a real item through normal exits; Teo must receive a
+world delivery event and observe newly available stock locally before
+retrying a previously refused A-01 replacement. Each stage retains its
+own original world receipt ID across crashes. Production automatic
+cooperation is opt-in while earlier regression scenarios remain stable.
+[Epistemic model](design/prototypes/g3-epistemics.md) ·
+[World supply model](design/prototypes/g3-inventory.md) ·
+[Cooperative trial](design/prototypes/g3-cooperation.md).
+
 ## G2c: actor-scoped world capabilities and learned GOAP travel (PRs #35–36)
 
 The ordinary, nonprivileged `oxcapabilities <nonce>` game command returns

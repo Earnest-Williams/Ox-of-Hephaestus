@@ -538,20 +538,34 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
             return True
         return False
 
+    async def _maybe_supply_cooperation(self) -> bool:
+        """Opt-in bounded multi-actor handoff; preserves legacy world trials."""
+        if os.getenv("OX_G3_COOPERATIVE_SUPPLY", "0") != "1":
+            return False
+        from ox_ai.runtime.cooperative_supply import CooperativeSupply
+        coordinator = CooperativeSupply(self)
+        if coordinator.record is not None and coordinator.record["completed"]:
+            return False
+        result = await coordinator.advance()
+        return result in ("requested", "completed", "teo_work_in_progress")
+
     async def service_departments(self) -> bool:
-        """Choose from actual per-agent agendas, not a fixed crew ordering."""
+        """Choose actual duties, then consider blocked real supply dependencies."""
         for role in EXTRA_ACCOUNTS:
             await self._start_job(role)
         candidates = self._ready_specialists()
         if not candidates:
-            return False
+            return await self._maybe_supply_cooperation()
         role, urgent = candidates[0]
         for other, task in candidates[1:]:
             if self.agendas[other].interrupt(
                 task["task_id"], urgent=urgent,
             ):
                 self.checkpoint()
-        return await self._advance_job(role, allow_preemption=True)
+        progressed = await self._advance_job(role, allow_preemption=True)
+        if not progressed:
+            return await self._maybe_supply_cooperation()
+        return progressed
 
 
 async def run(mode: str) -> None:
