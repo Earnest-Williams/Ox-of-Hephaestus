@@ -68,6 +68,14 @@ actor-bound world receipt reconciliation. The old ordinary character
 commands remain supported. The remaining G1 obligations are specialist
 stage migration and real PostgreSQL contention/recovery tests.
 
+**P4j (under validation):** Both specialist departments' newly
+scheduled physical steps now use the global world-work namespace
+and handler-side stage ledger. Old P4e pending IDs retain the
+fixture-specific recovery path; after safe reconciliation the
+remaining steps migrate. Three isolated server tests exercise
+pre-send, post-commit and old-checkpoint recovery. PostgreSQL
+multi-writer contention remains the final outstanding G1 gate.
+
 ## G2: Individual autonomy
 
 ### PR 23 — persistent agendas and reconsideration

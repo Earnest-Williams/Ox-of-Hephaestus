@@ -9,6 +9,29 @@ ACK across a handler restart. This is **not** deployed production software
 or proof of unconstrained multi-agent intelligence.
 [Current status](../../design/STATUS.md).
 
+## P4j globally receipted cargo and environmental work (under validation)
+
+New cargo-restraint and scrubber operations from the five-crew supervisor
+are now recorded in that specialist job's own `work_steps` under
+`physical-<step-index>-<operation>`. Each stores the actor, immutable
+operation/target binding, ID and world receipt. A handler crash before
+send or after world commit can be recovered under the original global ID.
+
+**Upgrade compatibility:** when an existing P4e checkpoint contains a
+non-null `specialist_jobs[role].pending`, the handler reconciles the
+original actor-bound **fixture** receipt, then resumes new steps using
+the shared world ledger. It must never manufacture a fresh request ID
+to substitute for that prior uncertain outcome.
+
+The CI-only commands `interrupt-mara-restow-<point>`,
+`interrupt-teo-replace-<point>` and `finish-<mara|teo>`
+support independent-process fault injection. The
+[specialist recovery matrix](../../.github/workflows/ox-p4j-specialist-recovery.yml)
+also seeds a genuine old-format P4e checkpoint.
+
+World inventory is not yet transferable between crew, and postponed
+specialist tasks do not yet have agenda-style reconsideration triggers.
+
 ## P4i bridge, watch and hail recovery (under validation)
 
 The three- and five-crew supervisors persist the bridge alarm's

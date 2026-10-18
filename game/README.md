@@ -33,6 +33,22 @@ manufacturing, or skill-by-use progression**. The P4e supervisor runs
 five private cognitive agents; the original P4c three-crew supervisor
 remains available but must not be run simultaneously on the same ship.
 
+## P4j shared world-work receipts for cargo and environmental tasks
+
+New AI-initiated C-01/A-01 work now uses the same globally unique,
+world-owned `WorkReceipt` records as pump and ship coordination work.
+Each specialist's handler checkpoint contains a per-step intent,
+and the world separately validates actual location, duty and equipment
+state before recording the result. A dropped cartridge-replacement ACK
+cannot spend another cartridge. Existing P4e checkpoints that store
+a `pending` fixture-specific ID still reconcile through `oxreceipt`
+using that original ID; subsequent work uses the global protocol.
+
+The [specialist recovery workflow](../.github/workflows/ox-p4j-specialist-recovery.yml)
+checks both independent departments and an older saved-checkpoint
+upgrade case. No transferrable inventory or skill-by-use implementation
+is claimed here.
+
 ## P4h pump-work recovery across handler restarts (merged PR #24)
 
 A separately running three- or five-crew handler can restart after a

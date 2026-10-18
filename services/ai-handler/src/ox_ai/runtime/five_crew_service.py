@@ -18,13 +18,13 @@ import json
 import os
 from pathlib import Path
 import sys
-import uuid
 
 from ox_ai.agents.crew import CommandOption
 from ox_ai.agents.live_concordia import LiveCrewBrain, make_model
-from ox_ai.ports.base import ActionOutcome, ActionRequest
+from ox_ai.ports.base import ActionOutcome
 from ox_ai.ports.evennia.client import EvenniaWebSocketClient
 from ox_ai.ports.evennia.durable import DurableEvenniaPort
+from ox_ai.runtime.work_steps import WorkStepLedger, SimulatedWorkInterruption
 from ox_ai.runtime.watch_service import (
     CrewWatchSupervisor, ROOT, URL, atomic_json,
 )
@@ -145,6 +145,8 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
 
     async def _advance_job(
         self, role: str, *, drop_after: str | None = None,
+        interrupt_operation: str | None = None,
+        interrupt_point: str | None = None,
     ) -> bool:
         if not await self._start_job(role):
             return False
@@ -179,52 +181,59 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
                 self.checkpoint()
                 continue
 
-            pending = job["pending"]
-            if pending is not None:
-                # Crash-safe recovery: NEVER generate a new request ID or
-                # reapply an unknown physical transition.
-                if (pending["operation"] != operation
-                        or pending["index"] != job["index"]):
-                    raise RuntimeError("Pending physical action mismatches work plan")
-                result = await port.reconcile(pending["request_id"], target=target)
-            else:
-                choice = brain.choose(
-                    CommandOption(
-                        f"Perform verified {operation} on local {target}",
-                        operation + "_" + target,
-                    ),
-                    alternative="Defer until the equipment can be serviced safely",
-                )
-                if choice.verb != operation + "_" + target:
-                    brain.agent.record_outcome(ActionOutcome(
-                        choice.request_id, "succeeded",
-                        "Chose deferral; no physical command dispatched",
-                    ))
-                    job["deferred"] = True
-                    self.checkpoint()
-                    return False
-                # The agent selected a *plan step*, not a fictional completed
-                # operation. World receipts are verified separately below.
-                brain.selected_procedure(choice)
-                pending = {
-                    "request_id": uuid.uuid4().hex,
-                    "operation": operation, "index": job["index"],
-                }
-                job["pending"] = pending
-                # Persist before sending anything with a physical effect.
-                self.checkpoint()
-                result = await port.submit(ActionRequest(
-                    pending["request_id"], self.ids[role],
-                    operation + "_" + target, target,
-                ))
-                if drop_after == operation:
-                    # CI simulates a killed handler after the Evennia commit,
-                    # without saving the result or clearing the pending ID.
-                    if result.status != "succeeded" or not result.source_event_id:
-                        raise RuntimeError("No committed action ACK to discard")
-                    raise SimulatedLostAcknowledgement(
-                        f"World committed {role} {operation}; ACK intentionally lost"
+            legacy_pending = job["pending"]
+            if legacy_pending is not None:
+                # A pre-P4j checkpoint may contain a submitted equipment-
+                # specific oxaction ID. NEVER transfer that ID to the newer
+                # namespace or create a replacement; reconcile the original
+                # world fixture receipt for this exact stage.
+                if (legacy_pending["operation"] != operation
+                        or legacy_pending["index"] != job["index"]):
+                    raise RuntimeError(
+                        "Legacy pending physical action mismatches work plan"
                     )
+                result = await port.reconcile(
+                    legacy_pending["request_id"], target=target,
+                )
+            else:
+                # New work has one actor-scoped global WorkReceipt ID per
+                # procedure step, saved inside the independent handler's
+                # specialist job checkpoint before any network transmission.
+                stage = f"physical-{job['index']}-{operation}"
+                ledger = WorkStepLedger(
+                    job, self.checkpoint, character_ids=self.ids,
+                )
+                if stage not in ledger.steps:
+                    choice = brain.choose(
+                        CommandOption(
+                            f"Perform verified {operation} on local {target}",
+                            operation + "_" + target,
+                        ),
+                        alternative="Defer until equipment can be serviced safely",
+                    )
+                    if choice.verb != operation + "_" + target:
+                        brain.agent.record_outcome(ActionOutcome(
+                            choice.request_id, "succeeded",
+                            "Chose deferral; no physical command dispatched",
+                        ))
+                        job["deferred"] = True
+                        self.checkpoint()
+                        return False
+                    brain.selected_procedure(choice)
+                crash_point = None
+                if drop_after == operation:
+                    crash_point = stage + ":committed"
+                if interrupt_operation == operation:
+                    if interrupt_point not in ("prepared", "committed", "ack"):
+                        raise ValueError("Invalid specialist interruption point")
+                    crash_point = stage + ":" + interrupt_point
+                try:
+                    result = await ledger.run(
+                        stage, role, operation + "_" + target, target,
+                        port, interrupt_at=crash_point,
+                    )
+                except SimulatedWorkInterruption as exc:
+                    raise SimulatedLostAcknowledgement(str(exc)) from exc
 
             if result.status != "succeeded" or not result.source_event_id:
                 raise RuntimeError(
@@ -267,6 +276,32 @@ async def run(mode: str) -> None:
                 print("OX_P4E_REPLACEMENT_ACK_DROPPED_WORLD_COMMITTED")
                 return
             raise RuntimeError("No environmental replacement was interrupted")
+        if mode.startswith("interrupt-"):
+            parts = mode.split("-")
+            if (len(parts) != 4 or parts[1] not in EXTRA_ACCOUNTS
+                    or parts[3] not in ("prepared", "committed", "ack")
+                    or parts[2] not in {
+                        op for op, _ in PROCEDURES[parts[1]] if op != "inspect"
+                    }):
+                raise ValueError("Unsupported specialist work interruption")
+            try:
+                await supervisor._advance_job(
+                    parts[1],
+                    interrupt_operation=parts[2],
+                    interrupt_point=parts[3],
+                )
+            except SimulatedLostAcknowledgement:
+                print("OX_P4J_SPECIALIST_INTERRUPTED " + ":".join(parts[1:]))
+                return
+            raise RuntimeError("Requested specialist interruption did not occur")
+        if mode.startswith("finish-"):
+            role = mode.removeprefix("finish-")
+            if role not in EXTRA_ACCOUNTS:
+                raise ValueError("Unknown specialist duty")
+            if not await supervisor._advance_job(role):
+                raise RuntimeError("No specialist work was completed")
+            print("OX_P4J_SPECIALIST_FINISHED " + role)
+            return
         if mode != "serve":
             raise ValueError("Unknown five-crew runtime mode")
         await supervisor.serve()
@@ -275,12 +310,13 @@ async def run(mode: str) -> None:
 
 
 def main() -> None:
-    if len(sys.argv) != 2 or sys.argv[1] not in (
-        "serve", "drop-replace-ack",
-    ):
+    if (len(sys.argv) != 2
+            or not (sys.argv[1] in ("serve", "drop-replace-ack")
+                    or sys.argv[1].startswith("interrupt-")
+                    or sys.argv[1].startswith("finish-"))):
         raise SystemExit(
             "Usage: python -m ox_ai.runtime.five_crew_service "
-            "serve|drop-replace-ack"
+            "serve|drop-replace-ack|interrupt-<role>-<op>-<point>|finish-<role>"
         )
     asyncio.run(run(sys.argv[1]))
 
