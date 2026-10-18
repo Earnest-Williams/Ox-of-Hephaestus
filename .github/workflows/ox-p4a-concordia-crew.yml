@@ -1,0 +1,93 @@
+# Native Concordia + real external three-crew Evennia smoke, no API credentials.
+name: Ox P4a live Concordia crew
+
+on:
+  pull_request:
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-p4a-concordia-crew.yml"
+  push:
+    branches: [main]
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-p4a-concordia-crew.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-concordia:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Evennia and pinned native Concordia
+        run: |
+          python -m pip install .
+          python -m pip install -e './services/ai-handler[concordia,transport]'
+      - name: Unit-test native entity isolation, menus, and declined actions
+        run: python -m unittest discover -s services/ai-handler/tests -p 'test_p4a_cognition.py' -v
+      - name: Prepare disposable credentials
+        shell: bash
+        run: |
+          TOKEN="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          OWNER="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          echo "::add-mask::$TOKEN"
+          echo "::add-mask::$OWNER"
+          echo "OX_PROBE_PASSWORD=$TOKEN" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_PASSWORD=$OWNER" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_USERNAME=OxTrialOwner" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_EMAIL=owner@example.invalid" >> "$GITHUB_ENV"
+      - name: Provision actual character accounts and cooling incident
+        working-directory: game
+        run: |
+          evennia migrate --noinput
+          evennia shell --command="from world.transport_probe import provision; provision(); from world.live_crew import fixture_setup; fixture_setup(); print('OX_P4A_WORLD_READY')"
+      - name: Run three native Concordia entities from a separate process
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd game && evennia start)
+          python - <<'PY'
+          import socket, time
+          for _ in range(90):
+              try:
+                  with socket.create_connection(("127.0.0.1", 4002), timeout=1):
+                      break
+              except OSError:
+                  time.sleep(1)
+          else:
+              raise RuntimeError("Evennia web socket was unavailable")
+          PY
+          sleep 5
+          python -m ox_ai.scenarios.p4a_concordia_crew
+          python - <<'PY'
+          import json
+          v=json.load(open('.ox-state/p4a-verdict.json'))
+          assert v['status']=='passed'
+          assert all(n >= 1 for n in v['decision_calls'].values())
+          assert v['world_actions']==['isolate','repair','commission']
+          assert len(set(v['roles'].values()))==3
+          print('OX_P4A_NATIVE_ENTITIES_THREE_DECISIONS_PASS')
+          PY
+      - name: Stop world before independently scoring physical history
+        if: always()
+        working-directory: game
+        run: evennia stop || true
+      - name: Assert genuine authoritative pump and watch outcomes
+        working-directory: game
+        run: |
+          evennia shell --command="from world.bootstrap import build_ship; s=build_ship(); p=s['pump']; ops=[e['operation'] for e in p.db.event_history]; assert p.state=='normal' and ops==['fault','isolate','repair','commission']; assert p.db.ox_incident_closed and p.db.ox_chief_released; assert s['roster'].db.ox_active_engineer==s['chief'].dbref; print('OX_P4A_GAME_AUTHORITY_PASS')"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ox-p4a-native-concordia-crew
+          path: .ox-state/p4a-verdict.json
+          if-no-files-found: ignore
+          retention-days: 7
