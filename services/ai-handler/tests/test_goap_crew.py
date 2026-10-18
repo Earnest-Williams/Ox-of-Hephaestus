@@ -131,16 +131,25 @@ class GoapCrewTests(unittest.TestCase):
 
     def test_conclusion_requires_observed_readout_not_command_receipt(self):
         self.observe("|cEngineering|n")
-        self.observe("Cooling Pump P-01: REPAIRED")
+        self.observe("Cooling Pump P-01: ISOLATED")
         offered = [
+            CommandOption("Repair pump", "repair", "pump"),
             CommandOption("Commission pump", "commission", "pump"),
             CommandOption("Inspect pump", "inspect", "pump"),
             CommandOption("Finish", "finish"),
         ]
-        req = self.agent.decide(offered)
-        self.assertEqual(req.verb, "commission")
+        first = self.agent.decide(offered)
+        self.assertEqual(first.verb, "repair")
         self.agent.record_outcome(ActionOutcome(
-            req.request_id, "succeeded", "Command delivered"
+            first.request_id, "succeeded", "Command delivered"
+        ))
+        self.observe("Command 'repair pump' returned:\nP-01: isolated -> repaired.")
+        self.assertIn("repair_done", self.agent.beliefs)
+
+        second = self.agent.decide(offered)
+        self.assertEqual(second.verb, "commission")
+        self.agent.record_outcome(ActionOutcome(
+            second.request_id, "succeeded", "Command delivered"
         ))
         self.assertNotIn("pump_normal", self.agent.beliefs)
         self.observe(
@@ -148,10 +157,20 @@ class GoapCrewTests(unittest.TestCase):
         )
         self.assertIn("pump_normal", self.agent.beliefs)
         self.assertNotIn("normal_verified", self.agent.beliefs)
-        # This synthetic setup did not deliver an OWN repair event, so the
-        # required repair_done fact is absent; no false claim is possible.
-        with self.assertRaises(PlanUnavailable):
-            self.agent.decide(offered)
+
+        third = self.agent.decide(offered)
+        self.assertEqual((third.verb, third.target), ("inspect", "pump"))
+        self.agent.record_outcome(ActionOutcome(
+            third.request_id, "succeeded", "Command delivered"
+        ))
+        self.assertNotIn("normal_verified", self.agent.beliefs)
+        self.observe(
+            "Command 'inspect pump' returned:\nCooling Pump P-01: NORMAL"
+        )
+        self.assertIn("normal_verified", self.agent.beliefs)
+        fourth = self.agent.decide(offered)
+        self.assertEqual(fourth.verb, "finish")
+        self.assertEqual(self.agent.usage.total_calls, 0)
 
 
 if __name__ == "__main__":
