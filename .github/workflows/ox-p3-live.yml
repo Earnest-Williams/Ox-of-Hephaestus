@@ -36,7 +36,6 @@ jobs:
       - name: Prepare disposable identities and real database
         shell: bash
         run: |
-          echo "::add-mask::$(python -c 'import secrets; print(secrets.token_hex(32))')" >/dev/null
           TOKEN="$(python -c 'import secrets; print(secrets.token_hex(32))')"
           OWNER_TOKEN="$(python -c 'import secrets; print(secrets.token_hex(32))')"
           echo "::add-mask::$TOKEN"
