@@ -13,8 +13,14 @@ or proof of unconstrained multi-agent intelligence.
 
 Each of five minds has a persistent private epistemic ledger distinguishing
 time-scoped world observations from beliefs and source testimony, explicit
-known unknowns, unmodeled gaps, and world-evidenced retrospective surprises.
-Absence of an observation is never automatically zero or false.
+known unknowns, unmodeled gaps, and optional retrospective surprises.
+Absence of an observation is never automatically zero or false. A world fact
+can ALREADY be an unknown unknown from one character's perspective (such as
+a pirate hidden behind a moon) while the world/operator knows it. The
+agent cannot enumerate that world-side category, and the game must not
+feed the answer into its memory, LLM context, or offered actions. The
+separate world/operator audit lives in `game/world/epistemic_audit.py`;
+it is not an actor command or a world-truth API for the handler.
 
 The world now owns serialised physical cartridge stock and supply orders.
 An ordinary oxinventory command reveals only the authenticated actor's

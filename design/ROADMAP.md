@@ -117,6 +117,17 @@ The old provisional PR 25 is implemented in two real PRs: [#35](https://github.c
 
 [PR #38](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/38) establishes per-character open-world observations, beliefs, explicit unanswered questions and retrospective surprises. [PR #39](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/39) implements physical serialized cartridges, real carriers, actor-local stock evidence, and a bounded supply order with globally typed idempotent request/accept/collect/deliver commands. Two orders cannot consume the same last item. These are narrower than the provisional generalized inventory/order PR 26–27 language. [Epistemics](prototypes/g3-epistemics.md) · [Inventory](prototypes/g3-inventory.md).
 
+### G3 epistemic clarification — systemic but actor-hidden unknown unknowns (PR #42)
+
+An authoritative world fact can be an **unknown unknown to a particular
+character right now**, without a future revelation or surprise. In a mostly
+closed simulation, a privileged operator may compare the world-owned fact
+with that actor's actual observations, specific questions, beliefs and
+exposure records. This must not enumerate hidden facts in agent memory,
+prompts, action options or character-facing events. A question such as
+"what is behind that moon?" does not itself reveal the specific pirate
+waiting there. [Detailed contract](prototypes/g3-epistemics.md).
+
 ### G3c — real world-receipted Teo/Mara delivery (merged PR #40)
 
 [PR #40](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/40) connects those world contracts to the five-crew supervisor: Teo's world-verified shortage triggers a real request, Mara receives an independently addressed assignment, physically inspects/collects and navigates an actual item, then Teo verifies real delivery and resumes repair. A lost delivery acknowledgment is reconciled with the SAME persisted ID across handler and Evennia restart. **Acceptance passed:** 37/37 jobs across 23 workflows, including final-source world conservation and epistemic provenance checks. This is an opt-in bounded single-order vertical slice, **not** general multi-order coordination. [Design](prototypes/g3-cooperation.md).

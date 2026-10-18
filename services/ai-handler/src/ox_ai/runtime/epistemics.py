@@ -2,8 +2,9 @@
 
 An absent fact is not false. A world observation proves what was observed at
 a time, not what remains true forever. A hypothesis is never promoted to
-knowledge merely by repetition. A former unknown unknown is only recognizable
-retrospectively, as a verified surprise absent from the prior model.
+knowledge merely by repetition. A world fact may ALREADY be an unknown unknown relative to this actor,
+even when an operator can identify it. This private ledger must never be
+given hidden world facts. A later recorded surprise is a different event.
 """
 from __future__ import annotations
 
@@ -174,9 +175,10 @@ class AgentEpistemics:
     ) -> bool:
         """Record authenticated world evidence, with bounded current validity.
 
-        A surprise marks a genuinely unexpected, previously unmodeled
-        proposition only *after* observing it. Ordinary observations do not
-        automatically count as unknown unknowns.
+        A surprise is optional retrospective evidence of newly encountered
+        information. An unknown unknown is a hidden world fact relative to
+        an actor *before* discovery, and exists whether or not discovery
+        ever happens; agents must not enumerate such world facts.
         """
         fact, value, evidence_id = _fact(fact), _scalar(value), _evidence(evidence_id)
         at, valid_for = _time(at), _time(valid_for)
@@ -241,7 +243,7 @@ class AgentEpistemics:
         return True
 
     def assess(self, fact: str, *, now: float) -> dict:
-        """Open-world query: absence never becomes false, or a magic surprise."""
+        """Actor-local query: no world truth, secret inventory or default false."""
         fact, now = _fact(fact), _time(now)
         observed = self.record["observations"].get(fact)
         if observed and observed["at"] <= now <= observed["at"] + observed["valid_for"]:

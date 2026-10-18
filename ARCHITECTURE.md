@@ -16,11 +16,19 @@ deployed freighter or general social simulation.
 Each agent has a separate versioned, DBref-bound epistemic ledger for (1)
 locally or world-receipt observed statements with time, provenance and
 expiry, (2) actor hypotheses and testimony that remain *beliefs* even at
-confidence 1.0, (3) explicitly posed known-unknown questions, and (4)
-as-yet-unmodeled propositions. Former unknown unknowns are recorded only
-*retrospectively* after world-evidenced surprise; no mechanism enumerates
-them in advance. Cross-character events and private memories are not
-readable by other agents.
+confidence 1.0, and (3) explicitly posed known-unknown questions. Unmodeled
+propositions are absent from that character's ledger, not false.
+
+**Unknown unknown is actor-relative but world-identifiable.** An actual pirate
+hidden on the far side of a moon can already be known to Evennia yet be an
+unknown unknown to Lin right now, without any promised future discovery.
+The character cannot enumerate those hidden facts. A trusted, operator-only
+audit may compare actual world facts against a correctly matched actor's
+private ledger and exposure history; its result must NEVER be sent as agent
+prompt context, an observation, a navigation hint or a game command.
+Discovering an unexpected fact later may create a *retrospective surprise*,
+which is distinct from the unknown unknown's earlier existence.
+Cross-character events and private memories are not readable by other agents.
 
 **World scarcity:** serialised InventoryItem rows contain a physical state,
 single real room or carrier, and permanent consumed status. Earlier A-01
