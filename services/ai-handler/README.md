@@ -9,6 +9,22 @@ ACK across a handler restart. This is **not** deployed production software
 or proof of unconstrained multi-agent intelligence.
 [Current status](../../design/STATUS.md).
 
+## P4g typed work adapter (first stage)
+
+`DurableEvenniaPort.submit_work(ActionRequest)` and
+`reconcile_work(request_id)` use ordinary authenticated character sessions
+and world-owned `oxwork` / `oxworkreceipt` commands. Physical operations
+and a finite set of coordination verbs now share a typed, actor-bound global
+request namespace. Invalid targets, arguments and another character's
+identity are refused before the client sends anything.
+
+The legacy `submit()` and `reconcile()` methods remain in place so that
+P3–P4e integration tests keep their existing command behavior. The
+new methods do **not**, by themselves, persist intent prior to transmission:
+callers must checkpoint the request ID first. Converting the old pump,
+safety handover and hail procedures into restartable stage ledgers is
+a separate remaining G1 step.
+
 ## P4f complete addressed event replay (PR #22)
 
 `src/ox_ai/runtime/watch_service.py` now reads the version-2
