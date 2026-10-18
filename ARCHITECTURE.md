@@ -199,3 +199,25 @@ This is deliberately **not** an external service linked to persistent
 Evennia sessions. The rest of P2 (mock coordinated cooling fault), P3
 (live transport), and P5 (observatory) remain open. See
 [ADR 0007](design/decisions/0007-three-crew-watch-supervision.md).
+
+
+## 13. Mock coordinated engineering incident (P2)
+
+Scenario 1 composes the already-verified event-driven three-crew
+supervisor, private character observations, model-free GOAP action planning
+and world-authoritative machinery into one deterministic cooling incident.
+Lin's bridge alarm arrives to Lin alone, then moves by radio to Ari.
+Ari inspects and repairs locally. Iona receives a chief-release request,
+performs her own equipment inspection, and authorizes commissioning.
+Ari verifies the final state before reporting the incident closed.
+
+World logic enforces physical preconditions and immutable action IDs.
+The handler handles urgent revision changes, zero-inference idle behavior
+and restart/reconciliation of an unknown operation without blind retries.
+The mocked chief-release interlock is an extension of the prototype
+mechanics and must not be misrepresented as part of real Evennia P-01.
+
+Although the two P2 scenario fixtures have passing executable tests,
+the independent handler does **not** yet connect to persistent Evennia
+characters. That external transport (P3) is the next architectural boundary.
+See [ADR 0008](design/decisions/0008-coordinated-coolant-incident.md).

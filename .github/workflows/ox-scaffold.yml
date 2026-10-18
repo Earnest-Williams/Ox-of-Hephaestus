@@ -38,4 +38,9 @@ jobs:
         run: |
           python -m ox_ai.scenarios.watch_handover > /tmp/ox-watch-handover.json
           python -c "import json; d=json.load(open('/tmp/ox-watch-handover.json')); assert d['status']=='passed' and d['inference_calls']==0 and d['current_active_engineer']=='iona' and d['world_submissions']==2; print('OX_WATCH_HANDOVER_PASS')"
+      - name: Run complete coordinated coolant incident (no model)
+        run: |
+          python -m ox_ai.scenarios.coolant_fault > /tmp/ox-coolant.json
+          python -c "import json; d=json.load(open('/tmp/ox-coolant.json')); assert d['status']=='passed' and d['pump_state']=='normal' and d['incident_closed'] and d['inference_calls']==0 and d['world_action_requests']==10; print('OX_THREE_CREW_COOLANT_PASS')"
+
 

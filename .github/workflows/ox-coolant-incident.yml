@@ -1,0 +1,42 @@
+# P2 coordinated mock coolant incident: no credentials, models or Evennia.
+name: Ox three-crew coolant incident
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cooperative-repair:
+    name: Lin, Ari and Iona coordinate P-01 restoration
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install model-independent handler
+        run: python -m pip install -e ./services/ai-handler
+
+      - name: Test coordinated repair, authority, urgency and recovery
+        run: python -m unittest discover -s services/ai-handler/tests -p 'test_coolant_*.py' -v
+
+      - name: Run unattended coolant incident through three crew
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p .ox-state
+          python -m ox_ai.scenarios.coolant_fault | tee .ox-state/coolant-incident.json
+          python -c "import json; d=json.load(open('.ox-state/coolant-incident.json')); assert d['status']=='passed' and d['pump_state']=='normal' and d['incident_closed'] and d['world_action_requests']==10 and d['inference_calls']==0; print('OX_THREE_CREW_COOLANT_PASS')"
+
+      - name: Attach operator-only event and memory trace
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-three-crew-coolant-incident
+          path: .ox-state/coolant-incident.json
+          if-no-files-found: ignore
+          retention-days: 7
