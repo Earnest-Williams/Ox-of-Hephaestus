@@ -68,6 +68,26 @@ jobs:
           PY
           sleep 5
           python -m ox_ai.scenarios.p3c_crew
+      - name: Summarize server-side exceptions without echoing client commands
+        if: failure()
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import os
+          root = Path('game/server/logs')
+          for path in root.glob('*.log'):
+              print('OX_DIAGNOSTIC_FILE', path.name)
+              lines = path.read_text(errors='replace').splitlines()
+              error_indices = [i for i, line in enumerate(lines)
+                               if 'Traceback' in line or 'Error:' in line or 'Exception:' in line]
+              for i in error_indices[-6:]:
+                  for line in lines[max(i-2, 0):min(i+8, len(lines))]:
+                      for key in ('OX_PROBE_PASSWORD', 'EVENNIA_SUPERUSER_PASSWORD'):
+                          if os.environ.get(key):
+                              line = line.replace(os.environ[key], '[REDACTED]')
+                      print(line[:230])
+          PY
       - name: Stop server to independently score persistent world state
         if: always()
         working-directory: game
