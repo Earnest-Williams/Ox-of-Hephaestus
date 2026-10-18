@@ -44,9 +44,13 @@ class CoolantSupervisor(WatchSupervisor):
         awaiting = {
             key for key, agent in self.agents.items() if agent.pending_requests
         }
+        # Process queued post-command observations and urgent interrupts
+        # WHILE requests are still pending. A recovering agent must not
+        # issue its next physical operation from a stale pre-restart view.
+        self.pump()
         resolved = super().reconcile_pending()
         # No retry of the old operation occurs. The next command, if any,
-        # uses beliefs already established by earlier delivered world events.
+        # uses beliefs already established by delivered world events.
         for key in awaiting:
             agent = self.agents[key]
             if not agent.pending_requests:
