@@ -53,6 +53,8 @@ async def next_event(client, expected: str, memory: list[dict],
                 if len(packet.args) != 1 or not isinstance(packet.args[0], dict):
                     raise ValueError("Malformed private observation framing")
                 wire = packet.args[0]
+                if wire.get("recipient_dbref") != client.character_dbref:
+                    raise PermissionError("Another character received a private observation")
                 if "data" in wire:
                     raise ValueError("Nested world observation is forbidden")
                 event = {key: value for key, value in wire.items()
