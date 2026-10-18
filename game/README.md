@@ -42,7 +42,7 @@ request ID before sending it; after restart, it reconciles against the
 world's actor-bound receipt rather than inventing a second attempt.
 
 The [P4h Actions gate](../.github/workflows/ox-p4h-pump-recovery.yml)
-tests seven independent process starts, including an interrupted prepared
+tests eight independent process launches across seven restarts, including an interrupted prepared
 request that is retried using its **original ID**, and verifies exact
 physical and private social event counts on the authoritative database.
 The first isolation still uses the legacy P4b receipt.
@@ -375,7 +375,7 @@ as a production account registrar.
 All three major equipment systems have actor-bound durable world
 receipts. The shared `oxwork` command additionally supports typed social
 and equipment work requests, and the P4h supervisor persists original IDs
-across five consequential pump stages. The seven-process restart trial
+across five consequential pump stages. The eight-process trial (seven restarts)
 proves those specific recovery paths, not every hail, handover, or specialist
 work interruption. The browser observatory remains deferred.
 
