@@ -6,6 +6,8 @@ from its own verified local instruments, *reports/events* addressed to it,
 *beliefs* it infers, and *questions* it knows remain unanswered. None can
 create permission or a physical item.
 
+**Actor/world classification clarified and tested:** [PR #42](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/42) merged after 42 passing CI jobs across 27 workflows; the existing actor-private schema was preserved.
+
 ## Formal distinctions
 
 | Classification | What the character may assert | Not allowed |
