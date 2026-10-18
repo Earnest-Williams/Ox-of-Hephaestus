@@ -469,10 +469,14 @@ class CrewWatchSupervisor:
         self.checkpoint()
         return True
 
+    async def service_departments(self) -> bool:
+        """Optional specialist-work hook; historical three-crew runtime is idle."""
+        return False
+
     async def respond_to_hails(self) -> int:
         """Consume recipient-private hails, with world-side duplicate defence."""
         count = 0
-        for role in CREW_ACCOUNTS:
+        for role in self.clients:
             events = await self.read_inbox(role)
             answered = {e["data"]["hail_id"] for e in events
                         if e["kind"] == "hail_answered"}
@@ -513,6 +517,8 @@ class CrewWatchSupervisor:
             # First reconcile world-owned pending duties on reconnect.
             if await self.begin(block=False, drop_ack=False):
                 await self.resume()
+                continue
+            if await self.service_departments():
                 continue
             # Cooling faults first; then answer addressed player requests
             # before optional routine handovers so a due roster cannot
