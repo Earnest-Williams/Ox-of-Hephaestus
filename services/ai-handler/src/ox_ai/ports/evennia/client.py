@@ -79,17 +79,28 @@ class EvenniaWebSocketClient:
         if connector is None:
             from websockets.asyncio.client import connect
             connector = connect
-        self._socket = await connector(
-            self.url, subprotocols=["v1.evennia.com"],
-            open_timeout=self.timeout, close_timeout=self.timeout,
-            max_size=65536,
-        )
-        try:
-            await self._await_login_screen()
-            await self._authenticate()
-        except BaseException:
-            await self.close()
-            raise
+        # During cold startup the Portal may accept sockets while the Server
+        # is still completing initial setup or an internal reload. Retry ONLY
+        # before a character has authenticated or issued a physical command.
+        for attempt in range(3):
+            self._socket = await connector(
+                self.url, subprotocols=["v1.evennia.com"],
+                open_timeout=self.timeout, close_timeout=self.timeout,
+                max_size=65536,
+            )
+            try:
+                await self._await_login_screen()
+                await self._authenticate()
+                return
+            except (TimeoutError, ConnectionError, IdentityMismatch) as exc:
+                await self.close()
+                if ("authentication refused" in str(exc).lower()
+                        or attempt == 2):
+                    raise
+                await asyncio.sleep(0.25 * (attempt + 1))
+            except BaseException:
+                await self.close()
+                raise
 
     async def _await_login_screen(self) -> None:
         # The Portal opens the socket before the Server session can accept
