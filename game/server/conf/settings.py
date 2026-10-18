@@ -12,6 +12,10 @@ import secrets
 
 from evennia.settings_default import *  # noqa: F401,F403
 
+# Ox world owns a first-class indexed private event journal and migrations.
+# Keep the inherited engine apps; do not modify Evennia itself.
+INSTALLED_APPS = [*INSTALLED_APPS, "world.apps.OxWorldConfig"]
+
 SERVERNAME = "Ox of Hephaestus — Prototype Ship"
 GAME_SLOGAN = "A working ship and an autonomous crew, eventually."
 
