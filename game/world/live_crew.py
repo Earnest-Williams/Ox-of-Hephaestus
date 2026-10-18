@@ -6,63 +6,13 @@ Physical operations remain in CoolingPump; private events are world-owned.
 """
 from __future__ import annotations
 
-from collections.abc import Mapping
-from evennia.utils import gametime
-from world.bootstrap import build_ship, find_fixture
+from world.bootstrap import build_ship
+from world.event_journal import emit, inbox, inbox_page, wire_event
 
 
 def _world():
     ship = build_ship()
     return ship, ship["pump"], ship["roster"]
-
-
-def wire_event(event: dict) -> dict:
-    """Flatten synthetic fields for Evennia's first-level-only OOB contract.
-
-    Evennia's Portal/Server transport preserves a flat positional dictionary
-    but serializes a nested dict as its keys alone; no nested values may be
-    placed directly into an OOB frame.
-    """
-    result = {k: v for k, v in event.items() if k != "data"}
-    detail = event.get("data", {})
-    if not isinstance(detail, Mapping):
-        raise TypeError("World event details must be a mapping")
-    for key, value in detail.items():
-        if not isinstance(key, str) or not key.isidentifier():
-            raise ValueError("Invalid world observation field")
-        if not isinstance(value, (str, int, float, bool, type(None))):
-            raise TypeError("World observation fields must be scalar")
-        result["datum_" + key] = value
-    return result
-
-
-def emit(pump, recipient, kind: str, *, sender=None, data=None, text="") -> dict:
-    """Persist and deliver ONE recipient's authored world observation."""
-    items = list(pump.db.ox_private_events or [])
-    event = {
-        "event_id": "oxevt-%04d" % (len(items) + 1),
-        "recipient_dbref": recipient.dbref,
-        "sender_dbref": sender.dbref if sender else None,
-        "kind": kind,
-        "data": dict(data or {}),
-        "text": text,
-        "game_time": float(gametime.gametime(absolute=True)),
-    }
-    items.append(event)
-    pump.db.ox_private_events = items
-    recipient.msg(ox_event=([wire_event(event)], {}))
-    return event
-
-
-def inbox(actor, *, after: int = 0) -> list[dict]:
-    """No agent may query another character's events or aggregate journal."""
-    if after < 0:
-        raise ValueError("Invalid event cursor")
-    pump = find_fixture("pump-p01")
-    events = list(pump.db.ox_private_events or []) if pump else []
-    return [dict(event) for event in events
-            if event["recipient_dbref"] == actor.dbref
-            and int(event["event_id"].split("-")[-1]) > after][:128]
 
 
 def fixture_setup(*, scheduled_clock: bool = False) -> None:
@@ -73,7 +23,12 @@ def fixture_setup(*, scheduled_clock: bool = False) -> None:
     pump.db.ox_chief_gate = True
     pump.db.ox_chief_released = False
     pump.db.ox_incident_closed = False
+    # ONLY this disposable operator fixture may discard journal history.
+    # A real ship upgrade must instead run the idempotent legacy importer.
+    from world.models import CrewEvent
+    CrewEvent.objects.all().delete()
     pump.db.ox_private_events = []
+    pump.db.ox_event_journal_migrated = True
     pump.db.ox_inspections = {}
     roster.db.ox_active_engineer = ship["watch"].dbref
     roster.db.ox_world_minute = 180
