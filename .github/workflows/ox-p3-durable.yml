@@ -69,6 +69,7 @@ jobs:
           else:
               raise RuntimeError("External websocket is unavailable")
           PY
+          sleep 5
           python -m ox_ai.scenarios.p3b_goap start
           python -m ox_ai.scenarios.p3b_goap resume
       - name: Stop game server before independent SQLite verdict
