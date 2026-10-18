@@ -46,4 +46,4 @@ jobs:
           evennia shell --command="from world.bootstrap import build_ship; s=build_ship(); assert s['pump'].state == 'low_pressure'; assert len(s['pump'].db.event_history) == 1; print('Durable pump state:', s['pump'].state)"
       - name: Run Ox ship integration tests in isolated SQLite test database
         working-directory: game
-        run: evennia test world.tests.test_ship --verbosity=2
+        run: evennia --settings settings.py test world.tests.test_ship --verbosity=2
