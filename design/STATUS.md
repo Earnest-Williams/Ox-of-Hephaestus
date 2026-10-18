@@ -19,6 +19,7 @@ feature inventories.
 | P4b — ongoing watch supervisor and repeated incident | Tested and merged | [PR #14](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/14); Evennia duty Script, changed active engineer, two real pump incidents, two-process recovery |
 | P4c — unattended event dispatch and player hails | Tested and merged | [PR #16](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/16); one continuous supervisor processes pump repair, world-timed watch handover and an addressed human hail |
 | P4d — specialist ship departments | Tested and merged | [PR #17](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/17); seven compartments, cargo and atmosphere state machines, five persistent crew bodies, authority and inventory tests |
+| P4e — five independently autonomous crew | **In PR #19; integration pending** | [PR #19](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/19); two additional nonprivileged Concordia actors, world-confirmed cargo/environmental work and a lost-ACK cartridge-replacement gate |
 | P5 — browser observatory | **Deferred / not built** | No browser UI, joined handler/world API, or operator dashboard |
 
 **Naming note:** the original Prototype 1 plan used “P4” for the first
@@ -33,6 +34,18 @@ deadline, transfers watch from Ari to Iona, injects a second fault, stops and
 restarts an external handler, reconciles a deliberately lost isolation ACK,
 and verifies the persisted physical event journal without duplicate isolation.
 The full focused CI suite passed on `main` following PR #14.
+
+## P4e integration candidate
+
+[The five-crew autonomous-departments design](prototypes/p4e-five-crew-autonomy.md)
+describes the unmerged PR #19. It adds independently persisted native
+Concordia brains for Mara and Teo, actor-scoped receipts for C-01/A-01,
+and an event-driven supervisor that can process three types of physical
+fault as well as player hails. The new CI deliberately loses the
+acknowledgment of a real cartridge replacement and must reconcile without
+consuming a second cartridge. The older P4a–P4d behavior remains in the
+regression matrix. **Until that complete gate passes and PR #19 merges,
+P4e is not part of the verified mainline feature inventory.**
 
 ## What the prototype does today
 

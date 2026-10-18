@@ -33,6 +33,30 @@ There is still **no propulsion, trading economy, general cargo routing,
 manufacturing, or skill-by-use progression**. Two new crewmembers are not yet
 Concordia actors and the independent supervisor still handles three brains.
 
+## P4e specialist-autonomy candidate (PR #19)
+
+The independent five-person handler in PR #19 can make Mara and Teo real
+Concordia agents. It reuses the ordinary character command and event
+transport but adds typed durable work requests:
+
+~~~text
+oxaction <32-hex-id> restow cargo
+oxaction <32-hex-id> certify cargo
+oxaction <32-hex-id> isolate scrubber
+oxaction <32-hex-id> replace scrubber
+oxaction <32-hex-id> restart scrubber
+oxreceipt <32-hex-id> cargo
+oxreceipt <32-hex-id> scrubber
+oxhail mara = Are the restraints secured?
+oxhail teo = Is the scrubber working?
+~~~
+
+All transitions require the proper character, physical access and stage-
+specific inspections. Replaying the same ID returns the original receipt,
+including a failed attempt, rather than applying an action twice. The
+historical two-argument `oxaction`/`oxreceipt` forms still target P-01.
+**This candidate is not marked merged until PR #19 passes full-server CI.**
+
 ## Start the game
 
 With Python 3.12+ and a virtual environment, run from the repository root:

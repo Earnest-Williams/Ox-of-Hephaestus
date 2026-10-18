@@ -7,6 +7,8 @@ actions and character identities are untouched.
 from __future__ import annotations
 
 from evennia.utils import gametime
+from django.db import transaction
+import re
 from typeclasses.ship import FixedFixture
 
 
@@ -85,6 +87,59 @@ class DepartmentFixture(FixedFixture):
                 text=message,
             )
 
+    # Requests are actor-bound and persist with this *physical fixture*.
+    # A refused transition is also durable: the same ID cannot later
+    # change a previously rejected attempt into a successful operation.
+    DURABLE_OPERATIONS: frozenset[str] = frozenset()
+
+    def durable_action(self, request_id: str, operation: str, actor) -> dict:
+        """Apply an authorized equipment command once, with a durable receipt."""
+        if not re.fullmatch(r"[0-9a-f]{32}", request_id):
+            raise ValueError("Invalid request ID")
+        if operation not in self.DURABLE_OPERATIONS:
+            raise ValueError("Unsupported physical operation for this fixture")
+        if actor is None:
+            raise PermissionError("An authenticated world character is required")
+        with transaction.atomic():
+            ledger = dict(self.db.ox_action_receipts or {})
+            previous = ledger.get(request_id)
+            if previous is not None:
+                if (previous["actor_dbref"], previous["operation"]) != (
+                    actor.dbref, operation
+                ):
+                    raise PermissionError("A different actor or operation owns this ID")
+                return dict(previous)
+            succeeded, _message = getattr(self, operation)(actor)
+            events = list(self.db.event_history or [])
+            receipt = {
+                "request_id": request_id,
+                "actor_dbref": actor.dbref,
+                "operation": operation,
+                "status": "succeeded" if succeeded else "failed",
+                "reason": "transition_applied" if succeeded else "world_refused",
+                "source_event_id": events[-1]["event_id"] if succeeded else None,
+                "state": self.state if succeeded else None,
+                "game_time": float(gametime.gametime(absolute=True)),
+            }
+            ledger[request_id] = receipt
+            self.db.ox_action_receipts = ledger
+            return dict(receipt)
+
+    def durable_receipt(self, request_id: str, actor) -> dict:
+        """Reveal only this character's receipt; never another actor's work."""
+        if not re.fullmatch(r"[0-9a-f]{32}", request_id):
+            raise ValueError("Invalid request ID")
+        if actor is None:
+            raise PermissionError("A world character is required")
+        stored = dict(self.db.ox_action_receipts or {}).get(request_id)
+        if stored is None or stored["actor_dbref"] != actor.dbref:
+            return {
+                "request_id": request_id, "actor_dbref": actor.dbref,
+                "status": "unknown", "reason": "no_authorised_receipt",
+                "source_event_id": None,
+            }
+        return dict(stored)
+
     def get_display_desc(self, looker, **kwargs) -> str:
         return f"{self.db.desc or ''}\n{self.readout()}"
 
@@ -94,6 +149,7 @@ class CargoCradle(DepartmentFixture):
 
     INITIAL_STATE = "secured"
     EVENT_PREFIX = "c01"
+    DURABLE_OPERATIONS = frozenset({"restow", "certify"})
     # Future skill-by-use tags, not current proficiency checks.
     SKILL_TAGS = {"restow": "cargo_rigging", "certify": "cargo_inspection"}
 
@@ -147,6 +203,7 @@ class AtmosphereScrubber(DepartmentFixture):
 
     INITIAL_STATE = "nominal"
     EVENT_PREFIX = "a01"
+    DURABLE_OPERATIONS = frozenset({"isolate", "replace", "restart"})
     SKILL_TAGS = {
         "isolate": "atmosphere_diagnostics",
         "replace": "environmental_maintenance",

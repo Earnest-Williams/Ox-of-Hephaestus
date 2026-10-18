@@ -104,6 +104,58 @@ class LiveCognitionTests(unittest.TestCase):
         self.assertEqual(brain.agent.revision, 2)
         self.assertTrue(any("Delayed report" in x for x in brain.agent.memories))
 
+    def test_five_independent_specialist_entities_and_private_checkpoint_restore(self):
+        from ox_ai.agents.live_concordia import (
+            build_live_brains, LiveCrewBrain, make_model,
+        )
+        ids = {
+            "lin": "#11", "ari": "#12", "iona": "#13",
+            "mara": "#14", "teo": "#15",
+        }
+        agents = build_live_brains(ids)
+        self.assertEqual(len(agents), 5)
+        self.assertEqual(len({id(b.agent.entity) for b in agents.values()}), 5)
+        self.assertTrue(all(b.inference_calls == 0 for b in agents.values()))
+        for role, event_id, kind in (
+            ("mara", "oxevt-0010", "cargo_shift"),
+            ("teo", "oxevt-0011", "atmosphere_alarm"),
+        ):
+            self.assertTrue(agents[role].observe_event({
+                "event_id": event_id, "recipient_dbref": ids[role],
+                "game_time": 123.0, "kind": kind,
+                "text": kind + " noticed at work station",
+                "data": {"state": "faulted"},
+            }))
+        self.assertTrue(any("cargo_shift" in m for m in
+                            agents["mara"].agent.memories))
+        self.assertFalse(any("cargo_shift" in m for m in
+                             agents["teo"].agent.memories))
+        self.assertTrue(any("atmosphere_alarm" in m for m in
+                            agents["teo"].agent.memories))
+        self.assertFalse(any("atmosphere_alarm" in m for m in
+                             agents["mara"].agent.memories))
+        with self.assertRaises(PermissionError):
+            agents["mara"].observe_event({
+                "event_id": "wrong", "recipient_dbref": "#15",
+                "game_time": 124.0, "kind": "atmosphere_alarm",
+                "data": {},
+            })
+        with tempfile.TemporaryDirectory() as td:
+            for role in ("mara", "teo"):
+                path = Path(td) / (role + ".json")
+                agents[role].save_checkpoint(path)
+                restored = LiveCrewBrain.from_checkpoint(
+                    role, ids[role], make_model(), path
+                )
+                self.assertEqual(restored.character_id, ids[role])
+                self.assertEqual(restored.agent.revision, 1)
+                self.assertEqual(restored.agent.memories,
+                                 agents[role].agent.memories)
+                with self.assertRaises(PermissionError):
+                    LiveCrewBrain.from_checkpoint(
+                        role, ids["lin"], make_model(), path
+                    )
+
     def test_no_model_invocation_during_idle_and_refuse_wrong_ids(self):
         from ox_ai.agents.live_concordia import build_live_brains
         self.assertTrue(all(x.inference_calls == 0 for x in self.brains.values()))

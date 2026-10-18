@@ -8,6 +8,34 @@ passed on real persistent Evennia. This is **not** a deployed production
 service or proof of general unscripted social intelligence.
 [Current status](../../design/STATUS.md).
 
+## P4e five-crew runtime candidate
+
+[PR #19](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/19)
+adds `src/ox_ai/runtime/five_crew_service.py` with five independently
+authenticated native Concordia agents and scoped crew-event dispatch. It
+handles real cargo and environmental faults through world-confirmed
+equipment-specific receipts. For an **ephemeral, empty test world only**:
+
+~~~sh
+# From game/, using disposable credentials and no existing bot accounts:
+evennia shell --command="from world.transport_probe import provision; provision(include_specialists=True)"
+
+# From repository root, after starting Evennia and seeding game events:
+python -m ox_ai.runtime.five_crew_service serve
+~~~
+
+This handler requires `.ox-state/p4e-ids.json` for five distinct
+character dbrefs and also retains the original `.ox-state/p3a-ids.json`.
+It persists per-character native checkpoints under `.ox-state/p4e/` and a
+specialist task ledger in `.ox-state/p4e-supervisor.json`.
+**Do not run it alongside the original three-person `watch_service`.**
+
+The five-person CI simulates a real A-01 replacement with a lost
+acknowledgement and verifies safe recovery by a new process, alongside
+cooling, cargo, player hails and the game-owned watch handover.
+Read [P4e design and limitations](../../design/prototypes/p4e-five-crew-autonomy.md).
+P4e remains a candidate until that workflow passes and the PR merges.
+
 ## Components actually implemented
 
 | Location | Function |

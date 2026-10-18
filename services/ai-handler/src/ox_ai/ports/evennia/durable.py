@@ -7,8 +7,16 @@ import re
 from ox_ai.ports.base import ActionOutcome, ActionRequest
 from ox_ai.ports.evennia.client import EvenniaWebSocketClient
 
-_VERBS = {"isolate_pump": "isolate", "repair_pump": "repair",
-          "commission_pump": "commission"}
+_VERBS = {
+    ("isolate_pump", "pump"): "isolate",
+    ("repair_pump", "pump"): "repair",
+    ("commission_pump", "pump"): "commission",
+    ("restow_cargo", "cargo"): "restow",
+    ("certify_cargo", "cargo"): "certify",
+    ("isolate_scrubber", "scrubber"): "isolate",
+    ("replace_scrubber", "scrubber"): "replace",
+    ("restart_scrubber", "scrubber"): "restart",
+}
 
 
 class DurableEvenniaPort:
@@ -52,18 +60,22 @@ class DurableEvenniaPort:
             raise PermissionError("Unauthenticated session")
         if request.character_id != self.client.character_dbref:
             raise PermissionError("Action addressed to another character")
-        if request.target != "pump" or request.arguments:
-            raise ValueError("Unsupported request or arguments")
-        op = _VERBS.get(request.verb)
+        if request.arguments:
+            raise ValueError("Equipment actions do not take free-form arguments")
+        op = _VERBS.get((request.verb, request.target))
         if op is None or re.fullmatch(r"[0-9a-f]{32}", request.request_id) is None:
-            raise ValueError("Unknown operation or request ID")
-        await self.client.send_line(f"oxaction {request.request_id} {op}")
+            raise ValueError("Unknown typed operation or request ID")
+        suffix = "" if request.target == "pump" else " " + request.target
+        await self.client.send_line(f"oxaction {request.request_id} {op}{suffix}")
         return await self._receipt(request.request_id)
 
-    async def reconcile(self, request_id: str) -> ActionOutcome:
+    async def reconcile(self, request_id: str, *, target: str = "pump") -> ActionOutcome:
         if not self.client.authenticated:
             raise PermissionError("Unauthenticated session")
         if re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
             raise ValueError("Invalid request ID")
-        await self.client.send_line(f"oxreceipt {request_id}")
+        if target not in ("pump", "cargo", "scrubber"):
+            raise ValueError("Unknown equipment receipt namespace")
+        suffix = "" if target == "pump" else " " + target
+        await self.client.send_line(f"oxreceipt {request_id}{suffix}")
         return await self._receipt(request_id)

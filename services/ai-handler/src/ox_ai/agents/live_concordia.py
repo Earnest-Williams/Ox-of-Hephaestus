@@ -29,6 +29,14 @@ ROLES = {
         "Iona Vek", "Chief engineer; independent safety inspector and relief watch",
         "Reject unsafe commissioning and receive an accountable watch handover",
     ),
+    "mara": (
+        "Mara Voss", "Cargo officer; inspect C-01 freight restraints locally",
+        "Protect freight integrity by restowing and certifying observed load shifts",
+    ),
+    "teo": (
+        "Teo Hale", "Environmental technician; service A-01 with finite spares",
+        "Safely restore atmospheric scrubbing using local inspection and inventory",
+    ),
 }
 
 
@@ -188,12 +196,17 @@ def build_live_brains(
     journal_dir: Path | None = None,
 ) -> dict[str, LiveCrewBrain]:
     """Construct independent models/entities; not one shared omniscient actor."""
-    if set(ids) != set(ROLES) or len(set(ids.values())) != len(ROLES):
-        raise ValueError("Exactly three distinct world identities are required")
+    # Historical P4a trials provision three accounts. The P4e supervisor
+    # provisions all five. Neither may silently omit one member of its
+    # designated crew, reuse a body, or share a Concordia entity.
+    legacy = {"lin", "ari", "iona"}
+    if (set(ids) not in (legacy, set(ROLES))
+            or len(set(ids.values())) != len(ids)):
+        raise ValueError("Requires three legacy or five distinct crew identities")
     return {
         role: LiveCrewBrain(
             role, str(ids[role]), make_model(provider),
             journal_path=(journal_dir / f"{role}.jsonl") if journal_dir else None,
         )
-        for role in ROLES
+        for role in ids
     }

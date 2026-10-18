@@ -29,6 +29,18 @@ consequential-event or coarse-tick background simulation. Cargo restraints
 and atmospheric servicing now have small physical prototypes; **the new
 specialists' AI, skills, propulsion, trading and observer UI are not built.**
 
+## P4e under review: autonomous specialist crew
+
+[PR #19](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/19)
+adds separate Concordia entities for Mara Voss and Teo Hale, five authenticated
+normal character clients, and a specialist event dispatcher for cargo and
+atmospheric duties. C-01 and A-01 gain durable actor-scoped command receipts;
+a lost cartridge-replacement acknowledgement must be reconciled without
+consuming another spare. The three-person supervisor remains supported, but
+the five-person runtime is **not yet part of the verified mainline inventory**
+until the PR's full-server CI passes and merges. Skill-by-use is still future
+work. See [the implementation specification](design/prototypes/p4e-five-crew-autonomy.md).
+
 ## What's actually runnable
 
 | Part | Present implementation |

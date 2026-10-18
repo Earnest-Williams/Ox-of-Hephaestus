@@ -21,15 +21,19 @@ CREW = (
     ("lin", "officer", "OxBotLin"),
     ("iona", "chief", "OxBotIona"),
 )
+SPECIALISTS = (
+    ("mara", "cargo", "OxBotMara"),
+    ("teo", "environment", "OxBotTeo"),
+)
 
 
-def provision() -> dict[str, str]:
+def provision(*, include_specialists: bool = False) -> dict[str, str]:
     password = os.environ["OX_PROBE_PASSWORD"]
     if len(password) < 20:
         raise ValueError("CI password too short")
     ship = build_ship()
     mapping = {}
-    for key, ship_key, username in CREW:
+    for key, ship_key, username in (*CREW, *(SPECIALISTS if include_specialists else ())):
         if AccountDB.objects.filter(username__iexact=username).exists():
             raise RuntimeError("Refusing to replace an existing crew account")
         account = create_account(username, email=username.lower() + '@example.invalid', password=password)
@@ -43,5 +47,12 @@ def provision() -> dict[str, str]:
         mapping[key] = char.dbref
     path = Path("../.ox-state/p3a-ids.json")
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(mapping), encoding="utf-8")
+    path.write_text(
+        json.dumps({role: mapping[role] for role, *_ in CREW}),
+        encoding="utf-8",
+    )
+    if include_specialists:
+        Path("../.ox-state/p4e-ids.json").write_text(
+            json.dumps(mapping), encoding="utf-8"
+        )
     return mapping

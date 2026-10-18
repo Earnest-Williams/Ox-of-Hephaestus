@@ -1,0 +1,122 @@
+name: Ox P4e five-crew autonomous departments
+
+on:
+  pull_request:
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-p4e-five-crew.yml"
+  push:
+    branches: [main]
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-p4e-five-crew.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  five-crew:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install actual Evennia, Concordia and authenticated transport
+        run: |
+          python -m pip install .
+          python -m pip install -e './services/ai-handler[concordia,transport]'
+          python -m compileall -q game services/ai-handler/src
+      - name: Generate ephemeral private test identities
+        shell: bash
+        run: |
+          TOKEN="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          OWNER="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          echo "::add-mask::$TOKEN"
+          echo "::add-mask::$OWNER"
+          echo "OX_PROBE_PASSWORD=$TOKEN" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_PASSWORD=$OWNER" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_USERNAME=OxTrialOwner" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_EMAIL=owner@example.invalid" >> "$GITHUB_ENV"
+      - name: Exercise world-owned durable physical and social authority
+        working-directory: game
+        run: |
+          evennia migrate --noinput
+          evennia test world.tests.test_specialist_autonomy world.tests.test_departments world.tests.test_durable_actions --verbosity=2
+      - name: Provision five separate accounts and independent world events
+        working-directory: game
+        run: |
+          evennia shell --command="from world.transport_probe import provision; ids=provision(include_specialists=True); assert len(set(ids.values()))==5; from world.live_crew import fixture_setup; fixture_setup(scheduled_clock=True); from world.bootstrap import build_ship; from world.crew_interaction import send_hail; from evennia.utils.create import create_object; s=build_ship(); assert s['cradle'].inject_fault()[0]; assert s['scrubber'].inject_fault()[0]; guest=create_object('typeclasses.ship.CrewCharacter',key='P4e Human Guest',location=s['bridge']); assert send_hail(guest,'mara','Can you confirm the freight restraints?')[0]; assert send_hail(guest,'teo','Please check atmospheric scrubbing.')[0]; print('OX_P4E_FIVE_IDENTITIES_AND_THREE_WORLD_FAULTS')"
+      - name: Start live Evennia world and wait for the normal portal
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd game && evennia start)
+          python - <<'PY'
+          import socket, time
+          for attempt in range(90):
+              try:
+                  with socket.create_connection(("127.0.0.1", 4002), timeout=1):
+                      break
+              except OSError:
+                  time.sleep(1)
+          else:
+              raise RuntimeError("Five-crew world portal did not start")
+          PY
+          sleep 5
+      - name: Simulate lost cartridge replacement ACK in first external process
+        run: |
+          python -m ox_ai.runtime.five_crew_service drop-replace-ack
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          state=json.loads(Path(".ox-state/p4e-supervisor.json").read_text())
+          pending=state["specialist_jobs"]["teo"]["pending"]
+          assert pending and pending["operation"]=="replace", state
+          assert state["specialist_jobs"]["teo"]["index"]==3, state
+          print("OX_P4E_LOST_ACK_WITH_DURABLE_PENDING_ID")
+          PY
+      - name: Reopen five independent clients and complete work without scenario driver
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          timeout 90s python -m ox_ai.runtime.five_crew_service serve
+          CODE=$?
+          set -e
+          if [ "$CODE" -ne 124 ]; then
+            echo "Five-crew supervisor unexpectedly exited with $CODE"
+            exit 1
+          fi
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          state=json.loads(Path(".ox-state/p4e-supervisor.json").read_text())
+          print("OX_P4E_HANDLER_SUMMARY", {
+              "phase":state["phase"],
+              "coolant_cycles":len(state["completed"]),
+              "specialists":state["specialist_completed"],
+              "open_jobs":state["specialist_jobs"],
+          })
+          assert state["phase"]=="idle", state
+          assert len(state["completed"])==1, state
+          assert [x["role"] for x in state["specialist_completed"]]==["teo","mara"], state
+          assert all(x is None for x in state["specialist_jobs"].values()), state
+          for role in ("lin","ari","iona","mara","teo"):
+              snap=json.loads((Path(".ox-state/p4e")/(role+".json")).read_text())
+              assert snap["identity"]["character_id"], role
+              assert snap["concordia_state"], role
+          print("OX_P4E_FIVE_NATIVE_INDEPENDENT_CONCORDIA_PASS")
+          PY
+      - name: Stop real server before independently verifying database
+        if: always()
+        working-directory: game
+        run: evennia stop || true
+      - name: Verify actual world outcome, exact inventory and five private inboxes
+        working-directory: game
+        run: |
+          evennia shell --command="from world.bootstrap import build_ship; from world.live_crew import inbox; from evennia.objects.models import ObjectDB; s=build_ship(); p=s['pump']; c=s['cradle']; a=s['scrubber']; guest=ObjectDB.objects.filter(db_key='P4e Human Guest').first(); assert guest is not None; po=[e['operation'] for e in p.db.event_history]; co=[e['operation'] for e in c.db.event_history]; ao=[e['operation'] for e in a.db.event_history]; print('OX_P4E_WORLD_JOURNALS',po,co,ao,'spares',a.db.spare_cartridges); assert po==['fault','isolate','repair','commission']; assert co==['shift','restow','certify']; assert ao==['saturate','isolate','replace','restart']; assert p.state=='normal' and p.db.ox_incident_closed; assert c.state=='secured' and a.state=='nominal'; assert a.db.spare_cartridges==1, 'lost ACK consumed extra cartridge'; assert s['roster'].db.ox_active_engineer==s['chief'].dbref; assert [e['kind'] for e in inbox(guest)].count('crew_reply')==2; assert [e['kind'] for e in inbox(s['cargo'])].count('hail_answered')==1; assert [e['kind'] for e in inbox(s['environment'])].count('hail_answered')==1; assert not any(e['kind'] in ('cargo_shift','atmosphere_alarm') for e in inbox(s['watch'])); assert all(e['recipient_dbref']==s['cargo'].dbref for e in inbox(s['cargo'])); assert all(e['recipient_dbref']==s['environment'].dbref for e in inbox(s['environment'])); print('OX_P4E_FIVE_CREW_WORLD_AUTHORITY_PASS')"
