@@ -25,6 +25,7 @@ from ox_ai.ports.base import ActionOutcome
 from ox_ai.ports.evennia.client import EvenniaWebSocketClient
 from ox_ai.ports.evennia.durable import DurableEvenniaPort
 from ox_ai.runtime.work_steps import WorkStepLedger, SimulatedWorkInterruption
+from ox_ai.runtime.crew_agenda import AgentAgenda, ACTIVE, WAITING
 from ox_ai.runtime.watch_service import (
     CrewWatchSupervisor, ROOT, URL, atomic_json,
 )
@@ -60,6 +61,14 @@ ALARMS = {"mara": "cargo_shift", "teo": "atmosphere_alarm"}
 HEADERS = {
     "mara": "CARGO RESTRAINT GRID C-01",
     "teo": "ATMOSPHERE SCRUBBER A-01",
+}
+
+# Scheduling policy, NOT crew authority. Every task is grounded in a
+# private world event, and its physical actions still require Evennia.
+PRIORITY = {"mara": 40, "teo": 95}
+RECONSIDER_ON = {
+    "mara": ("cargo_shift", "cargo_review", "duty_review"),
+    "teo": ("atmosphere_alarm", "supply_replenished", "duty_review"),
 }
 
 
@@ -112,6 +121,96 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
         self.state.setdefault("specialist_completed", [])
         if set(self.state["specialist_jobs"]) != set(EXTRA_ACCOUNTS):
             raise RuntimeError("Incompatible specialist job state")
+        stored = self.state.setdefault("agendas", {})
+        if not isinstance(stored, dict) or any(role not in self.ids for role in stored):
+            raise PermissionError("Invalid or cross-character agenda state")
+        self.agendas = {
+            role: AgentAgenda(
+                stored.setdefault(role, {}),
+                role=role, character_id=actor,
+            )
+            for role, actor in self.ids.items()
+        }
+
+    async def read_inbox(self, role: str) -> list[dict]:
+        """Ingest ONLY this actor's real events into their private agenda.
+
+        Old P4e histories are fully paginated by the parent reader. Replays
+        do not reawaken deferred work or recreate completed obligations.
+        """
+        events = await super().read_inbox(role)
+        agenda = self.agendas[role]
+        changed = False
+        for event in events:
+            sequence = int(event["sequence"])
+            if sequence > agenda.record["last_sequence"]:
+                agenda.observe(event)
+                changed = True
+            if role in EXTRA_ACCOUNTS and event["kind"] == ALARMS[role]:
+                if agenda.task(event["event_id"]) is None:
+                    agenda.offer(
+                        event, priority=PRIORITY[role],
+                        kind=ALARMS[role],
+                    )
+                    changed = True
+        # Additively upgrade pre-G2 completed P4e entries only when their
+        # original private source event was genuinely observed by this role.
+        for finished in self.state["specialist_completed"]:
+            if finished.get("role") != role:
+                continue
+            item = agenda.task(finished["alarm_event_id"])
+            if item and item["status"] == "offered":
+                effects = finished.get("world_effects") or []
+                if not effects:
+                    # A P4e job could be discarded after observing that a
+                    # human had already restored the equipment. That is not
+                    # this AI's world-confirmed success.
+                    agenda.set_status(
+                        item["task_id"], "declined",
+                        reason="historic_alarm_already_resolved_by_world",
+                    )
+                else:
+                    agenda.set_status(
+                        item["task_id"], "accepted",
+                        reason="historical_world_confirmed_obligation",
+                    )
+                    agenda.set_status(
+                        item["task_id"], "in_progress",
+                        reason="historical_world_confirmed_work",
+                    )
+                    agenda.set_status(
+                        item["task_id"], "completed",
+                        reason="historical_verified_specialist_receipts",
+                        effects=effects,
+                    )
+                changed = True
+        if changed:
+            self.checkpoint()
+        return events
+
+    def _job_task(self, role: str) -> dict:
+        job = self.state["specialist_jobs"][role]
+        if not isinstance(job, dict):
+            raise RuntimeError("Specialist has no active world-grounded work")
+        task = self.agendas[role].task(job["event_id"])
+        if task is None:
+            raise PermissionError("Specialist work has no private source event")
+        return task
+
+    def _ready_specialists(self) -> list[tuple[str, dict]]:
+        candidates = []
+        for role in EXTRA_ACCOUNTS:
+            job = self.state["specialist_jobs"][role]
+            if job is None:
+                continue
+            task = self._job_task(role)
+            if task["status"] in ACTIVE and not job["deferred"]:
+                candidates.append((role, task))
+        return sorted(
+            candidates, key=lambda pair: (
+                -pair[1]["priority"], pair[1]["source_sequence"], pair[0]
+            ),
+        )
 
     def checkpoint(self) -> None:
         """Persist each individual native Concordia graph and then the ledger."""
@@ -120,22 +219,74 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
         atomic_json(self.state_path, self.state)
 
     async def _start_job(self, role: str) -> bool:
-        if self.state["specialist_jobs"][role] is not None:
-            return True
+        # Always ingest new addressed events, including reconsideration
+        # triggers, *before* deciding whether a retained job is ready.
         events = await self.read_inbox(role)
+        job = self.state["specialist_jobs"][role]
+        if job is not None:
+            task = self.agendas[role].task(job["event_id"])
+            if task is None:
+                # Recovery of a pre-G2 P4e snapshot: recover its actual
+                # originally addressed event, never fabricate task authority.
+                previous = next(
+                    (e for e in events
+                     if e["event_id"] == job["event_id"]
+                     and e["kind"] == ALARMS[role]), None,
+                )
+                if previous is None:
+                    raise PermissionError("Persisted job lacks source observation")
+                task = self.agendas[role].offer(
+                    previous, kind=ALARMS[role], priority=PRIORITY[role],
+                )
+            changed = False
+            if task["status"] == "offered":
+                if job["deferred"]:
+                    # Legacy deferred work must NOT silently wake just because
+                    # its event history was replayed during checkpoint upgrade.
+                    self.agendas[role].defer(
+                        job["event_id"],
+                        reason="legacy_deferred_requires_new_evidence",
+                        event_kinds=RECONSIDER_ON[role],
+                        after_sequence=self.agendas[role].record["last_sequence"],
+                    )
+                else:
+                    self.agendas[role].set_status(
+                        job["event_id"], "accepted",
+                        reason="restored_existing_world_obligation",
+                    )
+                changed = True
+            if job["deferred"] and task["status"] == "accepted":
+                job["deferred"] = False
+                changed = True
+            if changed:
+                self.checkpoint()
+            return True
         handled = set(self.state["specialist_handled"][role])
-        new = [e for e in events
-               if e["kind"] == ALARMS[role]
-               and e["event_id"] not in handled]
+        new = [
+            e for e in events if e["kind"] == ALARMS[role]
+            and e["event_id"] not in handled
+        ]
         if not new:
             return False
-        # The newest world alarm determines the present work. Older alarms
-        # are not treated as permission to replay obsolete physical actions.
+        # The latest alarm determines current equipment state. Older
+        # observations remain audited as locally declined superseded tasks,
+        # never disappear from the agenda without an explicit disposition.
         latest = new[-1]
+        for obsolete in new[:-1]:
+            item = self.agendas[role].task(obsolete["event_id"])
+            if item is not None and item["status"] == "offered":
+                self.agendas[role].set_status(
+                    obsolete["event_id"], "declined",
+                    reason="superseded_by_later_equipment_alarm",
+                )
         self.state["specialist_handled"][role] = sorted(
             handled | {e["event_id"] for e in new}
         )
         self.brains[role].observe_event(latest)
+        self.agendas[role].set_status(
+            latest["event_id"], "accepted",
+            reason="posted_specialist_duty_selected",
+        )
         self.state["specialist_jobs"][role] = {
             "event_id": latest["event_id"], "index": 0,
             "pending": None, "deferred": False, "effects": [],
@@ -147,12 +298,23 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
         self, role: str, *, drop_after: str | None = None,
         interrupt_operation: str | None = None,
         interrupt_point: str | None = None,
+        stop_after: str | None = None,
+        allow_preemption: bool = False,
     ) -> bool:
         if not await self._start_job(role):
             return False
         job = self.state["specialist_jobs"][role]
-        if job["deferred"]:
+        task = self._job_task(role)
+        if job["deferred"] or task["status"] in WAITING:
             return False
+        if task["status"] in ("accepted", "interrupted"):
+            self.agendas[role].set_status(
+                job["event_id"], "in_progress",
+                reason="resuming_locally_selected_work",
+            )
+            self.checkpoint()
+        elif task["status"] != "in_progress":
+            raise RuntimeError("Specialist has no selectable obligation")
         client = self.clients[role]
         brain = self.brains[role]
         port = DurableEvenniaPort(client)
@@ -173,12 +335,15 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
                         or ("NOMINAL" in reading and role == "teo")
                     ):
                         job["index"] = len(plan)
+                        job["resolved_elsewhere"] = True
                         break
                     raise RuntimeError(
                         f"{role}: expected {expected} from a local inspection"
                     )
                 job["index"] += 1
                 self.checkpoint()
+                if allow_preemption and await self._interrupt_for_urgent(role):
+                    return True
                 continue
 
             legacy_pending = job["pending"]
@@ -199,10 +364,23 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
                 # New work has one actor-scoped global WorkReceipt ID per
                 # procedure step, saved inside the independent handler's
                 # specialist job checkpoint before any network transmission.
-                stage = f"physical-{job['index']}-{operation}"
+                base_stage = f"physical-{job['index']}-{operation}"
+                attempts = job.setdefault("work_attempts", {})
+                generation = int(attempts.get(base_stage, 0))
+                stage = (base_stage if not generation
+                         else f"{base_stage}-retry-{generation}")
                 ledger = WorkStepLedger(
                     job, self.checkpoint, character_ids=self.ids,
                 )
+                # A past world refusal stays permanently receipted. The
+                # next attempt gets a NEW ID only after a new, correctly
+                # addressed world event has reaccepted the blocked agenda.
+                prior = ledger.steps.get(stage)
+                if prior and prior.get("status") == "failed":
+                    attempts[base_stage] = generation + 1
+                    generation += 1
+                    stage = f"{base_stage}-retry-{generation}"
+                    self.checkpoint()
                 if stage not in ledger.steps:
                     choice = brain.choose(
                         CommandOption(
@@ -216,6 +394,12 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
                             choice.request_id, "succeeded",
                             "Chose deferral; no physical command dispatched",
                         ))
+                        self.agendas[role].defer(
+                            job["event_id"],
+                            reason="agent_deferred_" + operation,
+                            event_kinds=RECONSIDER_ON[role],
+                            after_sequence=self.agendas[role].record["last_sequence"],
+                        )
                         job["deferred"] = True
                         self.checkpoint()
                         return False
@@ -234,6 +418,22 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
                     )
                 except SimulatedWorkInterruption as exc:
                     raise SimulatedLostAcknowledgement(str(exc)) from exc
+                except RuntimeError:
+                    settled = ledger.steps.get(stage)
+                    if settled is None or settled.get("status") != "failed":
+                        # Unknown provider/socket state is not a refusal;
+                        # preserve original work ID for exact reconciliation.
+                        raise
+                    self.agendas[role].defer(
+                        job["event_id"],
+                        reason="world_refused_" + operation,
+                        blocked=True,
+                        event_kinds=RECONSIDER_ON[role],
+                        after_sequence=self.agendas[role].record["last_sequence"],
+                    )
+                    job["deferred"] = True
+                    self.checkpoint()
+                    return False
 
             if result.status != "succeeded" or not result.source_event_id:
                 raise RuntimeError(
@@ -243,11 +443,27 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
             brain.observe_local(
                 f"World-confirmed {operation} receipt", result.source_event_id
             )
-            job["effects"].append(result.source_event_id)
+            if result.source_event_id not in job["effects"]:
+                job["effects"].append(result.source_event_id)
             job["pending"] = None
             job["index"] += 1
             self.checkpoint()
+            if stop_after == operation:
+                return True
+            if allow_preemption and await self._interrupt_for_urgent(role):
+                return True
 
+        if job.get("resolved_elsewhere"):
+            self.agendas[role].set_status(
+                job["event_id"], "declined",
+                reason="world_equipment_already_resolved_by_another_actor",
+            )
+        else:
+            self.agendas[role].set_status(
+                job["event_id"], "completed",
+                reason="world_receipts_and_local_final_inspection",
+                effects=list(job["effects"]),
+            )
         self.state["specialist_completed"].append({
             "role": role,
             "alarm_event_id": job["event_id"],
@@ -257,12 +473,37 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
         self.checkpoint()
         return True
 
-    async def service_departments(self) -> bool:
-        """Prioritize life support over routine freight work, with no polling."""
-        for role in ("teo", "mara"):
-            if await self._advance_job(role):
-                return True
+    async def _interrupt_for_urgent(self, role: str) -> bool:
+        """Only preempt between world-validated steps, never mid-request."""
+        for other in EXTRA_ACCOUNTS:
+            if other != role:
+                await self._start_job(other)
+        candidates = self._ready_specialists()
+        if not candidates or candidates[0][0] == role:
+            return False
+        urgent = candidates[0][1]
+        job = self.state["specialist_jobs"][role]
+        if job and self.agendas[role].interrupt(
+            job["event_id"], urgent=urgent,
+        ):
+            self.checkpoint()
+            return True
         return False
+
+    async def service_departments(self) -> bool:
+        """Choose from actual per-agent agendas, not a fixed crew ordering."""
+        for role in EXTRA_ACCOUNTS:
+            await self._start_job(role)
+        candidates = self._ready_specialists()
+        if not candidates:
+            return False
+        role, urgent = candidates[0]
+        for other, task in candidates[1:]:
+            if self.agendas[other].interrupt(
+                task["task_id"], urgent=urgent,
+            ):
+                self.checkpoint()
+        return await self._advance_job(role, allow_preemption=True)
 
 
 async def run(mode: str) -> None:
@@ -294,6 +535,27 @@ async def run(mode: str) -> None:
                 print("OX_P4J_SPECIALIST_INTERRUPTED " + ":".join(parts[1:]))
                 return
             raise RuntimeError("Requested specialist interruption did not occur")
+        if mode == "agenda-pause-cargo":
+            progressed = await supervisor._advance_job(
+                "mara", stop_after="restow",
+            )
+            job = supervisor.state["specialist_jobs"]["mara"]
+            if not progressed or job is None or job["index"] != 2:
+                raise RuntimeError("Cargo pause did not stop after real restow")
+            print("OX_G2_CARGO_PAUSED_AFTER_WORLD_RESTOW")
+            return
+        if mode == "agenda-once":
+            progressed = await supervisor.service_departments()
+            print("OX_G2_AGENDA_STEP", progressed)
+            return
+        if mode == "agenda-finish":
+            for attempt in range(12):
+                if not await supervisor.service_departments():
+                    break
+            else:
+                raise RuntimeError("Agenda dispatch exceeded bounded wake cycle")
+            print("OX_G2_AGENDA_DRAINED")
+            return
         if mode.startswith("finish-"):
             role = mode.removeprefix("finish-")
             if role not in EXTRA_ACCOUNTS:
@@ -311,12 +573,16 @@ async def run(mode: str) -> None:
 
 def main() -> None:
     if (len(sys.argv) != 2
-            or not (sys.argv[1] in ("serve", "drop-replace-ack")
+            or not (sys.argv[1] in (
+                "serve", "drop-replace-ack",
+                "agenda-pause-cargo", "agenda-once", "agenda-finish",
+            )
                     or sys.argv[1].startswith("interrupt-")
                     or sys.argv[1].startswith("finish-"))):
         raise SystemExit(
             "Usage: python -m ox_ai.runtime.five_crew_service "
-            "serve|drop-replace-ack|interrupt-<role>-<op>-<point>|finish-<role>"
+            "serve|drop-replace-ack|agenda-pause-cargo|agenda-once|agenda-finish|"
+            "interrupt-<role>-<op>-<point>|finish-<role>"
         )
     asyncio.run(run(sys.argv[1]))
 
