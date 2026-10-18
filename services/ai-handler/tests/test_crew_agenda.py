@@ -68,8 +68,8 @@ class AgendaTests(unittest.TestCase):
         self.assertEqual(self.agenda.ready(), [])
         self.assertEqual(self.agenda.observe(self.incident), [])
         self.assertEqual(self.agenda.observe(world_event(13, "bridge_notice")), [])
-        self.assertEqual(self.agenda.observe(world_event(14, "cargo_review", "#99"))
-                         if False else [], [])
+        with self.assertRaises(PermissionError):
+            self.agenda.observe(world_event(14, "cargo_review", "#99"))
         self.assertEqual(self.agenda.observe(world_event(15, "cargo_review")),
                          [self.item["task_id"]])
         self.assertEqual(self.item["status"], "accepted")
