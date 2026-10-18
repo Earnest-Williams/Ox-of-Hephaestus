@@ -49,6 +49,18 @@
 - Test contention for a single resource on PostgreSQL, plus SQLite compatibility.
 - **Acceptance:** kill/restart before intent, before send, before commit, after commit/before ACK, after ACK/before checkpoint and between steps; each action is applied at most once, fully attributed, or explicitly unresolved with no unsafe replay.
 
+### Implementation correspondence (18 October 2026)
+
+The roadmap's early provisional PR numbering differed from actual GitHub
+allocations. **Merged PR #22** implements the addressed-event ledger and
+lossless replay; **merged PR #23** implements the common world work receipt
+namespace and authenticated client adapter. **P4h** adds durable handler
+intents for five pump-cycle stages and a multi-process restart test.
+A complete G1 gate still requires converting initial radio, independent
+watch handover, player hail responses and specialist work to the common
+resumable pattern, plus explicit PostgreSQL contention validation. Do not
+mistake the P4h stage test for all-action recovery.
+
 ## G2: Individual autonomy
 
 ### PR 23 — persistent agendas and reconsideration
