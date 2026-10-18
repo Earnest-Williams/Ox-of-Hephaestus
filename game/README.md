@@ -163,12 +163,12 @@ From the repository root, install Evennia and run the targeted DB-backed suite:
 ```bash
 python -m pip install -e .
 cd game
-evennia test world.tests --verbosity=2
+evennia test world.tests.test_ship --verbosity=2
 ```
 
 Use `--verbosity=2` rather than `-v 2`: Evennia reserves `-v` for its version display, which would skip the test suite. The command above uses Evennia's default testing configuration; the separate CI bootstrap validates the real Ox game settings against a persistent database.
 
-This uses a temporary Django test database and exercises the actual
+This command runs the five ship-only tests without requiring an LLM framework;\nthe separate agent repair suite above installs Concordia explicitly.\n\nThis uses a temporary Django test database and exercises the actual
 Evennia objects, exit topology, persisted pump state, permission and location
 checks, bounded inspection, roster, and idempotent bootstrap. The
 `Ox spaceship game tests` CI job runs these tests when `game/` changes.
