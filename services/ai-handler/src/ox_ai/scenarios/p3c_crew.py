@@ -88,7 +88,7 @@ async def replayable_event(client, expected: str, memory: list[dict]) -> dict:
     idempotent inbox read at the most recent persisted event cursor.
     """
     for attempt in range(3):
-        cursor = max((int(e["event_id"].split("-")[-1]) for e in memory),
+        cursor = max((int(e.get("sequence", e["event_id"].split("-")[-1])) for e in memory),
                      default=0)
         await client.send_line(f"oxinbox {cursor}")
         try:

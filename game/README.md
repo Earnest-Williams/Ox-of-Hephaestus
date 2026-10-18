@@ -33,6 +33,26 @@ manufacturing, or skill-by-use progression**. The P4e supervisor runs
 five private cognitive agents; the original P4c three-crew supervisor
 remains available but must not be run simultaneously on the same ship.
 
+## P4f durable world events (PR #22)
+
+Private ship observations are now persisted in an indexed Django
+`world.CrewEvent` table rather than as one growing list on P-01.
+`evennia migrate --noinput` installs the table. On a preexisting P4e
+world, the first event read/write idempotently imports and preserves
+the original P-01 history; it does not delete that rollback source.
+
+The **authenticated** character command `oxinbox <sequence>` returns
+at most 128 OOB `ox_event` frames, followed by `ox_inbox_done` with
+`version=2`, `count`, `next_cursor` and `has_more`. When `has_more`
+is true, issue another `oxinbox <next_cursor>`. The sequence is a
+journal ordering token, not a permission to read another character's events.
+Live packet delivery is advisory; committed history is replayable.
+
+Only the disposable `fixture_setup()` acceptance-test setup clears the
+journal. **Never run it against a populated ship.** There is no automatic
+retention or history compaction yet, and a supported live upgrade requires
+backing up the Evennia database before migrations.
+
 ## P4e specialist autonomy (merged PR #19)
 
 The independent five-person handler gives Mara and Teo real Concordia

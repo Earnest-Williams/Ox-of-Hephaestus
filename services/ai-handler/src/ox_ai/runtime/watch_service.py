@@ -74,7 +74,7 @@ def newest_unseen_alarm(events: list[dict], handled: set[str]) -> tuple[dict | N
     if not unseen:
         return None, set()
     selected = max(
-        unseen, key=lambda e: int(e["event_id"].split("-")[-1])
+        unseen, key=lambda e: int(e.get("sequence", e["event_id"].split("-")[-1]))
     )
     return selected, {e["data"]["alarm_id"] for e in alarms}
 
@@ -114,6 +114,65 @@ def atomic_json(path: Path, value: dict) -> None:
     finally:
         if temporary is not None and temporary.exists():
             temporary.unlink()
+
+
+async def replay_inbox_pages(
+    client: EvenniaWebSocketClient, *, after: int = 0,
+) -> tuple[list[dict], int]:
+    """Replay every addressed page, failing closed on an incomplete response.
+
+    Each page is retrieved from world truth. The caller may checkpoint the
+    resulting observations before advancing its durable cursor; packet
+    delivery and handler checkpoints are not an atomic network operation.
+    """
+    if isinstance(after, bool) or not isinstance(after, int) or after < 0:
+        raise ValueError("Invalid inbox cursor")
+    cursor = after
+    events: list[dict] = []
+    seen: set[str] = set()
+    # A finite safety budget is an explicit error, never a silent truncation.
+    for _page_number in range(10000):
+        await client.send_line(f"oxinbox {cursor}")
+        done = None
+        received = 0
+        async with asyncio.timeout(20):
+            for _frame_number in range(512):
+                packet = await client.receive()
+                if packet.kind == "ox_inbox_done":
+                    if len(packet.args) != 1 or not isinstance(packet.args[0], dict):
+                        raise ValueError("Invalid world inbox completion frame")
+                    done = packet.args[0]
+                    break
+                event = decode_event(packet, client.character_dbref)
+                if event is not None:
+                    received += 1
+                    if event["event_id"] not in seen:
+                        seen.add(event["event_id"])
+                        events.append(event)
+        if done is None:
+            raise RuntimeError("World inbox page never completed")
+        count = done.get("count")
+        if isinstance(count, bool) or not isinstance(count, int) or not 0 <= count <= 128:
+            raise ValueError("Invalid world inbox page count")
+        if done.get("version") is None:
+            # Historic pre-P4f servers have no continuation token. Refuse an
+            # apparently full page, whose missing next page cannot be proven.
+            if count == 128:
+                raise RuntimeError("Legacy inbox may have silently truncated history")
+            return events, cursor
+        if done.get("version") != 2:
+            raise RuntimeError("Unsupported world inbox protocol version")
+        following = done.get("next_cursor")
+        more = done.get("has_more")
+        if (isinstance(following, bool) or not isinstance(following, int)
+                or following < cursor or not isinstance(more, bool)):
+            raise ValueError("Invalid world inbox continuation")
+        if more and (count == 0 or following <= cursor):
+            raise RuntimeError("World inbox stalled with more pages pending")
+        cursor = following
+        if not more:
+            return events, cursor
+    raise RuntimeError("World inbox exceeded explicit page safety budget")
 
 
 class CrewWatchSupervisor:
@@ -174,20 +233,30 @@ class CrewWatchSupervisor:
         )
 
     async def read_inbox(self, role: str) -> list[dict]:
-        """Catch up only on the calling character's own durable event journal."""
-        client = self.clients[role]
-        await client.send_line("oxinbox 0")
-        events = []
-        async with asyncio.timeout(15):
-            for _ in range(256):
-                packet = await client.receive()
-                if packet.kind == "ox_inbox_done":
-                    return events
-                event = decode_event(packet, client.character_dbref)
-                if event is not None:
-                    if event["event_id"] not in {e["event_id"] for e in events}:
-                        events.append(event)
-        raise RuntimeError("Game inbox did not finish")
+        """Losslessly replay legacy consumers' full authenticated history.
+
+        Existing P4e routines still need historical hail/shift context, so
+        this compatibility reader scans from zero. For every newly observed
+        event it also advances a durable, per-character high-water mark only
+        AFTER each character brain is checkpointed. A crash before the final
+        state checkpoint triggers harmless replay and observation-ID dedup.
+        Later agenda consumers can switch to cursor-only fetches.
+        """
+        events, cursor = await replay_inbox_pages(self.clients[role])
+        cursors = self.state.setdefault("inbox_cursors", {})
+        previous = int(cursors.get(role, 0))
+        if cursor > previous:
+            for event in events:
+                serial = int(event.get(
+                    "sequence", event["event_id"].split("-")[-1]
+                ))
+                if serial > previous:
+                    self.brains[role].observe_event(event)
+            cursors[role] = cursor
+            # checkpoint() persists individual brain state before the
+            # supervisor cursor. A partial crash is always replay-safe.
+            self.checkpoint()
+        return events
 
     async def next_alarm(self, *, block: bool) -> dict | None:
         history = await self.read_inbox("lin")

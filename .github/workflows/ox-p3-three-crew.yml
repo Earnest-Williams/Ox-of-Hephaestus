@@ -45,7 +45,7 @@ jobs:
         working-directory: game
         run: |
           evennia migrate --noinput
-          evennia test world.tests.test_live_cooperation --verbosity=2
+          python -m world.test_runner world.tests.test_live_cooperation --verbosity=2
       - name: Provision three unprivileged characters and initial fault
         working-directory: game
         run: |
@@ -95,7 +95,7 @@ jobs:
       - name: Check physical history, chief signoff and watch transfer
         working-directory: game
         run: |
-          evennia shell --command="from world.bootstrap import build_ship; s=build_ship(); p=s['pump']; r=s['roster']; ops=[e['operation'] for e in p.db.event_history]; assert p.state=='normal' and p.db.ox_incident_closed and p.db.ox_chief_released and ops==['fault','isolate','repair','commission'], ops; assert r.db.ox_active_engineer==s['chief'].dbref and not r.db.ox_handover_due; assert len(p.db.ox_action_receipts)==3; assert len(p.db.ox_private_events)>=9; print('OX_P3C_AUTHORITATIVE_VERDICT_PASS')"
+          evennia shell --command="from world.bootstrap import build_ship; s=build_ship(); p=s['pump']; r=s['roster']; ops=[e['operation'] for e in p.db.event_history]; assert p.state=='normal' and p.db.ox_incident_closed and p.db.ox_chief_released and ops==['fault','isolate','repair','commission'], ops; assert r.db.ox_active_engineer==s['chief'].dbref and not r.db.ox_handover_due; assert len(p.db.ox_action_receipts)==3; from world.models import CrewEvent; assert CrewEvent.objects.count()>=9; print('OX_P3C_AUTHORITATIVE_VERDICT_PASS')"
       - name: Archive operator-only individual memories
         if: always()
         uses: actions/upload-artifact@v4

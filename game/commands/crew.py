@@ -24,7 +24,7 @@ class CmdOxInbox(Command):
     locks = "cmd:all()"
 
     def func(self) -> None:
-        from world.live_crew import inbox, wire_event
+        from world.live_crew import inbox_page, wire_event
         try:
             since = int(self.args.strip() or "0")
             if since < 0:
@@ -32,10 +32,16 @@ class CmdOxInbox(Command):
         except ValueError:
             self.caller.msg("Usage: oxinbox <nonnegative-event-sequence>")
             return
-        messages = inbox(self.caller, after=since)
-        for message in messages:
+        page = inbox_page(self.caller, after=since)
+        for message in page["events"]:
             self.caller.msg(ox_event=([wire_event(message)], {}))
-        self.caller.msg(ox_inbox_done=([{"count": len(messages)}], {}))
+        # Flat fields are mandatory for Evennia's v1 websocket protocol.
+        self.caller.msg(ox_inbox_done=([{
+            "version": page["version"],
+            "count": page["count"],
+            "next_cursor": page["next_cursor"],
+            "has_more": page["has_more"],
+        }], {}))
 
 
 class CmdOxRadioAlarm(_CrewCommand):

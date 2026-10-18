@@ -1,0 +1,53 @@
+name: Ox P4f indexed event journal
+
+on:
+  pull_request:
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-p4f-event-journal.yml"
+  push:
+    branches: [main]
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-p4f-event-journal.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  journal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install actual Evennia and handler
+        run: |
+          python -m pip install .
+          python -m pip install -e ./services/ai-handler
+          python -m compileall -q game services/ai-handler/src services/ai-handler/tests
+      - name: Provision ephemeral Evennia owner
+        shell: bash
+        run: |
+          TOKEN="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          echo "::add-mask::$TOKEN"
+          echo "EVENNIA_SUPERUSER_PASSWORD=$TOKEN" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_USERNAME=OxCI" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_EMAIL=oxci@example.invalid" >> "$GITHUB_ENV"
+      - name: Apply and audit Django migrations
+        working-directory: game
+        run: |
+          evennia migrate --noinput
+          evennia makemigrations world --check --dry-run
+      - name: Real game journal, migration, and existing crew tests
+        working-directory: game
+        run: |
+          python -m world.test_runner world.tests.test_event_journal world.tests.test_live_cooperation world.tests.test_crew_interaction --verbosity=2
+      - name: Independent handler paging and restart contract tests
+        run: |
+          python -m unittest discover -s services/ai-handler/tests -p 'test_paged_inbox.py' -v

@@ -56,4 +56,4 @@ jobs:
 
       - name: Drive Concordia and zero-LLM GOAP through the real pump
         working-directory: game
-        run: evennia test world.tests.test_agent_repair world.tests.test_goap_repair --verbosity=2
+        run: python -m world.test_runner world.tests.test_agent_repair world.tests.test_goap_repair --verbosity=2

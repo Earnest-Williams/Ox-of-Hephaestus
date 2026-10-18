@@ -74,8 +74,8 @@ class DepartmentFixture(FixedFixture):
     def _alert(self, kind: str, assigned_role: str, message: str) -> None:
         """World-addressed alarms; the handler sees only legitimate inboxes.
 
-        The prototype's global recipient-private inbox is currently stored on
-        P-01. Until the mailbox is extracted, retain its existing contract.
+        The authoritative world journal is indexed by recipient and supports
+        replay independently of the physical equipment raising the alarm.
         """
         from world.bootstrap import build_ship
         from world.live_crew import emit

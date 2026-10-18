@@ -45,7 +45,7 @@ jobs:
         working-directory: game
         run: |
           evennia migrate --noinput
-          evennia test world.tests.test_crew_interaction world.tests.test_autonomy --verbosity=2
+          python -m world.test_runner world.tests.test_crew_interaction world.tests.test_autonomy --verbosity=2
       - name: Seed fault, scheduled duty and legitimate addressed hail
         working-directory: game
         run: |
