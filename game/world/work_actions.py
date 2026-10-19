@@ -57,6 +57,19 @@ _SOCIAL = {
     "captain_answer": "answer",
     "captain_review": "review",
     "captain_escalate": "escalate",
+    # G6 opt-in world effects, still using the existing global receipt ledger.
+    "terminal_survey": "terminal_action",
+    "terminal_reroute": "terminal_action",
+    "terminal_patch": "terminal_action",
+    "terminal_replace": "terminal_action",
+    "terminal_search": "terminal_action",
+    "terminal_route": "terminal_action",
+    "terminal_command": "terminal_action",
+    "terminal_reserve": "terminal_action",
+    "terminal_broadcast": "terminal_action",
+    "terminal_archive": "terminal_action",
+    "terminal_comfort": "terminal_action",
+    "terminal_assess": "terminal_action",
 }
 
 
@@ -204,6 +217,9 @@ def _social_action(actor, operation: str, arguments: dict) -> tuple[bool, str]:
     from world import live_crew
     from world.crew_interaction import answer_hail
 
+    if operation.startswith("terminal_"):
+        from world.terminal_failure import terminal_work
+        return terminal_work(actor, operation)
     if operation == "answer":
         return answer_hail(actor, arguments["hail_id"], arguments["mode"])
     if operation.startswith("captain_"):
@@ -308,6 +324,10 @@ def execute_work(
             ):
                 raise PermissionError("Request ID already belongs to other work")
             return dict(old.outcome)
+
+        # Dead characters cannot perform work through any legacy target.
+        if actor.db.ox_terminal_dead:
+            raise PermissionError("Deceased crew cannot execute shipboard work")
 
         if target in ("inventory", "learning"):
             if target == "inventory":
