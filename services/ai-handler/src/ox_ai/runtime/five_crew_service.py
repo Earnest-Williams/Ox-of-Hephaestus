@@ -693,9 +693,7 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
             await self._start_job(role)
         candidates = self._ready_specialists()
         if not candidates:
-            if await self._maybe_supply_cooperation():
-                return True
-            return await self.service_independent_rounds()
+            return await self._maybe_supply_cooperation()
         role, urgent = candidates[0]
         for other, task in candidates[1:]:
             if self.agendas[other].interrupt(
