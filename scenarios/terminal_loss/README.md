@@ -47,8 +47,8 @@ From a Python 3.12 environment at repository root with the handler installed:
 
 ```sh
 python -m pip install -e './services/ai-handler[concordia]'
-python -m ox_ai.scenarios.terminal_loss --self-test
-python -m ox_ai.scenarios.terminal_loss --provider goap --seed 241 --output .ox-state/terminal
+python scenarios/terminal_loss/trial.py --self-test
+python scenarios/terminal_loss/trial.py --provider goap --seed 241 --output .ox-state/terminal
 ```
 
 For the Gemini command, explicitly set `GEMINI_API_KEY` in the environment
