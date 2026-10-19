@@ -4,13 +4,16 @@ from unittest.mock import patch
 from evennia.utils.test_resources import EvenniaTestCase
 
 from world.bootstrap import build_ship
+from world.character_profiles import profile_for_actor, skill_for_actor
 from world.captain import (
     captain_qualified_observation, tick_captain_obligations,
 )
 from world.event_journal import inbox
 from world.investigation import arm_anomaly, take_sample
 from world.investigation_followup import take_probe
-from world.models import CaptainObligation, CrewEvent, InvestigationCase, WorkReceipt
+from world.models import (
+    CaptainObligation, CharacterSkill, CrewEvent, InvestigationCase, WorkReceipt,
+)
 from world.work_actions import execute_work
 
 
@@ -152,9 +155,14 @@ class CaptainFollowthroughTests(EvenniaTestCase):
         self.assertEqual(self.work(
             "captain", "a", "captain_inspect",
         )["status"], "failed")
-        self.captain.db.ox_skills = {
-            **self.captain.db.ox_skills, "diagnostics": 2,
-        }
+        self.assertFalse(self.captain.attributes.has("ox_skills"))
+        self.assertEqual(
+            skill_for_actor(self.captain, "investigation.instrument_analysis"), 20,
+        )
+        CharacterSkill.objects.filter(
+            person=profile_for_actor(self.captain),
+            skill_id="investigation.instrument_analysis",
+        ).update(proficiency=40)
         self.assertEqual(self.work(
             "captain", "b", "captain_inspect",
         )["status"], "succeeded")
@@ -163,6 +171,17 @@ class CaptainFollowthroughTests(EvenniaTestCase):
         self.assertNotIn("scrubber_bypass", str(measured))
         self.captain.move_to(self.ship["engineering"], quiet=True)
         self.assertIsNone(captain_qualified_observation(self.captain, self.case_id))
+
+    def test_forged_retired_vector_does_not_grant_diagnostic_qualification(self):
+        self.captain.db.ox_skills = {"diagnostics": 4}
+        self.assertIsNone(captain_qualified_observation(self.captain, self.case_id))
+        self.assertEqual(
+            skill_for_actor(self.captain, "investigation.instrument_analysis"), 20,
+        )
+        self.assertFalse(self.captain.attributes.has("ox_skills"))
+        self.assertEqual(self.work(
+            "captain", "f", "captain_inspect",
+        )["status"], "failed")
 
     def test_world_clock_reminds_captain_without_reopening_closed_work(self):
         item = CaptainObligation.objects.get(pk=self.case_id)
