@@ -52,6 +52,17 @@ restarts an external handler, reconciles a deliberately lost isolation ACK,
 and verifies the persisted physical event journal without duplicate isolation.
 The full focused CI suite passed on `main` following PR #14.
 
+## Pending independent-initiative increment
+
+[G3d PR #46](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/46)
+introduces **experimental, opt-in** world-clock independent rounds for all
+five crew, limited C-01/A-01 wear observations and receipted preventive
+maintenance. It is under review; do not describe it as merged or validated
+until its dedicated live five-client workflow and all focused regressions
+pass on the final commit. It is not general goal generation or
+long-running social autonomy.
+[Implementation contract](prototypes/g3d-independent-rounds.md).
+
 ## P4e verified five-crew runtime
 
 [PR #19](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/19)
