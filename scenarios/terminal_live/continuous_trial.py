@@ -193,7 +193,7 @@ class AdaptiveGoap:
         if self.last_archived_stage != stage and stage >= 1:
             goal(65, "preserve_changing_incident_record", "terminal_archive")
 
-        if people and stage >= 2:
+        if people and stage >= 2 and self.last_help_stage != stage:
             goal(55, "assist_co_located_crew", "terminal_comfort")
 
         goal(1, "observe_and_reconsider", "monitor")
