@@ -101,6 +101,36 @@ class CaptainFollowthroughTests(EvenniaTestCase):
             "captain", "6", "captain_assign", role="iona",
         ), self.work("captain", "6", "captain_assign", role="iona"))
 
+    def test_preexisting_probe_does_not_fulfil_new_captain_order(self):
+        self.assertEqual(self.work("captain", "a", "captain_claim")["status"], "succeeded")
+        teo = self.ship["environment"]
+        self.assertIsNotNone(take_sample(teo, self.case_id))
+        self.assertEqual(execute_work(
+            teo, "b" * 32, "anomaly_report",
+            arguments={"case_id": self.case_id},
+        )["status"], "succeeded")
+        self.assertEqual(execute_work(
+            teo, "c" * 32, "anomaly_question",
+            arguments={"case_id": self.case_id},
+        )["status"], "succeeded")
+        self.assertIsNotNone(take_probe(teo, self.case_id))
+        self.assertEqual(execute_work(
+            teo, "d" * 32, "anomaly_probe_report",
+            arguments={"case_id": self.case_id},
+        )["status"], "succeeded")
+        observed = [
+            e for e in inbox(self.captain)
+            if e["kind"] == "captain_specialist_test_logged"
+        ]
+        self.assertEqual(len(observed), 1)
+        self.assertEqual(observed[0]["data"]["role"], "teo")
+        self.assertEqual(self.work(
+            "captain", "e", "captain_assign", role="teo",
+        )["status"], "failed")
+        self.assertEqual(self.work(
+            "captain", "f", "captain_assign", role="iona",
+        )["status"], "succeeded")
+
     def test_declines_are_reported_and_enable_reassignment(self):
         self.assertEqual(self.work("captain", "a", "captain_claim")["status"], "succeeded")
         self.assertEqual(self.work(
