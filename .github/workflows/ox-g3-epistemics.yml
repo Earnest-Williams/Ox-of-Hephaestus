@@ -4,14 +4,19 @@ on:
   pull_request:
     paths:
       - "services/ai-handler/**"
-      - "design/prototypes/g3-epistemics.md"
       - ".github/workflows/ox-g3-epistemics.yml"
+      - "!**/*.md"
   push:
     branches: [main]
     paths:
       - "services/ai-handler/**"
       - ".github/workflows/ox-g3-epistemics.yml"
+      - "!**/*.md"
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read

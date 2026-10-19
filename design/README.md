@@ -3,6 +3,8 @@
 This is **Ox-specific** project documentation. The repository's `docs/`
 directory is the inherited Evennia manual, not the Ox implementation guide.
 
+**CI workflow and path-filter policy:** [CI.md](CI.md). Documentation-only changes should never trigger gameplay integration suites.
+
 **Authoritative current-state index:** [STATUS.md](STATUS.md), updated
 through merged **G4h (PR #63, 19 October 2026)**. The
 [ROADMAP](ROADMAP.md) separates completed gates from pending implementation.
