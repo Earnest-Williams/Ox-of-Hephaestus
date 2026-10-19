@@ -1,0 +1,96 @@
+name: Ox G3e uncertain investigation
+
+on:
+  pull_request:
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-g3e-investigation.yml"
+  push:
+    branches: [main]
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  world-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          python -m pip install .
+          python -m pip install -e './services/ai-handler'
+          python -m compileall -q game services/ai-handler/src
+      - working-directory: game
+        run: python -m world.test_runner world.tests.test_investigation --verbosity=2
+
+  five-crew-world:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      OX_G3E_INVESTIGATION: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          python -m pip install .
+          python -m pip install -e './services/ai-handler[concordia,transport]'
+          python -m compileall -q game services/ai-handler/src
+      - name: Provision disposable identities and seed world-side hidden case
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          OWNER="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          echo "::add-mask::$TOKEN"
+          echo "::add-mask::$OWNER"
+          echo "OX_PROBE_PASSWORD=$TOKEN" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_PASSWORD=$OWNER" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_USERNAME=OxCaseOwner" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_EMAIL=caseowner@example.invalid" >> "$GITHUB_ENV"
+      - name: Seed nonprivileged crew and world-owned case after environment is exported
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd game
+          evennia migrate --noinput
+          evennia shell --command="from world.transport_probe import provision; from world.investigation import arm_anomaly; ids=provision(include_specialists=True); cid=arm_anomaly(cause='scrubber_bypass', seed=7); print('OX_G3E_HIDDEN_CASE_ARMED')"
+      - name: Start authenticated ship and collect five independent observations
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd game && evennia start)
+          python - <<'PY'
+          import socket,time
+          for _ in range(90):
+              try:
+                  with socket.create_connection(("127.0.0.1",4002),timeout=1):
+                      break
+              except OSError:
+                  time.sleep(1)
+          else:
+              raise RuntimeError("Crew WebSocket transport never became available")
+          PY
+          sleep 4
+          python -m ox_ai.runtime.five_crew_service investigation-drain | tee /tmp/g3e.log
+          grep -q 'OX_G3E_INVESTIGATION_DRAINED 6' /tmp/g3e.log
+      - name: Stop ship and audit world facts separately
+        if: always()
+        working-directory: game
+        run: evennia stop || true
+      - name: Prove world cause was not in any crew notice and reports did not duplicate
+        shell: bash
+        working-directory: game
+        run: |
+          set -euo pipefail
+          evennia shell --command="from world.models import InvestigationCase,WorkReceipt; from world.bootstrap import build_ship; from world.event_journal import inbox; c=InvestigationCase.objects.get(status='open'); s=build_ship(); assert c.cause=='scrubber_bypass'; assert len(c.samples)==5 and len(c.reports)==5; assert WorkReceipt.objects.filter(operation='anomaly_report',outcome__status='succeeded').count()==5; assert WorkReceipt.objects.filter(operation='anomaly_assess',outcome__status='succeeded').count()==1; assert c.assessment['verification']=='unconfirmed'; assert all(c.cause not in str(e) for k in ('officer','watch','chief','cargo','environment') for e in inbox(s[k]) if e['kind']=='anomaly_notice'); print('OX_G3E_FIVE_REAL_MEASUREMENTS_AND_UNCONFIRMED_DIAGNOSIS')"

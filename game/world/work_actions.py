@@ -43,6 +43,8 @@ _SOCIAL = {
     "accept": "accept_watch",
     "answer": "answer_hail",
     "round_report": "file_round_report",
+    "anomaly_report": "report_sample",
+    "anomaly_assess": "file_assessment",
 }
 
 
@@ -54,6 +56,17 @@ def _arguments(operation: str, target: str, arguments: Mapping | None) -> dict:
     if target == "ship":
         if operation not in _SOCIAL:
             raise ValueError("Unknown shipboard work operation")
+        if operation in ("anomaly_report", "anomaly_assess"):
+            case_id = arguments.get("case_id")
+            if not isinstance(case_id, str) or _REQUEST_ID.fullmatch(case_id) is None:
+                raise ValueError("Anomaly action requires a world case ID")
+            if operation == "anomaly_report" and set(arguments) == {"case_id"}:
+                return {"case_id": case_id}
+            if operation == "anomaly_assess" and set(arguments) == {"case_id", "hypothesis"}:
+                from world.investigation import CAUSES
+                if arguments["hypothesis"] in CAUSES:
+                    return {"case_id": case_id, "hypothesis": arguments["hypothesis"]}
+            raise ValueError("Malformed typed anomaly work")
         if operation == "round_report":
             if set(arguments) != {"station"} or arguments["station"] not in (
                 "operations", "pump", "cargo", "scrubber",
@@ -111,6 +124,12 @@ def _social_action(actor, operation: str, arguments: dict) -> tuple[bool, str]:
     from world.crew_interaction import answer_hail
     if operation == "answer":
         return answer_hail(actor, arguments["hail_id"], arguments["mode"])
+    if operation == "anomaly_report":
+        from world.investigation import report_sample
+        return report_sample(actor, arguments["case_id"])
+    if operation == "anomaly_assess":
+        from world.investigation import file_assessment
+        return file_assessment(actor, arguments["case_id"], arguments["hypothesis"])
     if operation == "round_report":
         from world.independent_rounds import file_round_report
         return file_round_report(actor, arguments["station"])

@@ -109,3 +109,15 @@ class SupplyOrder(models.Model):
             models.Index(fields=["requester_dbref", "status"],
                          name="ox_supply_requester"),
         ]
+
+
+class InvestigationCase(models.Model):
+    """World-secret latent cause and authoritative individually sampled evidence."""
+    case_id = models.CharField(max_length=32, primary_key=True)
+    status = models.CharField(max_length=16)
+    cause = models.CharField(max_length=32)
+    signals = models.JSONField(default=dict)
+    samples = models.JSONField(default=dict)
+    reports = models.JSONField(default=dict)
+    assessment = models.JSONField(default=dict)
+    created_game_time = models.FloatField()
