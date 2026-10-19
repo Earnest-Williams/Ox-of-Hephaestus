@@ -123,6 +123,7 @@ class DurableEvenniaPort:
                 "captain_review",
                 "captain_escalate",
                 "terminal_survey",
+                "terminal_crosscheck",
                 "terminal_reroute",
                 "terminal_patch",
                 "terminal_replace",
