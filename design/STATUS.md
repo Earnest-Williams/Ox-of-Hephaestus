@@ -173,3 +173,24 @@ actual cause and separately addressed private observations are preserved.
 [Detailed contract and verified gate](prototypes/g3e-contradictory-evidence.md).
 This is not a general reasoner or physics simulator; deterministic MockModel
 CI checks the integration, not open-ended diagnosis competence.
+
+
+## G3e-3 — Independent crew questions verified (19 October 2026)
+
+**Merged** [PR #51](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/51) after **50/50 final-head checks**. The existing five crew may independently pursue a world-owned
+`anomaly_question` from firsthand local evidence, without challenging Lin
+and even if Lin deferred the first diagnosis. Four existing specialist
+stations provide one fallible new test each; reports and private post-test
+opinions remain distinct, with cross-department evidence required for a
+new unconfirmed bridge assessment. The legacy challenge-first mode is
+preserved for controlled comparison. Enabled explicitly with
+`OX_G3E_INDEPENDENT_QUESTIONS=1` alongside the G3e flags.
+
+Four live Gemini seeded case reruns increased additional world-verified
+follow-up reports from **0 to 16**. In the initial paired run, two deferred
+cases led to correct new tentative theories, electrical interference remained
+an unconfirmed correct first theory despite contradictory new signals,
+and an all-elevated case remained wrongly diagnosed. A repeated final-head
+battery reproduced independent evidence gathering (15 more reports) and
+the persistent all-elevated misdiagnosis. This is not proof of statistically
+improved diagnostic competence. [Design and evidence](prototypes/g3e-independent-questions.md).
