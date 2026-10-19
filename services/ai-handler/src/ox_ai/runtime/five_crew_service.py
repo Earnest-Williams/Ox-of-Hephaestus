@@ -576,7 +576,7 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
         stations = {
             "lin": ("Bridge", "operations", "FREIGHTER OPERATIONS TELEMETRY"),
             "ari": ("Engineering", "pump", "Cooling Pump P-01"),
-            "iona": ("Engineering", "pump", "COOLING"),
+            "iona": ("Engineering", "pump", "Cooling Pump P-01"),
             "mara": ("Cargo Hold", "cargo", "CARGO RESTRAINT GRID C-01"),
             "teo": ("Environmental Plant", "scrubber", "ATMOSPHERE SCRUBBER A-01"),
         }
@@ -746,6 +746,18 @@ async def run(mode: str) -> None:
                 raise RuntimeError("Cargo pause did not stop after real restow")
             print("OX_G2_CARGO_PAUSED_AFTER_WORLD_RESTOW")
             return
+        if mode == "round-drain":
+            if os.getenv("OX_G3D_INDEPENDENT_ROUNDS", "0") != "1":
+                raise RuntimeError("Independent round test requires explicit opt-in")
+            completed = 0
+            for _ in range(len(supervisor.ids) + 1):
+                if not await supervisor.service_independent_rounds():
+                    break
+                completed += 1
+            else:
+                raise RuntimeError("Independent round drain exceeded crew budget")
+            print("OX_G3D_ROUNDS_DRAINED", completed)
+            return
         if mode == "agenda-once":
             progressed = await supervisor.service_departments()
             print("OX_G2_AGENDA_STEP", progressed)
@@ -778,12 +790,13 @@ def main() -> None:
             or not (sys.argv[1] in (
                 "serve", "drop-replace-ack",
                 "agenda-pause-cargo", "agenda-once", "agenda-finish",
+                "round-drain",
             )
                     or sys.argv[1].startswith("interrupt-")
                     or sys.argv[1].startswith("finish-"))):
         raise SystemExit(
             "Usage: python -m ox_ai.runtime.five_crew_service "
-            "serve|drop-replace-ack|agenda-pause-cargo|agenda-once|agenda-finish|"
+            "serve|drop-replace-ack|agenda-pause-cargo|agenda-once|agenda-finish|round-drain|"
             "interrupt-<role>-<op>-<point>|finish-<role>"
         )
     asyncio.run(run(sys.argv[1]))
