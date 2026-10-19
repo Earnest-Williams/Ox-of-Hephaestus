@@ -6,18 +6,27 @@ All world permissions and consequential competency remain world-owned.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from itertools import product
 import re
 from typing import Any, Mapping
 
 
-VERSION = 1
+VERSION = 2
+LEGACY_VERSION = 1
 OCEAN = ("openness", "conscientiousness", "extraversion",
          "agreeableness", "neuroticism")
-OX_TRAITS = ("risk_tolerance", "authority_challenge", "collaboration",
-             "uncertainty_tolerance", "stress_recovery")
+LEGACY_OX_TRAITS = ("risk_tolerance", "authority_challenge", "collaboration",
+                    "uncertainty_tolerance", "stress_recovery")
+OX_TRAITS = LEGACY_OX_TRAITS + ("persistence", "isolation_tolerance")
+LEGACY_TRAITS = OCEAN + LEGACY_OX_TRAITS
 ALL_TRAITS = OCEAN + OX_TRAITS
+APTITUDES = (
+    "strength", "dexterity", "agility", "constitution", "reflexes",
+    "perception", "spatial_sense", "attention", "reasoning",
+    "memory", "nerve", "social_insight",
+)
+DEFAULT_APTITUDE = 5
 _ID = re.compile(r"^[a-z0-9][a-z0-9_.-]{0,63}$")
 
 
@@ -30,6 +39,12 @@ def _identifier(value: str) -> str:
 def _score(value: int) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 100:
         raise ValueError("Trait and initial skill scores must be integers from 0 to 100")
+    return value
+
+
+def _aptitude_score(value: int) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 10:
+        raise ValueError("Fundamental aptitudes must be integers from 1 to 10")
     return value
 
 
@@ -65,6 +80,12 @@ def _pairs(values: tuple[tuple[str, int], ...], *, allowed: tuple[str, ...] | No
         keys.add(key)
 
 
+def _aptitude_pairs(values: tuple[tuple[str, int], ...]) -> None:
+    _pairs(values, allowed=APTITUDES)
+    for _name, value in values:
+        _aptitude_score(value)
+
+
 @dataclass(frozen=True, slots=True)
 class CharacterTemplate:
     template_id: str
@@ -74,12 +95,14 @@ class CharacterTemplate:
     knowledge: tuple[str, ...] = ()
     history: tuple[str, ...] = ()
     styles: tuple[str, ...] = ()
+    aptitudes: tuple[tuple[str, int], ...] = ()
 
     def __post_init__(self) -> None:
         _identifier(self.template_id)
         if self.category not in ("occupation", "ocean", "mbti"):
             raise ValueError("Unsupported character template category")
         _pairs(self.traits, allowed=ALL_TRAITS)
+        _aptitude_pairs(self.aptitudes)
         _pairs(self.starting_skills)
         for items in (self.knowledge, self.history, self.styles):
             _unique_text(items)
@@ -97,13 +120,19 @@ class CrewBlueprint:
     history: tuple[str, ...] = ()
     styles: tuple[str, ...] = ()
     template_ids: tuple[str, ...] = ()
+    aptitudes: tuple[tuple[str, int], ...] = field(
+        default_factory=lambda: tuple((key, DEFAULT_APTITUDE) for key in APTITUDES)
+    )
 
     def __post_init__(self) -> None:
         _identifier(self.person_id)
         _text(self.name, max_length=120)
         _pairs(self.traits, allowed=ALL_TRAITS)
         if set(dict(self.traits)) != set(ALL_TRAITS):
-            raise ValueError("Each blueprint must have all ten continuous traits")
+            raise ValueError("Every blueprint requires all twelve psychological dimensions")
+        _aptitude_pairs(self.aptitudes)
+        if set(dict(self.aptitudes)) != set(APTITUDES):
+            raise ValueError("Every blueprint requires all twelve fundamental aptitudes")
         _pairs(self.starting_skills)
         for items in (self.knowledge, self.history, self.styles):
             _unique_text(items)
@@ -118,40 +147,64 @@ class CrewBlueprint:
         """Deterministic JSON-compatible seed; no memories or work receipts."""
         return {
             "version": VERSION, "person_id": self.person_id, "name": self.name,
-            "traits": dict(self.traits), "starting_skills": dict(self.starting_skills),
+            "traits": dict(self.traits), "aptitudes": dict(self.aptitudes),
+            "starting_skills": dict(self.starting_skills),
             "knowledge": list(self.knowledge), "history": list(self.history),
             "styles": list(self.styles), "template_ids": list(self.template_ids),
         }
 
     @classmethod
     def from_record(cls, data: Mapping[str, Any]) -> "CrewBlueprint":
-        if not isinstance(data, Mapping) or set(data) != {
+        """Accept exact v1 or v2 records; never mutate a stored v1 checkpoint."""
+        if not isinstance(data, Mapping):
+            raise ValueError("Unknown or malformed character blueprint version")
+        version = data.get("version")
+        if type(version) is not int or version not in (LEGACY_VERSION, VERSION):
+            raise ValueError("Unknown or malformed character blueprint version")
+        expected = {
             "version", "person_id", "name", "traits", "starting_skills",
             "knowledge", "history", "styles", "template_ids",
-        } or data["version"] != VERSION:
-            raise ValueError("Unknown or malformed character blueprint version")
+        }
+        if version == VERSION:
+            expected.add("aptitudes")
+        if set(data) != expected:
+            raise ValueError("Malformed character blueprint fields")
         if not isinstance(data["traits"], dict) or not isinstance(data["starting_skills"], dict):
             raise ValueError("Trait and skill records must be dictionaries")
         for key in ("knowledge", "history", "styles", "template_ids"):
             if not isinstance(data[key], list):
                 raise ValueError("Blueprint list field is invalid")
+
+        traits = dict(data["traits"])
+        if version == LEGACY_VERSION:
+            if set(traits) != set(LEGACY_TRAITS):
+                raise ValueError("Malformed v1 psychological traits")
+            traits.update({key: 50 for key in OX_TRAITS if key not in LEGACY_OX_TRAITS})
+            aptitudes = {key: DEFAULT_APTITUDE for key in APTITUDES}
+        else:
+            if not isinstance(data["aptitudes"], dict):
+                raise ValueError("Aptitudes must be a dictionary")
+            aptitudes = data["aptitudes"]
         return cls(
             person_id=data["person_id"], name=data["name"],
-            traits=tuple(sorted(data["traits"].items())),
+            traits=tuple(sorted(traits.items())),
             starting_skills=tuple(sorted(data["starting_skills"].items())),
             knowledge=tuple(data["knowledge"]), history=tuple(data["history"]),
             styles=tuple(data["styles"]), template_ids=tuple(data["template_ids"]),
+            aptitudes=tuple(sorted(aptitudes.items())),
         )
 
     def cognition_context(self) -> str:
         """Bounded, descriptive *preferences*, never instructions/permissions."""
         ocean = ", ".join(f"{k}={dict(self.traits)[k]}" for k in OCEAN)
         operational = ", ".join(f"{k}={dict(self.traits)[k]}" for k in OX_TRAITS)
+        aptitudes = ", ".join(f"{key}={value}" for key, value in self.aptitudes)
         style = "; ".join(self.styles) if self.styles else "No archetype selected"
         background = "; ".join(self.history) if self.history else "Unspecified"
         return (
             "Characterisation, not a rule or an authorisation. Continuous OCEAN "
             f"starting traits (0-100): {ocean}. Operational tendencies: {operational}. "
+            f"Formative aptitudes (1-10): {aptitudes}. "
             f"Descriptive styles: {style}. Personal background: {background}. "
             "The current world, not this authored profile, decides actual "
             "competence, permissions, locations, equipment and physical results."
@@ -210,6 +263,7 @@ def compose_blueprint(
     person_id: str, name: str, *, templates: tuple[str, ...] = (),
     trait_overrides: Mapping[str, int] | None = None,
     skill_overrides: Mapping[str, int] | None = None,
+    aptitude_overrides: Mapping[str, int] | None = None,
     knowledge: tuple[str, ...] = (), history: tuple[str, ...] = (),
 ) -> CrewBlueprint:
     """Build from scratch or layers. No implicit summing of overlapping traits."""
@@ -219,6 +273,11 @@ def compose_blueprint(
         raise ValueError("A template cannot be applied twice")
     trait_overrides = {} if trait_overrides is None else dict(trait_overrides)
     skill_overrides = {} if skill_overrides is None else dict(skill_overrides)
+    aptitude_overrides = {} if aptitude_overrides is None else dict(aptitude_overrides)
+    for key, value in aptitude_overrides.items():
+        if key not in APTITUDES:
+            raise ValueError(f"Unknown fundamental aptitude: {key}")
+        _aptitude_score(value)
     for key, value in trait_overrides.items():
         if key not in ALL_TRAITS:
             raise ValueError(f"Unknown trait override: {key}")
@@ -228,7 +287,9 @@ def compose_blueprint(
         _score(value)
 
     traits = {key: 50 for key in ALL_TRAITS}
+    aptitudes = {key: DEFAULT_APTITUDE for key in APTITUDES}
     assigned: dict[str, int] = {}
+    assigned_aptitudes: dict[str, int] = {}
     skills: dict[str, int] = {}
     all_knowledge: list[str] = []
     all_history: list[str] = []
@@ -242,6 +303,12 @@ def compose_blueprint(
                 raise ValueError(f"Conflicting trait template values for {key}; override explicitly")
             assigned[key] = value
             traits[key] = value
+        for key, value in template.aptitudes:
+            if (key in assigned_aptitudes and assigned_aptitudes[key] != value
+                    and key not in aptitude_overrides):
+                raise ValueError(f"Conflicting aptitude template values for {key}; override explicitly")
+            assigned_aptitudes[key] = value
+            aptitudes[key] = value
         # Skills are authored starting estimates, not stackable XP.
         for key, value in template.starting_skills:
             skills[key] = max(skills.get(key, 0), value)
@@ -254,6 +321,7 @@ def compose_blueprint(
                 if entry not in target:
                     target.append(entry)
     traits.update(trait_overrides)
+    aptitudes.update(aptitude_overrides)
     skills.update(skill_overrides)
     for source, target in ((knowledge, all_knowledge), (history, all_history)):
         for entry in source:
@@ -263,6 +331,7 @@ def compose_blueprint(
         person_id, name, tuple(sorted(traits.items())),
         tuple(sorted(skills.items())), tuple(all_knowledge),
         tuple(all_history), tuple(styles), templates,
+        aptitudes=tuple(sorted(aptitudes.items())),
     )
 
 

@@ -1,6 +1,6 @@
 # Ox of Hephaestus — execution roadmap after P4e
 
-**Baseline:** `main` commit `100f4ff6eb5acdcfccb73fba7e2651e80c0cdf9a` (18 October 2026). The baseline had 13 passing focused Ox workflows. **This roadmap is planning, not implementation evidence.** GitHub Issues were disabled when this plan was recorded, so this file is the canonical backlog until issue tracking is enabled.
+**Historical planning baseline:** `main` commit `100f4ff6eb5acdcfccb73fba7e2651e80c0cdf9a` (18 October 2026), with 13 focused workflows at that time. **This roadmap separates planned work from verified implementation evidence.** For live milestones and test links see [STATUS](STATUS.md), including the G4g conceptual-instruction pilot on 19 October 2026. GitHub Issues were disabled when this plan was recorded.
 
 ## Invariants
 
@@ -192,21 +192,78 @@ must never become an actor-visible affordance or model context.
 The uncertainty-to-reassessment path is now verified. New compartments,
 skills and personalities remain deferred until a deliberate next-stage plan.
 
+## G3e-3 complete — Known unknowns can drive work without disagreement
 
-## G3e-3 — Independently pursuing known unknowns (complete)
+G3e-3 is merged in PR #51 (50/50 final-head checks). A specialist's
+independently identified unanswered analyzer question can cause one
+world-authorized local experiment after that actor's original firsthand
+report, without needing a dissenting alternative to Lin's theory. Lin can
+make a provisional assessment from cross-department second measurements,
+including after previously deferring; no model receives the world-owned
+latent cause. Old G3e-2 challenge-only behavior remains as an explicit
+control. [Protocol and operation flags](prototypes/g3e-independent-questions.md).
+[Implementation and three-run comparison](prototypes/g3e3-independent-questions-results.md).
 
-PR #51 merged after 50/50 checks. Existing specialists may initiate
-bounded world-receipted diagnostic questions without a bridge challenge
-or even an existing bridge hypothesis; original first-stage evidence,
-follow-up observations, testimony and both tentative bridge assessments
-remain separately attributable. No added compartments, roles, skill
-vectors or personalities. Four live seeded Gemini cases (plus control)
-were rerun and repeated once at the final head. The evidence-gathering
-blocker is resolved, but the ambiguous all-elevated case remained wrongly
-diagnosed on both passes.
+Next acceptance study, before adding more roles or rooms: vary bounded
+choice-menu ordering and experimental evidence, repeat hosted-model trials,
+and distinguish genuine evidence-seeking from menu-position biases. Probe
+selection is not yet open-ended, and one follow-up per character does not
+support indefinite pursuit of unanswered questions. Diagnose rather than
+paper over the retained wrong theory in the all-elevated case.
 
-See [G3e-3 design and comparative test log](prototypes/g3e-independent-questions.md).
-Possible next testing focus: vary option ordering, allow actors to choose
-among genuinely discriminating test procedures and distinguish a decision
-to keep investigating from a decision to proclaim a cause. Do not
-substitute an imposed correction from the world-secret root cause.
+## G4 — Character competence and practical progression (19 October 2026)
+
+**Merged and verified:** G3f (#54) introduced the sixth, accountable captain.
+G4a–G4c (#55–#57) established version-two aptitudes/psychology, durable
+per-person 55-skill records and explicit restricted Evennia character/account
+command sets. G4d (#58) moved the captain's technical qualification to a
+world-owned 0–100 skill threshold and retired role-based 0–4 competency
+attributes, then introduced a read-only task comparison. G4e (#59)
+independently persisted theoretical foundations and exact equipment/procedure
+familiarity. G4f (#60) made real successful physical work generate
+replay-resistant, bounded practical skill and technique practice. All
+G4d–G4f final-head workflow matrices passed before merge (27/27, 28/28,
+and 29/29 respectively).
+
+**Next acceptance gates, in causal order:**
+
+1. **Verified conceptual learning — first instruction slice implemented in G4g.**
+   A qualified instructor, consenting local learner, timed supervised lesson
+   and privately graded transfer exercise can generate bounded theoretical
+   evidence. Identity, activity, source receipt and before/after progression
+   are recorded. [Scope and gates](prototypes/g4g-verified-conceptual-learning.md).
+   Learning from real investigations, wider curricula and autonomous study
+   remain subsequent work. Declarations, generic repairs and hearsay earn none.
+2. **Typed, graded task attempts.** Distinguish invalid/refused commands from
+   real attempts that fail, partially succeed, succeed imperfectly or succeed
+   fully. Use individual practical skill, conceptual knowledge, relevant
+   aptitudes, procedure familiarity and current acquired conditions. Keep
+   authority, physical access and interlocks independent from proficiency.
+3. **One reversible physical pilot.** Feature-gate quality resolution on a
+   well-instrumented fixture, preferably P-01 bearing/service work. Preserve
+   the current real-world state machine and receipt semantics as the control.
+   Commit tool wear, parts, elapsed time, terminal readings, physical outcome
+   and character learning within one world transaction. Test failed repairs,
+   retries, interruption and delayed defects before using it more broadly.
+4. **Acquired attribute ledger.** Model fatigue, injury, acclimatisation,
+   practice-dependent habits and environmental penalties as provenance-rich
+   world effects; do not rewrite a person's foundational aptitude each time
+   they are tired. Avoid automatically assigning stereotyped psychological
+   consequences.
+5. **Cognition and staffing consequences.** Permit autonomous scheduling to
+   weigh fallible personal estimates of ability, actual witnessed outcomes,
+   pay/availability, working conditions and incomplete crews. Characters
+   must not receive latent world causes or other people's private skill data.
+6. **Continue Evennia contraction.** Replace only those remaining generic
+   stock mechanisms that conflict with authoritative Ox semantics, such as
+   inventory shortcuts, role-to-skill aliasing or user-modifiable world facts.
+   Keep supported engine authentication, sessions, typeclasses, locks, exits,
+   database transactions and event infrastructure. Every replacement needs
+   migration and actor-local integration tests.
+
+The shadow resolver is **not** a live success/failure roll. Current
+experience credit is only from already-authorised and already-successful
+physical work; it does not make general world repairs skill-sensitive yet.
+Character recruitment, full ship economics and an acquired-attribute engine
+remain unimplemented. Conceptual instruction is a single assessed course;
+general theoretical training is not complete.

@@ -1,16 +1,65 @@
 # Ox playable ship — authoritative Evennia game
 
-**Status (18 October 2026):** Seven connected compartments, three physical
-equipment systems and **five separately authenticated native Concordia
-crewmembers**. Lin, Ari and Iona work the cooling/watch chain; Mara and
-Teo autonomously handle bounded cargo and atmosphere procedures. It is
-still a proving ground, not a complete cargo freighter.
+**Status (19 October 2026):** Seven connected compartments, three
+stateful ship systems and **five independently authenticated technical
+crewmembers plus an opt-in sixth captain**. The captain owns unresolved
+follow-through but cannot substitute rank for engineering skill. The world
+now persists twelve aptitudes, twelve psychological dimensions, separate
+practical/conceptual/procedural competencies, **receipt-verified practical
+experience** and one supervised, assessed conceptual course. This remains a
+proving ground, not a complete cargo freighter.
 [Current milestone status](../design/STATUS.md).
 
 All Ox ship content is under `game/`; the inherited `evennia/` engine has
 not been converted into a different distribution.
 
-## G3d optional self-directed maintenance rounds (PR #46, under review)
+## G4 character development and narrow Evennia command sets
+
+The authoritative world now has six stable person identities and 55 named
+skills across sixteen professional disciplines. Practical skill, theoretical
+foundations and familiarity with **specific procedures on specific machinery**
+are separate persistent records. The twelve formative aptitudes are distinct
+from the twelve continuous psychological dispositions; neither job titles nor
+MBTI-inspired writing presets can grant real technical competence.
+
+Real work via `oxwork` may now provide limited verified practice: successful
+P-01 repairs, C-01 restows and A-01 cartridge replacements produce world
+receipt-linked evidence for the applicable practical skill and exact procedure.
+The same request ID or even a second receipt referencing the same physical
+event cannot award another credit. Other operations, including refused
+commands, do not grant experience. Routine repair does **not** generate
+theoretical-knowledge credit.
+
+G4g adds a separate conceptual-learning activity: a qualified person offers
+`mechanical.controlled_comparison.v1` to a consenting learner at the Machine
+Shop bench. Both remain there for fifteen game minutes, then the learner
+interprets a new training comparison. Correct answers earn bounded
+`CharacterKnowledge.study_progress`; incorrect answers earn none. The course
+has a mastery ceiling and completed assessments must be spaced by a game day.
+Lesson events are participant-private and the normal global work receipts
+preserve restart/replay safety. This is an explicitly requested activity;
+the autonomous supervisor does not yet schedule lessons. See the
+[lesson protocol and acceptance gates](../design/prototypes/g4g-verified-conceptual-learning.md).
+
+The Task Resolver's routine/unfamiliar/novel comparison still runs only in
+world/operator shadow tests. Its provisional performance score neither
+changes the success of a physical operation nor authorises access. The
+captain's **actual** bridge-instrument qualification is a separate world-owned
+`investigation.instrument_analysis >= 40` requirement.
+
+Normal characters and authenticated accounts use **explicit Ox command
+allowlists**. Stock MUD `home`, generic pickup/drop/give, builder commands,
+character self-creation/deletion and unscoped account communication are not
+part of standard Ox gameplay. Evennia authentication, sessions, movement,
+locks, commands and ORM are retained underneath these boundaries.
+
+[Authoritative stage index](../design/STATUS.md) |
+[character/resolution specification](../design/prototypes/g4d-skill-shadow.md) |
+[independent theory and familiarity](../design/prototypes/g4e-independent-knowledge-techniques.md) |
+[receipt-verified practice](../design/prototypes/g4f-world-receipt-learning.md) |
+[verified conceptual learning](../design/prototypes/g4g-verified-conceptual-learning.md)
+
+## G3d optional self-directed maintenance rounds (PR #46, merged)
 
 In a development world, the operator may **once** arm a recurring
 game-time inspection window with

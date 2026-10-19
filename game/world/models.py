@@ -3,6 +3,7 @@
 The large recipient-addressed event journal is a separate Django table,
 not a serialized Attribute list attached to cooling pump P-01.
 """
+
 from django.db import models
 
 
@@ -70,21 +71,22 @@ class InventoryItem(models.Model):
 
     class Meta:
         indexes = [
-            models.Index(fields=["kind", "state", "location_dbref"],
-                         name="ox_inventory_location"),
-            models.Index(fields=["carrier_dbref", "state"],
-                         name="ox_inventory_carrier"),
+            models.Index(fields=["kind", "state", "location_dbref"], name="ox_inventory_location"),
+            models.Index(fields=["carrier_dbref", "state"], name="ox_inventory_carrier"),
         ]
         constraints = [
             models.CheckConstraint(
                 name="ox_inventory_one_location",
                 condition=(
-                    models.Q(state="stored", location_dbref__isnull=False,
-                             carrier_dbref__isnull=True)
-                    | models.Q(state="carried", location_dbref__isnull=True,
-                               carrier_dbref__isnull=False)
-                    | models.Q(state="consumed", location_dbref__isnull=True,
-                               carrier_dbref__isnull=True)
+                    models.Q(
+                        state="stored", location_dbref__isnull=False, carrier_dbref__isnull=True
+                    )
+                    | models.Q(
+                        state="carried", location_dbref__isnull=True, carrier_dbref__isnull=False
+                    )
+                    | models.Q(
+                        state="consumed", location_dbref__isnull=True, carrier_dbref__isnull=True
+                    )
                 ),
             ),
         ]
@@ -104,15 +106,14 @@ class SupplyOrder(models.Model):
 
     class Meta:
         indexes = [
-            models.Index(fields=["assigned_dbref", "status"],
-                         name="ox_supply_assignee"),
-            models.Index(fields=["requester_dbref", "status"],
-                         name="ox_supply_requester"),
+            models.Index(fields=["assigned_dbref", "status"], name="ox_supply_assignee"),
+            models.Index(fields=["requester_dbref", "status"], name="ox_supply_requester"),
         ]
 
 
 class InvestigationCase(models.Model):
     """World-secret latent cause and authoritative individually sampled evidence."""
+
     case_id = models.CharField(max_length=32, primary_key=True)
     status = models.CharField(max_length=16)
     cause = models.CharField(max_length=32)
@@ -129,3 +130,256 @@ class InvestigationCase(models.Model):
     reconsiderations = models.JSONField(default=dict)
     reassessment = models.JSONField(default=dict)
     created_game_time = models.FloatField()
+
+
+class CaptainObligation(models.Model):
+    """Persistent command responsibility for unresolved world-created problems.
+
+    A captain's theory, assignment, or report cannot change physical state
+    or close an obligation. Closure requires an authoritative world outcome.
+    """
+
+    ticket_id = models.CharField(max_length=32, primary_key=True)
+    kind = models.CharField(max_length=32)
+    source_ref = models.CharField(max_length=64)
+    priority = models.PositiveSmallIntegerField()
+    status = models.CharField(max_length=16, default="open")
+    captain_dbref = models.CharField(max_length=32)
+    assignment = models.JSONField(default=dict)
+    history = models.JSONField(default=list)
+    due_game_time = models.FloatField()
+    last_reminded_game_time = models.FloatField(default=0)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["status", "due_game_time"], name="ox_captain_due"),
+        ]
+
+
+class CharacterProfile(models.Model):
+    """Authoritative, persistent person identity and formative baseline.
+
+    The role, duty, agent checkpoint and person's self-assessment are not here.
+    A checkpoint may describe a person, but it cannot authoritatively modify
+    these scores or replace the character-to-person binding.
+    """
+
+    person_id = models.CharField(max_length=64, primary_key=True)
+    character_dbref = models.CharField(max_length=32, unique=True)
+    schema_version = models.PositiveSmallIntegerField(default=2)
+    aptitudes = models.JSONField(default=dict)
+    psychology = models.JSONField(default=dict)
+    styles = models.JSONField(default=list)
+    source = models.CharField(max_length=48, default="ox_initial_seed")
+
+
+class CharacterSkill(models.Model):
+    """One world-owned numerical competency per person and canonical skill ID.
+
+    Progression has separate receipt-backed evidence records.
+    A mere blueprint skill estimate or AI claim never changes this row.
+    """
+
+    person = models.ForeignKey(
+        CharacterProfile,
+        on_delete=models.PROTECT,
+        related_name="skill_records",
+    )
+    skill_id = models.CharField(max_length=64)
+    proficiency = models.PositiveSmallIntegerField()
+    source = models.CharField(max_length=48, default="g3f_initial_estimate")
+    first_recorded_game_time = models.FloatField(default=0.0)
+    practice_progress = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["person", "skill_id"],
+                name="ox_person_skill_unique",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(proficiency__lte=100),
+                name="ox_person_skill_range",
+            ),
+        ]
+
+
+class CharacterKnowledge(models.Model):
+    """A person's theoretical understanding, distinct from practical skill.
+
+    Initial scores are authored calibration estimates, not a verified history
+    of classroom attendance. Later updates require world-owned evidence.
+    """
+
+    person = models.ForeignKey(
+        CharacterProfile,
+        on_delete=models.PROTECT,
+        related_name="knowledge_records",
+    )
+    foundation_id = models.CharField(max_length=64)
+    mastery = models.PositiveSmallIntegerField()
+    source = models.CharField(max_length=48, default="g4e_initial_estimate")
+    first_recorded_game_time = models.FloatField(default=0.0)
+    study_progress = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["person", "foundation_id"],
+                name="ox_person_foundation_unique",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(mastery__lte=100),
+                name="ox_knowledge_mastery_range",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(study_progress__lte=999),
+                name="ox_knowledge_study_range",
+            ),
+        ]
+
+
+class CharacterTechnique(models.Model):
+    """One person-specific procedure on a canonical equipment installation.
+
+    The catalogue's technique ID binds a procedure to the exact equipment
+    marker. Knowing a different model or task confers no automatic familiarity.
+    """
+
+    person = models.ForeignKey(
+        CharacterProfile,
+        on_delete=models.PROTECT,
+        related_name="technique_records",
+    )
+    technique_id = models.CharField(max_length=96)
+    familiarity = models.PositiveSmallIntegerField()
+    source = models.CharField(max_length=48, default="g4e_initial_estimate")
+    first_recorded_game_time = models.FloatField(default=0.0)
+    practice_progress = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["person", "technique_id"],
+                name="ox_person_technique_unique",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(familiarity__lte=100),
+                name="ox_technique_familiarity_range",
+            ),
+        ]
+
+
+class CharacterLearningEvidence(models.Model):
+    """Append-only provenance from exactly one verified world work receipt.
+
+    Refused work and failed assessments cannot create learning credit. When evidence is
+    applicable but repetition no longer teaches, credit_units may be zero so
+    the underlying real attempt remains auditable.
+    """
+
+    person = models.ForeignKey(
+        CharacterProfile,
+        on_delete=models.PROTECT,
+        related_name="learning_evidence",
+    )
+    receipt = models.ForeignKey(
+        WorkReceipt,
+        on_delete=models.PROTECT,
+        related_name="learning_evidence",
+    )
+    event_key = models.CharField(max_length=128)
+    task_id = models.CharField(max_length=96)
+    component_kind = models.CharField(max_length=16)
+    component_id = models.CharField(max_length=96)
+    credit_units = models.PositiveSmallIntegerField(default=0)
+    score_before = models.PositiveSmallIntegerField()
+    score_after = models.PositiveSmallIntegerField()
+    progress_before = models.PositiveSmallIntegerField(default=0)
+    progress_after = models.PositiveSmallIntegerField(default=0)
+    game_time = models.FloatField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["person", "receipt", "component_kind", "component_id"],
+                name="ox_learning_one_receipt_topic",
+            ),
+            models.UniqueConstraint(
+                fields=["person", "event_key", "component_kind", "component_id"],
+                name="ox_learning_one_event_topic",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(credit_units__lte=1),
+                name="ox_learning_credit_bounded",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(score_before__lte=100, score_after__lte=100),
+                name="ox_learning_score_bounded",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(progress_before__lte=999, progress_after__lte=999),
+                name="ox_learning_progress_bound",
+            ),
+        ]
+
+
+class ConceptLesson(models.Model):
+    """A supervised curriculum attempt, separate from beliefs and world faults.
+
+    The exercise and its rubric belong to the world. Only a projection of the
+    exercise is delivered to the learner; no current ship fault is an answer key.
+    Lesson IDs are the offering instructor's global work request IDs.
+    """
+
+    lesson_id = models.CharField(max_length=32, primary_key=True)
+    course_id = models.CharField(max_length=96)
+    instructor = models.ForeignKey(
+        CharacterProfile,
+        on_delete=models.PROTECT,
+        related_name="lessons_taught",
+    )
+    learner = models.ForeignKey(
+        CharacterProfile,
+        on_delete=models.PROTECT,
+        related_name="lessons_taken",
+    )
+    room_dbref = models.CharField(max_length=32)
+    status = models.CharField(max_length=16, default="offered")
+    offered_game_time = models.FloatField()
+    started_game_time = models.FloatField(null=True)
+    due_game_time = models.FloatField(null=True)
+    expires_game_time = models.FloatField()
+    completed_game_time = models.FloatField(null=True)
+    qualification = models.JSONField(default=dict)
+    exercise = models.JSONField(default=dict)
+    answers = models.JSONField(default=dict)
+    result_event_id = models.CharField(max_length=64, null=True)
+    completion_receipt = models.OneToOneField(
+        WorkReceipt,
+        on_delete=models.PROTECT,
+        null=True,
+        related_name="concept_lesson",
+    )
+
+    class Meta:
+        """Enforce distinct people and a finite, auditable lesson lifecycle."""
+
+        constraints = [
+            models.CheckConstraint(
+                condition=~models.Q(instructor=models.F("learner")),
+                name="ox_lesson_distinct_people",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    status__in=["offered", "active", "passed", "failed", "interrupted"]
+                ),
+                name="ox_lesson_status_valid",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["learner", "course_id", "completed_game_time"],
+                name="ox_lesson_learner_course",
+            ),
+        ]

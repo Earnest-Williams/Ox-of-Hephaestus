@@ -80,6 +80,8 @@ class ShipDutyClock(DefaultScript):
         tick_game_clock()
         from world.independent_rounds import tick_rounds
         tick_rounds()
+        from world.captain import tick_captain_obligations
+        tick_captain_obligations()
 
 
 def ensure_clock_script() -> None:

@@ -1,6 +1,7 @@
-"""Extend ordinary Evennia character commands with ship equipment verbs."""
+"""Explicit Ox ship command allowlist; no inherited generic MUD bypasses."""
 
-from evennia.commands.default.cmdset_character import CharacterCmdSet as BaseCmdSet
+from evennia.commands.cmdset import CmdSet
+from evennia.commands.default import general, help
 
 from commands.capabilities import CmdOxCapabilities
 from commands.inventory import CmdOxInventory
@@ -8,7 +9,7 @@ from commands.inventory import CmdOxInventory
 from commands.crew import (
     CmdOxInbox, CmdOxRadioAlarm, CmdOxRequestRelease,
     CmdOxApproveRelease, CmdOxResolve, CmdOxOfferWatch, CmdOxAcceptWatch,
-    CmdOxHail, CmdOxAnswer, CmdOxWork, CmdOxWorkReceipt, CmdOxSample, CmdOxProbe,
+    CmdOxHail, CmdOxAnswer, CmdOxWork, CmdOxWorkReceipt, CmdOxSample, CmdOxProbe, CmdOxCaptainInspect,
 )
 
 from commands.departments import (
@@ -29,15 +30,23 @@ from commands.ship import (
 )
 
 
-class CharacterCmdSet(BaseCmdSet):
+class CharacterCmdSet(CmdSet):
     """Ordinary game characters use the same ship commands as future AI."""
 
     key = "DefaultCharacter"
 
     def at_cmdset_creation(self) -> None:
-        """Install equipment interactions alongside standard MUD commands."""
-        super().at_cmdset_creation()
+        """Install ship actions and safe local communication only.
+
+        Stock get/drop/give/home, description editing and builder commands
+        bypass Ox inventory, identity and world work policies.
+        """
         for command in (
+            general.CmdLook,
+            general.CmdSay,
+            general.CmdWhisper,
+            general.CmdPose,
+            help.CmdHelp,
             CmdInspect,
             CmdOxCapabilities,
             CmdOxInventory,
@@ -67,5 +76,6 @@ class CharacterCmdSet(BaseCmdSet):
             CmdOxWorkReceipt,
             CmdOxSample,
             CmdOxProbe,
+            CmdOxCaptainInspect,
         ):
             self.add(command())

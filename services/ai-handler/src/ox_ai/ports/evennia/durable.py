@@ -1,4 +1,5 @@
 """Authoritative per-character operation receipts over normal Evennia sockets."""
+
 from __future__ import annotations
 
 import asyncio
@@ -50,9 +51,12 @@ class DurableEvenniaPort:
                     status = entry.get("status")
                     if status not in ("succeeded", "failed", "unknown"):
                         raise ValueError("Invalid authoritative receipt status")
-                    return ActionOutcome(request_id, status,
-                                         str(entry.get("reason", "")),
-                                         entry.get("source_event_id"))
+                    return ActionOutcome(
+                        request_id,
+                        status,
+                        str(entry.get("reason", "")),
+                        entry.get("source_event_id"),
+                    )
         except TimeoutError:
             return ActionOutcome(request_id, "unknown", "No authoritative receipt")
         raise RuntimeError("World response budget exhausted")
@@ -82,7 +86,6 @@ class DurableEvenniaPort:
         await self.client.send_line(f"oxreceipt {request_id}{suffix}")
         return await self._receipt(request_id)
 
-
     async def submit_work(self, request: ActionRequest) -> ActionOutcome:
         """Submit one typed world-work intent using the global receipt ID.
 
@@ -98,17 +101,69 @@ class DurableEvenniaPort:
 
         if request.target == "ship":
             if request.verb not in (
-                "radio", "request", "approve", "resolve", "offer",
-                "accept", "answer", "round_report", "anomaly_report", "anomaly_assess",
-                "anomaly_question", "anomaly_challenge", "anomaly_probe_report",
-                "anomaly_reconsider", "anomaly_reassess",
+                "radio",
+                "request",
+                "approve",
+                "resolve",
+                "offer",
+                "accept",
+                "answer",
+                "round_report",
+                "anomaly_report",
+                "anomaly_assess",
+                "anomaly_question",
+                "anomaly_challenge",
+                "anomaly_probe_report",
+                "anomaly_reconsider",
+                "anomaly_reassess",
+                "captain_claim",
+                "captain_inspect",
+                "captain_assign",
+                "captain_answer",
+                "captain_review",
+                "captain_escalate",
             ):
                 raise ValueError("Unsupported shipboard operation")
             operation = request.verb
-            if operation in (
-                "anomaly_report", "anomaly_assess",
-                "anomaly_question", "anomaly_challenge", "anomaly_probe_report",
-                "anomaly_reconsider", "anomaly_reassess",
+            if operation.startswith("captain_"):
+                args = dict(request.arguments)
+                identity = args.get("ticket_id")
+                if not isinstance(identity, str) or re.fullmatch(r"[0-9a-f]{32}", identity) is None:
+                    raise ValueError("Captain work requires world obligation ID")
+                if operation in (
+                    "captain_claim",
+                    "captain_inspect",
+                    "captain_review",
+                    "captain_escalate",
+                ):
+                    if set(args) != {"ticket_id"}:
+                        raise ValueError("Unexpected captain work data")
+                    suffix = " " + identity
+                elif operation == "captain_assign":
+                    if set(args) != {"ticket_id", "role"} or args["role"] not in (
+                        "ari",
+                        "iona",
+                        "mara",
+                        "teo",
+                    ):
+                        raise ValueError("Unqualified captain work target")
+                    suffix = " " + identity + " " + args["role"]
+                else:
+                    if set(args) != {"ticket_id", "mode"} or args["mode"] not in (
+                        "accept",
+                        "decline",
+                        "blocked",
+                    ):
+                        raise ValueError("Malformed assigned-crew response")
+                    suffix = " " + identity + " " + args["mode"]
+            elif operation in (
+                "anomaly_report",
+                "anomaly_assess",
+                "anomaly_question",
+                "anomaly_challenge",
+                "anomaly_probe_report",
+                "anomaly_reconsider",
+                "anomaly_reassess",
             ):
                 args = dict(request.arguments)
                 case_id = args.get("case_id")
@@ -120,7 +175,9 @@ class DurableEvenniaPort:
                     suffix = " " + case_id
                 else:
                     if set(args) != {"case_id", "hypothesis"} or args["hypothesis"] not in (
-                        "cargo_vapors", "scrubber_bypass", "bus_interference",
+                        "cargo_vapors",
+                        "scrubber_bypass",
+                        "bus_interference",
                     ):
                         raise ValueError("Invalid provisional hypothesis")
                     suffix = " " + case_id + " " + args["hypothesis"]
@@ -128,7 +185,10 @@ class DurableEvenniaPort:
                 arguments = dict(request.arguments)
                 station = arguments.get("station")
                 if set(arguments) != {"station"} or station not in (
-                    "operations", "pump", "cargo", "scrubber",
+                    "operations",
+                    "pump",
+                    "cargo",
+                    "scrubber",
                 ):
                     raise ValueError("Round report requires a typed station")
                 suffix = " " + station
@@ -136,16 +196,54 @@ class DurableEvenniaPort:
                 arguments = dict(request.arguments)
                 hail_id = arguments.get("hail_id")
                 mode = arguments.get("mode")
-                if (set(arguments) != {"hail_id", "mode"}
-                        or not isinstance(hail_id, str)
-                        or re.fullmatch(r"hail-[0-9]{4,}", hail_id) is None
-                        or mode not in ("status", "ack", "decline")):
+                if (
+                    set(arguments) != {"hail_id", "mode"}
+                    or not isinstance(hail_id, str)
+                    or re.fullmatch(r"hail-[0-9]{4,}", hail_id) is None
+                    or mode not in ("status", "ack", "decline")
+                ):
                     raise ValueError("Invalid typed hail answer")
                 suffix = f" {hail_id} {mode}"
             else:
                 if request.arguments:
                     raise ValueError("Ship work does not permit free-form arguments")
                 suffix = ""
+        elif request.target == "learning":
+            operation = request.verb
+            args = dict(request.arguments)
+            if operation == "lesson_offer":
+                course_id, learner = args.get("course_id"), args.get("learner_dbref")
+                if (
+                    set(args) != {"course_id", "learner_dbref"}
+                    or not isinstance(course_id, str)
+                    or re.fullmatch(r"[a-z][a-z0-9_.]{1,95}", course_id) is None
+                    or not isinstance(learner, str)
+                    or re.fullmatch(r"#[1-9][0-9]*", learner) is None
+                ):
+                    raise ValueError("Lesson offer requires a course and a world learner")
+                suffix = f" {course_id} {learner}"
+            elif operation in ("lesson_begin", "lesson_answer"):
+                lesson_id = args.get("lesson_id")
+                expected = {"lesson_id"}
+                if operation == "lesson_answer":
+                    expected |= {"supported_factor", "controlled_factor"}
+                if (
+                    set(args) != expected
+                    or not isinstance(lesson_id, str)
+                    or re.fullmatch(r"[0-9a-f]{32}", lesson_id) is None
+                ):
+                    raise ValueError("A typed world lesson identity is required")
+                suffix = " " + lesson_id
+                if operation == "lesson_answer":
+                    if args["supported_factor"] not in (
+                        "drive_bus",
+                        "speed",
+                        "insufficient_evidence",
+                    ) or args["controlled_factor"] not in ("drive_bus", "speed", "none"):
+                        raise ValueError("Unsupported transfer-exercise answer")
+                    suffix += f" {args['supported_factor']} {args['controlled_factor']}"
+            else:
+                raise ValueError("Unsupported learning activity")
         elif request.target == "inventory":
             operation = request.verb
             if operation == "request_supply":
@@ -155,8 +253,11 @@ class DurableEvenniaPort:
             elif operation in ("accept_supply", "collect_supply", "deliver_supply"):
                 args = dict(request.arguments)
                 order_id = args.get("order_id")
-                if (set(args) != {"order_id"} or not isinstance(order_id, str)
-                        or re.fullmatch(r"[0-9a-f]{32}", order_id) is None):
+                if (
+                    set(args) != {"order_id"}
+                    or not isinstance(order_id, str)
+                    or re.fullmatch(r"[0-9a-f]{32}", order_id) is None
+                ):
                     raise ValueError("Supply work requires one typed world order ID")
                 suffix = " " + order_id
             else:

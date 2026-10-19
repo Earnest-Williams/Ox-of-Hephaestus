@@ -37,7 +37,7 @@ BASE_GUEST_TYPECLASS = "evennia.accounts.accounts.DefaultGuest"
 
 CMDSET_UNLOGGEDIN = "evennia.commands.default.cmdset_unloggedin.UnloggedinCmdSet"
 CMDSET_SESSION = "evennia.commands.default.cmdset_session.SessionCmdSet"
-CMDSET_ACCOUNT = "evennia.commands.default.cmdset_account.AccountCmdSet"
+CMDSET_ACCOUNT = "commands.account_cmdsets.AccountCmdSet"
 CMDSET_CHARACTER = "commands.default_cmdsets.CharacterCmdSet"
 
 # Avoid a public, reusable Django signing key in Git history. For development

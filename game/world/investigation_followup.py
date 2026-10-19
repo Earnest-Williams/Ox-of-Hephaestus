@@ -200,6 +200,19 @@ def report_probe(actor, case_id: str) -> tuple[bool, str]:
     probes[actor.dbref] = {**observed, "report_event_id": first["event_id"]}
     case.probes = probes
     case.save(update_fields=["probes"])
+    from world.captain import reported_experiment
+    reported_experiment(case_id, actor, first["event_id"])
+    # The captain may know that the team already finished a diagnostic,
+    # without inheriting its private unaddressed measurement or belief.
+    role_name = _specialist_here(actor, ship)
+    if role_name is not None:
+        emit(
+            ship["pump"], ship["captain"], "captain_specialist_test_logged",
+            sender=actor,
+            data={"ticket_id": case_id, "role": role_name,
+                  "report_event_id": first["event_id"], "status": "reported"},
+            text="A specialist has already completed one role-local diagnostic.",
+        )
     return True, "Experiment report forwarded with source provenance"
 
 

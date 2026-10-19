@@ -19,6 +19,13 @@ class ShipRoom(DefaultRoom):
 class CrewCharacter(DefaultCharacter):
     """A persistent physical shipboard person, not a session-scoped avatar."""
 
+    def at_post_move(self, source_location, **kwargs) -> None:
+        """Keep ordinary Evennia movement while interrupting supervised study."""
+        super().at_post_move(source_location, **kwargs)
+        from world.concept_learning import interrupt_lessons
+
+        interrupt_lessons(self)
+
     def at_post_unpuppet(self, account=None, session=None, **kwargs) -> None:
         """Remain in the ship's world when an AI or player session disconnects.
 
@@ -88,10 +95,15 @@ class CoolingPump(FixedFixture):
     def _is_engineer_here(self, actor) -> bool:
         """Require physical access and a game-authorised engineering role."""
         from world.bootstrap import find_fixture
+
         roster = find_fixture("roster-board")
         active = getattr(roster.db, "ox_active_engineer", None) if roster else None
-        if (active is not None and actor and actor.dbref != active
-                and not actor.check_permstring("Developer")):
+        if (
+            active is not None
+            and actor
+            and actor.dbref != active
+            and not actor.check_permstring("Developer")
+        ):
             return False
         return bool(
             actor
@@ -107,9 +119,7 @@ class CoolingPump(FixedFixture):
         expected, new_state = self.TRANSITIONS[operation]
         before = self.state
         if before != expected:
-            return False, (
-                f"Cannot {operation} P-01 while it is {before.replace('_', ' ')}."
-            )
+            return False, (f"Cannot {operation} P-01 while it is {before.replace('_', ' ')}.")
 
         if operation == "commission" and self.db.ox_chief_gate and not self.db.ox_chief_released:
             return False, "Chief safety release required before commissioning."
@@ -142,9 +152,7 @@ class CoolingPump(FixedFixture):
             # change that never committed to world truth.
             room = self.location
             notice = f"P-01 changes state: {before} -> {new_state}."
-            transaction.on_commit(
-                lambda: room.msg_contents(notice, exclude=actor)
-            )
+            transaction.on_commit(lambda: room.msg_contents(notice, exclude=actor))
         return True, f"P-01: {before.replace('_', ' ')} -> {new_state.replace('_', ' ')}."
 
     @transaction.atomic
@@ -159,6 +167,7 @@ class CoolingPump(FixedFixture):
         succeeded, message = self._transition("fault", actor=actor)
         if succeeded and self.db.ox_chief_gate:
             from world.live_crew import fault_alarm
+
             try:
                 fault_alarm(self)
             except BaseException:
@@ -180,10 +189,10 @@ class CoolingPump(FixedFixture):
         """Return an already repaired loop to normal service."""
         return self._transition("commission", actor=actor)
 
-
     def durable_action(self, request_id: str, operation: str, actor) -> dict:
         """Commit an actor-bound physical operation and its receipt atomically."""
         import re
+
         if not re.fullmatch(r"[0-9a-f]{32}", request_id):
             raise ValueError("Action ID must be 32 lowercase hex digits")
         if operation not in ("isolate", "repair", "commission"):
@@ -200,7 +209,8 @@ class CoolingPump(FixedFixture):
             succeeded, _message = self._transition(operation, actor=actor)
             history = list(self.db.event_history or [])
             receipt = {
-                "request_id": request_id, "actor_dbref": actor.dbref,
+                "request_id": request_id,
+                "actor_dbref": actor.dbref,
                 "operation": operation,
                 "status": "succeeded" if succeeded else "failed",
                 "reason": "transition_applied" if succeeded else "world_refused",
@@ -215,15 +225,20 @@ class CoolingPump(FixedFixture):
     def durable_receipt(self, request_id: str, actor) -> dict:
         """Read only the caller's own recorded action, with no remote state leak."""
         import re
+
         if not re.fullmatch(r"[0-9a-f]{32}", request_id):
             raise ValueError("Action ID must be 32 lowercase hex digits")
         if actor is None:
             raise PermissionError("A character identity is required")
         stored = dict(self.db.ox_action_receipts or {}).get(request_id)
         if stored is None or stored["actor_dbref"] != actor.dbref:
-            return {"request_id": request_id, "actor_dbref": actor.dbref,
-                    "status": "unknown", "reason": "no_authorised_receipt",
-                    "source_event_id": None}
+            return {
+                "request_id": request_id,
+                "actor_dbref": actor.dbref,
+                "status": "unknown",
+                "reason": "no_authorised_receipt",
+                "source_event_id": None,
+            }
         return dict(stored)
 
 
@@ -255,10 +270,7 @@ class RosterBoard(FixedFixture):
         for marker in CREW_MARKERS:
             member = find_fixture(marker)
             if member:
-                rows.append(
-                    f"{member.key}: {member.db.duty_title} "
-                    f"[{member.db.watch_window}]"
-                )
+                rows.append(f"{member.key}: {member.db.duty_title} " f"[{member.db.watch_window}]")
                 if self.db.ox_active_engineer == member.dbref:
                     rows.append(f"Active engineering watch: {member.key}")
         return "\n".join(rows)

@@ -1,0 +1,107 @@
+name: Ox G4g verified conceptual learning
+
+on:
+  pull_request:
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-g4g-concept-learning.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  assessed-instruction:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          python -m pip install .
+          python -m pip install -e './services/ai-handler'
+      - name: Verify world learning and existing authority boundaries
+        working-directory: game
+        run: |
+          DJANGO_SETTINGS_MODULE=server.conf.settings python -m django makemigrations world --check --dry-run
+          python -m world.test_runner world.tests.test_concept_learning world.tests.test_receipt_learning world.tests.test_character_learning world.tests.test_character_profiles world.tests.test_task_resolution world.tests.test_work_receipts world.tests.test_crew_presence world.tests.test_captain_followthrough --verbosity=2
+      - name: Verify typed client learning protocol
+        run: python -m unittest discover -s services/ai-handler/tests -p test_world_work_port.py -v
+
+  two-client-restart:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      OX_CONCEPT_LEARNING_CI: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          python -m pip install .
+          python -m pip install -e './services/ai-handler[transport]'
+      - name: Create disposable credentials
+        run: |
+          python - <<'PY'
+          import os, secrets
+          values = {
+              "OX_PROBE_PASSWORD": secrets.token_hex(32),
+              "EVENNIA_SUPERUSER_PASSWORD": secrets.token_hex(32),
+              "EVENNIA_SUPERUSER_USERNAME": "OxLessonCI",
+              "EVENNIA_SUPERUSER_EMAIL": "lesson@example.invalid",
+          }
+          with open(os.environ["GITHUB_ENV"], "a") as stream:
+              for key, value in values.items():
+                  if "PASSWORD" in key:
+                      print("::add-mask::" + value)
+                  stream.write(f"{key}={value}\n")
+          PY
+      - name: Provision unprivileged teacher and learner
+        working-directory: game
+        run: |
+          evennia migrate --noinput
+          evennia shell --command="from world.transport_probe import provision; provision()"
+      - name: Begin a real, separately authenticated lesson
+        run: |
+          (cd game && evennia --settings settings_concept_learning_ci.py start)
+          # First boot performs an internal initial-setup reload after accepting sockets.
+          # Match the existing live-crew gates before authenticating test characters.
+          sleep 4
+          python -m ox_ai.scenarios.g4g_concept_learning begin
+      - name: Restart the world before assessment
+        run: |
+          (cd game && evennia --settings settings_concept_learning_ci.py stop)
+          (cd game && evennia --settings settings_concept_learning_ci.py start)
+          sleep 4
+          python -m ox_ai.scenarios.g4g_concept_learning finish
+      - name: Reconnect without an assessment ACK and reconcile the original ID
+        run: python -m ox_ai.scenarios.g4g_concept_learning recover
+      - name: Independently verify exactly one conceptual credit
+        working-directory: game
+        run: |
+          evennia --settings settings_concept_learning_ci.py stop
+          evennia shell --command="from world.models import ConceptLesson, CharacterKnowledge, CharacterLearningEvidence; lesson=ConceptLesson.objects.get(status='passed'); evidence=CharacterLearningEvidence.objects.get(); assert evidence.person_id == lesson.learner_id and evidence.component_kind == 'knowledge' and evidence.credit_units == 1; k=CharacterKnowledge.objects.get(person=lesson.learner, foundation_id=evidence.component_id); assert (k.mastery,k.study_progress)==(55,1); assert lesson.completion_receipt_id == evidence.receipt_id; print('OX_G4G_WORLD_VERIFIED_ONCE')"
+      - name: Stop disposable ship
+        if: always()
+        working-directory: game
+        run: evennia --settings settings_concept_learning_ci.py stop || true
+      - name: Diagnose a failed synthetic client run
+        if: failure()
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          for name in ("server.log", "portal.log"):
+              path = Path("game/server/logs") / name
+              if path.exists():
+                  content = "\n".join(path.read_text(errors="replace").splitlines()[-100:])
+                  for key in ("OX_PROBE_PASSWORD", "EVENNIA_SUPERUSER_PASSWORD"):
+                      secret = os.environ.get(key)
+                      if secret:
+                          content = content.replace(secret, "[REDACTED]")
+                  print(name, content, sep="\n")
+          PY

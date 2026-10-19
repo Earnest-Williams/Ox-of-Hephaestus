@@ -1,16 +1,18 @@
 # Ox of Hephaestus — architecture and authority boundaries
 
-**Current implementation:** P4a–P4j passed focused real-Evennia tests and
-are merged. Five separately authenticated native Concordia crew operate
-across a **seven-room, three-equipment-system ship**. The world validates
-cooling repairs, cargo work, atmospheric cartridge servicing, hails and
-duty transfer. The separate handler recovers lost cartridge acknowledgments
-and can resume five consecutive pump-work stages across process interruptions.
-This is not a
-deployed freighter or general social simulation.
+**Current implementation (19 October 2026):** P4a–P4j, G3f and
+G4a–G4f have merged after focused real-Evennia regression tests. Five
+technical crew, and an opt-in sixth captain, operate as independent authenticated
+Concordia agents on a **seven-room, three-equipment-system ship**. Evennia
+validates cooling repairs, cargo work, atmospheric servicing, safety/handover
+and command follow-through; its persistent world also owns formative traits,
+individual practical skills, theoretical knowledge, exact equipment familiarity,
+and receipt-backed practical progression. The handler can resume interrupted
+work without replaying physical effects. This remains a bounded proving
+ground—not a deployed freighter or general social simulation.
 [Verified feature matrix](design/STATUS.md) · [Development setup](INSTALL.md).
 
-## G3d: optional independent crew initiative (PR #46, under review)
+## G3d: optional independent crew initiative (PR #46, merged)
 
 The world's persistent duty Script can run an explicitly armed, deterministic
 `tick_rounds` schedule. Missed game-time windows coalesce, avoiding per-tick
@@ -34,6 +36,62 @@ the operator's one-time world schedule. The contained acceptance scenario
 is deterministic; provider-driven individual initiative is not yet proven
 and a comprehensive general work-order engine does not exist.
 [Design and acceptance](design/prototypes/g3d-independent-rounds.md).
+
+## G4: person-owned capability and provenance (merged PRs #55–60)
+
+The world maintains **one authoritative set** of per-person records for:
+(1) relatively stable formative aptitudes, (2) continuous psychological
+dispositions, (3) learned professional proficiency, (4) independent
+theoretical foundations, and (5) procedure familiarity on individually
+identified equipment. OCEAN/MBTI-inspired blueprint styles remain expressive
+starting-character material, not duplicate physics engines or authority grants.
+Personal beliefs, self-assessment, hypotheses and uncertainty continue to
+live with each Concordia character and can diverge from world truth.
+
+G4d removed the temporary 0–4 Evennia role competency vector. The captain's
+limited firsthand bridge inspection reads `investigation.instrument_analysis`
+from the authoritative skill ledger (minimum 40/100), separately from command
+authority and actual bridge presence. No agent-provided skill claim can
+satisfy this gate. G4e stores actual theoretical and exact procedure records
+rather than manufacturing them from related practical skills. Initial values
+for the six original people are **estimates**, not proven classroom or
+employment histories. A world-side shadow resolver can compare synthetic
+ordinary-veteran, gifted-veteran and gifted-novice scenarios; its numerical
+weights do **not** yet change physical action outcomes.
+
+G4f introduced `CharacterLearningEvidence` and bounded independent practice
+progress on `CharacterSkill` and `CharacterTechnique`. A successful,
+authorised P-01 repair, C-01 restow or A-01 cartridge replacement can award
+practice credit only from the corresponding **global WorkReceipt**, in the
+same database transaction. The first uniqueness guard is the request/receipt
+and the second is the actual equipment source-event identity. Failed world
+refusals, hails, ordinary talk and retries do not award skill credit; repeated
+real work receives diminishing learning credit. Generic repairs do not
+increase theoretical knowledge, nor does a high score reveal an unobserved
+failure cause.
+
+G4g adds a separate supervised conceptual-learning activity. The world
+records a qualified instructor, consenting learner, co-presence, duration,
+curriculum, private transfer exercise, submitted answers and receipt-backed
+result. Correct assessments advance `CharacterKnowledge.study_progress`
+under bounded thresholds and a curriculum ceiling. Instruction and study
+do not improve practical skill, grant duties or expose hidden ship causes.
+Normal movement interrupts supervision, and assessment/evidence/progression
+commit atomically. The first curriculum and its two-client restart gate are
+[specified here](design/prototypes/g4g-verified-conceptual-learning.md).
+Autonomous study scheduling and investigative conceptual gains remain future.
+
+**Evennia contraction:** character and account command sets are explicit
+Ox allowlists instead of inheriting all stock MUD actions. User-level
+`charcreate`, `chardelete`, `home`, unvalidated object pickup/drop/give,
+generic builder/admin controls and unscoped communication are unavailable
+through ordinary ship commands. Evennia's session/login/puppet machinery,
+spatial typeclasses, traversal locks, authoritative database, transactions,
+Scripts and event/receipt transport are retained.
+
+[World skill calibration](design/prototypes/g4d-skill-shadow.md) ·
+[Knowledge and procedures](design/prototypes/g4e-independent-knowledge-techniques.md) ·
+[Receipt-driven progression](design/prototypes/g4f-world-receipt-learning.md).
 
 ## G5-a: adversarial failure modes (verified code gate, PR #45)
 
@@ -509,24 +567,20 @@ bridge position remains an explicitly unconfirmed hypothesis. This is
 a bounded case-specific proving ground, not generalized diagnosis, skill
 progression, or automatic repair.
 
+## G3e-3 — Actor-authorized unanswered questions
 
-## G3e-3: actor-owned known unknowns and continued investigation
-
-[The G3e-3 design contract](design/prototypes/g3e-independent-questions.md)
-extends the existing case rather than introducing another subsystem.
-`InvestigationCase.questions` is a private authoritative record of
-one specialist-requested experiment supported by that actor's own first
-stage WorkReceipt. Only the physical local source may be sampled; the
-world sends the verified reading to the sample author and relays the
-report to Lin without interpreting the root cause. Each private
-`AgentEpistemics` records an unanswered question rather than inventing
-knowledge. Cross-department follow-up reports can lead to an explicitly
-unconfirmed reassessment even when Lin previously deferred. The
-legacy G3e-2 challenge prerequisite remains selectable as the control
-using `OX_G3E_INDEPENDENT_QUESTIONS=0`; the new protocol is opt-in via
-`OX_G3E_INDEPENDENT_QUESTIONS=1`. No existing world authority,
-scheduling priority, character or physical layout is replaced.
-
-[PR #51](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/51)
-merged after a final 50/50 CI matrix. Paired hosted model trials showed
-more independent testing, not reliably accurate diagnoses.
+G3e-3 (merged PR #51) adds a world-authoritative, actor-bound `anomaly_question`
+receipt distinct from a `anomaly_challenge`. Specialists may request one
+additional measurement of a world-known physical anomaly from their
+existing installed instrument after filing their own firsthand report.
+They need neither a bridge theory nor a competing hypothesis. The second
+reading is privately sampled, repeat-safe and separately reported to Lin;
+reporting a reading does not require asserting its cause. The external
+Concordia handler `IndependentInquiry` is opt-in with
+`OX_G3E_INDEPENDENT_QUESTIONS=1`, and the original G3e-2 challenge-only path
+remains available when disabled. Case truth, sample noise and
+character-specific knowledge stay in their existing authority domains.
+Only one follow-up measurement per eligible actor is supported; this is
+**bounded initiative**, not arbitrary experimental design or a world-oracle
+diagnosis. [Canonical protocol and flags](design/prototypes/g3e-independent-questions.md).
+[Observed A/B behavior and remaining limits](design/prototypes/g3e3-independent-questions-results.md).

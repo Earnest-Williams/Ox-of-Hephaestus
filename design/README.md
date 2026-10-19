@@ -35,6 +35,8 @@ outcomes are cross-linked instead of retroactively erasing the history.
 - [P3c: three real client characters](prototypes/p3c-live-crew.md)
 - [P4a: three native Concordia actors](prototypes/p4a-live-cognition.md)
 - [P4b: persistent supervisor, world-owned watch deadline](prototypes/p4b-autonomous-watch.md)
+- [G3e-3: independent unanswered-question protocol](prototypes/g3e-independent-questions.md)
+- [G4g: supervised conceptual learning and transfer assessment](prototypes/g4g-verified-conceptual-learning.md)
 
 ## Retained deterministic regression fixtures
 
