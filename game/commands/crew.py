@@ -141,7 +141,10 @@ class CmdOxWork(Command):
         request_id, operation, target = parts[:3]
         arguments = None
         if len(parts) == 5:
-            if target == "ship" and operation == "anomaly_assess":
+            if target == "ship" and operation in (
+                "anomaly_assess", "anomaly_challenge",
+                "anomaly_reconsider", "anomaly_reassess",
+            ):
                 arguments = {"case_id": parts[3], "hypothesis": parts[4]}
             elif target != "ship" or operation != "answer":
                 self.caller.msg(usage)
@@ -149,7 +152,7 @@ class CmdOxWork(Command):
             else:
                 arguments = {"hail_id": parts[3], "mode": parts[4]}
         elif len(parts) == 4:
-            if target == "ship" and operation == "anomaly_report":
+            if target == "ship" and operation in ("anomaly_report", "anomaly_probe_report"):
                 arguments = {"case_id": parts[3]}
             elif target == "ship" and operation == "round_report":
                 arguments = {"station": parts[3]}
@@ -207,3 +210,24 @@ class CmdOxSample(Command):
             self.caller.msg("No open case or authorized local instrument here.")
         else:
             self.caller.msg("OX_ANOMALY_SAMPLE " + result["case_id"] + " " + result["station"] + " " + result["indicator"] + " " + result["reading"])
+
+
+class CmdOxProbe(Command):
+    """Run one's own installed, fallible follow-up diagnostic.
+
+    Usage: oxprobe <case-id>
+    No actor can remotely query another instrument or the latent root cause.
+    """
+    key = "oxprobe"
+    locks = "cmd:all()"
+
+    def func(self) -> None:
+        from world.investigation_followup import take_probe
+        result = take_probe(self.caller, self.args.strip())
+        if result is None:
+            self.caller.msg("No authorized local follow-up diagnostic available.")
+        else:
+            self.caller.msg(
+                "OX_ANOMALY_PROBE " + result["case_id"] + " "
+                + result["indicator"] + " " + result["reading"]
+            )
