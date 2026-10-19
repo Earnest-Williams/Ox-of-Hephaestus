@@ -77,7 +77,8 @@ def valid_options(role: str, view: dict, known: dict) -> list[CommandOption]:
                 "Diagnostically exchange an A-01 cartridge using a real spare",
                 "terminal_replace",
             ))
-    if role in ("teo", "captain") and here == "Environmental Plant":
+    if (role in ("teo", "captain") and here == "Environmental Plant"
+            and view.get("local_reserve_bottles", 0) > 0):
         choices.append(CommandOption(
             "Release one finite emergency breathing-gas reserve bottle",
             "terminal_reserve",
