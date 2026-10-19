@@ -6,6 +6,7 @@ and persists the delivered recipient-specific observations.
 """
 from __future__ import annotations
 
+from django.db import transaction
 from evennia.scripts.scripts import DefaultScript
 from evennia.utils import gametime
 
@@ -29,6 +30,7 @@ def schedule_handover(*, delay_game_seconds: float = 5.0) -> None:
     roster.db.ox_autoadvance_on_resolution = False
 
 
+@transaction.atomic
 def tick_game_clock(*, now_game_time: float | None = None) -> bool:
     """Advance one due world obligation idempotently; true only when fired."""
     from world.bootstrap import build_ship
@@ -47,15 +49,17 @@ def tick_game_clock(*, now_game_time: float | None = None) -> bool:
         return False
     if now < float(roster.db.ox_handover_due_at):
         return False
-    roster.db.ox_world_minute = int(roster.db.ox_handover_at)
-    roster.db.ox_handover_due = True
-    roster.db.ox_handover_delay_seconds = None
     for person in (ship["watch"], ship["chief"]):
         emit(
             ship["pump"], person, "handover_due",
-            data={"minute": str(roster.db.ox_world_minute)},
+            data={"minute": str(int(roster.db.ox_handover_at))},
             text="Engineering watch handover is due by the ship clock.",
         )
+    # The deadline must not be consumed until every addressed notification
+    # is recorded. A failed second emit rolls back the first event as well.
+    roster.db.ox_world_minute = int(roster.db.ox_handover_at)
+    roster.db.ox_handover_due = True
+    roster.db.ox_handover_delay_seconds = None
     return True
 
 

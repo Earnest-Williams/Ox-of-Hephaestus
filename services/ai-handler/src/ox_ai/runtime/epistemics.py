@@ -238,7 +238,18 @@ class AgentEpistemics:
                 raise PermissionError("Conflicting world event identity")
             return False
         if len(entries) >= 512:
-            raise ValueError("Evidence retention capacity reached")
+            # This is a bounded cache of recent event proofs, not the world
+            # journal. Oldest-by-world-time eviction also survives sorted JSON
+            # checkpoints, which do not preserve insertion order.
+            oldest = min(
+                entries,
+                key=lambda key: (
+                    entries[key]["at"],
+                    int(key.rsplit("-", 1)[-1])
+                    if key.rsplit("-", 1)[-1].isdigit() else -1,
+                ),
+            )
+            del entries[oldest]
         entries[identity] = proof
         return True
 

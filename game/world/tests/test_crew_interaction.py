@@ -48,3 +48,35 @@ class CrewInteractionTests(EvenniaTestCase):
         self.iona.location = self.ship["passage"]
         self.assertTrue(answer_hail(self.iona, "hail-0001", "status")[0])
         self.assertIn("cannot verify P-01", inbox(self.lin)[-1]["text"])
+
+    def test_failed_hail_delivery_rolls_back_pending_state(self):
+        from unittest.mock import patch
+        from world import crew_interaction as interaction
+        before = dict(self.ship["pump"].db.ox_hails or {})
+        original_emit = interaction.emit
+        with patch.object(interaction, "emit", side_effect=RuntimeError("journal unavailable")):
+            with self.assertRaises(RuntimeError):
+                send_hail(self.lin, "iona", "Can you check?")
+        self.assertEqual(dict(self.ship["pump"].db.ox_hails or {}), before)
+        self.assertTrue(send_hail(self.lin, "iona", "Can you check?")[0])
+
+    def test_second_reply_event_failure_does_not_consume_hail(self):
+        from unittest.mock import patch
+        from world import crew_interaction as interaction
+        self.assertTrue(send_hail(self.lin, "iona", "Status?")[0])
+        before = len(inbox(self.lin))
+        original_emit = interaction.emit
+        calls = 0
+        def fail_second(*args, **kwargs):
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                raise RuntimeError("event writer interrupted")
+            return original_emit(*args, **kwargs)
+        with patch.object(interaction, "emit", side_effect=fail_second):
+            with self.assertRaises(RuntimeError):
+                answer_hail(self.iona, "hail-0001", "ack")
+        self.assertEqual(self.ship["pump"].db.ox_hails["hail-0001"]["state"], "pending")
+        self.assertEqual(len(inbox(self.lin)), before)
+        self.assertTrue(answer_hail(self.iona, "hail-0001", "ack")[0])
+

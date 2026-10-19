@@ -103,6 +103,30 @@ class AutonomousWorldTests(EvenniaTestCase):
         self.assertEqual(inbox(self.ari)[-1]["kind"], "incident_resolved")
 
 
+    def test_failed_second_due_notification_preserves_deadline(self):
+        from unittest.mock import patch
+        from world.event_journal import emit as original_emit
+        from world.models import CrewEvent
+        self.assertFalse(tick_game_clock(now_game_time=100.0))
+        before = CrewEvent.objects.count()
+        calls = 0
+        def fail_second(*args, **kwargs):
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                raise RuntimeError("journal interruption")
+            return original_emit(*args, **kwargs)
+        with patch("world.live_crew.emit", side_effect=fail_second):
+            with self.assertRaises(RuntimeError):
+                tick_game_clock(now_game_time=106.0)
+        self.assertFalse(self.roster.db.ox_handover_due)
+        self.assertEqual(CrewEvent.objects.count(), before)
+        self.assertTrue(tick_game_clock(now_game_time=106.0))
+        self.assertEqual([e["kind"] for e in inbox(self.ari)].count("handover_due"), 1)
+        self.assertEqual([e["kind"] for e in inbox(self.iona)].count("handover_due"), 1)
+
+
+
 if __name__ == "__main__":
     import unittest
     unittest.main()

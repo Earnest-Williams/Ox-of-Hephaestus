@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import re
 
+from django.db import transaction
+
 from world.bootstrap import build_ship
 from world.live_crew import emit
 
@@ -23,6 +25,7 @@ def _crew(ship):
     }
 
 
+@transaction.atomic
 def send_hail(actor, role: str, message: str) -> tuple[bool, str]:
     """Accept one bounded, in-ship request addressed to a real crew member."""
     ship = build_ship()
@@ -51,20 +54,23 @@ def send_hail(actor, role: str, message: str) -> tuple[bool, str]:
         return False, "An unanswered hail to that crewmember is already pending."
     serial = int(pump.db.ox_hail_seq or 0) + 1
     hail_id = f"hail-{serial:04d}"
-    pump.db.ox_hail_seq = serial
     ledger[hail_id] = {
         "sender": actor.dbref, "recipient": target.dbref,
         "message": message, "state": "pending", "answer": None,
     }
-    pump.db.ox_hails = ledger
     emit(
         pump, target, "crew_hail", sender=actor,
         data={"hail_id": hail_id, "message": message},
         text=f"{actor.key} requests a shipboard reply.",
     )
+    # Commit the event and both ledger attributes as one world transition.
+    # If journal insertion fails, a nonexistent hail must not block retries.
+    pump.db.ox_hail_seq = serial
+    pump.db.ox_hails = ledger
     return True, f"OX_HAIL_ACCEPTED {hail_id}"
 
 
+@transaction.atomic
 def answer_hail(actor, hail_id: str, mode: str) -> tuple[bool, str]:
     """Resolve a request once and deliver a recipient-private reply.
 
@@ -81,6 +87,10 @@ def answer_hail(actor, hail_id: str, mode: str) -> tuple[bool, str]:
     entry = ledger.get(hail_id)
     if entry is None or entry["recipient"] != actor.dbref:
         return False, "No hail addressed to this crewmember."
+    # Evennia Attribute values may be mutable SaverDict objects. The outer
+    # dict() above is only a shallow copy; changing entry in place can write
+    # through to the original Attribute before all journal emits commit.
+    entry = dict(entry)
     if entry["state"] == "answered":
         return True, f"OX_HAIL_ANSWERED {hail_id}"
     if mode == "status":
@@ -106,7 +116,6 @@ def answer_hail(actor, hail_id: str, mode: str) -> tuple[bool, str]:
     entry["state"] = "answered"
     entry["answer"] = mode
     ledger[hail_id] = entry
-    pump.db.ox_hails = ledger
     from evennia.objects.models import ObjectDB
     sender = ObjectDB.objects.filter(id=int(entry["sender"][1:])).first()
     if sender is not None:
@@ -120,4 +129,6 @@ def answer_hail(actor, hail_id: str, mode: str) -> tuple[bool, str]:
         data={"hail_id": hail_id, "mode": mode},
         text="World recorded the addressed hail response.",
     )
+    # Never mark a hail answered until both recipient journals are durable.
+    pump.db.ox_hails = ledger
     return True, f"OX_HAIL_ANSWERED {hail_id}"

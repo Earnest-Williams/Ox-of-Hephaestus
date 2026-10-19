@@ -147,6 +147,11 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
             )
             for role, character_id in self.ids.items()
         }
+        proof_cursors = self.state.setdefault("epistemic_event_cursors", {})
+        if (not isinstance(proof_cursors, dict)
+                or any(role not in self.ids or type(serial) is not int or serial < 0
+                       for role, serial in proof_cursors.items())):
+            raise PermissionError("Invalid actor-private event proof cursors")
 
     async def read_inbox(self, role: str) -> list[dict]:
         """Ingest ONLY this actor's real events into their private agenda.
@@ -157,12 +162,20 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
         events = await super().read_inbox(role)
         agenda = self.agendas[role]
         changed = False
+        proof_cursors = self.state.setdefault("epistemic_event_cursors", {})
+        proof_cursor = proof_cursors.get(role, 0)
+        if type(proof_cursor) is not int or proof_cursor < 0:
+            raise PermissionError("Invalid private proof cursor")
         for event in events:
-            # This confirms the world delivered a recipient-addressed event.
-            # Its sender's free text is *not* automatically a verified fact.
-            if self.epistemics[role].receive_event(event):
-                changed = True
             sequence = int(event["sequence"])
+            # The legacy consumer replays the entire inbox on every pass.
+            # Prove each NEW addressed event once; replaying aged proofs
+            # would otherwise churn a bounded 512-entry evidence cache.
+            if sequence > proof_cursor:
+                self.epistemics[role].receive_event(event)
+                proof_cursor = sequence
+                proof_cursors[role] = sequence
+                changed = True
             if sequence > agenda.record["last_sequence"]:
                 agenda.observe(event)
                 changed = True

@@ -145,5 +145,19 @@ class EpistemicTests(unittest.TestCase):
             AgentEpistemics(altered, role="teo", character_id="#72")
 
 
+    def test_long_running_evidence_retains_recent_proofs_without_replay_churn(self):
+        for sequence in range(1, 701):
+            self.assertTrue(self.teo.receive_event(addressed(sequence)))
+        self.assertEqual(len(self.record["events"]), 512)
+        self.assertNotIn("oxevt-v2-0001", self.record["events"])
+        self.assertIn("oxevt-v2-0700", self.record["events"])
+        saved = json.loads(json.dumps(self.record, sort_keys=True))
+        restored = AgentEpistemics(saved, role="teo", character_id="#72")
+        self.assertFalse(restored.receive_event(addressed(700)))
+        self.assertTrue(restored.receive_event(addressed(701)))
+        self.assertEqual(len(saved["events"]), 512)
+
+
+
 if __name__ == "__main__":
     unittest.main()
