@@ -50,13 +50,13 @@ jobs:
           fi
           echo "GEMINI_API_KEY=$MODEL_KEY" >> "$GITHUB_ENV"
       - name: Exercise fatal physical invariants and idempotence
-        run: python -m ox_ai.scenarios.terminal_loss --self-test
+        run: python scenarios/terminal_loss/trial.py --self-test
       - name: Run isolated experiment
         env:
           OX_SEED: ${{ matrix.seed }}
           OX_PROVIDER: ${{ matrix.provider }}
         run: |
-          python -m ox_ai.scenarios.terminal_loss --seed "$OX_SEED" --provider "$OX_PROVIDER" --output ".ox-state/terminal"
+          python scenarios/terminal_loss/trial.py --seed "$OX_SEED" --provider "$OX_PROVIDER" --output ".ox-state/terminal"
       - name: Publish a per-crew behavioral trace
         if: always()
         uses: actions/upload-artifact@v4
