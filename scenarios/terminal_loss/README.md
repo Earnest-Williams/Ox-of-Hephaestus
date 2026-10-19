@@ -27,11 +27,14 @@ The dedicated GitHub Actions job matrix runs seed **241**, **577**, and **911**
 for both **GOAP** and **Gemini**. GOAP is a non-generative symbolic planner
 and never invokes a language model. Gemini uses existing separate Concordia
 crew entities and the bounded choice adapter (no free-form text generation).
-The two controllers receive identical case physics and action affordances; the
-seed fixes per-character sensor noise, but not hosted Gemini decisions.
+The two controllers receive identical initial physics, action affordances,
+recipient-scoped evidence and per-character wake-time schedules. Each seed
+fixes sensor noise and wake-time jitter, but not hosted Gemini decisions.
+World trajectories legitimately diverge after different actions.
 
 Every disposable run outputs `scenario.json` and `scenario.md` with action
-ordering, per-character actions, world-confirmed failures and effects, number of
+ordering, per-character choices, observed oxygen, actually addressed reports,
+world-confirmed failures and effects, GOAP belief/goal snapshots, number of
 inference calls, death time and whether all six are dead. Operator-only hidden
 cause is shown in the *post-run* audit only. Model error fails the run; it
 must not substitute GOAP or a MockModel decision.
@@ -60,8 +63,19 @@ This is **not** proof of unbounded free-form character autonomy, continuous
 Evennia character mortality, actual ship-board movement or a valid clinical
 death model. The available action menu is intentionally finite; GOAP and
 Gemini differ only in selecting from those options. World effects remain
-separate from selected intentions. Compared with a deterministic MockModel
-(first offered option), GOAP is an actual non-generative planner.
+separate from selected intentions. GOAP updates its **per-person** symbolic
+beliefs from local inspection evidence, verified attempt outcomes, attributed
+crew reports and noisy oxygen/CO2 readings; it then plans against those
+beliefs, not the operator's failure truth. Compared with a deterministic
+MockModel (first offered option), this is a genuinely observation-sensitive
+non-generative planner. It remains a small authored policy, not a general
+reasoning engine.
+
+Actor wake times now vary by seed, rather than always serializing in one fixed
+role order. Addressed communications can wake recipients earlier after a
+bounded interval; there is still only one world action at a time and at most
+three decision opportunities per crew member. This is a discrete-event
+scheduler, not actual asynchronous Evennia character sessions.
 
 Do not infer that the three repeated seeds give statistically independent
 generalized measurements of model quality. Look at qualitative outcomes:
@@ -74,3 +88,15 @@ choices**, and its minutes/physiology are only scenario abstractions.
 finite consumables, actor incapacitation/death and inspection/reporting into
 authoritative Evennia models, then rerun the paired experiment over six
 authenticated actual crew clients. That integration is not claimed here.
+
+## Why this revision exists
+
+The first six-run baseline (GitHub Actions run 39329210735) showed all three
+GOAP traces selecting exactly the same eighteen actions despite differing
+noisy sensors. A GOAP engineer tried an unavailable repair even after personally
+finding it impossible. Moreover, a crew broadcast picked the latest inspection
+**receipt text**, rather than the underlying factual evidence; that incorrectly
+weakened inter-character information flow. The revision fixes these issues
+without changing the physical failure or inventing free-form actions. The
+trial remains illustrative: only an integrated Evennia run will exercise
+real travel, world work authority, mortality and authenticated clients.
