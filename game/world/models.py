@@ -124,6 +124,7 @@ class InvestigationCase(models.Model):
     # Kept out of actor observations unless explicitly relayed by Evennia.
     probe_key = models.CharField(max_length=32, default="")
     challenges = models.JSONField(default=dict)
+    questions = models.JSONField(default=dict)
     probes = models.JSONField(default=dict)
     reconsiderations = models.JSONField(default=dict)
     reassessment = models.JSONField(default=dict)
