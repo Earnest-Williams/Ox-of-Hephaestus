@@ -7,6 +7,7 @@ bonus. Task resolution and experience come in later changes.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections.abc import Mapping
 import re
 
 from world.character_dimensions import APTITUDES
@@ -158,9 +159,9 @@ def legacy_proficiency(value: int) -> int:
     return value * 20
 
 
-def initial_skill_estimates(legacy: dict[str, int]) -> dict[str, int]:
+def initial_skill_estimates(legacy: Mapping[str, int]) -> dict[str, int]:
     """Build separate skill estimates without counting an overlap twice."""
-    if not isinstance(legacy, dict):
+    if not isinstance(legacy, Mapping):
         raise ValueError("Expected a world-owned legacy competence mapping")
     if set(legacy) - set(LEGACY_COMPETENCY_SKILLS):
         raise ValueError("Unknown legacy competency source")
