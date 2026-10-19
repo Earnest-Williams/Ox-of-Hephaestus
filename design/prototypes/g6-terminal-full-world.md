@@ -1,7 +1,10 @@
 # G6 — Terminal atmospheric failure in the actual Evennia world
 
-**Status:** experimental implementation on a new PR, not a shipped universe
-mechanic. Separate from the closed/unmerged [PR #66](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/66).
+**Status:** six paired full-world trials completed successfully in
+[GitHub Actions run 39337728853](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/39337728853).
+Implemented in [PR #67](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/67);
+not yet a shipped universe mechanic. The standalone, non-Evennia pilot was
+merged separately in [PR #66](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/66).
 
 ## Why G6 follows the simplified pilot
 
@@ -13,7 +16,7 @@ then avoided repeating known-impossible work. Its revised three seeds all
 used both reserves and survived 164 synthetic minutes, while the prior rigid
 GOAP policy did not reliably exploit evidence. Detailed results and the
 baseline caution are archived in PR #66 at
-[scenarios/terminal_loss/README.md](https://github.com/Earnest-Williams/Ox-of-Hephaestus/blob/experiment/terminal-atmosphere-six-runs/scenarios/terminal_loss/README.md).
+[scenarios/terminal_loss/README.md](https://github.com/Earnest-Williams/Ox-of-Hephaestus/blob/main/scenarios/terminal_loss/README.md).
 
 **Do not generalize from Gemini's performance** in the synthetic pilot:
 the GOAP policy was tailored to that exact world, the evidence was explicit,
@@ -98,3 +101,35 @@ context, work receipt IDs cannot be stolen, repeated acknowledgement
 must not duplicate an action, a failed repair cannot clear the
 leak, a dead person cannot keep working, and authentication
 must bind each socket to exactly one real crew member.
+
+## Verified live-world baseline and subsequent authorization correction
+
+The first attempt to run six full-world trials failed because the fatal timer
+was created in a short-lived management shell rather than the live Twisted
+server process. The implementation now arms persistent incident state offline
+but instantiates or restarts the Script in the existing server-start hook.
+It explicitly verifies clock progression through an authenticated character
+before decisions are allowed. The next integration failure was in the
+operator audit: Evennia's persistent SaverList cannot be serialized to JSON
+without converting its contents. Both faults have targeted regressions,
+and a single complete GOAP six-client smoke run passed the death and receipt
+audits in [run 39337213487](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/39337213487).
+
+The restored three-seed paired run
+[39337728853](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/39337728853)
+completed **all six jobs successfully** (three GOAP and three Gemini).
+Every world reported all six characters dead from the terminal incident and
+matched each external actor decision to the appropriate authenticated work
+receipt. This establishes real-world execution, **not** superiority of one
+decision system over the other. Each trial still offers only four choice
+opportunities per agent; physics remain abstract and intentionally fatal.
+
+Review of the actual baseline receipts also caught a scenario bug that did
+not fail the audit: a captain physically at Environmental Plant could still
+receive a failed `terminal_reserve` receipt because a preliminary generic
+station rule demanded the captain remain on the Bridge. The world now
+authorizes the reserve operation by its **equipment station** while keeping
+captain bridge-only operations restricted to the Bridge. A focused world
+regression verifies travel, authorized use, cross-role refusal, and receipt
+idempotence. The successful six-trial results above are the **pre-correction
+baseline**; do not silently re-label them as results of the revised rules.

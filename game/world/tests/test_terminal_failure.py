@@ -81,6 +81,42 @@ class TerminalFailureTests(EvenniaTestCase):
         with self.assertRaises(PermissionError):
             execute_work(self.ship["officer"], "d" * 32, "terminal_broadcast", "ship")
 
+    def test_captain_can_use_reserve_only_after_reaching_environmental_plant(self):
+        captain = self.ship["captain"]
+        self.assertEqual(captain.location, self.ship["bridge"])
+        denied = execute_work(
+            captain, "4" * 32, "terminal_reserve", "ship",
+        )
+        self.assertEqual(denied["status"], "failed")
+        self.assertEqual(self.ship["pump"].db.ox_terminal_incident["reserve_left"], 2)
+
+        # Exercise the real Evennia relocation and the same receipt gateway
+        # as a six-client scenario, not an operator mutation of resources.
+        self.assertTrue(captain.move_to(self.ship["environmental"], quiet=True))
+        self.assertEqual(captain.location, self.ship["environmental"])
+        released = execute_work(
+            captain, "5" * 32, "terminal_reserve", "ship",
+        )
+        self.assertEqual(released["status"], "succeeded")
+        self.assertEqual(self.ship["pump"].db.ox_terminal_incident["reserve_left"], 1)
+        self.assertEqual(
+            execute_work(captain, "5" * 32, "terminal_reserve", "ship"),
+            released,
+        )
+        self.assertEqual(self.ship["pump"].db.ox_terminal_incident["reserve_left"], 1)
+        denied_command = execute_work(
+            captain, "6" * 32, "terminal_command", "ship",
+        )
+        self.assertEqual(denied_command["status"], "failed")
+
+        officer = self.ship["officer"]
+        self.assertTrue(officer.move_to(self.ship["environmental"], quiet=True))
+        forbidden = execute_work(
+            officer, "7" * 32, "terminal_reserve", "ship",
+        )
+        self.assertEqual(forbidden["status"], "failed")
+        self.assertEqual(self.ship["pump"].db.ox_terminal_incident["reserve_left"], 1)
+
     def test_depletion_is_irreversible_and_character_death_persists(self):
         self.assertEqual(execute_work(
             self.ship["environment"], "1" * 32, "terminal_reserve", "ship",

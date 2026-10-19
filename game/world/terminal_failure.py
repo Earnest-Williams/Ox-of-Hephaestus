@@ -251,7 +251,14 @@ def terminal_work(actor, verb: str) -> tuple[bool, str]:
     case = _state(pump)
     if role is None or case is None or case["fatal"] or actor.db.ox_terminal_dead:
         return False, "No living authorised crew action possible"
-    station = ship[ROLES[role][2]]
+    # Station authorization depends on the requested physical operation,
+    # not solely the person's default duty station. The captain normally
+    # works on the Bridge but must actually reach Environmental Plant to
+    # discharge a reserve bottle. Only that verb changes station.
+    station = (
+        ship["environmental"] if verb == "terminal_reserve"
+        else ship[ROLES[role][2]]
+    )
     if actor.location != station and verb not in (
         "terminal_broadcast", "terminal_archive", "terminal_comfort", "terminal_assess",
     ):
