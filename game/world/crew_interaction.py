@@ -44,7 +44,11 @@ def send_hail(actor, role: str, message: str) -> tuple[bool, str]:
     if (not 1 <= len(message) <= 160
             or any(ord(char) < 32 or ord(char) == 127 for char in message)):
         return False, "Hail must contain 1-160 printable characters."
-    pump = ship["pump"]
+    # A Django transaction alone does not serialize the read/modify/write
+    # of Evennia Attributes. Lock the common physical fixture *before*
+    # reading the counter or pending entries on this fresh object instance.
+    from evennia.objects.models import ObjectDB
+    pump = ObjectDB.objects.select_for_update().get(pk=ship["pump"].pk)
     ledger = dict(pump.db.ox_hails or {})
     if any(
         entry["sender"] == actor.dbref and entry["recipient"] == target.dbref
@@ -82,7 +86,10 @@ def answer_hail(actor, hail_id: str, mode: str) -> tuple[bool, str]:
     ship = build_ship()
     if actor not in _crew(ship).values():
         return False, "Only the named shipboard crew can answer hails."
-    pump = ship["pump"]
+    from evennia.objects.models import ObjectDB
+    # Serialize replies with hails and the global oxwork path. Two sessions
+    # answering the same ID must emit at most one human-visible response.
+    pump = ObjectDB.objects.select_for_update().get(pk=ship["pump"].pk)
     ledger = dict(pump.db.ox_hails or {})
     entry = ledger.get(hail_id)
     if entry is None or entry["recipient"] != actor.dbref:
