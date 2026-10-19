@@ -447,7 +447,7 @@ existing station instruments with `oxsample <case-id>`. The latent cause is
 never in the initial addressed notice; authenticated world WorkReceipts
 gate each report and Lin's unconfirmed first assessment.
 
-G3e-2 (under validation) adds `oxprobe <case-id>` for role-specific
+G3e-2 (merged PR #48; 46/46 final-head checks) adds `oxprobe <case-id>` for role-specific
 second-stage diagnostics after a specialist has challenged Lin's first
 explanation. Global `oxwork` operations `anomaly_challenge`,
 `anomaly_probe_report`, `anomaly_reconsider` and `anomaly_reassess`
