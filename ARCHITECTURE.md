@@ -10,7 +10,7 @@ This is not a
 deployed freighter or general social simulation.
 [Verified feature matrix](design/STATUS.md) · [Development setup](INSTALL.md).
 
-## G5-a: adversarial failure modes (PR #45, undergoing verification)
+## G5-a: adversarial failure modes (verified code gate, PR #45)
 
 The G5 harness adds seeded world/handler stress, cross-connection PostgreSQL
 races for concurrent hails and duty ticks, and failure injection into *direct*

@@ -1,5 +1,7 @@
 # G5-a: reproducible adversarial voyage and concurrency gate
 
+**Code acceptance:** 27/27 focused Ox workflows passed on commit `93cdd019` (19 October 2026), including all seven seeded world/fault rollback tests, three handler recovery tests, and real PostgreSQL independent-connection contention. Documentation-only follow-up revisions must pass their own triggered checks. PR #45 remains separate from the earlier #44 baseline.
+
 **Scope:** deliberately bounded pre-G4 reliability testing. No new crew
 powers, world simulation tick rates, gameplay mechanics, or hosted models.
 
