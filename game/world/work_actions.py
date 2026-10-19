@@ -45,6 +45,7 @@ _SOCIAL = {
     "round_report": "file_round_report",
     "anomaly_report": "report_sample",
     "anomaly_assess": "file_assessment",
+    "anomaly_question": "file_question",
     "anomaly_challenge": "file_challenge",
     "anomaly_probe_report": "report_probe",
     "anomaly_reconsider": "file_reconsideration",
@@ -61,14 +62,14 @@ def _arguments(operation: str, target: str, arguments: Mapping | None) -> dict:
         if operation not in _SOCIAL:
             raise ValueError("Unknown shipboard work operation")
         if operation in (
-            "anomaly_challenge", "anomaly_probe_report",
+            "anomaly_question", "anomaly_challenge", "anomaly_probe_report",
             "anomaly_reconsider", "anomaly_reassess",
         ):
             from world.investigation import CAUSES
             case_id = arguments.get("case_id")
             if not isinstance(case_id, str) or _REQUEST_ID.fullmatch(case_id) is None:
                 raise ValueError("A world case ID is required")
-            if operation == "anomaly_probe_report":
+            if operation in ("anomaly_question", "anomaly_probe_report"):
                 if set(arguments) == {"case_id"}:
                     return {"case_id": case_id}
                 raise ValueError("Follow-up report takes only its case identity")
@@ -152,10 +153,12 @@ def _social_action(actor, operation: str, arguments: dict) -> tuple[bool, str]:
         from world.investigation import file_assessment
         return file_assessment(actor, arguments["case_id"], arguments["hypothesis"])
     if operation in (
-        "anomaly_challenge", "anomaly_probe_report",
+        "anomaly_question", "anomaly_challenge", "anomaly_probe_report",
         "anomaly_reconsider", "anomaly_reassess",
     ):
         from world import investigation_followup as followup
+        if operation == "anomaly_question":
+            return followup.file_question(actor, arguments["case_id"])
         if operation == "anomaly_challenge":
             return followup.file_challenge(
                 actor, arguments["case_id"], arguments["hypothesis"],
