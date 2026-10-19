@@ -33,7 +33,7 @@ class InvestigationTests(EvenniaTestCase):
         self.assertIsNone(take_sample(mara, self.cid))
         denied = execute_work(mara, "a"*32, "anomaly_report", arguments={"case_id":self.cid})
         self.assertEqual(denied["status"], "failed")
-        mara.move_to(self.ship["cargo_room"], quiet=True) if "cargo_room" in self.ship else mara.move_to(self.ship["cradle"].location, quiet=True)
+        mara.move_to(self.ship["cradle"].location, quiet=True)
         self.assertEqual(execute_work(mara,"b"*32,"anomaly_report",arguments={"case_id":self.cid})["status"],"succeeded")
 
     def test_case_cannot_be_assessed_without_cross_department_reports(self):
