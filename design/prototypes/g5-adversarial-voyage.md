@@ -23,7 +23,15 @@ powers, world simulation tick rates, gameplay mechanics, or hosted models.
    a "world committed, receipt packet lost" case and permanently refused work.
    These are pure durable-protocol checks, **not** evidence that a fake port
    enforces Evennia's real authorization.
-3. **Independent PostgreSQL contention:** existing guarded
+3. **Direct world-command rollback:** `test_adversarial_transactions.py`
+   forces a failure in the second addressed notice of a handover, safety
+   approval and incident resolution, plus failure of the initial release
+   request and direct P-01/A-01 fault alarm. Ordinary character commands
+   must be transactionally safe even without the global `oxwork` wrapper.
+   The world locks P-01 then the roster before reading shared mutable duty
+   fields. Compartment messages announce changes only after transaction
+   commit, preventing ghost evidence from rolled-back actions.
+4. **Independent PostgreSQL contention:** existing guarded
    `python -m world.postgres_contention` now invokes the G5 race probe on
    the same disposable PostgreSQL database with separate DB connections.
    It races hails from different senders, duplicate requests from one
