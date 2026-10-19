@@ -1,0 +1,57 @@
+name: Ox G4b world-owned character ledger
+
+on:
+  pull_request:
+    paths:
+      - "game/world/**"
+      - "game/commands/**"
+      - "services/ai-handler/src/ox_ai/agents/crew_blueprints.py"
+      - ".github/workflows/ox-g4b-world-characters.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  world-character-ledger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install game and handler
+        run: |
+          python -m pip install .
+          python -m pip install -e './services/ai-handler'
+      - name: Check edited sources
+        run: python -m compileall -q game/world game/commands services/ai-handler/src
+      - name: Check schema parity with the agent blueprint
+        working-directory: game
+        run: |
+          python - <<'PY'
+          from world.character_dimensions import APTITUDES, PSYCHOLOGY
+          from ox_ai.agents.crew_blueprints import APTITUDES as BLUEPRINT_APTITUDES, ALL_TRAITS
+          assert APTITUDES == BLUEPRINT_APTITUDES
+          assert PSYCHOLOGY == ALL_TRAITS
+          print("OX_G4B_CHARACTER_DIMENSIONS_MATCH")
+          PY
+      - name: Check Django migration drift
+        working-directory: game
+        run: |
+          DJANGO_SETTINGS_MODULE=server.conf.settings python -m django makemigrations world --check --dry-run
+      - name: Verify six-person world ledger and command allowlist
+        working-directory: game
+        run: |
+          python -m world.test_runner \
+            world.tests.test_character_profiles \
+            world.tests.test_character_command_boundary \
+            world.tests.test_capabilities --verbosity=2
+      - name: Verify captain, investigation and durable receipts
+        working-directory: game
+        run: |
+          python -m world.test_runner \
+            world.tests.test_captain_followthrough \
+            world.tests.test_investigation \
+            world.tests.test_work_receipts --verbosity=2
