@@ -95,6 +95,11 @@ class LocalGoap:
         }.get(verb)
         if fact:
             self.beliefs.add(fact)
+        if verb == "terminal_command" and self.role == "captain":
+            # The primary-action key aliases the captain-specific command
+            # milestone. The captain must not issue repeated assignments
+            # merely because one dict entry shadowed another.
+            self.beliefs.add("commanded")
         if status == "failed":
             self.beliefs.add("last_action_failed")
 

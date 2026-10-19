@@ -70,6 +70,23 @@ jobs:
         run: |
           python -m pip install .
           python -m pip install -e './services/ai-handler[concordia,transport]'
+      - name: Regression check captain's completed command is remembered
+        run: |
+          python - <<'PY'
+          import sys
+          sys.path.insert(0, "scenarios/terminal_live")
+          from trial import LocalGoap, choices
+          ctrl = LocalGoap("captain")
+          ctrl.notice("terminal_survey", "succeeded")
+          view = {"oxygen_kpa": 16.0, "co2_percent": 1.1, "own_finding": ""}
+          first = ctrl.choose(view, [], choices("captain"))[0]
+          assert first.verb == "terminal_command"
+          ctrl.notice("terminal_command", "succeeded")
+          following = ctrl.choose(view, [], choices("captain"))[0]
+          assert following.verb != "terminal_command"
+          assert {"commanded", "primary_attempted"} <= ctrl.beliefs
+          print("OX_G6_CAPTAIN_GOAP_NO_DUPLICATE_COMMAND_PASS")
+          PY
       - name: Create disposable credentials and model opt-in
         shell: bash
         env:

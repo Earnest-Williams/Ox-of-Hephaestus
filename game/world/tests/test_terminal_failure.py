@@ -1,4 +1,7 @@
 """G6 terminal failure: authoritative Evennia state, private evidence and death."""
+import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from evennia.utils.test_resources import EvenniaTestCase
@@ -6,7 +9,7 @@ from evennia.utils.test_resources import EvenniaTestCase
 from world.bootstrap import build_ship
 from world.event_journal import inbox
 from world.terminal_failure import (
-    arm_terminal, ensure_terminal_clock, observe_terminal, tick_terminal,
+    arm_terminal, audit_terminal, ensure_terminal_clock, observe_terminal, tick_terminal,
 )
 from world.work_actions import execute_work
 from world.models import WorkReceipt
@@ -102,6 +105,21 @@ class TerminalFailureTests(EvenniaTestCase):
                 execute_work(actor, "f" * 32, "terminal_archive", "ship")
         self.assertEqual(WorkReceipt.objects.filter(operation="terminal_reserve").count(), 3)
         self.assertFalse(tick_terminal())
+
+    def test_post_server_operator_audit_serializes_real_evennia_savers(self):
+        self.assertEqual(execute_work(
+            self.ship["chief"], "b" * 32, "terminal_survey", "ship",
+        )["status"], "succeeded")
+        with TemporaryDirectory() as tmp:
+            report_path = Path(tmp) / "audit.json"
+            report = audit_terminal(str(report_path))
+            self.assertEqual(report["fatal"], False)
+            parsed = json.loads(report_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                parsed["actual_physical_work"][0]["verb"],
+                "terminal_survey",
+            )
+            self.assertEqual(parsed["receipted_attempts"][0]["role"], "iona")
 
     def test_world_workflow_does_not_invent_scrubber_damage(self):
         self.assertEqual(self.ship["scrubber"].state, "nominal")

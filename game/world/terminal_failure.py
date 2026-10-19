@@ -363,7 +363,10 @@ def audit_terminal(path: str) -> dict:
         "operator_only_hidden_cause": case["cause"],
         "world_minute": case["minute"], "fatal": case["fatal"],
         "all_six_dead": all(ship[key].db.ox_terminal_dead for key, _, _ in ROLES.values()),
-        "reserve_left": case["reserve_left"], "actual_physical_work": case["work"],
+        "reserve_left": case["reserve_left"],
+        # Evennia wraps persisted lists and their entries in SaverList and
+        # SaverDict; convert after the server stops before JSON serialization.
+        "actual_physical_work": [dict(work) for work in case["work"]],
         "receipted_attempts": attempts, "addressed_world_events": notices,
     }
     output = Path(path)
