@@ -153,3 +153,44 @@ class CaptainObligation(models.Model):
             models.Index(fields=["status", "due_game_time"],
                          name="ox_captain_due"),
         ]
+
+
+class CharacterProfile(models.Model):
+    """Authoritative, persistent person identity and formative baseline.
+
+    The role, duty, agent checkpoint and person's self-assessment are not here.
+    A checkpoint may describe a person, but it cannot authoritatively modify
+    these scores or replace the character-to-person binding.
+    """
+    person_id = models.CharField(max_length=64, primary_key=True)
+    character_dbref = models.CharField(max_length=32, unique=True)
+    schema_version = models.PositiveSmallIntegerField(default=2)
+    aptitudes = models.JSONField(default=dict)
+    psychology = models.JSONField(default=dict)
+    styles = models.JSONField(default=list)
+    source = models.CharField(max_length=48, default="ox_initial_seed")
+
+
+class CharacterSkill(models.Model):
+    """One world-owned numerical competency per person and canonical skill ID.
+
+    Progression and attempts have separate evidence records in a future slice.
+    A mere blueprint skill estimate or AI claim never changes this row.
+    """
+    person = models.ForeignKey(
+        CharacterProfile, on_delete=models.PROTECT, related_name="skill_records",
+    )
+    skill_id = models.CharField(max_length=64)
+    proficiency = models.PositiveSmallIntegerField()
+    source = models.CharField(max_length=48, default="g3f_initial_estimate")
+    first_recorded_game_time = models.FloatField(default=0.0)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["person", "skill_id"], name="ox_person_skill_unique",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(proficiency__lte=100), name="ox_person_skill_range",
+            ),
+        ]
