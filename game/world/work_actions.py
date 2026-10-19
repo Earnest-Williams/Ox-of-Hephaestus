@@ -45,6 +45,10 @@ _SOCIAL = {
     "round_report": "file_round_report",
     "anomaly_report": "report_sample",
     "anomaly_assess": "file_assessment",
+    "anomaly_challenge": "file_challenge",
+    "anomaly_probe_report": "report_probe",
+    "anomaly_reconsider": "file_reconsideration",
+    "anomaly_reassess": "file_reassessment",
 }
 
 
@@ -56,6 +60,23 @@ def _arguments(operation: str, target: str, arguments: Mapping | None) -> dict:
     if target == "ship":
         if operation not in _SOCIAL:
             raise ValueError("Unknown shipboard work operation")
+        if operation in (
+            "anomaly_challenge", "anomaly_probe_report",
+            "anomaly_reconsider", "anomaly_reassess",
+        ):
+            from world.investigation import CAUSES
+            case_id = arguments.get("case_id")
+            if not isinstance(case_id, str) or _REQUEST_ID.fullmatch(case_id) is None:
+                raise ValueError("A world case ID is required")
+            if operation == "anomaly_probe_report":
+                if set(arguments) == {"case_id"}:
+                    return {"case_id": case_id}
+                raise ValueError("Follow-up report takes only its case identity")
+            if set(arguments) != {"case_id", "hypothesis"}:
+                raise ValueError("Typed hypothesis and case ID required")
+            if arguments["hypothesis"] not in CAUSES:
+                raise ValueError("Unknown diagnostic hypothesis")
+            return {"case_id": case_id, "hypothesis": arguments["hypothesis"]}
         if operation in ("anomaly_report", "anomaly_assess"):
             case_id = arguments.get("case_id")
             if not isinstance(case_id, str) or _REQUEST_ID.fullmatch(case_id) is None:
@@ -130,6 +151,24 @@ def _social_action(actor, operation: str, arguments: dict) -> tuple[bool, str]:
     if operation == "anomaly_assess":
         from world.investigation import file_assessment
         return file_assessment(actor, arguments["case_id"], arguments["hypothesis"])
+    if operation in (
+        "anomaly_challenge", "anomaly_probe_report",
+        "anomaly_reconsider", "anomaly_reassess",
+    ):
+        from world import investigation_followup as followup
+        if operation == "anomaly_challenge":
+            return followup.file_challenge(
+                actor, arguments["case_id"], arguments["hypothesis"],
+            )
+        if operation == "anomaly_probe_report":
+            return followup.report_probe(actor, arguments["case_id"])
+        if operation == "anomaly_reconsider":
+            return followup.file_reconsideration(
+                actor, arguments["case_id"], arguments["hypothesis"],
+            )
+        return followup.file_reassessment(
+            actor, arguments["case_id"], arguments["hypothesis"],
+        )
     if operation == "round_report":
         from world.independent_rounds import file_round_report
         return file_round_report(actor, arguments["station"])
