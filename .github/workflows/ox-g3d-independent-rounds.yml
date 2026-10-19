@@ -1,0 +1,37 @@
+name: Ox G3d independent work and discovered wear
+
+on:
+  pull_request:
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-g3d-independent-rounds.yml"
+  push:
+    branches: [main]
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-g3d-independent-rounds.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  world-rounds:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Evennia and handler
+        run: |
+          python -m pip install .
+          python -m pip install -e './services/ai-handler'
+          python -m compileall -q game services/ai-handler/src
+      - name: Exercise world-authored windows, private evidence and receipts
+        working-directory: game
+        run: |
+          python -m world.test_runner world.tests.test_independent_rounds --verbosity=2
