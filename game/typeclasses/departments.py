@@ -328,6 +328,11 @@ class AtmosphereScrubber(DepartmentFixture):
         if self.state != "serviced" or not self._fresh_inspection(actor):
             return False, "Inspect the serviced scrubber before restart."
         self._record("restart", "nominal", actor=actor)
+        from world.captain import report_equipment_change
+        report_equipment_change(
+            kind="atmosphere_alarm", source_ref="atmosphere-scrubber",
+            state="nominal",
+        )
         return True, "A-01 atmospheric scrubbing returned to nominal operation."
 
 
