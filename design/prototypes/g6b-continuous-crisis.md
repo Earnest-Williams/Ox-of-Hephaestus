@@ -1,0 +1,92 @@
+# G6b: continuous autonomous terminal-response experiment
+
+**Scope:** opt-in follow-up to the six completed G6 paired trials (PR #67).
+PR #66's synthetic benchmark and PR #67's six full-world trial histories
+remain unchanged and were merged before G6b was created.
+
+## Findings prompting G6b
+
+- The original full-world runner stopped each of six actors after *exactly
+  four decisions*, long before the server-owned fatality. It missed critical
+  atmospheric alerts as decision triggers.
+- Its handler automatically moved people to a workstation after they chose
+  an operation; G6b makes travel a separately selected character intention.
+- It counted repeated addressed orders/reports as successful progress.
+  G6b distinguishes new evidence from repeats in the world receipt path.
+- Comfort could be attempted without a physically present colleague;
+  the actor now sees recipient-scoped nearby living crew and only receives
+  the option when somebody is actually co-located.
+- A-01's nominal reading prevented Teo from exchanging a cartridge despite
+  two real spares. **Nominal does not imply trustworthy sensor instrumentation,
+  nor does it prohibit an authorized diagnostic substitution.**
+
+## World effects and epistemic distinction
+
+A-01's real finite stock, already represented in the fixture and physical
+supply ledger, is consumed by the authorized environmental technician during
+a safe diagnostic replacement. The operation isolates A-01, exchanges one
+physical cartridge, performs a local post-service inspection, and restarts
+the machine. The equipment operation may **succeed** even when the downstream
+pressure-plenum failure remains fatal. The actor receives separate, grounded
+evidence from a differential-pressure crosscheck. No operator secret is
+revealed to any actor: hypotheses of sensor or cartridge failure can still be
+wrong, and actions cannot alter the hidden plenum fracture.
+
+The world stores one newest addressed-evidence sequence per captain command
+and one last transmitted finding per sender. Repeating a message without new
+information returns a failed/no-progress receipt without sending five new
+messages. If new private evidence arrives, a later update is again permitted.
+Periodic re-inspection is still legal, and comfort is an addressed event for a
+physically present colleague, not an empty receipt.
+
+## Continuous six-person experiment
+
+The new `continuous_trial.py` creates one independent coroutine per genuine
+authenticated Evennia identity and stays active **until each body is reported
+dead by the world**. No fixed per-actor decision quota exists. Characters
+reconsider when addressed events arrive, atmospheric urgency changes, or their
+own periodic watch reaches its next interval. The world's Script, not the
+handler, owns elapsed time and fatality. A deliberately high wall-clock
+watchdog exists only to catch CI deadlocks.
+
+The action menu is generated from the actor's authentic location,
+recipient-specific observations, local stock and nearby crewmembers. Travel
+is offered as an explicit intention, executed through ordinary Evennia exits
+and followed by an authenticated arrival check. Work continues through
+the existing actor-bound global WorkReceipt path. Monitoring and travel are
+recorded separately from physical work, never fabricated into receipts.
+GOAP uses personally observed urgency/evidence to select among competing
+goals (diagnosis, life extension, reporting, welfare, and archiving).
+These are **authored policy goals**, not free-form general reasoning. Gemini
+is supported as an experiment option but **not run in this PR**.
+
+The audit verifies six unique accounts, six deaths, a real critical alarm
+received by each, continued decisions *after* the critical alert, and exact
+one-to-one reconciliation of world receipts for all physical actions.
+Real movement and watch decisions are distinguished.
+
+### Intentionally narrow validation
+
+The dedicated `ox-g6b-continuous.yml` workflow runs focused G6b world tests
+and **exactly one non-generative GOAP integration trial (seed 241)**.
+It does not run any Gemini trials. The historical six-trial G6 workflow is
+manual-dispatch-only to avoid silently repeating paid model experiments.
+Other existing repository checks may run because we modify shared Evennia
+equipment code; the new scenario itself never requests the large test matrix.
+
+## Questions for the single trial
+
+- Does Teo cross-check contradictory instrumentation and attempt diagnostic
+  replacement when a spare remains, without the world declaring the fatal
+  problem repaired?
+- Does the captain move deliberately to Environmental Plant if atmospheric
+  urgency makes use of an available reserve useful?
+- Does each crew member continue reacting to evidence and urgent messages
+  **after** the fourth decision and after the critical alarm?
+- Do duplicate broadcasts and orders cease generating false progress?
+- Are welfare actions offered only when a living colleague is present?
+- Are all physical operations, including refused ones, backed by real receipts?
+
+The result is a bounded, event-responsive *experiment*, not proof of
+unconstrained autonomy. Keep the single run's artifact as evidence rather than
+generalizing to model performance.
