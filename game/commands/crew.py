@@ -151,7 +151,8 @@ class CmdOxWork(Command):
         elif len(parts) == 4:
             if target == "ship" and operation == "anomaly_report":
                 arguments = {"case_id": parts[3]}
-            elif target == "ship" and operation == "round_report":                arguments = {"station": parts[3]}
+            elif target == "ship" and operation == "round_report":
+                arguments = {"station": parts[3]}
             elif target == "inventory" and operation in (
                 "accept_supply", "collect_supply", "deliver_supply",
             ):
