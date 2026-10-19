@@ -322,6 +322,7 @@ class AtmosphereScrubber(DepartmentFixture):
         self._record("replace", "serviced", actor=actor)
         return True, "A-01 cartridge replaced; verify before restart."
 
+    @transaction.atomic
     def restart(self, actor) -> tuple[bool, str]:
         if not self._authorized(actor, "environment_tech"):
             return False, "The environmental technician must attend A-01."
