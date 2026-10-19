@@ -149,9 +149,15 @@ class CaptainFollowthroughTests(EvenniaTestCase):
 
     def test_no_direct_diagnostic_authority_without_proficiency(self):
         self.assertIsNone(captain_qualified_observation(self.captain, self.case_id))
+        self.assertEqual(self.work(
+            "captain", "a", "captain_inspect",
+        )["status"], "failed")
         self.captain.db.ox_skills = {
             **self.captain.db.ox_skills, "diagnostics": 2,
         }
+        self.assertEqual(self.work(
+            "captain", "b", "captain_inspect",
+        )["status"], "succeeded")
         measured = captain_qualified_observation(self.captain, self.case_id)
         self.assertEqual(measured["reading"], "analyzer_disagreement")
         self.assertNotIn("scrubber_bypass", str(measured))
