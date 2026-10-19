@@ -9,6 +9,30 @@ ACK across a handler restart. This is **not** deployed production software
 or proof of unconstrained multi-agent intelligence.
 [Current status](../../design/STATUS.md).
 
+## G3d optional independently elected crew rounds (PR #46, under review)
+
+The existing external five-crew supervisor has an opt-in
+`OX_G3D_INDEPENDENT_ROUNDS=1` decision source, independent of fault alarms.
+The world must first arm `schedule_rounds` (see
+[game notes](../../game/README.md)); a timer event alone says that a
+duty window exists, not that equipment has deteriorated.
+
+Each person separately chooses to take a round or defer, uses ordinary
+GOAP room travel and authentic `inspect`, and can file a typed, persistent
+`round_report` with the world. The world refuses reports without current
+first-hand local evidence. Only after the person's own addressed world
+report says `maintenance_due` can Mara choose `retension` or Teo
+choose `purge`; both physical effects remain role, room and receipt
+validated. Normal emergency duties remain higher priority.
+
+Disposable CI trials use
+`python -m ox_ai.runtime.five_crew_service round-drain` and require the
+feature flag. This executes at most one newly eligible round per actor,
+then stops. Ordinary `serve` remains the ongoing event-driven mode,
+which never polls models when idle. [Detailed scope and test gate](../../design/prototypes/g3d-independent-rounds.md).
+The feature does not implement unrestricted self-generated goals, cross-team
+negotiation, independent assignments, or continuous life simulation.
+
 ## G3 actor knowledge and real interdepartment supply (PRs #38–40)
 
 Each of five minds has a persistent private epistemic ledger distinguishing

@@ -813,6 +813,10 @@ class CrewWatchSupervisor:
         """Optional specialist-work hook; historical three-crew runtime is idle."""
         return False
 
+    async def service_independent_rounds(self) -> bool:
+        """Optional lowest-priority initiative, after urgent work/hails/relief."""
+        return False
+
     async def respond_to_hails(
         self, *, interrupt_at: str | None = None,
     ) -> int:
@@ -923,6 +927,8 @@ class CrewWatchSupervisor:
             if await self.respond_to_hails():
                 continue
             if await self.handover_if_due():
+                continue
+            if await self.service_independent_rounds():
                 continue
             # Wait for ANY addressed character event, not only bridge faults.
             # No concurrent consumer reads a socket during another protocol.

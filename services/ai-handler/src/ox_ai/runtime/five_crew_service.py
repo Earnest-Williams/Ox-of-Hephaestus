@@ -564,6 +564,129 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
         result = await coordinator.advance()
         return result in ("requested", "completed", "teo_work_in_progress")
 
+    async def service_independent_rounds(self) -> bool:
+        """Let one actor elect a private world-created duty opportunity.
+
+        This hook is opt-in, preserves incident precedence and performs no
+        hidden-state lookup. The world still requires physical inspection
+        before a round report or preventive operation succeeds.
+        """
+        if os.getenv("OX_G3D_INDEPENDENT_ROUNDS", "0") != "1":
+            return False
+        stations = {
+            "lin": ("Bridge", "operations", "FREIGHTER OPERATIONS TELEMETRY"),
+            "ari": ("Engineering", "pump", "Cooling Pump P-01"),
+            "iona": ("Engineering", "pump", "Cooling Pump P-01"),
+            "mara": ("Cargo Hold", "cargo", "CARGO RESTRAINT GRID C-01"),
+            "teo": ("Environmental Plant", "scrubber", "ATMOSPHERE SCRUBBER A-01"),
+        }
+        rounds = self.state.setdefault("independent_rounds", {})
+        if not isinstance(rounds, dict) or any(r not in self.ids for r in rounds):
+            raise PermissionError("Invalid character-scoped independent round state")
+        for role in self.ids:
+            events = await self.read_inbox(role)
+            windows = [e for e in events if e["kind"] == "crew_round_window"]
+            if not windows:
+                continue
+            latest = max(windows, key=lambda e: int(e["data"]["cycle"]))
+            cycle = int(latest["data"]["cycle"])
+            record = rounds.get(role)
+            if record is not None:
+                if (record.get("actor") != self.ids[role]
+                        or type(record.get("cycle")) is not int
+                        or record["cycle"] < 1):
+                    raise PermissionError("Cross-character round checkpoint")
+                if record["cycle"] > cycle:
+                    raise RuntimeError("World round sequence went backwards")
+                if record["cycle"] == cycle and record.get("done"):
+                    continue
+                if record["cycle"] < cycle:
+                    if not record.get("done"):
+                        # Complete the earlier receipted work before a new round.
+                        pass
+                    else:
+                        record = None
+            if record is None:
+                offer = await self.choose(
+                    role, CommandOption(
+                        "Take an independent station inspection round", "round_inspect",
+                    ), alternative="Defer optional rounds for this duty window",
+                )
+                record = {
+                    "actor": self.ids[role], "cycle": cycle,
+                    "selected": offer.verb == "round_inspect",
+                    "station": stations[role][1], "done": False,
+                }
+                rounds[role] = record
+                self.checkpoint()
+            if not record["selected"]:
+                record["done"] = True
+                self.checkpoint()
+                return True
+            place, station, expected = stations[role]
+            await self.ensure_station(role, place)
+            client = self.clients[role]
+            # Confirm actual presence by an authenticated local readout.
+            # This observation must not be inferred from the private map.
+            if "work_steps" not in record or "report" not in record["work_steps"]:
+                await client.send_line("inspect " + station)
+                reading = await client.expect_text(expected, timeout=12)
+                self.brains[role].observe_local(
+                    "Self-directed local round at " + station, reading,
+                )
+            ledger = WorkStepLedger(record, self.checkpoint,
+                                    character_ids=self.ids)
+            outcome = await ledger.run(
+                "report", role, "round_report", "ship",
+                DurableEvenniaPort(client), arguments={"station": station},
+            )
+            if not outcome.source_event_id:
+                raise RuntimeError("World gave no round report proof")
+            self.epistemics[role].observe_verified(
+                "rounds." + station, cycle,
+                evidence_id=outcome.source_event_id,
+                at=float(latest["game_time"]), source="world_receipt",
+            )
+            # The first-person world round receipt is not a diagnosis.
+            # Re-read this actor's addressed report for its wear finding;
+            # do not consult world Attributes or the bridge's private mail.
+            own = await self.read_inbox(role)
+            reports = [
+                e for e in own if e["kind"] == "round_recorded"
+                and e["event_id"] == outcome.source_event_id
+                and e["data"].get("cycle") == record["cycle"]
+                and e["data"].get("station") == station
+            ]
+            if not reports:
+                raise RuntimeError("Authenticated local round proof not delivered")
+            report = reports[-1]
+            if (role in ("mara", "teo")
+                    and report["data"].get("finding") == "maintenance_due"):
+                operation = "retension" if role == "mara" else "purge"
+                target = "cargo" if role == "mara" else "scrubber"
+                if "preventive_selected" not in record:
+                    choice = await self.choose(
+                        role, CommandOption(
+                            "Perform locally indicated preventive " + operation,
+                            operation + "_" + target,
+                        ), alternative="File finding without preventive intervention",
+                    )
+                    record["preventive_selected"] = (
+                        choice.verb == operation + "_" + target
+                    )
+                    self.checkpoint()
+                if record["preventive_selected"]:
+                    await WorkStepLedger(
+                        record, self.checkpoint, character_ids=self.ids,
+                    ).run(
+                        "preventive", role, operation + "_" + target,
+                        target, DurableEvenniaPort(client),
+                    )
+            record["done"] = True
+            self.checkpoint()
+            return True
+        return False
+
     async def service_departments(self) -> bool:
         """Choose actual duties, then consider blocked real supply dependencies."""
         for role in EXTRA_ACCOUNTS:
@@ -621,6 +744,18 @@ async def run(mode: str) -> None:
                 raise RuntimeError("Cargo pause did not stop after real restow")
             print("OX_G2_CARGO_PAUSED_AFTER_WORLD_RESTOW")
             return
+        if mode == "round-drain":
+            if os.getenv("OX_G3D_INDEPENDENT_ROUNDS", "0") != "1":
+                raise RuntimeError("Independent round test requires explicit opt-in")
+            completed = 0
+            for _ in range(len(supervisor.ids) + 1):
+                if not await supervisor.service_independent_rounds():
+                    break
+                completed += 1
+            else:
+                raise RuntimeError("Independent round drain exceeded crew budget")
+            print("OX_G3D_ROUNDS_DRAINED", completed)
+            return
         if mode == "agenda-once":
             progressed = await supervisor.service_departments()
             print("OX_G2_AGENDA_STEP", progressed)
@@ -653,12 +788,13 @@ def main() -> None:
             or not (sys.argv[1] in (
                 "serve", "drop-replace-ack",
                 "agenda-pause-cargo", "agenda-once", "agenda-finish",
+                "round-drain",
             )
                     or sys.argv[1].startswith("interrupt-")
                     or sys.argv[1].startswith("finish-"))):
         raise SystemExit(
             "Usage: python -m ox_ai.runtime.five_crew_service "
-            "serve|drop-replace-ack|agenda-pause-cargo|agenda-once|agenda-finish|"
+            "serve|drop-replace-ack|agenda-pause-cargo|agenda-once|agenda-finish|round-drain|"
             "interrupt-<role>-<op>-<point>|finish-<role>"
         )
     asyncio.run(run(sys.argv[1]))

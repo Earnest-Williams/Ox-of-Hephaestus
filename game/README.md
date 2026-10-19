@@ -10,6 +10,30 @@ still a proving ground, not a complete cargo freighter.
 All Ox ship content is under `game/`; the inherited `evennia/` engine has
 not been converted into a different distribution.
 
+## G3d optional self-directed maintenance rounds (PR #46, under review)
+
+In a development world, the operator may **once** arm a recurring
+game-time inspection window with
+`from world.independent_rounds import schedule_rounds; schedule_rounds(period_game_seconds=1800)`
+through `evennia shell --command=...` while the server is stopped.
+The persistent duty Script will then coalesce late windows and deliver
+`crew_round_window` events privately to all five crew. The handler only
+responds to those opportunities when separately launched with
+`OX_G3D_INDEPENDENT_ROUNDS=1`. Neither merely starting the game nor
+running the three-crew handler opts in.
+
+The world tracks a bounded C-01/A-01 wear index. The index is **not**
+included in the round invitation; only local inspection supplies evidence.
+`oxwork <request-id> round_report ship <station>` requires a first-hand,
+current-cycle local inspection. Supported stations are `operations`, `pump`,
+`cargo`, and `scrubber`. The bridge receives one verified report per actor
+per round. With verified wear over the limit, authorized specialists may
+issue `oxwork <request-id> retension cargo` or
+`oxwork <request-id> purge scrubber`. The world rejects stale observations,
+unauthorized users, unsafe physical states and repeated effects. The
+G3d test workflow exercises these rules and a five-client decision path.
+[Boundaries and limitations](../design/prototypes/g3d-independent-rounds.md).
+
 ## What is in the world
 
 | Object | Game-owned behavior |

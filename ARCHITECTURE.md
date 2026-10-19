@@ -10,6 +10,31 @@ This is not a
 deployed freighter or general social simulation.
 [Verified feature matrix](design/STATUS.md) · [Development setup](INSTALL.md).
 
+## G3d: optional independent crew initiative (PR #46, under review)
+
+The world's persistent duty Script can run an explicitly armed, deterministic
+`tick_rounds` schedule. Missed game-time windows coalesce, avoiding per-tick
+model inference and unbounded alarm replay. Each of the five independently
+authenticated crew sees only their own world-addressed invitation to perform
+local rounds, never the world's latent equipment wear.
+
+The five-crew supervisor's optional independent-round dispatcher is subordinate
+to existing incident and supply duties. Each crewmember may choose to inspect,
+navigate by learned local GOAP exits, receive an authenticated local readout,
+and file a globally receipted `round_report`. The world verifies station,
+role, present observation and cycle, and delivers the verified report to the
+bridge. An inspected finding of overdue wear can motivate Mara or Teo to
+individually choose a world-receipted preventive `retension` or `purge`.
+These actions cannot repair a failed device or spend an unobserved consumable.
+An unobserved fact remains actor-relative unknown, regardless of whether an
+operator knows it exists.
+
+The enabling switch is `OX_G3D_INDEPENDENT_ROUNDS=1` *in addition* to
+the operator's one-time world schedule. The contained acceptance scenario
+is deterministic; provider-driven individual initiative is not yet proven
+and a comprehensive general work-order engine does not exist.
+[Design and acceptance](design/prototypes/g3d-independent-rounds.md).
+
 ## G5-a: adversarial failure modes (verified code gate, PR #45)
 
 The G5 harness adds seeded world/handler stress, cross-connection PostgreSQL

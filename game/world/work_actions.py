@@ -27,11 +27,11 @@ _EQUIPMENT = {
     ),
     "cargo": (
         "cargo-cradle",
-        frozenset({"restow", "certify"}),
+        frozenset({"restow", "certify", "retension"}),
     ),
     "scrubber": (
         "atmosphere-scrubber",
-        frozenset({"isolate", "replace", "restart"}),
+        frozenset({"isolate", "replace", "restart", "purge"}),
     ),
 }
 _SOCIAL = {
@@ -42,6 +42,7 @@ _SOCIAL = {
     "offer": "offer_watch",
     "accept": "accept_watch",
     "answer": "answer_hail",
+    "round_report": "file_round_report",
 }
 
 
@@ -53,6 +54,12 @@ def _arguments(operation: str, target: str, arguments: Mapping | None) -> dict:
     if target == "ship":
         if operation not in _SOCIAL:
             raise ValueError("Unknown shipboard work operation")
+        if operation == "round_report":
+            if set(arguments) != {"station"} or arguments["station"] not in (
+                "operations", "pump", "cargo", "scrubber",
+            ):
+                raise ValueError("Round report requires one typed station")
+            return {"station": arguments["station"]}
         if operation == "answer":
             if set(arguments) != {"hail_id", "mode"}:
                 raise ValueError("Answer requires a hail ID and response mode")
@@ -104,6 +111,9 @@ def _social_action(actor, operation: str, arguments: dict) -> tuple[bool, str]:
     from world.crew_interaction import answer_hail
     if operation == "answer":
         return answer_hail(actor, arguments["hail_id"], arguments["mode"])
+    if operation == "round_report":
+        from world.independent_rounds import file_round_report
+        return file_round_report(actor, arguments["station"])
     return getattr(live_crew, _SOCIAL[operation])(actor)
 
 

@@ -155,9 +155,10 @@ class CargoCradle(DepartmentFixture):
 
     INITIAL_STATE = "secured"
     EVENT_PREFIX = "c01"
-    DURABLE_OPERATIONS = frozenset({"restow", "certify"})
+    DURABLE_OPERATIONS = frozenset({"restow", "certify", "retension"})
     # Future skill-by-use tags, not current proficiency checks.
-    SKILL_TAGS = {"restow": "cargo_rigging", "certify": "cargo_inspection"}
+    SKILL_TAGS = {"restow": "cargo_rigging", "certify": "cargo_inspection",
+                  "retension": "cargo_rigging"}
 
     def at_object_creation(self) -> None:
         super().at_object_creation()
@@ -170,7 +171,8 @@ class CargoCradle(DepartmentFixture):
             f"CARGO RESTRAINT GRID C-01: {self.state.upper()}\n"
             f"Manifest: {self.db.loaded_containers} sealed containers / "
             f"{self.db.capacity_containers} positions.\n"
-            f"Unsecured restraints: {int(self.db.loose_restraints or 0)}."
+            f"Unsecured restraints: {int(self.db.loose_restraints or 0)}.\n"
+            f"Wear index: {int(self.db.ox_round_wear or 0)}."
         )
 
     @transaction.atomic
@@ -189,6 +191,17 @@ class CargoCradle(DepartmentFixture):
         self.db.loose_restraints = 2
         self._record("shift", "unsecured", actor=actor)
         return True, "C-01 cargo shift recorded; securing inspection required."
+
+    def retension(self, actor) -> tuple[bool, str]:
+        """Preventively retension intact rigging after a fresh local round."""
+        from world.independent_rounds import fresh_round_inspection, WEAR_LIMIT
+        if (not self._authorized(actor, "cargo_officer") or self.state != "secured"
+                or int(self.db.ox_round_wear or 0) < WEAR_LIMIT
+                or not fresh_round_inspection(actor, self, "cargo")):
+            return False, "Fresh round evidence and qualified cargo officer required."
+        self.db.ox_round_wear = 0
+        self._record("retension", "secured", actor=actor)
+        return True, "Worn restraint tension restored before a load shift."
 
     def restow(self, actor) -> tuple[bool, str]:
         if not self._authorized(actor, "cargo_officer"):
@@ -213,11 +226,12 @@ class AtmosphereScrubber(DepartmentFixture):
 
     INITIAL_STATE = "nominal"
     EVENT_PREFIX = "a01"
-    DURABLE_OPERATIONS = frozenset({"isolate", "replace", "restart"})
+    DURABLE_OPERATIONS = frozenset({"isolate", "replace", "restart", "purge"})
     SKILL_TAGS = {
         "isolate": "atmosphere_diagnostics",
         "replace": "environmental_maintenance",
         "restart": "systems_validation",
+        "purge": "environmental_maintenance",
     }
 
     def at_object_creation(self) -> None:
@@ -235,7 +249,8 @@ class AtmosphereScrubber(DepartmentFixture):
         return (
             f"ATMOSPHERE SCRUBBER A-01: {self.state.upper()}\n"
             f"{readings[self.state]}.\n"
-            f"Local spare cartridges: {total_local_spares(self)}."
+            f"Local spare cartridges: {total_local_spares(self)}.\n"
+            f"Wear index: {int(self.db.ox_round_wear or 0)}."
         )
 
     @transaction.atomic
@@ -251,6 +266,17 @@ class AtmosphereScrubber(DepartmentFixture):
         )
         self._record("saturate", "saturated", actor=actor)
         return True, "A-01 cartridge saturated; environmental service required."
+
+    def purge(self, actor) -> tuple[bool, str]:
+        """Preventively purge a nominal A-01 without using a cartridge."""
+        from world.independent_rounds import fresh_round_inspection, WEAR_LIMIT
+        if (not self._authorized(actor, "environment_tech") or self.state != "nominal"
+                or int(self.db.ox_round_wear or 0) < WEAR_LIMIT
+                or not fresh_round_inspection(actor, self, "scrubber")):
+            return False, "Fresh round evidence and qualified environment technician required."
+        self.db.ox_round_wear = 0
+        self._record("purge", "nominal", actor=actor)
+        return True, "Nominal scrubber purge lowered accumulated filter wear."
 
     def isolate(self, actor) -> tuple[bool, str]:
         if not self._authorized(actor, "environment_tech"):

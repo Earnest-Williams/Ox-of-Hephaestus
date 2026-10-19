@@ -16,6 +16,8 @@ _VERBS = {
     ("isolate_scrubber", "scrubber"): "isolate",
     ("replace_scrubber", "scrubber"): "replace",
     ("restart_scrubber", "scrubber"): "restart",
+    ("retension_cargo", "cargo"): "retension",
+    ("purge_scrubber", "scrubber"): "purge",
 }
 
 
@@ -97,11 +99,19 @@ class DurableEvenniaPort:
         if request.target == "ship":
             if request.verb not in (
                 "radio", "request", "approve", "resolve", "offer",
-                "accept", "answer",
+                "accept", "answer", "round_report",
             ):
                 raise ValueError("Unsupported shipboard operation")
             operation = request.verb
-            if operation == "answer":
+            if operation == "round_report":
+                arguments = dict(request.arguments)
+                station = arguments.get("station")
+                if set(arguments) != {"station"} or station not in (
+                    "operations", "pump", "cargo", "scrubber",
+                ):
+                    raise ValueError("Round report requires a typed station")
+                suffix = " " + station
+            elif operation == "answer":
                 arguments = dict(request.arguments)
                 hail_id = arguments.get("hail_id")
                 mode = arguments.get("mode")

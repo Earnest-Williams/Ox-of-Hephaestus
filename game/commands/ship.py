@@ -40,6 +40,8 @@ class CmdInspect(Command):
             note_inspection(self.caller, target)
         elif isinstance(target, (CargoCradle, AtmosphereScrubber)):
             target.note_inspection(self.caller)
+        from world.independent_rounds import note_round_inspection
+        note_round_inspection(self.caller, target)
 
 
 class _CmdPumpOperation(Command):

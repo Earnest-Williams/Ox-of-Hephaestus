@@ -1,0 +1,139 @@
+name: Ox G3d independent work and discovered wear
+
+on:
+  pull_request:
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-g3d-independent-rounds.yml"
+  push:
+    branches: [main]
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-g3d-independent-rounds.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  world-rounds:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Evennia and handler
+        run: |
+          python -m pip install .
+          python -m pip install -e './services/ai-handler'
+          python -m compileall -q game services/ai-handler/src
+      - name: Exercise world-authored windows, private evidence and receipts
+        working-directory: game
+        run: |
+          python -m world.test_runner world.tests.test_independent_rounds --verbosity=2
+
+  live-crew-initiative:
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    env:
+      OX_G3D_INDEPENDENT_ROUNDS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install real Evennia, Concordia and five-client transport
+        run: |
+          python -m pip install .
+          python -m pip install -e './services/ai-handler[concordia,transport]'
+          python -m compileall -q game services/ai-handler/src
+      - name: Generate disposable nonprivileged crew credentials
+        shell: bash
+        run: |
+          TOKEN="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          OWNER="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          echo "::add-mask::$TOKEN"
+          echo "::add-mask::$OWNER"
+          echo "OX_PROBE_PASSWORD=$TOKEN" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_PASSWORD=$OWNER" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_USERNAME=OxRoundOwner" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_EMAIL=roundowner@example.invalid" >> "$GITHUB_ENV"
+      - name: Seed five actual crew and a matured world-owned duty window
+        working-directory: game
+        shell: bash
+        run: |
+          set -euo pipefail
+          evennia migrate --noinput
+          evennia shell --command="from world.transport_probe import provision; from world.independent_rounds import schedule_rounds, tick_rounds; from evennia.utils import gametime; from world.bootstrap import build_ship; ids=provision(include_specialists=True); s=build_ship(); schedule_rounds(period_game_seconds=86400); now=float(gametime.gametime(absolute=True)); assert tick_rounds(now_game_time=now) is False; assert tick_rounds(now_game_time=now+4*86400) is True; assert int(s['roster'].db.ox_round_cycle)==4; assert int(s['cradle'].db.ox_round_wear)==4; print('OX_G3D_WORLD_OPPORTUNITY_WITH_HIDDEN_WEAR_READY')"
+      - name: Boot real world and authenticate five separate clients
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd game && evennia start)
+          python - <<'PY'
+          import socket, time
+          for _ in range(90):
+              try:
+                  with socket.create_connection(("127.0.0.1", 4002), timeout=1):
+                      break
+              except OSError:
+                  time.sleep(1)
+          else:
+              raise RuntimeError("Crew transport unavailable")
+          PY
+          sleep 4
+      - name: Let five Concordia crew independently choose and execute world rounds
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m ox_ai.runtime.five_crew_service round-drain | tee /tmp/rounds-first.log
+          grep -q 'OX_G3D_ROUNDS_DRAINED 5' /tmp/rounds-first.log
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          s = json.loads(Path(".ox-state/p4e-supervisor.json").read_text())
+          assert set(s["independent_rounds"]) == {"lin", "ari", "iona", "mara", "teo"}, s
+          for role, round in s["independent_rounds"].items():
+              assert round["done"] and round["selected"] and round["cycle"] == 4, (role, round)
+              assert round["work_steps"]["report"]["status"] == "succeeded", (role, round)
+          for role in ("mara", "teo"):
+              assert s["independent_rounds"][role]["preventive_selected"], role
+              assert s["independent_rounds"][role]["work_steps"]["preventive"]["status"] == "succeeded", role
+          for role in ("lin", "ari", "iona"):
+              assert "preventive" not in s["independent_rounds"][role]["work_steps"]
+          print("OX_G3D_FIVE_PRIVATE_DECISIONS_AND_TWO_REAL_PREVENTIVE_RECEIPTS")
+          PY
+      - name: Restart both world and independently checkpointed crew
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd game && evennia stop)
+          (cd game && evennia start)
+          python - <<'PY'
+          import socket,time
+          for _ in range(90):
+              try:
+                  with socket.create_connection(("127.0.0.1",4002),timeout=1):
+                      break
+              except OSError:
+                  time.sleep(1)
+          else:
+              raise RuntimeError("Restarted crew transport unavailable")
+          PY
+          sleep 4
+          python -m ox_ai.runtime.five_crew_service round-drain | tee /tmp/rounds-second.log
+          grep -q 'OX_G3D_ROUNDS_DRAINED 0' /tmp/rounds-second.log
+      - name: Stop server after real work
+        if: always()
+        working-directory: game
+        run: evennia stop || true
+      - name: Independently verify physical effects, private observations and conservation
+        working-directory: game
+        shell: bash
+        run: |
+          set -euo pipefail
+          evennia shell --command="from world.bootstrap import build_ship; from world.models import WorkReceipt; from world.event_journal import inbox; s=build_ship(); records=list(WorkReceipt.objects.all()); assert WorkReceipt.objects.filter(operation='round_report').count()==5, records; assert WorkReceipt.objects.filter(operation='retension').count()==1, records; assert WorkReceipt.objects.filter(operation='purge').count()==1, records; assert s['cradle'].state=='secured' and s['scrubber'].state=='nominal'; assert int(s['cradle'].db.ox_round_wear or 0)==0 and int(s['scrubber'].db.ox_round_wear or 0)==0; assert [e['kind'] for e in inbox(s['officer'])].count('crew_round_report')==5; assert all([e['kind'] for e in inbox(c)].count('round_recorded')==1 for c in (s['officer'],s['watch'],s['chief'],s['cargo'],s['environment'])); assert all('wear' not in str(e) for c in (s['watch'],s['chief'],s['cargo'],s['environment']) for e in inbox(c) if e['kind']=='crew_round_window'); print('OX_G3D_LIVE_FIVE_CREW_VERIFIED_NO_DUPLICATES')"
