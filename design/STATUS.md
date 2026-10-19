@@ -1,6 +1,6 @@
 # Ox implementation status
 
-**Snapshot: 18 October 2026.** This document is the current-state index for
+**Snapshot: 19 October 2026.** This document is the current-state index for
 Ox-specific documentation. Earlier ADRs and P2/P3 scenario documents preserve
 the design and acceptance criteria of those milestones; they are not live
 feature inventories.
@@ -155,3 +155,21 @@ recovery or general LLM-driven planning.
 
 The inherited `evennia/` package and `docs/` manual remain upstream Evennia
 material, not a description of current Ox functionality.
+
+
+## G3e-1 / G3e-2 actor-driven investigation
+
+**G3e-1 merged (PR #47, 46/46 final-head checks):** the five existing
+characters individually inspect a probabilistic anomaly with three hidden
+possible causes; the world stores actual cause, observations and a provisional
+bridge hypothesis separately. This feature is opt-in.
+
+**G3e-2 (in review; not yet verified):** specialists can challenge Lin's
+provisional hypothesis, take a new non-oracular local diagnostic,
+file an evidence-backed report, and change or retain their own interpretation.
+Lin can then revise or retain the bridge explanation after receiving
+independent engineering and specialist testimony. The old interpretation,
+actual cause and separately addressed private observations are preserved.
+[Detailed contract and pending gate](prototypes/g3e-contradictory-evidence.md).
+This is not a general reasoner or physics simulator; deterministic MockModel
+CI checks the integration, not open-ended diagnosis competence.
