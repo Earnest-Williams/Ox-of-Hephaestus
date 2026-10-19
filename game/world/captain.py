@@ -22,22 +22,6 @@ QUALIFIED = {
     "analyzer_anomaly": CREW_ROLES,
     "atmosphere_alarm": ("teo",),
 }
-# Fixed initial competencies, deliberately separate from role authority.
-# Do not expose these as achievements or allow a language model to edit them.
-ROLE_COMPETENCIES = {
-    "captain": {"command": 4, "coordination": 4, "engineering": 1,
-                "environment": 1, "cargo": 1, "diagnostics": 1},
-    "lin": {"command": 2, "coordination": 3, "engineering": 1,
-            "environment": 1, "cargo": 1, "diagnostics": 2},
-    "ari": {"command": 0, "coordination": 1, "engineering": 3,
-            "environment": 1, "cargo": 0, "diagnostics": 3},
-    "iona": {"command": 1, "coordination": 2, "engineering": 4,
-             "environment": 2, "cargo": 0, "diagnostics": 4},
-    "mara": {"command": 1, "coordination": 2, "engineering": 0,
-             "environment": 1, "cargo": 4, "diagnostics": 2},
-    "teo": {"command": 0, "coordination": 1, "engineering": 1,
-            "environment": 4, "cargo": 0, "diagnostics": 3},
-}
 
 
 def _now() -> float:
@@ -319,7 +303,9 @@ def captain_qualified_observation(actor, ticket_id: str) -> dict | None:
         return None
     if int((actor.db.ox_skills or {}).get("diagnostics", 0)) < 2:
         return None
-    item = _ticket(ticket_id)
+    item = CaptainObligation.objects.filter(
+        ticket_id=ticket_id, status="open",
+    ).first()
     if item is None:
         return None
     if item.kind == "atmosphere_alarm":
