@@ -191,3 +191,22 @@ must never become an actor-visible affordance or model context.
 [Design and gates](prototypes/g3e-contradictory-evidence.md).
 The uncertainty-to-reassessment path is now verified. New compartments,
 skills and personalities remain deferred until a deliberate next-stage plan.
+
+
+## G3e-3 — Independently pursuing known unknowns (complete)
+
+PR #51 merged after 50/50 checks. Existing specialists may initiate
+bounded world-receipted diagnostic questions without a bridge challenge
+or even an existing bridge hypothesis; original first-stage evidence,
+follow-up observations, testimony and both tentative bridge assessments
+remain separately attributable. No added compartments, roles, skill
+vectors or personalities. Four live seeded Gemini cases (plus control)
+were rerun and repeated once at the final head. The evidence-gathering
+blocker is resolved, but the ambiguous all-elevated case remained wrongly
+diagnosed on both passes.
+
+See [G3e-3 design and comparative test log](prototypes/g3e-independent-questions.md).
+Possible next testing focus: vary option ordering, allow actors to choose
+among genuinely discriminating test procedures and distinguish a decision
+to keep investigating from a decision to proclaim a cause. Do not
+substitute an imposed correction from the world-secret root cause.
