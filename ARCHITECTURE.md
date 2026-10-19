@@ -10,6 +10,21 @@ This is not a
 deployed freighter or general social simulation.
 [Verified feature matrix](design/STATUS.md) · [Development setup](INSTALL.md).
 
+## G5-a: adversarial failure modes (verified code gate, PR #45)
+
+The G5 harness adds seeded world/handler stress, cross-connection PostgreSQL
+races for concurrent hails and duty ticks, and failure injection into *direct*
+character commands that bypass the durable `oxwork` adapter. Normal crew
+commands still require their native world permissions. The P-01 work lock
+serializes shared hail mutation; direct safety/watch transitions acquire P-01
+then the roster before evaluating changing world Attributes. The world clock
+acquires the roster only. Hardware-room change messages are emitted on DB
+commit, never before a journal and physical transition become durable.
+
+[Detailed G5 scenario and limitations](design/prototypes/g5-adversarial-voyage.md).
+This remains a bounded reliability trial rather than an autonomous simulated
+voyage or an exhaustive concurrency proof.
+
 ## G3 — individual epistemics, real inventory and cooperative delivery (PRs #38–40)
 
 **Rumsfeld/open-world invariant:** a missing proposition is not false.

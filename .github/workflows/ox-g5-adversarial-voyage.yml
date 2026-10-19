@@ -1,0 +1,52 @@
+name: Ox G5 adversarial voyage and handler recovery
+
+on:
+  pull_request:
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - "design/**"
+      - ".github/workflows/ox-g5-adversarial-voyage.yml"
+  push:
+    branches: [main]
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - "design/**"
+      - ".github/workflows/ox-g5-adversarial-voyage.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  seeded-world-voyage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install the real ship and verify Python syntax
+        run: |
+          python -m pip install .
+          python -m compileall -q game/world
+      - name: Seeded multi-system incidents, rollback and recipient privacy
+        working-directory: game
+        run: |
+          python -m world.test_runner world.tests.test_adversarial_voyage world.tests.test_adversarial_transactions --verbosity=2
+
+  seeded-handler-recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run deterministic crash-ordering matrix with fake transport
+        run: |
+          python -m pip install -e ./services/ai-handler
+          python -m compileall -q services/ai-handler/src services/ai-handler/tests
+          python -m unittest discover -s services/ai-handler/tests -p 'test_adversarial_ledger.py' -v

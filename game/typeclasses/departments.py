@@ -67,11 +67,15 @@ class DepartmentFixture(FixedFixture):
         })
         self.db.event_history = history
         if self.location:
-            self.location.msg_contents(
-                f"{self.key}: {before} -> {new_state}.", exclude=actor,
+            # Messages about world state are advisory and post-commit only.
+            room = self.location
+            notice = f"{self.key}: {before} -> {new_state}."
+            transaction.on_commit(
+                lambda: room.msg_contents(notice, exclude=actor)
             )
 
-    def _alert(self, kind: str, assigned_role: str, message: str) -> None:
+    def _alert(self, kind: str, assigned_role: str, message: str,
+               *, committed_state: str | None = None) -> None:
         """World-addressed alarms; the handler sees only legitimate inboxes.
 
         The authoritative world journal is indexed by recipient and supports
@@ -83,7 +87,9 @@ class DepartmentFixture(FixedFixture):
         for person in (ship["officer"], ship[assigned_role]):
             emit(
                 ship["pump"], person, kind,
-                data={"equipment": self.key, "state": self.state},
+                data={"equipment": self.key,
+                      "state": committed_state if committed_state is not None
+                      else self.state},
                 text=message,
             )
 
@@ -167,17 +173,21 @@ class CargoCradle(DepartmentFixture):
             f"Unsecured restraints: {int(self.db.loose_restraints or 0)}."
         )
 
+    @transaction.atomic
     def inject_fault(self, actor=None) -> tuple[bool, str]:
         if actor is not None and not actor.check_permstring("Developer"):
             return False, "Only developers may inject a cargo shift."
         if self.state != "secured":
             return False, "C-01 is not in a secured state."
-        self.db.loose_restraints = 2
-        self._record("shift", "unsecured", actor=actor)
+        # Publish inside the same transaction before touching cached
+        # Attributes: a failed second event must not leave phantom rigging.
         self._alert(
             "cargo_shift", "cargo",
             "The cargo securing monitor reports two slack restraints.",
+            committed_state="unsecured",
         )
+        self.db.loose_restraints = 2
+        self._record("shift", "unsecured", actor=actor)
         return True, "C-01 cargo shift recorded; securing inspection required."
 
     def restow(self, actor) -> tuple[bool, str]:
@@ -228,16 +238,18 @@ class AtmosphereScrubber(DepartmentFixture):
             f"Local spare cartridges: {total_local_spares(self)}."
         )
 
+    @transaction.atomic
     def inject_fault(self, actor=None) -> tuple[bool, str]:
         if actor is not None and not actor.check_permstring("Developer"):
             return False, "Only developers may inject a scrubber fault."
         if self.state != "nominal":
             return False, "A-01 cannot saturate outside nominal operation."
-        self._record("saturate", "saturated", actor=actor)
         self._alert(
             "atmosphere_alarm", "environment",
             "The atmospheric scrubber reports a saturated cartridge.",
+            committed_state="saturated",
         )
+        self._record("saturate", "saturated", actor=actor)
         return True, "A-01 cartridge saturated; environmental service required."
 
     def isolate(self, actor) -> tuple[bool, str]:

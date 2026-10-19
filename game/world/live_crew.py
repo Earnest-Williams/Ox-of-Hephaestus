@@ -6,6 +6,8 @@ Physical operations remain in CoolingPump; private events are world-owned.
 """
 from __future__ import annotations
 
+from django.db import transaction
+
 from world.bootstrap import build_ship
 from world.event_journal import emit, inbox, inbox_page, wire_event
 
@@ -13,6 +15,19 @@ from world.event_journal import emit, inbox, inbox_page, wire_event
 def _world():
     ship = build_ship()
     return ship, ship["pump"], ship["roster"]
+
+
+def _mutating_world():
+    """Lock shared world effects before reading mutable world Attributes.
+
+    Social commands and oxwork acquire locks in pump-then-roster order.
+    The independent clock locks just the roster and never takes P-01.
+    """
+    from evennia.objects.models import ObjectDB
+    ship, pump, roster = _world()
+    pump = ObjectDB.objects.select_for_update().get(pk=pump.pk)
+    roster = ObjectDB.objects.select_for_update().get(pk=roster.pk)
+    return ship, pump, roster
 
 
 def fixture_setup(*, scheduled_clock: bool = False) -> None:
@@ -48,11 +63,17 @@ def fixture_setup(*, scheduled_clock: bool = False) -> None:
         raise RuntimeError(reason)
 
 
+@transaction.atomic
 def fault_alarm(pump) -> None:
     """Open/re-open an incident and deliver telemetry ONLY to bridge watch."""
     ship, _pump, _roster = _world()
     history = list(pump.db.event_history or [])
     alarm_id = history[-1]["event_id"]
+    emit(pump, ship["officer"], "coolant_alarm",
+         data={"alarm_id": alarm_id, "equipment": "P-01"},
+         text="Bridge cooling telemetry reports an abnormal pressure alert.")
+    # Evennia's Attribute cache is not transaction-aware. Set any mutable
+    # world fields only AFTER the potentially failing journal insertions.
     pump.db.ox_active_alarm = alarm_id
     pump.db.ox_chief_released = False
     pump.db.ox_release_request = None
@@ -60,9 +81,6 @@ def fault_alarm(pump) -> None:
     pump.db.ox_chief_inspection_version = None
     pump.db.ox_engineer_verified_version = None
     pump.db.ox_incident_closed = False
-    emit(pump, ship["officer"], "coolant_alarm",
-         data={"alarm_id": alarm_id, "equipment": "P-01"},
-         text="Bridge cooling telemetry reports an abnormal pressure alert.")
 
 
 def _on_watch(actor, ship, roster) -> bool:
@@ -107,8 +125,9 @@ def note_inspection(actor, pump) -> None:
         pump.db.ox_engineer_verified_version = int(pump.db.event_seq or 0)
 
 
+@transaction.atomic
 def request_release(actor) -> tuple[bool, str]:
-    ship, pump, roster = _world()
+    ship, pump, roster = _mutating_world()
     if (not _on_watch(actor, ship, roster) or pump.state != "repaired"
             or not pump.db.ox_chief_gate or pump.db.ox_release_request):
         return False, "No authorised repaired pump awaits chief review"
@@ -118,17 +137,18 @@ def request_release(actor) -> tuple[bool, str]:
             or reviewer.location != pump.location):
         return False, "No independent authorised reviewer available"
     request_id = "release-%04d" % int(pump.db.event_seq or 0)
-    pump.db.ox_release_request = request_id
-    pump.db.ox_release_reviewer = reviewer.dbref
-    pump.db.ox_chief_inspection_version = None
     emit(pump, reviewer, "release_request", sender=actor,
          data={"request_id": request_id},
          text=f"{actor.key} requests independent safety inspection.")
+    pump.db.ox_release_request = request_id
+    pump.db.ox_release_reviewer = reviewer.dbref
+    pump.db.ox_chief_inspection_version = None
     return True, "Safety release request delivered"
 
 
+@transaction.atomic
 def approve_release(actor) -> tuple[bool, str]:
-    ship, pump, roster = _world()
+    ship, pump, roster = _mutating_world()
     if (actor not in (ship["chief"], ship["watch"])
             or actor.location != pump.location
             or actor.db.crew_role not in ("chief_engineer", "watch_engineer")
@@ -139,7 +159,6 @@ def approve_release(actor) -> tuple[bool, str]:
             or pump.db.ox_chief_inspection_version != int(pump.db.event_seq or 0)
             or pump.db.ox_chief_released):
         return False, "Independent assigned reviewer must inspect repaired P-01"
-    pump.db.ox_chief_released = True
     active = (ship["watch"] if roster.db.ox_active_engineer == ship["watch"].dbref
               else ship["chief"])
     emit(pump, active, "release_granted", sender=actor,
@@ -149,17 +168,18 @@ def approve_release(actor) -> tuple[bool, str]:
     emit(pump, actor, "release_recorded", sender=actor,
          data={"request_id": pump.db.ox_release_request},
          text="Independent safety approval recorded by Evennia.")
+    pump.db.ox_chief_released = True
     return True, "Independent safety authorization recorded"
 
 
+@transaction.atomic
 def report_resolution(actor) -> tuple[bool, str]:
-    ship, pump, roster = _world()
+    ship, pump, roster = _mutating_world()
     if (not _on_watch(actor, ship, roster)
             or pump.state != "normal" or pump.db.ox_incident_closed
             or pump.db.ox_engineer_verified_version != int(pump.db.event_seq or 0)
             or not pump.db.ox_active_alarm):
         return False, "Fresh verified normal pressure required to close incident"
-    pump.db.ox_incident_closed = True
     reviewer = (ship["chief"] if actor == ship["watch"] else ship["watch"])
     for person in (ship["officer"], reviewer):
         emit(pump, person, "incident_resolved", sender=actor,
@@ -168,45 +188,48 @@ def report_resolution(actor) -> tuple[bool, str]:
     if roster.db.ox_autoadvance_on_resolution:
         # Explicitly synthetic world-clock advance for this acceptance
         # fixture. No LLM supplies the time or invents a duty obligation.
-        roster.db.ox_world_minute = int(roster.db.ox_handover_at)
-        roster.db.ox_handover_due = True
         for person in (ship["watch"], ship["chief"]):
             emit(pump, person, "handover_due", data={"minute": "475"},
                  text="07:55 engineering watch handover is due.")
+        roster.db.ox_world_minute = int(roster.db.ox_handover_at)
+        roster.db.ox_handover_due = True
+    pump.db.ox_incident_closed = True
     return True, "Verified incident closed"
 
 
+@transaction.atomic
 def offer_watch(actor) -> tuple[bool, str]:
-    ship, pump, roster = _world()
+    ship, pump, roster = _mutating_world()
     if (not _on_watch(actor, ship, roster) or not roster.db.ox_handover_due
             or roster.db.ox_handover_offer is not None
             or int(roster.db.ox_world_minute or 0)
             < int(roster.db.ox_handover_at or 0)
             or ship["chief"].location != actor.location):
         return False, "No authorised co-located handover is due"
-    roster.db.ox_handover_offer = actor.dbref
     emit(pump, ship["chief"], "handover_offer", sender=actor,
          data={"source": "verbal_briefing", "uncertainty": "unverified"},
          text="Ari briefs Iona on an unverified engineering concern.")
+    roster.db.ox_handover_offer = actor.dbref
     return True, "Watch handover offered"
 
 
+@transaction.atomic
 def accept_watch(actor) -> tuple[bool, str]:
-    ship, pump, roster = _world()
+    ship, pump, roster = _mutating_world()
     if (actor != ship["chief"] or actor.location != ship["engineering"]
             or actor.db.crew_role != "chief_engineer"
             or roster.db.ox_handover_offer != ship["watch"].dbref
             or not roster.db.ox_handover_due):
         return False, "No authorised watch handover to accept"
-    roster.db.ox_active_engineer = actor.dbref
-    # World-owned delegation: the outgoing engineer becomes independent
-    # safety reviewer while the chief is on active duty. Self-signoff is
-    # forbidden; this is not an AI-assigned privilege.
-    roster.db.ox_safety_reviewer = ship["watch"].dbref
-    roster.db.ox_handover_due = False
-    roster.db.ox_handover_offer = None
     for person in (ship["watch"], actor):
         emit(pump, person, "watch_transferred", sender=actor,
              data={"new_watch": actor.dbref},
              text="Engineering watch transferred to Iona.")
+    # World-owned delegation: the outgoing engineer becomes independent
+    # safety reviewer while the chief is on active duty. Self-signoff is
+    # forbidden; this is not an AI-assigned privilege.
+    roster.db.ox_active_engineer = actor.dbref
+    roster.db.ox_safety_reviewer = ship["watch"].dbref
+    roster.db.ox_handover_due = False
+    roster.db.ox_handover_offer = None
     return True, "Engineering watch transferred"
