@@ -89,6 +89,10 @@ def arm_anomaly(*, cause: str | None = None, seed: int | None = None) -> str:
         probe_key=format(rng.getrandbits(64), "016x"),
         created_game_time=float(gametime.gametime(absolute=True)),
     )
+    from world.captain import open_obligation
+    open_obligation(
+        "analyzer_anomaly", case_id, priority=70, ticket_id=case_id,
+    )
     # Each character receives the same ambiguous alert, not the cause or
     # the readings of other people. These emissions are rollback-atomic.
     for role, (crew, _title, _fixture, _station, _dial) in SOURCES.items():

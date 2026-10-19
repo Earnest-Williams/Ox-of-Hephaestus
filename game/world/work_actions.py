@@ -50,6 +50,12 @@ _SOCIAL = {
     "anomaly_probe_report": "report_probe",
     "anomaly_reconsider": "file_reconsideration",
     "anomaly_reassess": "file_reassessment",
+    "captain_inspect": "inspect",
+    "captain_claim": "claim",
+    "captain_assign": "assign",
+    "captain_answer": "answer",
+    "captain_review": "review",
+    "captain_escalate": "escalate",
 }
 
 
@@ -61,6 +67,26 @@ def _arguments(operation: str, target: str, arguments: Mapping | None) -> dict:
     if target == "ship":
         if operation not in _SOCIAL:
             raise ValueError("Unknown shipboard work operation")
+        if operation in (
+            "captain_claim", "captain_inspect", "captain_assign", "captain_answer",
+            "captain_review", "captain_escalate",
+        ):
+            ticket_id = arguments.get("ticket_id")
+            if (not isinstance(ticket_id, str)
+                    or _REQUEST_ID.fullmatch(ticket_id) is None):
+                raise ValueError("Captain work requires typed obligation ID")
+            if operation in ("captain_claim", "captain_inspect", "captain_review", "captain_escalate"):
+                if set(arguments) == {"ticket_id"}:
+                    return {"ticket_id": ticket_id}
+            elif operation == "captain_assign":
+                if (set(arguments) == {"ticket_id", "role"}
+                        and arguments["role"] in ("ari", "iona", "mara", "teo")):
+                    return {"ticket_id": ticket_id, "role": arguments["role"]}
+            elif operation == "captain_answer":
+                if (set(arguments) == {"ticket_id", "mode"}
+                        and arguments["mode"] in ("accept", "decline", "blocked")):
+                    return {"ticket_id": ticket_id, "mode": arguments["mode"]}
+            raise ValueError("Unsupported captain task arguments")
         if operation in (
             "anomaly_question", "anomaly_challenge", "anomaly_probe_report",
             "anomaly_reconsider", "anomaly_reassess",
@@ -146,6 +172,20 @@ def _social_action(actor, operation: str, arguments: dict) -> tuple[bool, str]:
     from world.crew_interaction import answer_hail
     if operation == "answer":
         return answer_hail(actor, arguments["hail_id"], arguments["mode"])
+    if operation.startswith("captain_"):
+        from world import captain
+        if operation == "captain_claim":
+            return captain.claim(actor, arguments["ticket_id"])
+        if operation == "captain_inspect":
+            return captain.inspect(actor, arguments["ticket_id"])
+        if operation == "captain_assign":
+            return captain.assign(actor, arguments["ticket_id"], arguments["role"])
+        if operation == "captain_answer":
+            return captain.answer(actor, arguments["ticket_id"], arguments["mode"])
+        if operation == "captain_review":
+            return captain.review(actor, arguments["ticket_id"])
+        if operation == "captain_escalate":
+            return captain.escalate(actor, arguments["ticket_id"])
     if operation == "anomaly_report":
         from world.investigation import report_sample
         return report_sample(actor, arguments["case_id"])

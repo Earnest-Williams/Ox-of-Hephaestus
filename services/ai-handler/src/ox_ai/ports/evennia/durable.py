@@ -102,10 +102,31 @@ class DurableEvenniaPort:
                 "accept", "answer", "round_report", "anomaly_report", "anomaly_assess",
                 "anomaly_question", "anomaly_challenge", "anomaly_probe_report",
                 "anomaly_reconsider", "anomaly_reassess",
+                "captain_claim", "captain_inspect", "captain_assign", "captain_answer",
+                "captain_review", "captain_escalate",
             ):
                 raise ValueError("Unsupported shipboard operation")
             operation = request.verb
-            if operation in (
+            if operation.startswith("captain_"):
+                args = dict(request.arguments)
+                identity = args.get("ticket_id")
+                if not isinstance(identity, str) or re.fullmatch(r"[0-9a-f]{32}", identity) is None:
+                    raise ValueError("Captain work requires world obligation ID")
+                if operation in ("captain_claim", "captain_inspect", "captain_review", "captain_escalate"):
+                    if set(args) != {"ticket_id"}:
+                        raise ValueError("Unexpected captain work data")
+                    suffix = " " + identity
+                elif operation == "captain_assign":
+                    if (set(args) != {"ticket_id", "role"}
+                            or args["role"] not in ("ari", "iona", "mara", "teo")):
+                        raise ValueError("Unqualified captain work target")
+                    suffix = " " + identity + " " + args["role"]
+                else:
+                    if (set(args) != {"ticket_id", "mode"}
+                            or args["mode"] not in ("accept", "decline", "blocked")):
+                        raise ValueError("Malformed assigned-crew response")
+                    suffix = " " + identity + " " + args["mode"]
+            elif operation in (
                 "anomaly_report", "anomaly_assess",
                 "anomaly_question", "anomaly_challenge", "anomaly_probe_report",
                 "anomaly_reconsider", "anomaly_reassess",

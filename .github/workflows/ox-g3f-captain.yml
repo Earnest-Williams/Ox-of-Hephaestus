@@ -1,0 +1,128 @@
+name: Ox G3f captain follow-through
+
+on:
+  pull_request:
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-g3f-captain.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  world-authority:
+    name: world-authority
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          python -m pip install .
+          python -m pip install -e './services/ai-handler'
+          python -m compileall -q game services/ai-handler/src
+      - working-directory: game
+        run: |
+          python -m world.test_runner \
+            world.tests.test_captain_followthrough \
+            world.tests.test_investigation \
+            world.tests.test_investigation_followup \
+            world.tests.test_independent_questions --verbosity=2
+
+  sixth-character:
+    name: sixth-character
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    needs: world-authority
+    env:
+      OX_CAPTAIN_OVERSIGHT: "1"
+      OX_G3E_INVESTIGATION: "1"
+      OX_G3E_FOLLOWUP: "0"
+      OX_COGNITION_PROVIDER: mock
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          python -m pip install .
+          python -m pip install -e './services/ai-handler[concordia,transport]'
+          python -m compileall -q game services/ai-handler/src
+      - name: Create disposable six-actor credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          OWNER="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          echo "::add-mask::$TOKEN"
+          echo "::add-mask::$OWNER"
+          echo "OX_PROBE_PASSWORD=$TOKEN" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_PASSWORD=$OWNER" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_USERNAME=OxCaptainCI" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_EMAIL=captain@example.invalid" >> "$GITHUB_ENV"
+      - name: Provision one hidden case and six separately puppeted crew
+        working-directory: game
+        shell: bash
+        run: |
+          set -euo pipefail
+          evennia migrate --noinput
+          evennia shell --command="from world.transport_probe import provision; from world.investigation import arm_anomaly; assert len(provision(include_specialists=True,include_captain=True))==6; arm_anomaly(cause='scrubber_bypass',seed=6); print('OX_G3F_SIX_CREW_ARMED')"
+      - name: Start real world server
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd game && evennia start)
+          python - <<'PY'
+          import socket, time
+          for _ in range(90):
+              try:
+                  with socket.create_connection(("127.0.0.1",4002), timeout=1):
+                      break
+              except OSError:
+                  time.sleep(1)
+          else:
+              raise RuntimeError("Ship server did not start")
+          PY
+          sleep 4
+      - name: Five crew investigate, captain keeps case open and assigns continued work
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m ox_ai.runtime.five_crew_service investigation-drain | tee /tmp/g3f-initial.log
+          grep -q 'OX_G3E_INVESTIGATION_DRAINED 6' /tmp/g3f-initial.log
+          python -m ox_ai.runtime.five_crew_service captain-drain | tee /tmp/g3f-captain.log
+          grep -q 'OX_G3F_CAPTAIN_DRAINED' /tmp/g3f-captain.log
+      - name: Stop and restart the six authenticated sessions without duplicate assignments
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd game && evennia stop)
+          (cd game && evennia start)
+          python - <<'PY'
+          import socket,time
+          for _ in range(90):
+              try:
+                  with socket.create_connection(("127.0.0.1",4002),timeout=1):
+                      break
+              except OSError:
+                  time.sleep(1)
+          else:
+              raise RuntimeError("Restarted ship never became accessible")
+          PY
+          sleep 4
+          python -m ox_ai.runtime.five_crew_service captain-drain | tee /tmp/g3f-replayed.log
+          grep -q 'OX_G3F_CAPTAIN_DRAINED 0' /tmp/g3f-replayed.log
+      - name: Stop server before operator-only independent audit
+        if: always()
+        working-directory: game
+        run: evennia stop || true
+      - name: Confirm world receipts and open responsibility without hidden-cause leak
+        working-directory: game
+        shell: bash
+        run: |
+          set -euo pipefail
+          evennia shell --command="from world.models import CaptainObligation,InvestigationCase,WorkReceipt; from world.bootstrap import build_ship; from world.event_journal import inbox; c=InvestigationCase.objects.get(status='open'); t=CaptainObligation.objects.get(ticket_id=c.case_id); ship=build_ship(); ev=inbox(ship['captain']); kinds=[e['kind'] for e in ev]; assert t.status=='open' and t.captain_dbref==ship['captain'].dbref; assert len([x for x in t.history if x['kind']=='claim'])==1; assert len([x for x in t.history if x['kind']=='assign'])==4; assert len([x for x in t.history if x['kind']=='experiment_reported'])==4; assert WorkReceipt.objects.filter(operation='captain_assign',outcome__status='succeeded').count()==4; assert WorkReceipt.objects.filter(operation='anomaly_probe_report',outcome__status='succeeded').count()==4; assert 'captain_escalation_recorded' in kinds; assert all('cause' not in str(e['data']) for e in ev if e['kind'] in ('captain_problem_open','captain_followup_evidence','captain_review_due')); print('OX_G3F_SIX_AUTHENTICATED_CREW_AND_DURABLE_CAPTAIN_FOLLOWUP_VERIFIED')"

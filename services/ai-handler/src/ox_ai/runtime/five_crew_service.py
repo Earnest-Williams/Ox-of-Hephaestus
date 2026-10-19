@@ -119,6 +119,29 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
                 else LiveCrewBrain(role, self.ids[role], make_model())
             )
             self.memories[role] = []
+        if os.getenv("OX_CAPTAIN_OVERSIGHT", "0") == "1":
+            captain_ids = ROOT / "p4f-captain-id.json"
+            if not captain_ids.is_file():
+                raise RuntimeError("Captain mode needs sixth authenticated world identity")
+            captain_record = json.loads(captain_ids.read_text(encoding="utf-8"))
+            if set(captain_record) != {"captain"}:
+                raise PermissionError("Only one separate captain identity is allowed")
+            captain_id = captain_record["captain"]
+            if (not isinstance(captain_id, str) or not captain_id.startswith("#")
+                    or captain_id in self.ids.values()):
+                raise PermissionError("Captain must puppet a distinct real world character")
+            self.ids["captain"] = captain_id
+            self.clients["captain"] = EvenniaWebSocketClient(
+                URL, "OxBotCaptain", password, captain_id, timeout=15,
+            )
+            captain_path = CHECKPOINTS / "captain.json"
+            self.brains["captain"] = (
+                LiveCrewBrain.from_checkpoint(
+                    "captain", captain_id, make_model(), captain_path,
+                ) if captain_path.is_file()
+                else LiveCrewBrain("captain", captain_id, make_model())
+            )
+            self.memories["captain"] = []
         self.state.setdefault("specialist_jobs", {"mara": None, "teo": None})
         self.state.setdefault("specialist_handled", {"mara": [], "teo": []})
         self.state.setdefault("specialist_completed", [])
@@ -569,9 +592,18 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
         # investigation, then optional wear rounds. No idle model polling.
         if await self.service_uncertain_investigation():
             return True
+        if await self.service_captain_oversight():
+            return True
         if await self.service_followup_investigation():
             return True
         return await self._service_existing_independent_rounds()
+
+    async def service_captain_oversight(self) -> bool:
+        """Sixth independently authenticated officer ensures open work continues."""
+        if os.getenv("OX_CAPTAIN_OVERSIGHT", "0") != "1":
+            return False
+        from ox_ai.runtime.captain_followthrough import CaptainFollowthrough
+        return await CaptainFollowthrough(self).advance()
 
     async def service_followup_investigation(self) -> bool:
         """Opt-in independent challenges/tests before optional wear rounds."""
@@ -874,6 +906,18 @@ async def run(mode: str) -> None:
                 raise RuntimeError("Cargo pause did not stop after real restow")
             print("OX_G2_CARGO_PAUSED_AFTER_WORLD_RESTOW")
             return
+        if mode == "captain-drain":
+            if os.getenv("OX_CAPTAIN_OVERSIGHT", "0") != "1":
+                raise RuntimeError("Captain trial requires sixth authenticated crew")
+            progressed = 0
+            for _ in range(50):
+                if not await supervisor.service_captain_oversight():
+                    break
+                progressed += 1
+            else:
+                raise RuntimeError("Captain follow-up did not reach bounded idle")
+            print("OX_G3F_CAPTAIN_DRAINED", progressed)
+            return
         if mode == "followup-drain":
             if os.getenv("OX_G3E_FOLLOWUP", "0") != "1":
                 raise RuntimeError("G3e follow-up requires explicit opt-in")
@@ -942,13 +986,13 @@ def main() -> None:
             or not (sys.argv[1] in (
                 "serve", "drop-replace-ack",
                 "agenda-pause-cargo", "agenda-once", "agenda-finish",
-                "round-drain", "investigation-drain", "followup-drain",
+                "round-drain", "investigation-drain", "followup-drain", "captain-drain",
             )
                     or sys.argv[1].startswith("interrupt-")
                     or sys.argv[1].startswith("finish-"))):
         raise SystemExit(
             "Usage: python -m ox_ai.runtime.five_crew_service "
-            "serve|drop-replace-ack|agenda-pause-cargo|agenda-once|agenda-finish|round-drain|investigation-drain|followup-drain|"
+            "serve|drop-replace-ack|agenda-pause-cargo|agenda-once|agenda-finish|round-drain|investigation-drain|followup-drain|captain-drain|"
             "interrupt-<role>-<op>-<point>|finish-<role>"
         )
     asyncio.run(run(sys.argv[1]))

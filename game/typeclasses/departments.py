@@ -92,6 +92,9 @@ class DepartmentFixture(FixedFixture):
                       else self.state},
                 text=message,
             )
+        if kind == "atmosphere_alarm":
+            from world.captain import open_obligation
+            open_obligation("atmosphere_alarm", "atmosphere-scrubber", priority=100)
 
     # Requests are actor-bound and persist with this *physical fixture*.
     # A refused transition is also durable: the same ID cannot later
@@ -319,12 +322,18 @@ class AtmosphereScrubber(DepartmentFixture):
         self._record("replace", "serviced", actor=actor)
         return True, "A-01 cartridge replaced; verify before restart."
 
+    @transaction.atomic
     def restart(self, actor) -> tuple[bool, str]:
         if not self._authorized(actor, "environment_tech"):
             return False, "The environmental technician must attend A-01."
         if self.state != "serviced" or not self._fresh_inspection(actor):
             return False, "Inspect the serviced scrubber before restart."
         self._record("restart", "nominal", actor=actor)
+        from world.captain import report_equipment_change
+        report_equipment_change(
+            kind="atmosphere_alarm", source_ref="atmosphere-scrubber",
+            state="nominal",
+        )
         return True, "A-01 atmospheric scrubbing returned to nominal operation."
 
 

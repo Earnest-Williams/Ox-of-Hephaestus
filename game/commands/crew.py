@@ -144,15 +144,23 @@ class CmdOxWork(Command):
             if target == "ship" and operation in (
                 "anomaly_assess", "anomaly_challenge",
                 "anomaly_reconsider", "anomaly_reassess",
+                "captain_assign", "captain_answer",
             ):
-                arguments = {"case_id": parts[3], "hypothesis": parts[4]}
+                if operation == "captain_assign":
+                    arguments = {"ticket_id": parts[3], "role": parts[4]}
+                elif operation == "captain_answer":
+                    arguments = {"ticket_id": parts[3], "mode": parts[4]}
+                else:
+                    arguments = {"case_id": parts[3], "hypothesis": parts[4]}
             elif target != "ship" or operation != "answer":
                 self.caller.msg(usage)
                 return
             else:
                 arguments = {"hail_id": parts[3], "mode": parts[4]}
         elif len(parts) == 4:
-            if target == "ship" and operation in ("anomaly_report", "anomaly_question", "anomaly_probe_report"):
+            if target == "ship" and operation in ("captain_claim", "captain_inspect", "captain_review", "captain_escalate"):
+                arguments = {"ticket_id": parts[3]}
+            elif target == "ship" and operation in ("anomaly_report", "anomaly_question", "anomaly_probe_report"):
                 arguments = {"case_id": parts[3]}
             elif target == "ship" and operation == "round_report":
                 arguments = {"station": parts[3]}
@@ -230,4 +238,21 @@ class CmdOxProbe(Command):
             self.caller.msg(
                 "OX_ANOMALY_PROBE " + result["case_id"] + " "
                 + result["indicator"] + " " + result["reading"]
+            )
+
+
+class CmdOxCaptainInspect(Command):
+    """Qualified captain's first-hand bridge check, not a root-cause oracle."""
+    key = "oxcaptaininspect"
+    locks = "cmd:all()"
+
+    def func(self) -> None:
+        from world.captain import captain_qualified_observation
+        sampled = captain_qualified_observation(self.caller, self.args.strip())
+        if sampled is None:
+            self.caller.msg("Captain must have diagnostics >=2 and be at the bridge.")
+        else:
+            self.caller.msg(
+                "OX_CAPTAIN_INSPECTION " + sampled["ticket_id"] + " "
+                + sampled["reading"]
             )
