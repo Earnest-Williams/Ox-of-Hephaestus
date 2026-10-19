@@ -225,9 +225,9 @@ replay-resistant, bounded practical skill and technique practice. All
 G4d–G4f final-head workflow matrices passed before merge (27/27, 28/28,
 and 29/29 respectively).
 
-**Next acceptance gates, in causal order:**
+**Verified conceptual-learning gates and remaining acceptance order:**
 
-1. **Verified conceptual learning — first instruction slice implemented in G4g.**
+1. **Verified conceptual learning — G4g and G4h complete.**
    A qualified instructor, consenting local learner, timed supervised lesson
    and privately graded transfer exercise can generate bounded theoretical
    evidence. Identity, activity, source receipt and before/after progression
@@ -235,9 +235,7 @@ and 29/29 respectively).
    G4h adds a first real-investigation activity: a pre-test forecast, actual
    local probe/report and evidence-limits/source-independence assessment can
    earn bounded method knowledge without consulting the hidden cause.
-   [Scope and gates](prototypes/g4h-investigative-learning.md). G4g is merged
-   in PR #62; G4h implements the inquiry activity. Wider curricula and autonomous study
-   remain subsequent work. Declarations, generic repairs and hearsay earn none.
+   [Scope and gates](prototypes/g4h-investigative-learning.md). G4g and G4h are both merged and verified ([PR #62](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/62), [PR #63](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/63)); G4h's final-head gate passed all 36 applicable workflows. Wider curricula and autonomous study remain subsequent work. Declarations, generic repairs and hearsay earn none.
 2. **Typed, graded task attempts.** Distinguish invalid/refused commands from
    real attempts that fail, partially succeed, succeed imperfectly or succeed
    fully. Use individual practical skill, conceptual knowledge, relevant

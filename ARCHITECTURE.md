@@ -1,13 +1,15 @@
 # Ox of Hephaestus — architecture and authority boundaries
 
 **Current implementation (19 October 2026):** P4a–P4j, G3f and
-G4a–G4f have merged after focused real-Evennia regression tests. Five
+G4a–G4h have merged after focused real-Evennia regression tests. Five
 technical crew, and an opt-in sixth captain, operate as independent authenticated
 Concordia agents on a **seven-room, three-equipment-system ship**. Evennia
 validates cooling repairs, cargo work, atmospheric servicing, safety/handover
 and command follow-through; its persistent world also owns formative traits,
 individual practical skills, theoretical knowledge, exact equipment familiarity,
-and receipt-backed practical progression. The handler can resume interrupted
+and receipt-backed practical and assessed conceptual progression. G4g and G4h
+supply one supervised course and one firsthand investigative-method reflection;
+neither is autonomously scheduled. The handler can resume interrupted
 work without replaying physical effects. This remains a bounded proving
 ground—not a deployed freighter or general social simulation.
 [Verified feature matrix](design/STATUS.md) · [Development setup](INSTALL.md).
@@ -278,7 +280,9 @@ fixture-specific `pending` request ID. It remains valid: such work
 reconciles against the original `oxreceipt` fixture namespace before
 subsequent stages migrate to the global ledger. Never mint a new ID to
 replace an ambiguous legacy operation. Skills, actor goals, interdepartment
-inventory transfer and PostgreSQL contention validation remain future work.
+inventory transfer and PostgreSQL contention validation were **later
+implemented and tested** in G3b/G3c and G1-PG, respectively. The surrounding
+P4g description preserves the original incremental scope.
 
 ## P4i: restartable addressed crew coordination (merged PR #26)
 
@@ -355,6 +359,8 @@ cursor-only incremental scheduling, retention and compaction are not present.
 
 ## P4e verified five-agent extension
 
+**Historical milestone:** this section describes P4e as implemented in PR #19. Later G3f/G4a–G4h work added an opt-in sixth captain, authoritative skill/knowledge records and verified learning. Refer to the current summary above for today's feature set.
+
 Merged PR #19 extends the **optional external agent handler** to five distinct
 accounts and five private native Concordia entities. Mara and Teo receive
 only their own addressed cargo/atmospheric events and local equipment
@@ -367,8 +373,9 @@ run concurrently on the same ship.
 
 The new handler has a finite event-driven safety-priority order, not a
 general auction/agenda scheduler, and specialist procedures are authored
-actions rather than unstructured model-generated commands. Distinct
-skill labels exist but **skill-by-use progression is not implemented**.
+actions rather than unstructured model-generated commands. At this historical point, distinct skill labels existed; **verified
+practical progression was subsequently implemented in G4f**, and G4g/G4h
+added narrow assessed conceptual learning.
 See [P4e scope and acceptance](design/prototypes/p4e-five-crew-autonomy.md).
 The full-server five-agent integration test and all 12 other triggered Ox
 workflows passed before merge.
@@ -392,12 +399,13 @@ timer, physical transitions and validation of equipment operations. The
 game remains accessible to human players using ordinary Telnet/web
 clients. The AI handler does not read or mutate the game database.
 
-**Ox AI handler (implemented for three or five crew)** owns each character's
+**Ox AI handler (implemented for three or five specialists plus optional captain)** owns each character's
 Concordia entity, private memory, proposed actions, pending requests,
 journals, snapshots and event wake-up policy. P4e connects as five ordinary,
 nonprivileged Evennia client accounts. The handler can be stopped while the world keeps
-its own state, alarms and event journal. Production process supervision,
-generic concurrency limits and full crash-resume coverage are future work.
+its own state, alarms and event journal. Production process supervision, multi-host process fencing and full
+crash-resume coverage are future work; G2b already supplies bounded local
+inference concurrency and a single-host controller lease.
 
 **Human interface (deferred)** is a separately packaged skeleton under
 `services/interface/`. The intended UI will join authoritative world
@@ -525,10 +533,11 @@ interruption, or production 24/7 uptime.
 
 ## 6. Planned systems and explicit non-goals for P4
 
-The eventual bulk freighter will have cargo, propulsion, maintenance
-scheduling, department structures, trained skills without level/class
-progression and wider AI crew. These have **not been built** in the
-three-compartment fixture. The postponed P5 observatory would join
+The eventual bulk freighter will add propulsion, freight economics,
+large-scale cargo handling, staffing constraints and wider departments.
+Today's **seven-compartment** fixture already contains cargo/environmental
+systems, a six-person character foundation and narrow receipt-backed learning;
+it is not yet the full commercial ship. The postponed P5 observatory would join
 Evennia readings to handler beliefs through permissioned, versioned APIs;
 no UI framework or deployment architecture is selected.
 

@@ -1,8 +1,8 @@
 # Ox human interface — intentionally deferred
 
-**Status (18 October 2026): package scaffold only.** P5—the read-only
-ship/crew observatory—was explicitly postponed while P4a and P4b were
-implemented. There is **no running browser app, frontend, HTTP API server
+**Status (19 October 2026, through G4h): package scaffold only.** P5—the read-only
+ship/crew observatory—remains explicitly postponed after the G4 learning
+and captain milestones. There is **no running browser app, frontend, HTTP API server
 or production operator-control endpoint**. Do not confuse GitHub test
 artifacts or private JSONL journals with a user-facing interface.
 

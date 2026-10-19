@@ -5,6 +5,7 @@ on:
   pull_request:
     paths:
       - "README.md"
+      - "CONTRIBUTING.md"
       - "INSTALL.md"
       - "ARCHITECTURE.md"
       - "AGENTS.md"
@@ -52,7 +53,7 @@ jobs:
           from urllib.parse import unquote
           import re
           docs = [
-              Path("README.md"), Path("INSTALL.md"),
+              Path("README.md"), Path("CONTRIBUTING.md"), Path("INSTALL.md"),
               Path("ARCHITECTURE.md"), Path("AGENTS.md"),
               Path("contracts/README.md"), Path("game/README.md"),
               Path("services/ai-handler/README.md"),
