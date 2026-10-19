@@ -302,7 +302,7 @@ def execute_work(
             if not succeeded and not message:
                 raise RuntimeError("World refused work without a reason")
 
-        WorkReceipt.objects.create(
+        receipt = WorkReceipt.objects.create(
             request_id=request_id,
             actor_dbref=actor.dbref,
             target=target,
@@ -311,6 +311,10 @@ def execute_work(
             outcome=outcome,
             game_time=float(gametime.gametime(absolute=True)),
         )
+        # Actual work and its limited learning evidence commit together.
+        # On retry the existing receipt returns above without granting XP.
+        from world.learning import record_work_experience
+        record_work_experience(actor, receipt)
         return dict(outcome)
 
 
