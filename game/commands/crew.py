@@ -141,13 +141,17 @@ class CmdOxWork(Command):
         request_id, operation, target = parts[:3]
         arguments = None
         if len(parts) == 5:
-            if target != "ship" or operation != "answer":
+            if target == "ship" and operation == "anomaly_assess":
+                arguments = {"case_id": parts[3], "hypothesis": parts[4]}
+            elif target != "ship" or operation != "answer":
                 self.caller.msg(usage)
                 return
-            arguments = {"hail_id": parts[3], "mode": parts[4]}
+            else:
+                arguments = {"hail_id": parts[3], "mode": parts[4]}
         elif len(parts) == 4:
-            if target == "ship" and operation == "round_report":
-                arguments = {"station": parts[3]}
+            if target == "ship" and operation == "anomaly_report":
+                arguments = {"case_id": parts[3]}
+            elif target == "ship" and operation == "round_report":                arguments = {"station": parts[3]}
             elif target == "inventory" and operation in (
                 "accept_supply", "collect_supply", "deliver_supply",
             ):
@@ -188,3 +192,17 @@ class CmdOxWorkReceipt(Command):
         self.caller.msg(ox_receipt=([
             work_receipt(self.caller, request_id)
         ], {}))
+
+
+class CmdOxSample(Command):
+    """Locally sample an open uncertain world case; no root-cause disclosure."""
+    key = "oxsample"
+    locks = "cmd:all()"
+
+    def func(self) -> None:
+        from world.investigation import take_sample
+        result = take_sample(self.caller, self.args.strip())
+        if result is None:
+            self.caller.msg("No open case or authorized local instrument here.")
+        else:
+            self.caller.msg("OX_ANOMALY_SAMPLE " + result["case_id"] + " " + result["station"] + " " + result["indicator"] + " " + result["reading"])
