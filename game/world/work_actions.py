@@ -50,6 +50,7 @@ _SOCIAL = {
     "anomaly_probe_report": "report_probe",
     "anomaly_reconsider": "file_reconsideration",
     "anomaly_reassess": "file_reassessment",
+    "captain_inspect": "inspect",
     "captain_claim": "claim",
     "captain_assign": "assign",
     "captain_answer": "answer",
@@ -67,14 +68,14 @@ def _arguments(operation: str, target: str, arguments: Mapping | None) -> dict:
         if operation not in _SOCIAL:
             raise ValueError("Unknown shipboard work operation")
         if operation in (
-            "captain_claim", "captain_assign", "captain_answer",
+            "captain_claim", "captain_inspect", "captain_assign", "captain_answer",
             "captain_review", "captain_escalate",
         ):
             ticket_id = arguments.get("ticket_id")
             if (not isinstance(ticket_id, str)
                     or _REQUEST_ID.fullmatch(ticket_id) is None):
                 raise ValueError("Captain work requires typed obligation ID")
-            if operation in ("captain_claim", "captain_review", "captain_escalate"):
+            if operation in ("captain_claim", "captain_inspect", "captain_review", "captain_escalate"):
                 if set(arguments) == {"ticket_id"}:
                     return {"ticket_id": ticket_id}
             elif operation == "captain_assign":
@@ -175,6 +176,8 @@ def _social_action(actor, operation: str, arguments: dict) -> tuple[bool, str]:
         from world import captain
         if operation == "captain_claim":
             return captain.claim(actor, arguments["ticket_id"])
+        if operation == "captain_inspect":
+            return captain.inspect(actor, arguments["ticket_id"])
         if operation == "captain_assign":
             return captain.assign(actor, arguments["ticket_id"], arguments["role"])
         if operation == "captain_answer":
