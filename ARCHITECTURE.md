@@ -582,4 +582,5 @@ remains available when disabled. Case truth, sample noise and
 character-specific knowledge stay in their existing authority domains.
 Only one follow-up measurement per eligible actor is supported; this is
 **bounded initiative**, not arbitrary experimental design or a world-oracle
-diagnosis. [Observed A/B behavior and remaining limits](design/prototypes/g3e3-independent-questions-results.md).
+diagnosis. [Canonical protocol and flags](design/prototypes/g3e-independent-questions.md).
+[Observed A/B behavior and remaining limits](design/prototypes/g3e3-independent-questions-results.md).

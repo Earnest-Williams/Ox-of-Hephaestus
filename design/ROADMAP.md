@@ -201,7 +201,8 @@ report, without needing a dissenting alternative to Lin's theory. Lin can
 make a provisional assessment from cross-department second measurements,
 including after previously deferring; no model receives the world-owned
 latent cause. Old G3e-2 challenge-only behavior remains as an explicit
-control. [Implementation and three-run comparison](prototypes/g3e3-independent-questions-results.md).
+control. [Protocol and operation flags](prototypes/g3e-independent-questions.md).
+[Implementation and three-run comparison](prototypes/g3e3-independent-questions-results.md).
 
 Next acceptance study, before adding more roles or rooms: vary bounded
 choice-menu ordering and experimental evidence, repeat hosted-model trials,

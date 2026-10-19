@@ -207,7 +207,8 @@ provisional theory. The fourth retained a wrong theory even after four tests.
 A prior rerun collected 16 extra Gemini tests, illustrating variation in
 actual choices despite identical world seeds. No expansion of ship, crew,
 personality or skills was required. This is bounded, one-extra-test autonomy,
-not general freeform inquiry. [Full operator-audited comparison](prototypes/g3e3-independent-questions-results.md).
+not general freeform inquiry. [Protocol and operation flags](prototypes/g3e-independent-questions.md).
+[Full operator-audited comparison](prototypes/g3e3-independent-questions-results.md).
 
 ## G4 boundaries after verified practical progression
 
