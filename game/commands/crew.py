@@ -152,7 +152,7 @@ class CmdOxWork(Command):
             else:
                 arguments = {"hail_id": parts[3], "mode": parts[4]}
         elif len(parts) == 4:
-            if target == "ship" and operation in ("anomaly_report", "anomaly_probe_report"):
+            if target == "ship" and operation in ("anomaly_report", "anomaly_question", "anomaly_probe_report"):
                 arguments = {"case_id": parts[3]}
             elif target == "ship" and operation == "round_report":
                 arguments = {"station": parts[3]}

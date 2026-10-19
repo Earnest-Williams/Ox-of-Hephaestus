@@ -794,6 +794,13 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
             lin["hypothesis"] = choice.verb
             self.checkpoint()
         if lin["hypothesis"] == "defer":
+            # Deferral does not erase a known unknown or prevent specialists
+            # from independently pursuing evidence in the next wake cycle.
+            if os.getenv("OX_G3E_INDEPENDENT_QUESTIONS", "0") == "1":
+                self.epistemics["lin"].ask(
+                    "anomaly." + case_id + ".cause",
+                    reason="World analyzer discrepancy remains unexplained",
+                )
             lin["assessment_done"] = True
             self.checkpoint()
             return True

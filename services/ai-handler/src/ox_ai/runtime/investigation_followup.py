@@ -311,6 +311,13 @@ class FollowupInvestigation:
 
     async def advance(self) -> bool:
         """One person's bounded independent work, or a bridge reassessment."""
+        # Explicit opt-in permits independent scientific inquiry without
+        # requiring anyone to accuse Lin of being wrong. The original
+        # challenge-only G3e-2 path stays available as the A/B control.
+        import os
+        if os.getenv("OX_G3E_INDEPENDENT_QUESTIONS", "0") == "1":
+            from ox_ai.runtime.investigation_questions import IndependentInquiry
+            return await IndependentInquiry(self.s).advance()
         for role in SPECIALISTS:
             if await self._specialist(role):
                 return True
