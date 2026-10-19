@@ -183,6 +183,9 @@ def main() -> None:
     assert [e["event_id"] for e in inbox(ari)] == before_events
     print("OX_G1_PG_ROLLBACK_NO_PHANTOM_EVENTS_PASS", flush=True)
 
+    from world.adversarial_concurrency import verify_concurrent_hails_and_duties
+    verify_concurrent_hails_and_duties(ship)
+
 
 if __name__ == "__main__":
     main()
