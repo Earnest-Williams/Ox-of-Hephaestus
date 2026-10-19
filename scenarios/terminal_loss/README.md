@@ -1,7 +1,8 @@
 # Terminal atmosphere experiment (bounded synthetic precursor)
 
-**Status:** experiment branch; not a completed six-run result or a real Evennia
-death mechanic. This is a disposable isolated simulation of irreversible common
+**Status:** completed and verified six-run standalone behavioral benchmark,
+retained in the repository alongside—not inside—the Evennia ship world.
+This is a disposable isolated simulation of irreversible common
 air-processing plenum damage, with the existing six Ox crew identities and
 Concordia choice machinery. No normal ship database or other gameplay is altered.
 
@@ -103,8 +104,8 @@ real travel, world work authority, mortality and authenticated clients.
 
 ## Archived findings from the completed six-run comparison
 
-This branch is the **closed, unmerged experimental prototype**. Its results
-must not be confused with production Evennia behavior. The initial six runs
+This scenario is **retained as a merged, runnable experimental benchmark**.
+Its results must not be confused with integrated Evennia behavior. The initial six runs
 ([workflow 39329210735](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/39329210735))
 used an overly procedural GOAP: all three seeds produced the same sequence of
 18 actions, including futile repairs even after local evidence ruled them out.
@@ -150,5 +151,7 @@ fair estimate of comparative intelligence. All six tests were disposable
 synthetic-world executions; they did not exercise Evennia character motion,
 world database durability, or six authenticated client sockets.
 
-These findings should inform the next Evennia-integrated implementation,
-without merging this prototype implementation into main.
+These findings provide a reproducible behavioral regression baseline for
+the separate Evennia-integrated G6 experiment in PR #67. The pilot is
+retained in main to test how per-actor knowledge changes non-generative
+planning, while keeping the simplified physics and limitations explicit.
