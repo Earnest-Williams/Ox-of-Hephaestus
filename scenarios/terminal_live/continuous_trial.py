@@ -134,6 +134,8 @@ class AdaptiveGoap:
                 self.last_assessed_stage = urgency(view)
             elif selected == "terminal_archive":
                 self.last_archived_stage = urgency(view)
+            elif selected == "terminal_comfort":
+                self.last_help_stage = urgency(view)
         elif status == "failed":
             # World refusals must not be treated as successful work, but
             # repeated identical attempts should not be a scripted loop.
