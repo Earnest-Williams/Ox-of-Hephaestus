@@ -102,7 +102,7 @@ class DurableEvenniaPort:
                 "accept", "answer", "round_report", "anomaly_report", "anomaly_assess",
                 "anomaly_question", "anomaly_challenge", "anomaly_probe_report",
                 "anomaly_reconsider", "anomaly_reassess",
-                "captain_claim", "captain_assign", "captain_answer",
+                "captain_claim", "captain_inspect", "captain_assign", "captain_answer",
                 "captain_review", "captain_escalate",
             ):
                 raise ValueError("Unsupported shipboard operation")
@@ -112,7 +112,7 @@ class DurableEvenniaPort:
                 identity = args.get("ticket_id")
                 if not isinstance(identity, str) or re.fullmatch(r"[0-9a-f]{32}", identity) is None:
                     raise ValueError("Captain work requires world obligation ID")
-                if operation in ("captain_claim", "captain_review", "captain_escalate"):
+                if operation in ("captain_claim", "captain_inspect", "captain_review", "captain_escalate"):
                     if set(args) != {"ticket_id"}:
                         raise ValueError("Unexpected captain work data")
                     suffix = " " + identity
