@@ -200,6 +200,8 @@ def report_probe(actor, case_id: str) -> tuple[bool, str]:
     probes[actor.dbref] = {**observed, "report_event_id": first["event_id"]}
     case.probes = probes
     case.save(update_fields=["probes"])
+    from world.captain import reported_experiment
+    reported_experiment(case_id, actor, first["event_id"])
     return True, "Experiment report forwarded with source provenance"
 
 
