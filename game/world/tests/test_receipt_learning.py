@@ -65,12 +65,6 @@ class WorldReceiptLearningTests(EvenniaTestCase):
         self.assertTrue(all(e.credit_units == 1 for e in evidence))
         self.assertTrue(all(e.event_key.startswith("pump:p01-") for e in evidence))
         self.assertEqual(
-            CharacterKnowledge.objects.filter(person=self.person)
-            .values_list("foundation_id", "mastery"),
-            CharacterKnowledge.objects.filter(person=self.person)
-            .values_list("foundation_id", "mastery"),
-        )
-        self.assertEqual(
             dict(CharacterKnowledge.objects.filter(person=self.person)
                  .values_list("foundation_id", "mastery")),
             prior_theory,
