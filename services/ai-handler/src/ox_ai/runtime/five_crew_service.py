@@ -565,6 +565,13 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
         return result in ("requested", "completed", "teo_work_in_progress")
 
     async def service_independent_rounds(self) -> bool:
+        # Existing priority: faults, human hails, watch handover, then
+        # investigation, then optional wear rounds. No idle model polling.
+        if await self.service_uncertain_investigation():
+            return True
+        return await self._service_existing_independent_rounds()
+
+    async def _service_existing_independent_rounds(self) -> bool:
         """Let one actor elect a private world-created duty opportunity.
 
         This hook is opt-in, preserves incident precedence and performs no
