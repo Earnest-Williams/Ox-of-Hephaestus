@@ -238,6 +238,9 @@ def observe_terminal(actor) -> dict:
             total_local_spares(ship["scrubber"])
             if actor.location == ship["environmental"] else None
         ),
+        "local_reserve_bottles": (
+            case["reserve_left"] if actor.location == ship["environmental"] else None
+        ),
         "description": "Atmospheric pressure decreasing; cause not verified.",
     }
 
