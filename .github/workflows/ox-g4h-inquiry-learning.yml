@@ -1,0 +1,106 @@
+name: Ox G4h verified investigative learning
+
+on:
+  pull_request:
+    paths:
+      - "game/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-g4h-inquiry-learning.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  assessed-inquiry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          python -m pip install .
+          python -m pip install -e './services/ai-handler'
+      - name: Verify local evidence, learning, rollback and authority boundaries
+        working-directory: game
+        run: |
+          DJANGO_SETTINGS_MODULE=server.conf.settings python -m django makemigrations world --check --dry-run
+          python -m world.test_runner world.tests.test_inquiry_learning world.tests.test_concept_learning world.tests.test_receipt_learning world.tests.test_independent_questions world.tests.test_investigation world.tests.test_investigation_followup world.tests.test_work_receipts --verbosity=2
+      - name: Verify typed investigative learning protocol
+        run: python -m unittest discover -s services/ai-handler/tests -p test_world_work_port.py -v
+
+  authenticated-restart:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      OX_INQUIRY_LEARNING_CI: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          python -m pip install .
+          python -m pip install -e './services/ai-handler[transport]'
+      - name: Create disposable credentials
+        run: |
+          python - <<'PY'
+          import os, secrets
+          values = {
+              "OX_PROBE_PASSWORD": secrets.token_hex(32),
+              "EVENNIA_SUPERUSER_PASSWORD": secrets.token_hex(32),
+              "EVENNIA_SUPERUSER_USERNAME": "OxInquiryCI",
+              "EVENNIA_SUPERUSER_EMAIL": "inquiry@example.invalid",
+          }
+          with open(os.environ["GITHUB_ENV"], "a") as stream:
+              for key, value in values.items():
+                  if "PASSWORD" in key:
+                      print("::add-mask::" + value)
+                  stream.write(f"{key}={value}\n")
+          PY
+      - name: Provision ordinary accounts and an uncertain case
+        working-directory: game
+        run: |
+          evennia migrate --noinput
+          evennia shell --command="from world.inquiry_learning_probe import provision_probe; provision_probe()"
+      - name: Predict, perform and review one's own real test
+        run: |
+          (cd game && evennia --settings settings_inquiry_learning_ci.py start)
+          # Initial setup performs an internal reload before commands stabilize.
+          sleep 4
+          python -m ox_ai.scenarios.g4h_inquiry_learning begin
+      - name: Restart the world before reflection
+        run: |
+          (cd game && evennia --settings settings_inquiry_learning_ci.py stop)
+          (cd game && evennia --settings settings_inquiry_learning_ci.py start)
+          sleep 4
+          python -m ox_ai.scenarios.g4h_inquiry_learning finish
+      - name: Reconcile the committed reflection after losing its ACK
+        run: python -m ox_ai.scenarios.g4h_inquiry_learning recover
+      - name: Independently verify the sole conceptual credit and unchanged competencies
+        working-directory: game
+        run: |
+          evennia --settings settings_inquiry_learning_ci.py stop
+          evennia shell --command="from world.inquiry_learning_probe import verify_probe; verify_probe()"
+      - name: Stop disposable ship
+        if: always()
+        working-directory: game
+        run: evennia --settings settings_inquiry_learning_ci.py stop || true
+      - name: Diagnose a failed synthetic client run
+        if: failure()
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          for name in ("server.log", "portal.log"):
+              path = Path("game/server/logs") / name
+              if path.exists():
+                  content = "\n".join(path.read_text(errors="replace").splitlines()[-100:])
+                  for key in ("OX_PROBE_PASSWORD", "EVENNIA_SUPERUSER_PASSWORD"):
+                      secret = os.environ.get(key)
+                      if secret:
+                          content = content.replace(secret, "[REDACTED]")
+                  print(name, content, sep="\n")
+          PY

@@ -6,7 +6,8 @@ crewmembers plus an opt-in sixth captain**. The captain owns unresolved
 follow-through but cannot substitute rank for engineering skill. The world
 now persists twelve aptitudes, twelve psychological dimensions, separate
 practical/conceptual/procedural competencies, **receipt-verified practical
-experience** and one supervised, assessed conceptual course. This remains a
+experience**, one supervised conceptual course and one assessed firsthand
+investigative-method activity. This remains a
 proving ground, not a complete cargo freighter.
 [Current milestone status](../design/STATUS.md).
 
@@ -41,6 +42,15 @@ preserve restart/replay safety. This is an explicitly requested activity;
 the autonomous supervisor does not yet schedule lessons. See the
 [lesson protocol and acceptance gates](../design/prototypes/g4g-verified-conceptual-learning.md).
 
+G4h additionally develops `investigation.methods` from a real local inquiry:
+file a firsthand report and question, predict before probing, perform and
+report the actual diagnostic, then complete a delayed evidence-limits and
+source-independence reflection. Correct reasoning can earn bounded study
+progress even if the forecast was wrong. Grading never consults the hidden
+cause or certifies the crew's diagnosis. New learning observations are
+investigator-private; physical work and authority are unchanged. See the
+[inquiry protocol and limits](../design/prototypes/g4h-investigative-learning.md).
+
 The Task Resolver's routine/unfamiliar/novel comparison still runs only in
 world/operator shadow tests. Its provisional performance score neither
 changes the success of a physical operation nor authorises access. The
@@ -57,7 +67,8 @@ locks, commands and ORM are retained underneath these boundaries.
 [character/resolution specification](../design/prototypes/g4d-skill-shadow.md) |
 [independent theory and familiarity](../design/prototypes/g4e-independent-knowledge-techniques.md) |
 [receipt-verified practice](../design/prototypes/g4f-world-receipt-learning.md) |
-[verified conceptual learning](../design/prototypes/g4g-verified-conceptual-learning.md)
+[verified conceptual instruction](../design/prototypes/g4g-verified-conceptual-learning.md) |
+[firsthand investigative learning](../design/prototypes/g4h-investigative-learning.md)
 
 ## G3d optional self-directed maintenance rounds (PR #46, merged)
 

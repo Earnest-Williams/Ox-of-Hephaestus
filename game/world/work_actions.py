@@ -66,7 +66,7 @@ def _arguments(operation: str, target: str, arguments: Mapping | None) -> dict:
     if not isinstance(arguments, Mapping):
         raise ValueError("Work arguments must be a mapping")
     if target == "learning":
-        from world.concept_learning import validate_arguments
+        from world.learning_actions import validate_arguments
 
         return validate_arguments(operation, arguments)
     if target == "ship":
@@ -313,7 +313,7 @@ def execute_work(
             if target == "inventory":
                 from world.supply import execute_supply as execute_activity
             else:
-                from world.concept_learning import execute_lesson as execute_activity
+                from world.learning_actions import execute_learning as execute_activity
             succeeded, source_event = execute_activity(
                 actor,
                 request_id,
@@ -374,9 +374,9 @@ def execute_work(
 
         record_work_experience(actor, receipt)
         if target == "learning":
-            from world.concept_learning import record_concept_experience
+            from world.learning_actions import record_learning
 
-            record_concept_experience(actor, receipt)
+            record_learning(actor, receipt)
         return dict(outcome)
 
 

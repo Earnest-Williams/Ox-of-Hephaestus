@@ -40,6 +40,53 @@ class FakeClient:
 
 
 class GlobalWorkPortTests(unittest.IsolatedAsyncioTestCase):
+    async def test_investigative_learning_submits_only_case_forecast_and_reasoning_choices(self):
+        """The client cannot supply self-certified learning, cause or fabricated source events."""
+        client = FakeClient()
+        port = DurableEvenniaPort(client)
+        case_id = "d" * 32
+        cases = (
+            ("inquiry_predict", {"case_id": case_id, "prediction": "supports"}, " supports"),
+            ("inquiry_review", {"case_id": case_id}, ""),
+            (
+                "inquiry_reflect",
+                {
+                    "case_id": case_id,
+                    "interpretation": "supported_unconfirmed",
+                    "independent_sources": "one_source",
+                },
+                " supported_unconfirmed one_source",
+            ),
+        )
+        for index, (verb, args, suffix) in enumerate(cases, 10):
+            request_id = f"{index:032x}"
+            client.receipt(request_id)
+            self.assertEqual(
+                (
+                    await port.submit_work(ActionRequest(request_id, "#44", verb, "learning", args))
+                ).status,
+                "succeeded",
+            )
+            self.assertEqual(
+                client.commands[-1], f"oxwork {request_id} {verb} learning {case_id}{suffix}"
+            )
+        for verb, args in (
+            ("inquiry_predict", {"case_id": case_id, "prediction": "supports", "credit_units": 1}),
+            ("inquiry_predict", {"case_id": case_id, "prediction": "true_cause"}),
+            ("inquiry_review", {"case_id": case_id, "source_event_id": "invented"}),
+            (
+                "inquiry_reflect",
+                {
+                    "case_id": case_id,
+                    "interpretation": "confirmed",
+                    "independent_sources": "two_sources",
+                },
+            ),
+        ):
+            with self.subTest(verb=verb, args=args), self.assertRaises(ValueError):
+                await port.submit_work(ActionRequest("e" * 32, "#44", verb, "learning", args))
+        self.assertEqual(len(client.commands), 3)
+
     async def test_lesson_port_accepts_activity_parameters_and_answers_not_learning_claims(self):
         """All three stages serialize safely, without accepting credit or rubric inputs."""
         client = FakeClient()

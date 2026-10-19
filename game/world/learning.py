@@ -8,7 +8,7 @@ and existing world locks control replay and concurrency.
 Current training is deliberately narrow: a physical repair/restow/replacement
 improves practical skill and familiarity with that precise procedure, NOT
 theoretical knowledge or psychological traits. G4g conceptual instruction
-enters through the separately validated concept_learning activity. Learning
+and G4h inquiry enter through separately validated learning activities. Learning
 from well-diagnosed physical failures still requires its own evidence type.
 """
 
@@ -61,6 +61,8 @@ def _award_for_component(
     component_id: str,
     *,
     score_limit: int = 100,
+    credit_allowed: bool = True,
+    knowledge_source: str = "world_verified_instruction",
 ) -> bool:
     """Record one verified event and bounded progress on one independent ledger.
 
@@ -87,7 +89,7 @@ def _award_for_component(
             foundation_id=component_id,
             defaults={
                 "mastery": 0,
-                "source": "world_verified_instruction",
+                "source": knowledge_source,
                 "first_recorded_game_time": receipt.game_time,
             },
         )
@@ -116,7 +118,9 @@ def _award_for_component(
     ).count()
     previous_score = getattr(instance, score_field)
     previous_progress = getattr(instance, progress_field)
-    credit = int(previous_score < score_limit and recent < MAX_CREDITED_REPETITIONS)
+    credit = int(
+        credit_allowed and previous_score < score_limit and recent < MAX_CREDITED_REPETITIONS
+    )
     next_score = previous_score
     next_progress = previous_progress + credit
     if (
@@ -126,7 +130,7 @@ def _award_for_component(
     ):
         next_score += 1
         next_progress -= progression_threshold(previous_score)
-    if next_score >= score_limit:
+    if credit and next_score >= score_limit:
         next_progress = 0
     if credit:
         setattr(instance, score_field, next_score)

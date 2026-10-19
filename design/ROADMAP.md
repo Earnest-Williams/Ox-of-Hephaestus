@@ -232,7 +232,11 @@ and 29/29 respectively).
    and privately graded transfer exercise can generate bounded theoretical
    evidence. Identity, activity, source receipt and before/after progression
    are recorded. [Scope and gates](prototypes/g4g-verified-conceptual-learning.md).
-   Learning from real investigations, wider curricula and autonomous study
+   G4h adds a first real-investigation activity: a pre-test forecast, actual
+   local probe/report and evidence-limits/source-independence assessment can
+   earn bounded method knowledge without consulting the hidden cause.
+   [Scope and gates](prototypes/g4h-investigative-learning.md). G4g is merged
+   in PR #62; G4h implements the inquiry activity. Wider curricula and autonomous study
    remain subsequent work. Declarations, generic repairs and hearsay earn none.
 2. **Typed, graded task attempts.** Distinguish invalid/refused commands from
    real attempts that fail, partially succeed, succeed imperfectly or succeed
@@ -262,8 +266,10 @@ and 29/29 respectively).
    migration and actor-local integration tests.
 
 The shadow resolver is **not** a live success/failure roll. Current
-experience credit is only from already-authorised and already-successful
-physical work; it does not make general world repairs skill-sensitive yet.
+practical experience credit is only from already-authorised and
+already-successful physical work; it does not make general world repairs
+skill-sensitive yet. Conceptual progress has its own assessed activities.
 Character recruitment, full ship economics and an acquired-attribute engine
-remain unimplemented. Conceptual instruction is a single assessed course;
-general theoretical training is not complete.
+remain unimplemented. Conceptual learning has one assessed course and one
+bounded firsthand method reflection; general theoretical training is not
+complete.
