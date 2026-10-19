@@ -250,6 +250,42 @@ class CaptainFollowthrough:
                     {"ticket_id": ticket_id},
                 )
                 return True
+            # Fact-finding is *optional* and only offered if Evennia
+            # reported actual local diagnostic competence. A captain's
+            # authority to delegate does not magically confer that skill.
+            if "inspection_choice" not in record:
+                if data.get("can_personally_inspect") is True:
+                    selected = await self._decide("captain", [
+                        CommandOption(
+                            "Use your qualified diagnostics skill to inspect bridge telemetry",
+                            "inspect",
+                        ),
+                        CommandOption(
+                            "Delegate to specialists without your own instrument reading",
+                            "delegate",
+                        ),
+                    ])
+                    if selected not in ("inspect", "delegate"):
+                        raise PermissionError("Invalid captain fact-finding choice")
+                else:
+                    selected = "delegate"
+                record["inspection_choice"] = selected
+                self.s.checkpoint()
+            if (record["inspection_choice"] == "inspect"
+                    and "captain_inspection" not in record.get("work_steps", {})):
+                await self.s.ensure_station("captain", "Bridge")
+                observed = await self._work(
+                    record, "captain_inspection", "captain", "captain_inspect",
+                    {"ticket_id": ticket_id},
+                )
+                own = await self.s.read_inbox("captain")
+                if not any(
+                    e["event_id"] == observed.source_event_id
+                    and e["kind"] == "captain_firsthand_observation"
+                    for e in own
+                ):
+                    raise RuntimeError("Captain's personal observation lacks a world receipt")
+                return True
             if (kind == "atmosphere_alarm"
                     and "initial_review" not in record.get("work_steps", {})):
                 # Urgent Teo work may have finished before command could act.
