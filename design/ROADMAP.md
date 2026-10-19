@@ -1,6 +1,6 @@
 # Ox of Hephaestus — execution roadmap after P4e
 
-**Baseline:** `main` commit `100f4ff6eb5acdcfccb73fba7e2651e80c0cdf9a` (18 October 2026). The baseline had 13 passing focused Ox workflows. **This roadmap is planning, not implementation evidence.** GitHub Issues were disabled when this plan was recorded, so this file is the canonical backlog until issue tracking is enabled.
+**Historical planning baseline:** `main` commit `100f4ff6eb5acdcfccb73fba7e2651e80c0cdf9a` (18 October 2026), with 13 focused workflows at that time. **This roadmap separates planned work from verified implementation evidence.** For live milestones and test links see [STATUS](STATUS.md), updated through G4f on 19 October 2026. GitHub Issues were disabled when this plan was recorded.
 
 ## Invariants
 
@@ -209,3 +209,57 @@ and distinguish genuine evidence-seeking from menu-position biases. Probe
 selection is not yet open-ended, and one follow-up per character does not
 support indefinite pursuit of unanswered questions. Diagnose rather than
 paper over the retained wrong theory in the all-elevated case.
+
+## G4 — Character competence and practical progression (19 October 2026)
+
+**Merged and verified:** G3f (#54) introduced the sixth, accountable captain.
+G4a–G4c (#55–#57) established version-two aptitudes/psychology, durable
+per-person 55-skill records and explicit restricted Evennia character/account
+command sets. G4d (#58) moved the captain's technical qualification to a
+world-owned 0–100 skill threshold and retired role-based 0–4 competency
+attributes, then introduced a read-only task comparison. G4e (#59)
+independently persisted theoretical foundations and exact equipment/procedure
+familiarity. G4f (#60) made real successful physical work generate
+replay-resistant, bounded practical skill and technique practice. All
+G4d–G4f final-head workflow matrices passed before merge (27/27, 28/28,
+and 29/29 respectively).
+
+**Next acceptance gates, in causal order:**
+
+1. **Verified conceptual learning.** A separately validated, locally performed
+   investigation or documented supervised lesson can generate bounded
+   theoretical-foundation evidence. Mere declarations, ordinary repairs,
+   hearsay or repetition of a rejected command cannot. Record instructional
+   identity, activity, provenance and specific before/after improvement.
+2. **Typed, graded task attempts.** Distinguish invalid/refused commands from
+   real attempts that fail, partially succeed, succeed imperfectly or succeed
+   fully. Use individual practical skill, conceptual knowledge, relevant
+   aptitudes, procedure familiarity and current acquired conditions. Keep
+   authority, physical access and interlocks independent from proficiency.
+3. **One reversible physical pilot.** Feature-gate quality resolution on a
+   well-instrumented fixture, preferably P-01 bearing/service work. Preserve
+   the current real-world state machine and receipt semantics as the control.
+   Commit tool wear, parts, elapsed time, terminal readings, physical outcome
+   and character learning within one world transaction. Test failed repairs,
+   retries, interruption and delayed defects before using it more broadly.
+4. **Acquired attribute ledger.** Model fatigue, injury, acclimatisation,
+   practice-dependent habits and environmental penalties as provenance-rich
+   world effects; do not rewrite a person's foundational aptitude each time
+   they are tired. Avoid automatically assigning stereotyped psychological
+   consequences.
+5. **Cognition and staffing consequences.** Permit autonomous scheduling to
+   weigh fallible personal estimates of ability, actual witnessed outcomes,
+   pay/availability, working conditions and incomplete crews. Characters
+   must not receive latent world causes or other people's private skill data.
+6. **Continue Evennia contraction.** Replace only those remaining generic
+   stock mechanisms that conflict with authoritative Ox semantics, such as
+   inventory shortcuts, role-to-skill aliasing or user-modifiable world facts.
+   Keep supported engine authentication, sessions, typeclasses, locks, exits,
+   database transactions and event infrastructure. Every replacement needs
+   migration and actor-local integration tests.
+
+The shadow resolver is **not** a live success/failure roll. Current
+experience credit is only from already-authorised and already-successful
+physical work; it does not make general world repairs skill-sensitive yet.
+Neither character recruitment, full ship economics, theoretical training,
+nor an acquired-attribute engine is complete.
