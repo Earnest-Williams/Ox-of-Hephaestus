@@ -1,7 +1,7 @@
 """Idempotent binding of existing ship crew to authoritative person records.
 
-No role -> skill inheritance after creation. Current G3f qualification gates
-continue to operate against their old 0-4 vector until separately migrated.
+No role -> skill inheritance after creation. G3f's historical 0-4 vector
+is read once during upgrades, then removed from live Evennia attributes.
 Only world bootstrap and authorised world code should call these functions.
 """
 from __future__ import annotations
@@ -10,6 +10,7 @@ from django.db import transaction
 
 from world.character_dimensions import PROFILE_VERSION, neutral_profile, validate_profile
 from world.models import CharacterProfile, CharacterSkill
+from world.crew_initial_skills import starting_skills_for_person
 from world.skill_catalogue import SKILLS, initial_skill_estimates
 
 
@@ -29,8 +30,9 @@ FIXTURE_CATEGORY = "ox_ship_prototype"
 def seed_existing_crew(marker: str, actor) -> CharacterProfile:
     """Create each existing person's baseline and estimated skills once.
 
-    Does not mutate the old G3f skill vector, roles, existing person data,
-    proficiency advances, crew memory, duties, or controller checkpoints.
+    Preserves roles, existing person data, proficiency advances, personal
+    memory, duties, and controller checkpoints. Once persisted, the superseded
+    G3f 0-4 attribute is deleted, with all writes in one world transaction.
     """
     if marker not in FIXTURE_PERSON_IDS:
         raise ValueError("Unrecognised canonical crew marker")
@@ -40,9 +42,16 @@ def seed_existing_crew(marker: str, actor) -> CharacterProfile:
     person_id = FIXTURE_PERSON_IDS[marker]
     aptitudes, psychology = neutral_profile()
     validate_profile(aptitudes, psychology)
-    raw = actor.db.ox_skills
-    # Evennia's persisted db dictionaries are SaverDict proxies, not plain dicts.
-    estimates = initial_skill_estimates(dict(raw or {}))
+    legacy_exists = actor.attributes.has("ox_skills")
+    if legacy_exists:
+        # A pre-G4d database may have edited coarse competency values. Convert
+        # the persisted Evennia SaverDict only for this one-time upgrade.
+        estimates = initial_skill_estimates(dict(actor.db.ox_skills or {}))
+        source = "g3f_legacy_initial_estimate"
+    else:
+        # A fresh world is seeded by a PERSON ID, never by current duty.
+        estimates = starting_skills_for_person(person_id)
+        source = "g4d_canonical_person_seed"
 
     profile, _created = CharacterProfile.objects.select_for_update().get_or_create(
         person_id=person_id,
@@ -68,9 +77,13 @@ def seed_existing_crew(marker: str, actor) -> CharacterProfile:
             person=profile, skill_id=skill_id,
             defaults={
                 "proficiency": proficiency,
-                "source": "g3f_legacy_initial_estimate",
+                "source": source,
             },
         )
+    if legacy_exists:
+        # Remove only after the authoritative profile and skills are valid.
+        # Django's surrounding transaction rolls back any failed migration.
+        actor.attributes.remove("ox_skills")
     return profile
 
 
