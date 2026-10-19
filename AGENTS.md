@@ -25,7 +25,6 @@ This is an **Evennia fork plus an implemented Ox prototype**, not a new
 
 ## Pointers
 
-
 - [Ox component/test map](design/README.md)
 - [Active ship and local commands](game/README.md)
 - [AI runtime and experiments](services/ai-handler/README.md)
