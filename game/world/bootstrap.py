@@ -251,7 +251,7 @@ def build_ship() -> dict[str, object]:
         ),
     )
     members = {}
-    from world.crew_competencies import skills_for
+    from world.character_profiles import seed_existing_crew
 
     for marker, key, room, role, duty, watch in crew_spec:
         existing = find_fixture(marker)
@@ -267,13 +267,9 @@ def build_ship() -> dict[str, object]:
             member.db.duty_title = duty
             member.db.watch_window = watch
             member.db.desc = "A crew member standing their posted shipboard watch."
-        # An additive skill seed, not a mutable level system. Rerunning the
-        # bootstrap never overwrites existing individual competence records.
-        if member.db.ox_skills is None:
-            member.db.ox_skills = skills_for(role)
-        # G4b: stable person identity and world-owned granular starting skills.
-        # Additive only: existing proficiencies and formative traits survive.
-        from world.character_profiles import seed_existing_crew
+        # G4d: explicit person-owned skill seeds, no role-based numeric vector.
+        # The world-ledger migration consumes/removes any legacy .db.ox_skills
+        # exactly once; repeat bootstraps never overwrite changed proficiencies.
         seed_existing_crew(marker, member)
         members[marker] = member
 
