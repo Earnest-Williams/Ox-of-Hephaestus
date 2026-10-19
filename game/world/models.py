@@ -194,3 +194,53 @@ class CharacterSkill(models.Model):
                 condition=models.Q(proficiency__lte=100), name="ox_person_skill_range",
             ),
         ]
+
+
+class CharacterKnowledge(models.Model):
+    """A person's theoretical understanding, distinct from practical skill.
+
+    Initial scores are authored calibration estimates, not a verified history
+    of classroom attendance. Later updates require world-owned evidence.
+    """
+    person = models.ForeignKey(
+        CharacterProfile, on_delete=models.PROTECT, related_name="knowledge_records",
+    )
+    foundation_id = models.CharField(max_length=64)
+    mastery = models.PositiveSmallIntegerField()
+    source = models.CharField(max_length=48, default="g4e_initial_estimate")
+    first_recorded_game_time = models.FloatField(default=0.0)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["person", "foundation_id"], name="ox_person_foundation_unique",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(mastery__lte=100), name="ox_knowledge_mastery_range",
+            ),
+        ]
+
+
+class CharacterTechnique(models.Model):
+    """One person-specific procedure on a canonical equipment installation.
+
+    The catalogue's technique ID binds a procedure to the exact equipment
+    marker. Knowing a different model or task confers no automatic familiarity.
+    """
+    person = models.ForeignKey(
+        CharacterProfile, on_delete=models.PROTECT, related_name="technique_records",
+    )
+    technique_id = models.CharField(max_length=96)
+    familiarity = models.PositiveSmallIntegerField()
+    source = models.CharField(max_length=48, default="g4e_initial_estimate")
+    first_recorded_game_time = models.FloatField(default=0.0)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["person", "technique_id"], name="ox_person_technique_unique",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(familiarity__lte=100), name="ox_technique_familiarity_range",
+            ),
+        ]
