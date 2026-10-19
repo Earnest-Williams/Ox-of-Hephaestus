@@ -486,3 +486,25 @@ simulation.
 The `ox-p4b-autonomy.yml` workflow is the executable test of the
 world-clock, changed-watch and crash-reconciliation claims. Its success
 does not expand the scope of the demonstrated mechanics.
+
+
+## G3e actor-relative uncertainty and revision (experimental)
+
+The G3e-1 case is one world-owned hidden anomaly whose underlying cause
+exists independently of crew knowledge; five native Concordia characters
+observe separate local fallible readings. G3e-2 (under CI validation) adds
+independent specialist challenges, one world-drawn station test per actor,
+source-event-backed reported measurements, private post-test positions,
+and an optional Lin reassessment. World records are kept separately from
+per-actor memories; the model sees neither hidden cause nor test noise
+distribution or other characters' undelivered events.
+
+Global `WorkReceipt` permits an immutable actor-/argument-bound work
+attempt; case changes and both recipient notifications occur atomically.
+The handler checkpoints intended requests before socket submission and
+reconciles unknown outcomes using original request identity, while
+`oxprobe` is a locally authenticated, persisted read-through diagnostic.
+Experiment outcomes are informative but non-conclusive, and even the final
+bridge position remains an explicitly unconfirmed hypothesis. This is
+a bounded case-specific proving ground, not generalized diagnosis, skill
+progression, or automatic repair.
