@@ -99,11 +99,26 @@ class DurableEvenniaPort:
         if request.target == "ship":
             if request.verb not in (
                 "radio", "request", "approve", "resolve", "offer",
-                "accept", "answer", "round_report",
+                "accept", "answer", "round_report", "anomaly_report", "anomaly_assess",
             ):
                 raise ValueError("Unsupported shipboard operation")
             operation = request.verb
-            if operation == "round_report":
+            if operation in ("anomaly_report", "anomaly_assess"):
+                args = dict(request.arguments)
+                case_id = args.get("case_id")
+                if not isinstance(case_id, str) or re.fullmatch(r"[0-9a-f]{32}", case_id) is None:
+                    raise ValueError("Case ID required")
+                if operation == "anomaly_report":
+                    if set(args) != {"case_id"}:
+                        raise ValueError("Report accepts case ID only")
+                    suffix = " " + case_id
+                else:
+                    if set(args) != {"case_id", "hypothesis"} or args["hypothesis"] not in (
+                        "cargo_vapors", "scrubber_bypass", "bus_interference",
+                    ):
+                        raise ValueError("Invalid provisional hypothesis")
+                    suffix = " " + case_id + " " + args["hypothesis"]
+            elif operation == "round_report":
                 arguments = dict(request.arguments)
                 station = arguments.get("station")
                 if set(arguments) != {"station"} or station not in (
