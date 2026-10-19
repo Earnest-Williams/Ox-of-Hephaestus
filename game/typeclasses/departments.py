@@ -92,6 +92,9 @@ class DepartmentFixture(FixedFixture):
                       else self.state},
                 text=message,
             )
+        if kind == "atmosphere_alarm":
+            from world.captain import open_obligation
+            open_obligation("atmosphere_alarm", "atmosphere-scrubber", priority=100)
 
     # Requests are actor-bound and persist with this *physical fixture*.
     # A refused transition is also durable: the same ID cannot later
