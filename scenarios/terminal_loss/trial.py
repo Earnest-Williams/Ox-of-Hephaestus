@@ -465,11 +465,45 @@ def self_test() -> None:
     assert trial.backup_tanks == 0
     trial.advance(900)
     assert trial.death_minute is not None and not any(trial.alive.values())
-    assert not any(x["status"] == "succeeded" for x in trial.trace if x["verb"] in ("patch", "reroute"))
+    assert not any(x["status"] == "succeeded"
+                   for x in trial.trace if x["verb"] in ("patch", "reroute"))
+
+    # A survey must actually influence the next non-generative choice:
+    # seeing an inaccessible fracture should rule out a futile patch.
+    room = TerminalWorld(241)
+    planner = GoalPlannerControl()
+    first, _ = planner.choose("iona", room.options("iona"), room.snapshot("iona"))
+    assert first.verb == "survey"
+    receipt = room.work("iona", "f" * 32, first.verb)
+    planner.notice("iona", receipt)
+    follow, basis = planner.choose("iona", room.options("iona"), room.snapshot("iona"))
+    assert follow.verb == "broadcast" and "personal_workaround_ruled_out" in basis["belief_facts"]
+    room.work("iona", "1" * 32, "broadcast")
+    heard = room.snapshot("captain")["messages"]
+    assert any("Iona Vek: " in message and "long fracture" in message for message in heard)
+    assert all("fracture" not in x for x in TerminalWorld(241).snapshot("captain")["messages"])
+
+    # Sensor urgency, not scripted turn count, changes a second GOAP action.
+    technician = GoalPlannerControl()
+    technician.notice("teo", {"verb": "survey", "status": "succeeded"})
+    initial = room.snapshot("teo")
+    safe = dict(initial, oxygen_kpa=16.0, co2_percent=1.3)
+    dangerous = dict(initial, oxygen_kpa=12.5, co2_percent=3.5)
+    assert technician.choose("teo", room.options("teo"), safe)[0].verb == "broadcast"
+    assert technician.choose("teo", room.options("teo"), dangerous)[0].verb == "use_reserve"
+
     baseline = run(241, "goap")
     repeat = run(241, "goap")
-    assert [(a["role"], a["verb"], a["status"]) for a in baseline["actions"]] == [
-        (a["role"], a["verb"], a["status"]) for a in repeat["actions"]
+    assert [(x["minute"], x["role"], x["chosen_verb"]) for x in baseline["decision_trace"]] == [
+        (x["minute"], x["role"], x["chosen_verb"]) for x in repeat["decision_trace"]
+    ]
+    assert baseline["inference_calls"] == 0
+    assert baseline["world_state"]["all_six_dead"]
+    assert all(len(x["actions"]) <= 3 for x in baseline["per_character"].values())
+    assert len({x["role"] for x in baseline["decision_trace"]}) == 6
+    different = run(577, "goap")
+    assert [x["role"] for x in baseline["decision_trace"]] != [
+        x["role"] for x in different["decision_trace"]
     ]
 
 
@@ -483,10 +517,13 @@ def write_report(data: dict, directory: Path) -> None:
         f"# Terminal atmosphere loss — {data['controller']} seed {data['seed']}",
         "",
         "**Scope:** disposable bounded synthetic world, NOT live Evennia.",
+        "**Revision:** evidence-aware GOAP, independent scheduled wake times.",
         f"**Operator-only cause:** {data['operator_only_actual_failure']}",
         f"**Outcome:** {sum(not d['survived'] for d in data['per_character'].values())}/6 dead;",
         f"world minute {result['death_minute']}; oxygen {result['oxygen_kpa_at_death']} kPa.",
         f"**Decision count:** {data['decisions']}; hosted choice calls: {data['inference_calls']}.",
+        "",
+        "## World-verified actions",
         "",
         "| Time (min) | Person | Attempted action | World outcome | Reason |",
         "|---:|---|---|---|---|",
@@ -495,6 +532,22 @@ def write_report(data: dict, directory: Path) -> None:
         lines.append(
             f"| {action['minute']} | {NAMES[action['role']]} | {action['verb']} "
             f"| {action['status']} | {action['reason']} |"
+        )
+    lines.extend((
+        "",
+        "## Decision audit (per-character knowledge, not operator truth)",
+        "",
+        "| Time | Crew | Seen O2 kPa | Addressed messages | Selected goal / controller | Choice |",
+        "|---:|---|---:|---:|---|---|",
+    ))
+    for decision in data["decision_trace"]:
+        basis = decision["goal_and_basis"]
+        label = basis.get("goal", basis["reason_source"])
+        lines.append(
+            f"| {decision['minute']} | {NAMES[decision['role']]} "
+            f"| {decision['observed_oxygen_kpa']} "
+            f"| {len(decision['addressed_reports'])} | {label} "
+            f"| {decision['chosen_verb']} |"
         )
     (directory / "scenario.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -520,6 +573,7 @@ def main() -> None:
         "death_minute": report["world_state"]["death_minute"],
         "all_six_dead": report["world_state"]["all_six_dead"],
         "action_counts": report["action_counts"],
+        "first_actions": [x["role"] + ":" + x["chosen_verb"] for x in report["decision_trace"][:6]],
     }, sort_keys=True))
     print("OX_TERMINAL_SCENARIO_COMPLETE")
 
