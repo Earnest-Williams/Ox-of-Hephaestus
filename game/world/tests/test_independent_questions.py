@@ -68,7 +68,9 @@ class IndependentQuestionsTests(EvenniaTestCase):
         self.assertEqual(case.assessment, {})
         self.assertEqual(case.reassessment["previous_hypothesis"], None)
         self.assertEqual(case.reassessment["hypothesis"], "bus_interference")
-        self.assertIsNone(case.reassessment["changed"])
+        self.assertIsNone(case.reassessment["previous_hypothesis"])
+        # 'changed' is intentionally derived in the addressed event; the
+        # world assessment stores original and revised theory separately.
         self.assertEqual(case.reassessment["verification"], "unconfirmed")
         self.assertEqual(case.status, "open")
         for role in ("officer", "watch", "chief", "cargo", "environment"):
@@ -95,7 +97,9 @@ class IndependentQuestionsTests(EvenniaTestCase):
         case.refresh_from_db()
         self.assertEqual(case.assessment["hypothesis"], "cargo_vapors")
         self.assertEqual(case.reassessment["hypothesis"], "scrubber_bypass")
-        self.assertEqual(case.reassessment["changed"], True)
+        self.assertNotEqual(
+            case.reassessment["previous_hypothesis"], case.reassessment["hypothesis"],
+        )
 
     def test_locality_source_provenance_and_failed_receipt_replay(self):
         mara = self.ship["cargo"]
