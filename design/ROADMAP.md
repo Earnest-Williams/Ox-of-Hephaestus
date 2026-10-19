@@ -172,3 +172,22 @@ Generalised work orders, deadline escalation, cross-department prioritisation un
 - **G5:** results are observable, reproducible and robust through accelerated-world endurance and controlled restarts.
 
 Unmet gates are blockers, not merely documentation TODOs.
+
+
+## G3e — real uncertainty ahead of ship/skills/personality expansion
+
+G3e-1 merged in PR #47 after 46/46 checks: five individually authenticated
+existing crewmembers receive only ambiguous world-sourced observations of a
+world-secret atmospheric analyzer fault. Lin's preliminary theory may be
+wrong and never becomes world truth. The case is opt-in; not a freeform
+diagnostic model.
+
+G3e-2 (pending implementation CI): specialists can raise competing hypotheses,
+run fallible, repeat-safe role-local experiments, independently reconsider
+their positions, and send evidence/provenance to Lin. A revised or retained
+bridge interpretation is explicitly unconfirmed and requires reports from
+more than one department. World-only hidden causes and probe randomness
+must never become an actor-visible affordance or model context.
+[Design and gates](prototypes/g3e-contradictory-evidence.md).
+Delay expansion of compartments, skills or personalities until this
+uncertainty-to-reassessment path is credible and green.
