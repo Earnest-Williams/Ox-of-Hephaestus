@@ -509,3 +509,19 @@ with fault/hail/handover priority. Private, persisted intentions and
 per-person epistemics never receive operator cause records. Offline
 MockModel tests demonstrate world/action integration, not AI diagnostic
 accuracy. [Full boundary](../../design/prototypes/g3e-contradictory-evidence.md).
+
+
+## G3e-3: evidence-first specialist autonomy
+
+Enable `OX_G3E_INDEPENDENT_QUESTIONS=1` alongside the existing G3e
+investigation and follow-up flags to allow existing specialists to pursue
+known unanswered questions before or without formally disagreeing with
+Lin. Each request is executed through the authenticated, durable
+`anomaly_question` work verb and local `oxprobe`, followed by
+a separately receipted report; tentative interpretation is optional.
+Lin can make a new unconfirmed bridge assessment from firsthand
+cross-department test reports even if the first diagnosis was deferred.
+Set the new flag to `0` to retain legacy G3e-2 challenge-first control.
+No LLM is exposed to the root cause or an actor-unaddressed event.
+
+[Source-of-truth boundary, scenario reruns and limitations](../../design/prototypes/g3e-independent-questions.md).
