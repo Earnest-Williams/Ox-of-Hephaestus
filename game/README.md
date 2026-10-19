@@ -5,8 +5,9 @@ stateful ship systems and **five independently authenticated technical
 crewmembers plus an opt-in sixth captain**. The captain owns unresolved
 follow-through but cannot substitute rank for engineering skill. The world
 now persists twelve aptitudes, twelve psychological dimensions, separate
-practical/conceptual/procedural competencies and **receipt-verified practical
-experience**. This remains a proving ground, not a complete cargo freighter.
+practical/conceptual/procedural competencies, **receipt-verified practical
+experience** and one supervised, assessed conceptual course. This remains a
+proving ground, not a complete cargo freighter.
 [Current milestone status](../design/STATUS.md).
 
 All Ox ship content is under `game/`; the inherited `evennia/` engine has
@@ -29,6 +30,17 @@ event cannot award another credit. Other operations, including refused
 commands, do not grant experience. Routine repair does **not** generate
 theoretical-knowledge credit.
 
+G4g adds a separate conceptual-learning activity: a qualified person offers
+`mechanical.controlled_comparison.v1` to a consenting learner at the Machine
+Shop bench. Both remain there for fifteen game minutes, then the learner
+interprets a new training comparison. Correct answers earn bounded
+`CharacterKnowledge.study_progress`; incorrect answers earn none. The course
+has a mastery ceiling and completed assessments must be spaced by a game day.
+Lesson events are participant-private and the normal global work receipts
+preserve restart/replay safety. This is an explicitly requested activity;
+the autonomous supervisor does not yet schedule lessons. See the
+[lesson protocol and acceptance gates](../design/prototypes/g4g-verified-conceptual-learning.md).
+
 The Task Resolver's routine/unfamiliar/novel comparison still runs only in
 world/operator shadow tests. Its provisional performance score neither
 changes the success of a physical operation nor authorises access. The
@@ -44,7 +56,8 @@ locks, commands and ORM are retained underneath these boundaries.
 [Authoritative stage index](../design/STATUS.md) |
 [character/resolution specification](../design/prototypes/g4d-skill-shadow.md) |
 [independent theory and familiarity](../design/prototypes/g4e-independent-knowledge-techniques.md) |
-[receipt-verified practice](../design/prototypes/g4f-world-receipt-learning.md)
+[receipt-verified practice](../design/prototypes/g4f-world-receipt-learning.md) |
+[verified conceptual learning](../design/prototypes/g4g-verified-conceptual-learning.md)
 
 ## G3d optional self-directed maintenance rounds (PR #46, merged)
 

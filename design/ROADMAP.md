@@ -1,6 +1,6 @@
 # Ox of Hephaestus — execution roadmap after P4e
 
-**Historical planning baseline:** `main` commit `100f4ff6eb5acdcfccb73fba7e2651e80c0cdf9a` (18 October 2026), with 13 focused workflows at that time. **This roadmap separates planned work from verified implementation evidence.** For live milestones and test links see [STATUS](STATUS.md), updated through G4f on 19 October 2026. GitHub Issues were disabled when this plan was recorded.
+**Historical planning baseline:** `main` commit `100f4ff6eb5acdcfccb73fba7e2651e80c0cdf9a` (18 October 2026), with 13 focused workflows at that time. **This roadmap separates planned work from verified implementation evidence.** For live milestones and test links see [STATUS](STATUS.md), including the G4g conceptual-instruction pilot on 19 October 2026. GitHub Issues were disabled when this plan was recorded.
 
 ## Invariants
 
@@ -226,11 +226,13 @@ and 29/29 respectively).
 
 **Next acceptance gates, in causal order:**
 
-1. **Verified conceptual learning.** A separately validated, locally performed
-   investigation or documented supervised lesson can generate bounded
-   theoretical-foundation evidence. Mere declarations, ordinary repairs,
-   hearsay or repetition of a rejected command cannot. Record instructional
-   identity, activity, provenance and specific before/after improvement.
+1. **Verified conceptual learning — first instruction slice implemented in G4g.**
+   A qualified instructor, consenting local learner, timed supervised lesson
+   and privately graded transfer exercise can generate bounded theoretical
+   evidence. Identity, activity, source receipt and before/after progression
+   are recorded. [Scope and gates](prototypes/g4g-verified-conceptual-learning.md).
+   Learning from real investigations, wider curricula and autonomous study
+   remain subsequent work. Declarations, generic repairs and hearsay earn none.
 2. **Typed, graded task attempts.** Distinguish invalid/refused commands from
    real attempts that fail, partially succeed, succeed imperfectly or succeed
    fully. Use individual practical skill, conceptual knowledge, relevant
@@ -261,5 +263,6 @@ and 29/29 respectively).
 The shadow resolver is **not** a live success/failure roll. Current
 experience credit is only from already-authorised and already-successful
 physical work; it does not make general world repairs skill-sensitive yet.
-Neither character recruitment, full ship economics, theoretical training,
-nor an acquired-attribute engine is complete.
+Character recruitment, full ship economics and an acquired-attribute engine
+remain unimplemented. Conceptual instruction is a single assessed course;
+general theoretical training is not complete.

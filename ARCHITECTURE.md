@@ -70,6 +70,17 @@ real work receives diminishing learning credit. Generic repairs do not
 increase theoretical knowledge, nor does a high score reveal an unobserved
 failure cause.
 
+G4g adds a separate supervised conceptual-learning activity. The world
+records a qualified instructor, consenting learner, co-presence, duration,
+curriculum, private transfer exercise, submitted answers and receipt-backed
+result. Correct assessments advance `CharacterKnowledge.study_progress`
+under bounded thresholds and a curriculum ceiling. Instruction and study
+do not improve practical skill, grant duties or expose hidden ship causes.
+Normal movement interrupts supervision, and assessment/evidence/progression
+commit atomically. The first curriculum and its two-client restart gate are
+[specified here](design/prototypes/g4g-verified-conceptual-learning.md).
+Autonomous study scheduling and investigative conceptual gains remain future.
+
 **Evennia contraction:** character and account command sets are explicit
 Ox allowlists instead of inheriting all stock MUD actions. User-level
 `charcreate`, `chardelete`, `home`, unvalidated object pickup/drop/give,
