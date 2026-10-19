@@ -100,3 +100,55 @@ weakened inter-character information flow. The revision fixes these issues
 without changing the physical failure or inventing free-form actions. The
 trial remains illustrative: only an integrated Evennia run will exercise
 real travel, world work authority, mortality and authenticated clients.
+
+## Archived findings from the completed six-run comparison
+
+This branch is the **closed, unmerged experimental prototype**. Its results
+must not be confused with production Evennia behavior. The initial six runs
+([workflow 39329210735](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/39329210735))
+used an overly procedural GOAP: all three seeds produced the same sequence of
+18 actions, including futile repairs even after local evidence ruled them out.
+Additionally, the broadcast action sent a recent action-receipt summary rather
+than the actual instrument finding, reducing useful secondhand knowledge.
+
+The revised runs
+([workflow 39331019012](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/39331019012))
+passed all six trials and corrected those defects in the **standalone sandbox**.
+The non-generative GOAP controller now updates actor-private symbolic facts
+from firsthand inspections, addressed communications, oxygen/CO2 readings,
+and verified work outcomes. It treats an impossible workaround as ruled out,
+then plans useful follow-up without claiming a repair succeeded. A seed-specific
+individual wake scheduler replaced the fixed role order; successful broadcasts
+now actually contain the sender's findings. Focused assertions verified the
+change in the next GOAP action after finding an inaccessible fracture, the
+receipt's actor-bound idempotency, information delivery, and deterministic
+replay under one seed.
+
+### Revised results (all six crew died in every trial)
+
+| Seed | GOAP death (world min) | Gemini death (world min) | GOAP emergency bottles | Gemini emergency bottles |
+|---|---:|---:|---:|---:|
+| 241 | 164 | 143 | 2 | 0 |
+| 577 | 164 | 143 | 2 | 0 |
+| 911 | 164 | 143 | 2 | 0 |
+
+Revised GOAP trials each chose six firsthand surveys, five broadcasts, four
+provisional no-recovery assessments, one captain command, and two uses of the
+emergency reserve, with **no** structurally futile repair attempts. Their
+waking order varied by seed, but authored belief rules produced the same broad
+response. Gemini's bounded choices continued to favor some repairs and not
+use the reserves in these particular three runs; that observation is retained
+for later analysis, **not** a generalized conclusion about Gemini performance.
+
+**Interpretation:** GOAP's *observation sensitivity* improved; it did not
+acquire a general ability to infer novel physics or reason about uncertainty.
+The scenario's unusually explicit findings made the rule-based assessment
+relatively easy, and the GOAP policy was tailored to this scenario while the
+Gemini controller did not receive that identical explicit decision policy.
+The apparent 21-minute survival advantage therefore cannot be treated as a
+fair estimate of comparative intelligence. All six tests were disposable
+synthetic-world executions; they did not exercise Evennia character motion,
+world database durability, or six authenticated client sockets.
+
+These findings should inform the next Evennia-integrated implementation,
+without merging this prototype implementation into main.
