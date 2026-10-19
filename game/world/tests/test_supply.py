@@ -211,6 +211,19 @@ class SupplyWorldTests(EvenniaTestCase):
         self.assertEqual(len(inbox(self.mara)), count)
 
 
+    def test_unique_pending_shortage_across_distinct_work_ids(self):
+        original = execute_work(self.teo, IDS[0], "request_supply", "inventory")
+        self.assertEqual(original["status"], "succeeded")
+        duplicate = execute_work(self.teo, IDS[1], "request_supply", "inventory")
+        self.assertEqual(duplicate["status"], "failed")
+        self.assertEqual(SupplyOrder.objects.count(), 1)
+        self.assertEqual(len([e for e in inbox(self.mara)
+                              if e["kind"] == "supply_request"]), 1)
+        self.assertEqual(execute_work(self.teo, IDS[1], "request_supply", "inventory"),
+                         duplicate)
+
+
+
 if __name__ == "__main__":
     import unittest
     unittest.main()
