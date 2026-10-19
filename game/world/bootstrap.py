@@ -271,6 +271,10 @@ def build_ship() -> dict[str, object]:
         # bootstrap never overwrites existing individual competence records.
         if member.db.ox_skills is None:
             member.db.ox_skills = skills_for(role)
+        # G4b: stable person identity and world-owned granular starting skills.
+        # Additive only: existing proficiencies and formative traits survive.
+        from world.character_profiles import seed_existing_crew
+        seed_existing_crew(marker, member)
         members[marker] = member
 
     return {
