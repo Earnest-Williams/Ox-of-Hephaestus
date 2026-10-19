@@ -1,9 +1,13 @@
 """G6 terminal failure: authoritative Evennia state, private evidence and death."""
+from unittest.mock import patch
+
 from evennia.utils.test_resources import EvenniaTestCase
 
 from world.bootstrap import build_ship
 from world.event_journal import inbox
-from world.terminal_failure import arm_terminal, observe_terminal, tick_terminal
+from world.terminal_failure import (
+    arm_terminal, ensure_terminal_clock, observe_terminal, tick_terminal,
+)
 from world.work_actions import execute_work
 from world.models import WorkReceipt
 
@@ -13,6 +17,25 @@ class TerminalFailureTests(EvenniaTestCase):
         super().setUp()
         self.ship = build_ship()
         self.case_id = arm_terminal(seed=241)
+
+    def test_timer_is_only_started_from_real_server_lifecycle(self):
+        """A management-shell arm must not schedule a disposable reactor."""
+        from evennia.scripts.models import ScriptDB
+        self.assertFalse(ScriptDB.objects.filter(
+            db_key="ox_g6_terminal_clock",
+        ).exists())
+        with patch("evennia.utils.create.create_script") as created:
+            self.assertTrue(ensure_terminal_clock())
+            created.assert_called_once()
+            kwargs = created.call_args.kwargs
+            self.assertEqual(kwargs["obj"], self.ship["pump"])
+            self.assertEqual(kwargs["interval"], 2)
+            self.assertTrue(kwargs["persistent"])
+            self.assertTrue(kwargs["start_delay"])
+        self.ship["pump"].db.ox_terminal_incident = None
+        with patch("evennia.utils.create.create_script") as created:
+            self.assertFalse(ensure_terminal_clock())
+            created.assert_not_called()
 
     def test_world_secret_never_enters_recipient_alarm(self):
         for role in ("officer", "watch", "chief", "cargo", "environment", "captain"):

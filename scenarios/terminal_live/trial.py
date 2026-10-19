@@ -181,12 +181,31 @@ async def experiment(seed, provider, out):
         raise PermissionError("Refusing anything other than six distinct crew identities")
     traces = []
     all_events = {}
+    clock_observations = []
     rng = random.Random(seed)
     initial = {role: rng.uniform(0.3, 2.8) for role in ROLES}
     next_delay = {role: [rng.uniform(2.0, 4.0) for _ in range(4)] for role in ROLES}
     started = time.monotonic()
     try:
         await s.open()
+        # Verify actual world clock through a real authenticated client.
+        captain_client = s.clients["captain"]
+        initial_clock = await sensor(captain_client)
+        clock_observations.append({
+            "minute": initial_clock["minute"],
+            "oxygen_kpa": initial_clock["oxygen_kpa"],
+        })
+        await asyncio.sleep(5)
+        advanced_clock = await sensor(captain_client)
+        clock_observations.append({
+            "minute": advanced_clock["minute"],
+            "oxygen_kpa": advanced_clock["oxygen_kpa"],
+        })
+        if advanced_clock["minute"] <= initial_clock["minute"]:
+            raise AssertionError(
+                "Server-owned terminal clock stalled before decisions: "
+                f"{initial_clock['minute']} -> {advanced_clock['minute']}"
+            )
 
         async def person(role):
             await asyncio.sleep(initial[role])
@@ -266,12 +285,21 @@ async def experiment(seed, provider, out):
         dead = False
         for _ in range(65):
             state = await sensor(captain)
+            clock_observations.append({
+                "minute": state["minute"],
+                "oxygen_kpa": state["oxygen_kpa"],
+                "status": state["status"],
+            })
             if state["status"] == "dead":
                 dead = True
                 break
             await asyncio.sleep(2)
         if not dead:
-            raise AssertionError("Server-owned fatality did not occur")
+            raise AssertionError(
+                "Server-owned fatality did not occur; authenticated progression "
+                f"start={clock_observations[0]['minute']} "
+                f"last={clock_observations[-1]['minute']}"
+            )
         all_events["captain"] = [
             {"kind": evt["kind"], "text": evt["text"]}
             for evt in await s.read_inbox("captain")
@@ -285,6 +313,7 @@ async def experiment(seed, provider, out):
             "inference_calls": sum(x.inference_calls for x in s.brains.values()),
             "elapsed_test_seconds": round(time.monotonic()-started, 2),
             "observed_captain_status": "dead",
+            "clock_observations": clock_observations,
         }
         if provider == "goap" and summary["inference_calls"] != 0:
             raise AssertionError("GOAP test called a model")
@@ -294,6 +323,14 @@ async def experiment(seed, provider, out):
         atomic_json(out, summary)
         print("OX_G6_SIX_AUTHENTICATED_TERMINAL_RUN_PASS", provider, seed, flush=True)
     finally:
+        # Preserve actor-scoped evidence on any failure, not hidden world truth.
+        atomic_json(Path(".ox-state/g6-partial.json"), {
+            "seed": seed, "controller": provider,
+            "authenticated_ids": dict(s.ids),
+            "decisions": traces,
+            "clock_observations": clock_observations,
+            "model_calls": sum(x.inference_calls for x in s.brains.values()),
+        })
         await s.close()
 
 

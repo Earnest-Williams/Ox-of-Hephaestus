@@ -107,6 +107,40 @@ class TerminalClock(DefaultScript):
         tick_terminal()
 
 
+def ensure_terminal_clock() -> bool:
+    """Start an armed G6 incident only inside the running Evennia server.
+
+    The operator arms the incident through a short-lived external shell.
+    Twisted timers started in that shell do not survive into the server.
+    """
+    pump = find_fixture("pump-p01")
+    if pump is None:
+        return False
+    case = _state(pump)
+    if case is None or case["fatal"]:
+        return False
+
+    from evennia.scripts.models import ScriptDB
+    from evennia.utils.create import create_script
+
+    instances = list(ScriptDB.objects.filter(db_key="ox_g6_terminal_clock"))
+    if len(instances) > 1:
+        raise RuntimeError("Duplicate terminal clocks would double-consume atmosphere")
+    if instances:
+        clock = instances[0]
+        if clock.db_obj != pump:
+            raise RuntimeError("Terminal clock attached to a foreign fixture")
+        # Restart an orphan script row in the real game-server reactor.
+        clock.start(interval=2, start_delay=True)
+    else:
+        create_script(
+            "world.terminal_failure.TerminalClock",
+            obj=pump, key="ox_g6_terminal_clock",
+            interval=2, start_delay=True, persistent=True,
+        )
+    return True
+
+
 @transaction.atomic
 def arm_terminal(*, seed: int, step_minutes: int = 4) -> str:
     """Operator-only disposable arm, performed before the game server starts."""
@@ -134,10 +168,8 @@ def arm_terminal(*, seed: int, step_minutes: int = 4) -> str:
             data={"case_id": identity, "symptom": "declining_pressure"},
             text="Shared atmosphere pressure is declining; root cause and repairability unknown.",
         )
-    # A real Evennia Script attached to the world fixture. The script runs
-    # independently of model decisions while the game server is online.
-    from evennia.utils.create import create_script
-    create_script(TerminalClock, obj=pump, key="ox_g6_terminal_clock")
+    # Persist only the incident. The server-start hook starts the clock
+    # inside the actual reactor, never inside the short-lived shell.
     return identity
 
 
