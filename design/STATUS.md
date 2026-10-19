@@ -37,6 +37,15 @@ feature inventories.
 | G3c — cooperative Teo/Mara supply | Tested and merged (37/37 jobs across 23 workflows) | Real addressed supply-request chain, independent local inventory observations, Mara's physical GOAP travel and carrying, lost delivery ACK reconciliation on restart, Teo's new verified physical replacement, actor-private open-world epistemics. [PR #40](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/40). |
 | G3 epistemic semantics — actor-relative unknown unknowns | Tested and merged (42/42 jobs across 27 workflows) | The world/operator may classify an already-existing hidden fact as an unknown unknown **for a particular actor before discovery**. No such fact, hint or classification is sent to that actor; subsequent surprise is separate. Actor/private runtime schema remains unchanged. [PR #42](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/42). |
 | G5-a — adversarial voyage / concurrency gates | **Verified: 27/27 focused workflows on code commit 93cdd019 (PR #45)** | Deterministically seeded three-system world incidents, direct-command fault/safety/handover rollback tests, real PostgreSQL simultaneous hails/clock ticks, 180-event privacy and rollback storm, 72 handler crash/restart stages. [Scope and limits](prototypes/g5-adversarial-voyage.md). No claim of long-running continuous autonomy. |
+| G3d — self-directed preventive rounds | Tested and merged | [PR #46](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/46): bounded world-clock rounds and receipted C-01/A-01 preventive work; opt-in, not continuous model polling. |
+| G3e — genuinely uncertain ship investigations | Tested and merged | [PRs #47–#51](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/51): actor-private, fallible sampling, challenge/reconsideration and independent unanswered-question investigations; no hidden-cause oracle. |
+| G3f — six-person captain follow-through | Tested and merged | [PR #54](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/54): sixth separately authenticated captain owns open obligations, delegates and reviews without overriding specialist expertise or certifying speculative repairs. |
+| G4a — versioned character traits and character-command reduction | Tested and merged | [PR #55](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/55): twelve aptitudes, twelve psychological dimensions, v1 blueprint compatibility; explicit Ox character command allowlist. |
+| G4b — world-owned character identities and skills | Tested and merged | [PR #56](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/56): six stable persons, 55 skill IDs across sixteen disciplines; Django per-person skill ledger. |
+| G4c — account command reduction | Tested and merged | [PR #57](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/57): Ox account command allowlist preserves login/puppeting while excluding stock character creation, global chat and builder shortcuts. |
+| G4d — authoritative diagnostic skill and task shadows | Tested and merged (27/27 workflows) | [PR #58](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/58): captain inspection reads skill >= 40/100; old 0–4 competencies retired. Read-only routine/novel task comparisons have no physical effects. |
+| G4e — separate conceptual knowledge and procedure familiarity | Tested and merged (28/28 workflows) | [PR #59](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/59): personal theoretical foundation and exact equipment/procedure ledgers; independently sourced, initially estimates, no hidden-fact disclosure. |
+| G4f — verified practical experience | Tested and merged (29/29 workflows) | [PR #60](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/60): successful physical work receipts increment bounded practical skill and procedure familiarity, with replay and rate limits. No routine theory XP or graded real-world failure mechanics yet. |
 | P5 — browser observatory | **Deferred / not built** | No browser UI, joined handler/world API, or operator dashboard |
 
 **Naming note:** the original Prototype 1 plan used “P4” for the first
@@ -52,15 +61,13 @@ restarts an external handler, reconciles a deliberately lost isolation ACK,
 and verifies the persisted physical event journal without duplicate isolation.
 The full focused CI suite passed on `main` following PR #14.
 
-## Pending independent-initiative increment
+## G3d independent-initiative pilot (merged)
 
 [G3d PR #46](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/46)
-introduces **experimental, opt-in** world-clock independent rounds for all
-five crew, limited C-01/A-01 wear observations and receipted preventive
-maintenance. It is under review; do not describe it as merged or validated
-until its dedicated live five-client workflow and all focused regressions
-pass on the final commit. It is not general goal generation or
-long-running social autonomy.
+introduced **experimental, opt-in** world-clock independent rounds for the
+original five technical crewmembers, bounded C-01/A-01 wear observations
+and receipted preventive maintenance. It is verified on the focused live
+five-client scenario, not general goal generation or indefinite freeform work.
 [Implementation contract](prototypes/g3d-independent-rounds.md).
 
 ## P4e verified five-crew runtime
@@ -97,10 +104,11 @@ recovery or general LLM-driven planning.
   (cooling P-01, cargo restraints C-01 and atmospheric scrubber A-01),
   the roster, role-local readouts, alarms, private recipient-specific events,
   authoritative timestamps and validated physical effects.
-- **The P4e handler** connects as five separately authenticated characters
-  (Lin, Ari, Iona, Mara and Teo). Each character has its own native Concordia
-  state, scoped observations, choice history and checkpoint. The earlier
-  three-crew handler remains supported separately; never run both together.
+- **The standard five-person handler** connects as Lin, Ari, Iona, Mara and
+  Teo with independent native Concordia state, observations and checkpoints.
+  The **opt-in sixth captain** owns unresolved follow-up and can delegate
+  without replacing the specialists. The earlier three-person handler
+  remains supported separately; do not run competing supervisors together.
 - **Deterministic GOAP** plans familiar equipment operations; Concordia
   chooses bounded, explicitly offered actions. Evennia alone executes
   permitted actions and supplies the confirmed physical outcome.
@@ -120,11 +128,13 @@ recovery or general LLM-driven planning.
   single-engineer Gemini trial succeeded, but unconstrained multi-agent
   negotiation, novel diagnosis and language-based coordination are not
   validated by these workflows.
-- This remains a **small proving-ground**, even with seven compartments
-  and five independent Concordia crew. C-01 and A-01 are locally
-  actionable state machines, not general freight
-  commerce or high-fidelity life support. Propulsion, skill-by-use
-  progression, wider schedules and the full freighter remain future work.
+- This remains a **small proving-ground**, with seven compartments and up
+  to six independently authenticated crew. C-01 and A-01 are locally
+  actionable state machines, not general freight commerce or high-fidelity
+  life support. Some genuine work can now improve practical skill and exact
+  procedure familiarity, but outcome difficulty still does not use the
+  shadow competency formula. Propulsion, full ship economics, general
+  training and the complete freighter remain future work.
 - `serve` is a runnable runtime, **not a hosted deployment or a system
   service**. Disposable CI trials cover two consecutive incidents and
   seven sequential handler restarts across a separate pump cycle; no
@@ -136,9 +146,10 @@ recovery or general LLM-driven planning.
   autonomous handover, player hails and specialist task stage bookkeeping
   are not all migrated to the general restartable protocol. Full
   mid-scene recovery remains an unmet G1 acceptance criterion.
-- Development account provisioning uses **disposable three- or five-bot
-  fixtures** and a shared test credential. It is not a production account-management
-  scheme. The prototype server binds to loopback and disables registration.
+- Development account provisioning uses **disposable three-, five- or
+  six-actor fixtures** and test credentials. It is not a production
+  account-management scheme. The prototype server binds to loopback and
+  disables registration.
 - P5 and its dual-source authenticated read APIs do **not** exist.
 
 ## Read next
@@ -150,6 +161,10 @@ recovery or general LLM-driven planning.
 - [P4a](prototypes/p4a-live-cognition.md), [P4b](prototypes/p4b-autonomous-watch.md)
   [P4d departments](prototypes/p4d-ship-departments.md) and
   [P4e five-crew autonomy](prototypes/p4e-five-crew-autonomy.md)
+- [G4a character foundation](prototypes/g4a-character-foundation.md),
+  [G4d shadow resolution](prototypes/g4d-skill-shadow.md),
+  [G4e knowledge and techniques](prototypes/g4e-independent-knowledge-techniques.md)
+  and [G4f verified experience](prototypes/g4f-world-receipt-learning.md)
 - [Archived P2 test scenarios](../scenarios/shift_handover/README.md) and
   [cooling fault](../scenarios/coolant_fault/README.md)
 
@@ -192,3 +207,29 @@ A prior rerun collected 16 extra Gemini tests, illustrating variation in
 actual choices despite identical world seeds. No expansion of ship, crew,
 personality or skills was required. This is bounded, one-extra-test autonomy,
 not general freeform inquiry. [Full operator-audited comparison](prototypes/g3e3-independent-questions-results.md).
+
+## G4 boundaries after verified practical progression
+
+Authoritative person profiles persist aptitudes (1–10), continuous psychology
+(0–100), practical skills, independent theoretical foundations and equipment-
+specific procedures (each 0–100). Six original people have neutral initial
+aptitudes and explicit, **unverified** initial professional/knowledge/familiarity
+estimates. Existing characters keep their values when duties change.
+
+The live captain qualification uses a world-owned professional skill threshold,
+but **ordinary repairs do not yet roll against the shadow Task Resolver**.
+The resolver's weighting for routine versus novel work is provisional, private
+to world/operator experiments, and not an LLM fact-discovery mechanism.
+
+The G4f `CharacterLearningEvidence` ledger credits limited, successful P-01
+repair, C-01 restow and A-01 cartridge replacement with replay-safe, capped
+practical practice. It does **not** grant knowledge for routine repairs, award
+experience for rejected commands, or resolve actual physical failures by
+aptitude. Gameplay still needs a graded attempt/result model and verified
+instruction or inquiry before those forms of learning can be activated.
+
+Stock Evennia gameplay command sets are no longer inherited wholesale:
+Ox uses explicit character and account allowlists. Authentication, command
+routing, sessions, exits, locks, typeclasses, ORM and server infrastructure
+remain Evennia's supported underpinnings. This is framework reduction, not
+an unsupported fork-wide deletion of engine internals.
