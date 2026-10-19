@@ -84,6 +84,15 @@ def execute_supply(actor, request_id: str, operation: str,
                 or scrubber.state != "isolated"
                 or total_local_spares(scrubber) > 0):
             return False, None
+        # The request ID is idempotent, but fresh IDs for the same
+        # outstanding shortage must not create multiple cargo obligations.
+        # The ship-wide work lock serializes this check and its order insert.
+        if SupplyOrder.objects.filter(
+            requester_dbref=actor.dbref, item_kind=KIND,
+            delivery_room_dbref=ship["environmental"].dbref,
+            status__in=("requested", "accepted", "in_transit"),
+        ).exists():
+            return False, None
         # Explicit dependency is a *world object*, not an agent's claim.
         if SupplyOrder.objects.filter(pk=request_id).exists():
             raise PermissionError("Supply order ID already used")
