@@ -38,6 +38,11 @@ ROLES = {
         "Teo Hale", "Environmental technician; service A-01 with finite spares",
         "Safely restore atmospheric scrubbing using local inspection and inventory",
     ),
+    "captain": (
+        "Ship's Captain",
+        "Command responsibility for unresolved incidents, not unrestricted engineering",
+        "Ensure every open problem receives verified follow-up, reassignment or escalation",
+    ),
 }
 
 
@@ -214,7 +219,7 @@ def build_live_brains(
     # provisions all five. Neither may silently omit one member of its
     # designated crew, reuse a body, or share a Concordia entity.
     legacy = {"lin", "ari", "iona"}
-    if (set(ids) not in (legacy, set(ROLES))
+    if (set(ids) not in (legacy, set(ROLES) - {"captain"}, set(ROLES))
             or len(set(ids.values())) != len(ids)):
         raise ValueError("Requires three legacy or five distinct crew identities")
     blueprints = {} if blueprints is None else dict(blueprints)
