@@ -23,7 +23,7 @@ ORDER = ("lin", "ari", "iona", "mara", "teo")
 EVENT_FIELDS = (
     "symptom", "station", "indicator", "reading", "tested_hypothesis",
     "hypothesis", "previous_hypothesis", "changed", "verification",
-    "evidence_count", "quality",
+    "evidence_count", "quality", "question", "status",
 )
 
 
@@ -66,6 +66,7 @@ def collect(*, scenario: str, provider: str, state_path: str = "../.ox-state/p4e
         late = follow.get(role, {})
         probe = case.probes.get(body.dbref, {})
         challenge = case.challenges.get(body.dbref, {})
+        question = case.questions.get(body.dbref, {})
         reconsidered = case.reconsiderations.get(body.dbref, {})
         beliefs = state.get("epistemics", {}).get(role, {}).get("beliefs", {})
         evidence = state.get("epistemics", {}).get(role, {}).get("observations", {})
@@ -76,6 +77,8 @@ def collect(*, scenario: str, provider: str, state_path: str = "../.ox-state/p4e
             "initial_instrument": case.signals.get(role) if body.dbref in case.samples else None,
             "initial_decision": _pending_actions(original),
             "followup_decision": _pending_actions(late),
+            "independent_question": question.get("question"),
+            "question_event_id": question.get("event_id"),
             "challenge": challenge.get("hypothesis"),
             "probe": (
                 {k: probe[k] for k in ("indicator", "tested_hypothesis", "reading")
@@ -138,6 +141,7 @@ def collect(*, scenario: str, provider: str, state_path: str = "../.ox-state/p4e
         },
         "crew": results,
         "world_action_counts": action_counts,
+        "independent_questions_registered": len(case.questions),
         "timeline": events,
     }
 
