@@ -6,13 +6,19 @@ on:
     paths:
       - "game/**"
       - ".github/workflows/ox-ship-world.yml"
+      - "!**/*.md"
   push:
     branches:
       - main
     paths:
       - "game/**"
       - ".github/workflows/ox-ship-world.yml"
+      - "!**/*.md"
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read

@@ -9,6 +9,9 @@ on:
       - "INSTALL.md"
       - "ARCHITECTURE.md"
       - "AGENTS.md"
+      - ".agents/**"
+      - ".github/ci/**"
+      - ".github/workflows/ox-*.yml"
       - "contracts/**"
       - "design/**"
       - "scenarios/**"
@@ -20,9 +23,13 @@ on:
     branches: [main]
     paths:
       - "README.md"
+      - "CONTRIBUTING.md"
       - "INSTALL.md"
       - "ARCHITECTURE.md"
       - "AGENTS.md"
+      - ".agents/**"
+      - ".github/ci/**"
+      - ".github/workflows/ox-*.yml"
       - "contracts/**"
       - "design/**"
       - "scenarios/**"
@@ -31,6 +38,10 @@ on:
       - "services/interface/README.md"
       - ".github/workflows/ox-documentation.yml"
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -46,6 +57,8 @@ jobs:
           python-version: "3.12"
       - name: Check inherited agent-guidance index
         run: python .agents/tools/clean_rot.py
+      - name: Guard workflow path filters and redundant-run policy
+        run: python .github/ci/check_ox_ci_scope.py
       - name: Validate local links in Ox-specific Markdown
         run: |
           python - <<'PY'

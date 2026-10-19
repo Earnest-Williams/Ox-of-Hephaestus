@@ -7,7 +7,12 @@ on:
       - "game/commands/**"
       - "services/ai-handler/src/ox_ai/agents/crew_blueprints.py"
       - ".github/workflows/ox-g4b-world-characters.yml"
+      - "!**/*.md"
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read

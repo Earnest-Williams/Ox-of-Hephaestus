@@ -6,6 +6,7 @@ on:
       - "services/ai-handler/**"
       - "services/interface/**"
       - ".github/workflows/ox-scaffold.yml"
+      - "!**/*.md"
   push:
     branches:
       - main
@@ -13,7 +14,12 @@ on:
       - "services/ai-handler/**"
       - "services/interface/**"
       - ".github/workflows/ox-scaffold.yml"
+      - "!**/*.md"
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
