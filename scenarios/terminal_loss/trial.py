@@ -485,7 +485,7 @@ def self_test() -> None:
 
     # Sensor urgency, not scripted turn count, changes a second GOAP action.
     technician = GoalPlannerControl()
-    technician.notice("teo", {"verb": "survey", "status": "succeeded"})
+    technician.notice("teo", room.work("teo", "2" * 32, "survey"))
     initial = room.snapshot("teo")
     safe = dict(initial, oxygen_kpa=16.0, co2_percent=1.3)
     dangerous = dict(initial, oxygen_kpa=12.5, co2_percent=3.5)
