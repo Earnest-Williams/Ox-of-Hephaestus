@@ -68,11 +68,15 @@ jobs:
       - name: Begin a real, separately authenticated lesson
         run: |
           (cd game && evennia --settings settings_concept_learning_ci.py start)
+          # First boot performs an internal initial-setup reload after accepting sockets.
+          # Match the existing live-crew gates before authenticating test characters.
+          sleep 4
           python -m ox_ai.scenarios.g4g_concept_learning begin
       - name: Restart the world before assessment
         run: |
           (cd game && evennia --settings settings_concept_learning_ci.py stop)
           (cd game && evennia --settings settings_concept_learning_ci.py start)
+          sleep 4
           python -m ox_ai.scenarios.g4g_concept_learning finish
       - name: Reconnect without an assessment ACK and reconcile the original ID
         run: python -m ox_ai.scenarios.g4g_concept_learning recover
@@ -85,3 +89,19 @@ jobs:
         if: always()
         working-directory: game
         run: evennia --settings settings_concept_learning_ci.py stop || true
+      - name: Diagnose a failed synthetic client run
+        if: failure()
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          for name in ("server.log", "portal.log"):
+              path = Path("game/server/logs") / name
+              if path.exists():
+                  content = "\n".join(path.read_text(errors="replace").splitlines()[-100:])
+                  for key in ("OX_PROBE_PASSWORD", "EVENNIA_SUPERUSER_PASSWORD"):
+                      secret = os.environ.get(key)
+                      if secret:
+                          content = content.replace(secret, "[REDACTED]")
+                  print(name, content, sep="\n")
+          PY
