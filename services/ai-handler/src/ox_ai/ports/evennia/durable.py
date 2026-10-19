@@ -122,6 +122,18 @@ class DurableEvenniaPort:
                 "captain_answer",
                 "captain_review",
                 "captain_escalate",
+                "terminal_survey",
+                "terminal_reroute",
+                "terminal_patch",
+                "terminal_replace",
+                "terminal_search",
+                "terminal_route",
+                "terminal_command",
+                "terminal_reserve",
+                "terminal_broadcast",
+                "terminal_archive",
+                "terminal_comfort",
+                "terminal_assess",
             ):
                 raise ValueError("Unsupported shipboard operation")
             operation = request.verb
