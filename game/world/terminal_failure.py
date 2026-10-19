@@ -19,6 +19,7 @@ from evennia.objects.models import ObjectDB
 from world.bootstrap import build_ship, find_fixture
 from world.event_journal import emit
 from world.models import CrewEvent, WorkReceipt
+from world.supply import total_local_spares
 
 ROLES = {
     "lin": ("officer", "bridge_officer", "bridge"),
@@ -29,7 +30,7 @@ ROLES = {
     "captain": ("captain", "captain", "bridge"),
 }
 ACTIONS = frozenset((
-    "terminal_survey", "terminal_reroute", "terminal_patch",
+    "terminal_survey", "terminal_crosscheck", "terminal_reroute", "terminal_patch",
     "terminal_replace", "terminal_search", "terminal_route",
     "terminal_command", "terminal_reserve", "terminal_broadcast",
     "terminal_archive", "terminal_comfort", "terminal_assess",
@@ -158,7 +159,7 @@ def arm_terminal(*, seed: int, step_minutes: int = 4) -> str:
     pump.db.ox_terminal_incident = {
         "kind": "ox_terminal_g6", "id": identity, "seed": seed,
         "cause": PRIVATE_CAUSE, "minute": 0, "step_minutes": step_minutes,
-        "reserve_left": 2, "reserve_bonus": 0.0, "cartridges": 1,
+        "reserve_left": 2, "reserve_bonus": 0.0,
         "findings": {}, "assessments": [], "work": [], "fatal": False,
         "critical_announced": False, "terminal_at_minute": None,
     }
@@ -227,8 +228,39 @@ def observe_terminal(actor) -> dict:
         "oxygen_kpa": oxygen, "co2_percent": round(_co2(case), 2),
         "status": "dead" if actor.db.ox_terminal_dead else "alive",
         "own_finding": case["findings"].get(actor.dbref, ""),
+        "nearby_living": [
+            {"role": peer_role, "character_dbref": ship[key].dbref}
+            for peer_role, (key, _, _) in ROLES.items()
+            if ship[key] != actor and ship[key].location == actor.location
+            and not ship[key].db.ox_terminal_dead
+        ],
+        "local_cartridge_spares": (
+            total_local_spares(ship["scrubber"])
+            if actor.location == ship["environmental"] else None
+        ),
         "description": "Atmospheric pressure decreasing; cause not verified.",
     }
+
+
+def _append_finding(case, actor, observation: str) -> None:
+    """Preserve distinct firsthand observations without inventing conclusions."""
+    findings = dict(case["findings"])
+    old = str(findings.get(actor.dbref, ""))
+    parts = old.split(" | ") if old else []
+    if observation not in parts:
+        parts.append(observation)
+    findings[actor.dbref] = " | ".join(parts)
+    case["findings"] = findings
+
+
+def _newest_addressed_evidence(actor) -> int:
+    return int(
+        CrewEvent.objects.filter(
+            recipient_dbref=actor.dbref,
+            kind__in=("terminal_alarm", "terminal_report",
+                      "terminal_critical", "terminal_assistance"),
+        ).order_by("-sequence").values_list("sequence", flat=True).first() or 0
+    )
 
 
 def _seen_work(case, actor, verb, succeeded, message):
@@ -265,8 +297,20 @@ def terminal_work(actor, verb: str) -> tuple[bool, str]:
         return False, "Character is not at the authorized physical workstation"
     status = True
     if verb == "terminal_survey":
-        case["findings"][actor.dbref] = FINDINGS[role]
+        if role == "teo":
+            ship["scrubber"].note_inspection(actor)
+        _append_finding(case, actor, FINDINGS[role])
         message = "Firsthand local survey: " + FINDINGS[role]
+    elif verb == "terminal_crosscheck":
+        if role != "teo":
+            status, message = False, "Qualified environmental technician required."
+        else:
+            message = (
+                "Independent differential-pressure gauge and A-01 telemetry "
+                "both indicate nominal cartridge throughput. Shipwide pressure "
+                "still falls. The readings do not by themselves identify the cause."
+            )
+            _append_finding(case, actor, message)
     elif verb in ROLE_ACTION.values():
         if ROLE_ACTION[role] != verb:
             return False, "Different department's technical authority required"
@@ -275,24 +319,34 @@ def terminal_work(actor, verb: str) -> tuple[bool, str]:
         elif verb == "terminal_reroute":
             status, message = False, "Bypass route rejoins the pressure-loss path; no pressure recovery"
         elif verb == "terminal_replace":
-            scrubber = ship["scrubber"]
-            status, message = False, (
-                "A-01 cartridge is " + scrubber.state.upper()
-                + "; cartridge work does not correct the pressure-loss symptom"
-            )
+            # Technically successful maintenance and successful repair of
+            # the *incident* are different things. The actual A-01 fixture
+            # owns its inventory and authenticates Teo's local inspection.
+            status, message = ship["scrubber"].diagnostic_exchange(actor)
+            if status:
+                _append_finding(case, actor, message)
         elif verb == "terminal_search":
             message = "No sealed independent refuge and no breathing-gas stock found"
-            case["findings"][actor.dbref] = message
+            _append_finding(case, actor, message)
         elif verb == "terminal_route":
             message = "No reachable rescue or diversion found on authenticated bridge plot"
-            case["findings"][actor.dbref] = message
+            _append_finding(case, actor, message)
         else:
-            message = "Captain orders compartment-level emergency follow-up; rescue unconfirmed"
-            for name, (key, _title, _station) in ROLES.items():
-                if name != role:
-                    emit(pump, ship[key], "terminal_order", sender=actor,
-                         data={"case_id": case["id"], "directive": "investigate_and_report"},
-                         text=message)
+            # An unchanged directive with no newly addressed evidence is
+            # not a new accomplishment. New findings or a critical warning
+            # can make another directive legitimate.
+            latest = _newest_addressed_evidence(actor)
+            previous = case.get("last_command_evidence_sequence")
+            if previous is not None and latest <= previous:
+                status, message = False, "No new evidence warrants repeating the directive."
+            else:
+                case["last_command_evidence_sequence"] = latest
+                message = "Captain orders emergency follow-up; rescue unconfirmed"
+                for name, (key, _title, _station) in ROLES.items():
+                    if name != role:
+                        emit(pump, ship[key], "terminal_order", sender=actor,
+                             data={"case_id": case["id"], "directive": "investigate_and_report"},
+                             text=message)
     elif verb == "terminal_reserve":
         if role not in ("teo", "captain") or actor.location != ship["environmental"]:
             return False, "Environmental plant access required to discharge a bottle"
@@ -303,15 +357,20 @@ def terminal_work(actor, verb: str) -> tuple[bool, str]:
             case["reserve_bonus"] += 0.7
             message = "One emergency atmosphere bottle discharged; leak persists"
     elif verb == "terminal_broadcast":
-        finding = case["findings"].get(actor.dbref)
-        message = finding or "No firsthand diagnostic finding yet"
-        for name, (key, _title, _station) in ROLES.items():
-            if name != role:
-                emit(
-                    pump, ship[key], "terminal_report", sender=actor,
-                    data={"case_id": case["id"], "from_role": role},
-                    text=message,
-                )
+        finding = case["findings"].get(actor.dbref, "")
+        sent = dict(case.get("last_broadcast", {}))
+        if not finding:
+            status, message = False, "No firsthand finding to transmit."
+        elif sent.get(actor.dbref) == finding:
+            status, message = False, "No new firsthand evidence to transmit."
+        else:
+            case["last_broadcast"] = {**sent, actor.dbref: finding}
+            message = finding
+            for name, (key, _title, _station) in ROLES.items():
+                if name != role:
+                    emit(pump, ship[key], "terminal_report", sender=actor,
+                         data={"case_id": case["id"], "from_role": role},
+                         text=message)
     elif verb == "terminal_archive":
         message = "A final incident record was entered, with no physical effect"
     elif verb == "terminal_comfort":
@@ -321,11 +380,22 @@ def terminal_work(actor, verb: str) -> tuple[bool, str]:
             and not ship[key].db.ox_terminal_dead
         ]
         status = bool(others)
-        message = ("Another present crewmember received assistance"
-                   if others else "No living colleague was physically present here")
+        if status:
+            message = "Offered immediate assistance to " + others[0].key
+            emit(pump, others[0], "terminal_assistance", sender=actor,
+                 data={"case_id": case["id"]}, text=message)
+        else:
+            message = "No living colleague was physically present here"
     elif verb == "terminal_assess":
-        case["assessments"].append({"actor": actor.dbref, "minute": case["minute"]})
-        message = "Provisional no-recovery assessment filed; still unverified"
+        basis = [str(case["findings"].get(actor.dbref, "")),
+                 _newest_addressed_evidence(actor)]
+        previous = dict(case.get("last_assessment_basis", {}))
+        if previous.get(actor.dbref) == basis:
+            status, message = False, "No new evidence supports revising this assessment."
+        else:
+            case["last_assessment_basis"] = {**previous, actor.dbref: basis}
+            case["assessments"].append({"actor": actor.dbref, "minute": case["minute"]})
+            message = "Provisional no-recovery assessment filed; still unverified"
     else:
         raise AssertionError("Unsupported world operation")
     _seen_work(case, actor, verb, status, message)
@@ -371,6 +441,7 @@ def audit_terminal(path: str) -> dict:
         "world_minute": case["minute"], "fatal": case["fatal"],
         "all_six_dead": all(ship[key].db.ox_terminal_dead for key, _, _ in ROLES.values()),
         "reserve_left": case["reserve_left"],
+        "cartridges_at_a01": total_local_spares(ship["scrubber"]),
         # Evennia wraps persisted lists and their entries in SaverList and
         # SaverDict; convert after the server stops before JSON serialization.
         "actual_physical_work": [dict(work) for work in case["work"]],
