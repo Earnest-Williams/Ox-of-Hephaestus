@@ -87,6 +87,10 @@ def answer_hail(actor, hail_id: str, mode: str) -> tuple[bool, str]:
     entry = ledger.get(hail_id)
     if entry is None or entry["recipient"] != actor.dbref:
         return False, "No hail addressed to this crewmember."
+    # Evennia Attribute values may be mutable SaverDict objects. The outer
+    # dict() above is only a shallow copy; changing entry in place can write
+    # through to the original Attribute before all journal emits commit.
+    entry = dict(entry)
     if entry["state"] == "answered":
         return True, f"OX_HAIL_ANSWERED {hail_id}"
     if mode == "status":
