@@ -8,7 +8,7 @@ from evennia.utils.test_resources import EvenniaTestCase
 
 from world.bootstrap import build_ship
 from world.character_profiles import profile_for_actor
-from world.models import CrewEvent, WorkReceipt, CharacterSkill
+from world.models import CrewEvent, WorkReceipt, CharacterSkill, CharacterKnowledge, CharacterTechnique
 from world.task_resolution import TASKS, WEIGHTS, compare_shadow, evaluate_shadow
 from world.task_shadow import evaluate_world_shadow
 
@@ -118,18 +118,23 @@ class ShadowWorldReadOnlyTests(EvenniaTestCase):
         event_count = CrewEvent.objects.count()
         receipt_count = WorkReceipt.objects.count()
         skill_count = CharacterSkill.objects.count()
+        knowledge_count = CharacterKnowledge.objects.count()
+        technique_count = CharacterTechnique.objects.count()
         state = self.ship["pump"].state
         before = evaluate_world_shadow(actor, "pump.routine_service")
         again = evaluate_world_shadow(actor, "pump.routine_service")
         self.assertEqual(before, again)
         self.assertEqual(before.person_id, "crew.ari-sen")
         self.assertEqual(before.evaluation.primary_skill, 60)
-        self.assertEqual(before.knowledge_source, "provisional_same_foundation_skill_proxy")
-        self.assertEqual(before.familiarity_source, "not_yet_world_modelled")
-        self.assertEqual(before.evaluation.familiarity, 0)
+        self.assertEqual(before.knowledge_source, "g4e_initial_estimate")
+        self.assertEqual(before.familiarity_source, "g4e_initial_estimate")
+        self.assertEqual(before.evaluation.conceptual_knowledge, 55)
+        self.assertEqual(before.evaluation.familiarity, 60)
         self.assertEqual(CrewEvent.objects.count(), event_count)
         self.assertEqual(WorkReceipt.objects.count(), receipt_count)
         self.assertEqual(CharacterSkill.objects.count(), skill_count)
+        self.assertEqual(CharacterKnowledge.objects.count(), knowledge_count)
+        self.assertEqual(CharacterTechnique.objects.count(), technique_count)
         self.assertEqual(self.ship["pump"].state, state)
 
     def test_shadow_uses_actual_person_skills_not_role_and_is_sensitive_to_aptitudes(self):
