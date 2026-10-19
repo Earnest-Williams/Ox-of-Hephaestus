@@ -41,7 +41,8 @@ def seed_existing_crew(marker: str, actor) -> CharacterProfile:
     aptitudes, psychology = neutral_profile()
     validate_profile(aptitudes, psychology)
     raw = actor.db.ox_skills
-    estimates = initial_skill_estimates(raw or {})
+    # Evennia's persisted db dictionaries are SaverDict proxies, not plain dicts.
+    estimates = initial_skill_estimates(dict(raw or {}))
 
     profile, _created = CharacterProfile.objects.select_for_update().get_or_create(
         person_id=person_id,
