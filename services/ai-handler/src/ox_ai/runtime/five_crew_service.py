@@ -575,7 +575,7 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
             return False
         stations = {
             "lin": ("Bridge", "operations", "FREIGHTER OPERATIONS TELEMETRY"),
-            "ari": ("Engineering", "pump", "COOLING"),
+            "ari": ("Engineering", "pump", "Cooling Pump P-01"),
             "iona": ("Engineering", "pump", "COOLING"),
             "mara": ("Cargo Hold", "cargo", "CARGO RESTRAINT GRID C-01"),
             "teo": ("Environmental Plant", "scrubber", "ATMOSPHERE SCRUBBER A-01"),
