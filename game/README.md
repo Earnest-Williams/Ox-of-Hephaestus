@@ -455,3 +455,17 @@ require the actual local sample and appropriate evidence/role.
 These are testimony and tentative hypotheses, never physical repairs
 or oracle lookups. Existing emergency and safety procedures take priority.
 [Detailed contract](../design/prototypes/g3e-contradictory-evidence.md).
+
+
+## G3e-3: independent known-unknown investigation
+
+Existing Ari, Iona, Mara and Teo may initiate `anomaly_question` as a
+world-receipted `oxwork` with a legitimate firsthand original case report
+and their own local station access. The handler can then use `oxprobe`
+and `anomaly_probe_report` without requiring `anomaly_challenge` or
+a previous Lin theory. One question/sample per specialist per open case;
+instrument readings, private opinions and bridge reassessments never
+reveal or modify the world-secret cause. The original G3e-2 protocol is
+still available for comparison.
+
+[Verification, operation flags and trial evidence](../design/prototypes/g3e-independent-questions.md).
