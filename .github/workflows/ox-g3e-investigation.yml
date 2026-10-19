@@ -58,6 +58,10 @@ jobs:
           echo "EVENNIA_SUPERUSER_PASSWORD=$OWNER" >> "$GITHUB_ENV"
           echo "EVENNIA_SUPERUSER_USERNAME=OxCaseOwner" >> "$GITHUB_ENV"
           echo "EVENNIA_SUPERUSER_EMAIL=caseowner@example.invalid" >> "$GITHUB_ENV"
+      - name: Seed nonprivileged crew and world-owned case after environment is exported
+        shell: bash
+        run: |
+          set -euo pipefail
           cd game
           evennia migrate --noinput
           evennia shell --command="from world.transport_probe import provision; from world.investigation import arm_anomaly; ids=provision(include_specialists=True); cid=arm_anomaly(cause='scrubber_bypass', seed=7); print('OX_G3E_HIDDEN_CASE_ARMED')"
