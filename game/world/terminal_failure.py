@@ -74,9 +74,16 @@ def _who(actor, ship=None) -> str | None:
 
 def _state(pump):
     value = pump.db.ox_terminal_incident
-    if not isinstance(value, dict) or value.get("kind") != "ox_terminal_g6":
+    if value is None:
         return None
-    return dict(value)
+    # Evennia decorates persisted dictionaries with its saver mapping type;
+    # object Attributes are authoritative even when not literal dicts.
+    if not hasattr(value, "items"):
+        raise RuntimeError("Malformed persisted terminal incident")
+    case = dict(value)
+    if case.get("kind") != "ox_terminal_g6":
+        raise RuntimeError("Unrecognised persisted terminal incident schema")
+    return case
 
 
 def _pressure(case):
