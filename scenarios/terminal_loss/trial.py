@@ -71,23 +71,32 @@ class TerminalWorld:
     def carbon_dioxide(self) -> float:
         return 1.1 + 0.019 * self.minute
 
-    def snapshot(self, role: str) -> str:
-        """Only observations this actual crew member could legitimately have."""
+    def snapshot(self, role: str) -> dict:
+        """One recipient-scoped reading, shared verbatim with both controllers.
+
+        GOAP gets typed fields matching the visible Concordia text. Neither
+        sees latent cause, world oxygen, other minds, or unreported findings.
+        """
         if role not in ROLES:
             raise PermissionError("Unknown crew identity")
-        randomizer = random.Random(self.seed * 100003 + self.minute * 37 + ROLES.index(role))
-        indicated = round(self.oxygen() + randomizer.uniform(-0.35, 0.35), 2)
+        rng = random.Random(self.seed * 100003 + self.minute * 37 + ROLES.index(role))
+        indicated = round(self.oxygen() + rng.uniform(-0.35, 0.35), 2)
+        co2 = round(self.carbon_dioxide(), 2)
         incoming = list(self.inboxes[role])
-        own = list(self.inspections[role])
-        return (
+        firsthand = list(self.inspections[role])
+        text = (
             f"You are {NAMES[role]} at {STATIONS[role]}. "
             f"Shipwide low-pressure warning. Local oxygen sensor {indicated} kPa; "
-            f"local CO2 sensor {self.carbon_dioxide():.2f} percent; readings worsening. "
+            f"local CO2 sensor {co2:.2f} percent; readings worsening. "
             "The available systems are those installed on this ship; there is no known rescue plan. "
-            f"Your own firsthand findings: {own if own else ['not yet inspected']}. "
+            f"Your own firsthand findings and work results: {firsthand if firsthand else ['not yet inspected']}. "
             f"Actual addressed communications: {incoming if incoming else ['none']}. "
             "Actions are attempts; success or failure is determined by physical world conditions."
         )
+        return {
+            "text": text, "oxygen_kpa": indicated, "co2_percent": co2,
+            "own_findings": firsthand, "messages": incoming,
+        }
 
     @staticmethod
     def options(role: str) -> list[CommandOption]:
@@ -158,7 +167,8 @@ class TerminalWorld:
                 self.backup_bonus += 0.7
                 reason = "One bottle discharged into shared atmosphere; reserves decreased; ongoing leak unaffected"
         elif verb == "broadcast":
-            report = self.inspections[role][-1] if self.inspections[role] else "I have no first-hand diagnosis yet"
+            reportable = [item for item in self.inspections[role] if not item.startswith("Attempt ")]
+            report = reportable[-1] if reportable else "I have no first-hand diagnosis yet"
             for other in ROLES:
                 if other != role:
                     self.inboxes[other].append(f"{NAMES[role]}: {report}")
@@ -220,51 +230,129 @@ class TerminalWorld:
 
 
 class GoalPlannerControl:
-    """Finite GOAP policy, operating on personal outcome history, never truth."""
+    """GOAP planning over each actor's *received* evidence and verified work.
+
+    The symbolic belief rules deliberately do not read TerminalWorld.oxygen(),
+    CAUSE, other actors' inspections, or operator-only receipts. Firsthand
+    conclusions and attributed but unverified reports remain different facts.
+    """
 
     def __init__(self):
-        self.facts: dict[str, set[str]] = {r: {"alarm"} for r in ROLES}
+        self.facts: dict[str, set[str]] = {role: {"alarm"} for role in ROLES}
 
-    def choose(self, role: str, options: list[CommandOption]) -> CommandOption:
+    def observe(self, role: str, view: dict) -> None:
+        facts = self.facts[role]
+        indicated = view["oxygen_kpa"]
+        if indicated < 13.7 or view["co2_percent"] >= 3.2:
+            facts.add("perceived_air_critical")
+        if indicated < 11.5 or view["co2_percent"] >= 4.3:
+            facts.add("perceived_air_severe")
+        local = " ".join(view["own_findings"]).lower()
+        # The literal phrases come from *personally observed* equipment
+        # reports, not the operator's hidden failure identity.
+        if role == "ari" and "alternate return circuit rejoins" in local:
+            facts.add("personal_workaround_ruled_out")
+        elif role == "iona" and "long fracture behind an inaccessible" in local:
+            facts.add("personal_workaround_ruled_out")
+        elif role == "teo" and "cartridge medium is serviceable" in local:
+            facts.add("personal_workaround_ruled_out")
+        elif role == "lin" and "no nearby port appears" in local:
+            facts.add("personal_workaround_ruled_out")
+        elif role == "mara" and "no usable independent pressure enclosure" in local:
+            facts.add("personal_workaround_ruled_out")
+        # Captain still needs to command the response even with no rescue.
+        reports = " ".join(view["messages"]).lower()
+        if "iona vek: " in reports and "long fracture" in reports:
+            facts.add("crew_reports_irreparable_fracture")
+        if "teo hale: " in reports and "cartridge medium is serviceable" in reports:
+            facts.add("crew_reports_scrubber_not_cause")
+
+    def choose(self, role: str, options: list[CommandOption], view: dict) -> tuple[CommandOption, dict]:
+        self.observe(role, view)
         facts = self.facts[role]
         primary = PRIMARY[role][0]
         actions = [
             GoapAction("survey", requires=frozenset({"alarm"}),
                        adds=frozenset({"surveyed"}), verb="survey", cost=1),
-            GoapAction(primary, requires=frozenset({"surveyed"}),
-                       adds=frozenset({"primary_attempted"}), verb=primary, cost=2),
             GoapAction("broadcast", requires=frozenset({"surveyed"}),
                        adds=frozenset({"crew_informed"}), verb="broadcast", cost=2),
+            GoapAction("assessment", requires=frozenset({"surveyed"}),
+                       adds=frozenset({"assessed"}), verb="declare_terminal", cost=2),
             GoapAction("comfort", requires=frozenset({"surveyed"}),
                        adds=frozenset({"assisted"}), verb="comfort", cost=3),
+            GoapAction("archive", requires=frozenset({"surveyed"}),
+                       adds=frozenset({"archived"}), verb="archive", cost=3),
         ]
+        if not ("personal_workaround_ruled_out" in facts and role != "captain"):
+            actions.append(GoapAction(
+                "primary", requires=frozenset({"surveyed"}),
+                adds=frozenset({"primary_attempted"}), verb=primary, cost=2,
+            ))
         if role in ("teo", "captain"):
             actions.append(GoapAction(
-                "use_reserve", requires=frozenset({"surveyed"}),
-                adds=frozenset({"temporary_supply"}), verb="use_reserve", cost=3,
+                "reserve", requires=frozenset({"surveyed"}),
+                adds=frozenset({"reserve_attempted"}), verb="use_reserve", cost=2,
             ))
-        goal = ("surveyed" if "surveyed" not in facts
-                else "primary_attempted" if "primary_attempted" not in facts
-                else "temporary_supply" if role in ("teo", "captain") and "temporary_supply" not in facts
-                else "crew_informed" if "crew_informed" not in facts
-                else "assisted")
-        step = GoapPlanner(actions).plan(facts, {goal}).actions[0]
-        return next(x for x in options if x.verb == step.verb)
+
+        if "surveyed" not in facts:
+            goal = "surveyed"
+        elif (role in ("teo", "captain") and "perceived_air_critical" in facts
+              and "reserve_attempted" not in facts):
+            goal = "reserve_attempted"
+        elif role == "captain" and "primary_attempted" not in facts:
+            goal = "primary_attempted"
+        elif "personal_workaround_ruled_out" in facts and "crew_informed" not in facts:
+            goal = "crew_informed"
+        elif ("crew_reports_irreparable_fracture" in facts
+              and "assessed" not in facts):
+            goal = "assessed"
+        elif ("personal_workaround_ruled_out" in facts
+              and "assessed" not in facts):
+            goal = "assessed"
+        elif ("primary_attempted" not in facts
+              and "personal_workaround_ruled_out" not in facts):
+            goal = "primary_attempted"
+        elif "crew_informed" not in facts:
+            goal = "crew_informed"
+        elif "perceived_air_severe" in facts and "assisted" not in facts:
+            goal = "assisted"
+        elif "archived" not in facts:
+            goal = "archived"
+        else:
+            goal = "assisted"
+
+        plan = GoapPlanner(actions).plan(facts, {goal})
+        step = plan.actions[0]
+        selected = next(x for x in options if x.verb == step.verb)
+        return selected, {
+            "goal": goal, "belief_facts": sorted(facts),
+            "planned_verb": step.verb,
+            "reason_source": "symbolic_planning_from_personal_observations",
+        }
 
     def notice(self, role: str, receipt: dict) -> None:
         progress = {
             "survey": "surveyed", PRIMARY[role][0]: "primary_attempted",
-            "broadcast": "crew_informed", "use_reserve": "temporary_supply",
-            "comfort": "assisted",
+            "broadcast": "crew_informed", "use_reserve": "reserve_attempted",
+            "comfort": "assisted", "archive": "archived",
+            "declare_terminal": "assessed",
         }
-        # A failed physical operation is an ATTEMPT, never presumed recovery.
         fact = progress.get(receipt["verb"])
         if fact:
+            # A world-refused physical operation is an attempt, not a repair.
             self.facts[role].add(fact)
+        if receipt["status"] == "failed":
+            self.facts[role].add("last_world_action_failed")
 
 
 def run(seed: int, provider: str) -> dict:
-    """Three opportunity rounds, then fatal world progression without decisions."""
+    """Individually scheduled bounded choices, then unavoidable world fatality.
+
+    Exactly the same initial physics, noisy-sensor seed and per-actor wake
+    schedule are used for the GOAP/Gemini pair. Only *actual* communications
+    can accelerate another person's next wake, with a minimum refractory
+    interval. This is a discrete-event trial, not a full concurrent server.
+    """
     if provider not in ("goap", "gemini"):
         raise ValueError("Choose goap or gemini; never auto-fallback")
     world = TerminalWorld(seed=seed)
@@ -273,63 +361,87 @@ def run(seed: int, provider: str) -> dict:
     if provider == "gemini":
         from ox_ai.agents.live_concordia import LiveCrewBrain, make_model
         from ox_ai.ports.base import ActionOutcome, WorldObservation
-        # Each separately instantiated Concordia mind receives only local and
-        # actually addressed observations, with immutable character bindings.
         for index, role in enumerate(ROLES):
             brains[role] = LiveCrewBrain(role, f"#{100 + index}", make_model("gemini"))
 
-    decisions = 0
-    for window in range(3):
-        for role in ROLES:
-            if not world.alive[role]:
-                break
-            observed = world.snapshot(role)
-            options = world.options(role)
-            if provider == "goap":
-                selected = planner.choose(role, options)
-                request_id = hashlib.sha256(
-                    f"{seed}:{window}:{role}".encode("utf-8")
-                ).hexdigest()[:32]
-            else:
-                brain = brains[role]
-                brain.agent.observe(WorldObservation(
-                    observation_id=f"fatal-{seed}-{window}-{role}",
-                    character_id=brain.character_id,
-                    game_time=float(world.minute * 60),
-                    text=observed, kind="personal_world_sensors",
-                ))
-                proposal = brain.agent.decide(
-                    options, expected_revision=brain.agent.revision,
-                )
-                selected = next(x for x in options if x.verb == proposal.verb)
-                request_id = proposal.request_id
-            receipt = world.work(role, request_id, selected.verb)
-            if planner is not None:
-                planner.notice(role, receipt)
-            else:
-                brains[role].agent.record_outcome(ActionOutcome(
-                    request_id, receipt["status"], receipt["reason"],
-                    source_event_id=request_id,
-                ))
-            decisions += 1
-            world.advance(7)
-        if world.death_minute is not None:
+    rng = random.Random(seed)
+    next_wake = {role: rng.randrange(0, 13) for role in ROLES}
+    last_wake = {role: -100 for role in ROLES}
+    turns = {role: 0 for role in ROLES}
+    history = []
+    for _ in range(3 * len(ROLES)):
+        candidates = [(next_wake[role], role) for role in ROLES if turns[role] < 3]
+        if not candidates:
             break
-        world.advance(12)
+        at, role = min(candidates)
+        if at > world.minute:
+            world.advance(at - world.minute)
+        if not world.alive[role]:
+            break
+        view = world.snapshot(role)
+        options = world.options(role)
+        if provider == "goap":
+            selected, reasoning = planner.choose(role, options, view)
+            request_id = hashlib.sha256(
+                f"{seed}:{turns[role]}:{role}".encode("utf-8")
+            ).hexdigest()[:32]
+        else:
+            brain = brains[role]
+            brain.agent.observe(WorldObservation(
+                observation_id=f"fatal-{seed}-{turns[role]}-{role}",
+                character_id=brain.character_id,
+                game_time=float(world.minute * 60),
+                text=view["text"], kind="personal_world_sensors",
+            ))
+            proposal = brain.agent.decide(
+                options, expected_revision=brain.agent.revision,
+            )
+            selected = next(x for x in options if x.verb == proposal.verb)
+            request_id = proposal.request_id
+            reasoning = {"reason_source": "bounded_concordia_model_choice"}
+        receipt = world.work(role, request_id, selected.verb)
+        if planner is not None:
+            planner.notice(role, receipt)
+        else:
+            brains[role].agent.record_outcome(ActionOutcome(
+                request_id, receipt["status"], receipt["reason"],
+                source_event_id=request_id,
+            ))
+        history.append({
+            "minute": world.minute, "role": role, "turn": turns[role] + 1,
+            "observed_oxygen_kpa": view["oxygen_kpa"],
+            "observed_co2_percent": view["co2_percent"],
+            "private_findings": list(view["own_findings"]),
+            "addressed_reports": list(view["messages"]),
+            "chosen_verb": selected.verb, "goal_and_basis": reasoning,
+            "receipt_status": receipt["status"],
+        })
+        last_wake[role] = world.minute
+        turns[role] += 1
+        next_wake[role] = world.minute + rng.randrange(34, 53)
+        if selected.verb in ("broadcast", "command"):
+            for peer in ROLES:
+                if peer != role and turns[peer] < 3:
+                    # On delivery, an already-addressed recipient may wake
+                    # earlier to process the news, but not in a tight loop.
+                    next_wake[peer] = min(
+                        next_wake[peer],
+                        max(world.minute + 4, last_wake[peer] + 23),
+                    )
 
-    # Terminal physics remains authoritative even when the crew defer.
     while world.death_minute is None:
         world.advance(3)
         if world.minute > 1000:
             raise AssertionError("Irreparable incident did not terminate")
     audit = world.operator_audit(provider)
-    audit["decisions"] = decisions
+    audit["decisions"] = len(history)
+    audit["decision_trace"] = history
     audit["inference_calls"] = sum(b.inference_calls for b in brains.values())
     if not audit["world_state"]["all_six_dead"]:
         raise AssertionError("Terminal physics must govern every controller")
     if provider == "goap" and audit["inference_calls"]:
         raise AssertionError("The non-generative control must make zero model calls")
-    if provider == "gemini" and audit["inference_calls"] != decisions:
+    if provider == "gemini" and audit["inference_calls"] != len(history):
         raise AssertionError("Every Gemini decision must use its own actual model call")
     return audit
 
