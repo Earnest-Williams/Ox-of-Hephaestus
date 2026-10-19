@@ -156,7 +156,9 @@ class AdaptiveGoap:
                 candidates.append((score, name, action))
 
         # GOAP plans across locations rather than teleporting the crew.
-        if stage >= 1 and self.role in ("teo", "captain") and not previously["terminal_reserve"]:
+        if (stage >= 1 and self.role in ("teo", "captain")
+                and not previously["terminal_reserve"]
+                and not previously["failed:terminal_reserve"]):
             if location == "Environmental Plant":
                 goal(180 + stage * 5, "buy_breathing_time", "terminal_reserve")
             else:
