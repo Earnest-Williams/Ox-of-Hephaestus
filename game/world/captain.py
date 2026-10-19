@@ -14,9 +14,18 @@ from evennia.utils import gametime
 
 from world.bootstrap import build_ship, find_fixture
 from world.event_journal import emit
+from world.character_profiles import skill_for_actor
 from world.models import CaptainObligation, CrewEvent, InvestigationCase
 
 REVIEW_INTERVAL = 1800.0  # game seconds, driven by the existing world clock
+CAPTAIN_INSPECTION_SKILL = "investigation.instrument_analysis"
+CAPTAIN_INSPECTION_MINIMUM = 40  # historical >=2/4 policy, now canonical 0-100
+
+
+def _can_inspect_bridge_instruments(actor) -> bool:
+    """A learned world-owned skill, not rank or model-reported ability."""
+    return skill_for_actor(actor, CAPTAIN_INSPECTION_SKILL) >= CAPTAIN_INSPECTION_MINIMUM
+
 CREW_ROLES = ("ari", "iona", "mara", "teo")
 QUALIFIED = {
     "analyzer_anomaly": CREW_ROLES,
@@ -62,9 +71,9 @@ def open_obligation(kind: str, source_ref: str, *, priority: int,
             data={
                 "ticket_id": identity, "kind": kind,
                 "priority": priority, "status": "open",
-                "can_personally_inspect": int(
-                    (ship["captain"].db.ox_skills or {}).get("diagnostics", 0)
-                ) >= 2,
+                "can_personally_inspect": _can_inspect_bridge_instruments(
+                    ship["captain"]
+                ),
             },
             text="Unresolved ship problem: maintain accountable follow-up.",
         )
@@ -327,7 +336,7 @@ def captain_qualified_observation(actor, ticket_id: str) -> dict | None:
     ship = build_ship()
     if not _captain(actor, ship) or actor.location != ship["bridge"]:
         return None
-    if int((actor.db.ox_skills or {}).get("diagnostics", 0)) < 2:
+    if not _can_inspect_bridge_instruments(actor):
         return None
     item = CaptainObligation.objects.filter(
         ticket_id=ticket_id, status="open",

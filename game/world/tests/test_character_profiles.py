@@ -12,6 +12,7 @@ from world.character_profiles import (
     FIXTURE_PERSON_IDS, profile_for_actor, seed_existing_crew, skill_for_actor,
 )
 from world.models import CharacterProfile, CharacterSkill
+from world.crew_initial_skills import PERSON_STARTING_SKILLS, starting_skills_for_person
 from world.skill_catalogue import (
     DISCIPLINES, FOUNDATIONS, LEGACY_COMPETENCY_SKILLS, SKILLS,
     initial_skill_estimates, legacy_proficiency,
@@ -66,7 +67,12 @@ class CharacterFoundationWorldTests(EvenniaTestCase):
         self.assertEqual(skill_for_actor(self.ship["chief"], "mechanical.pump_service"), 80)
         self.assertEqual(skill_for_actor(self.ship["cargo"], "freight.cargo_rigging"), 80)
         self.assertEqual(skill_for_actor(self.ship["environment"], "environmental.atmosphere_maintenance"), 80)
-        self.assertEqual(self.ship["captain"].db.ox_skills["diagnostics"], 1)
+        self.assertFalse(self.ship["captain"].attributes.has("ox_skills"))
+        self.assertEqual(
+            starting_skills_for_person("crew.captain-initial")[
+                "investigation.instrument_analysis"
+            ], 20,
+        )
         with self.assertRaises(ValueError):
             skill_for_actor(self.ship["captain"], "fake.unrecognised")
         with self.assertRaises(ValueError):
@@ -120,6 +126,49 @@ class CharacterFoundationWorldTests(EvenniaTestCase):
         self.assertEqual(skill_for_actor(watch, "mechanical.pump_service"), before)
         self.assertNotEqual(profile_for_actor(watch).person_id,
                             profile_for_actor(chief).person_id)
+
+    def test_canonical_initial_values_are_per_person_not_job_title(self):
+        self.assertEqual(len(PERSON_STARTING_SKILLS), 6)
+        captain = self.ship["captain"]
+        self.assertEqual(skill_for_actor(captain, "command.ship_coordination"), 80)
+        self.assertEqual(skill_for_actor(captain, "investigation.instrument_analysis"), 20)
+        copy = starting_skills_for_person("crew.captain-initial")
+        copy["investigation.instrument_analysis"] = 99
+        self.assertEqual(
+            starting_skills_for_person("crew.captain-initial")[
+                "investigation.instrument_analysis"
+            ], 20,
+        )
+        with self.assertRaises(ValueError):
+            starting_skills_for_person("crew.unknown")
+        captain.db.crew_role = "watch_engineer"
+        self.assertEqual(skill_for_actor(captain, "command.ship_coordination"), 80)
+        build_ship()
+        self.assertEqual(skill_for_actor(captain, "command.ship_coordination"), 80)
+        self.assertFalse(captain.attributes.has("ox_skills"))
+
+    def test_legacy_world_vector_is_converted_and_destroyed_once(self):
+        captain = self.ship["captain"]
+        original = profile_for_actor(captain)
+        CharacterSkill.objects.filter(person=original).delete()
+        original.delete()
+        # A pre-upgrade world may have actual personalised coarse estimates.
+        captain.db.ox_skills = {"diagnostics": 3, "command": 2}
+        seeded = seed_existing_crew("crew-captain", captain)
+        self.assertEqual(seeded.person_id, "crew.captain-initial")
+        self.assertEqual(
+            skill_for_actor(captain, "investigation.instrument_analysis"), 60,
+        )
+        self.assertEqual(skill_for_actor(captain, "command.ship_coordination"), 40)
+        self.assertFalse(captain.attributes.has("ox_skills"))
+        CharacterSkill.objects.filter(
+            person=seeded, skill_id="investigation.instrument_analysis",
+        ).update(proficiency=72)
+        seed_existing_crew("crew-captain", captain)
+        self.assertEqual(
+            skill_for_actor(captain, "investigation.instrument_analysis"), 72,
+        )
+        self.assertFalse(captain.attributes.has("ox_skills"))
 
     def test_world_db_range_and_person_identity_constraints(self):
         skill = CharacterSkill.objects.get(
