@@ -492,7 +492,7 @@ does not expand the scope of the demonstrated mechanics.
 
 The G3e-1 case is one world-owned hidden anomaly whose underlying cause
 exists independently of crew knowledge; five native Concordia characters
-observe separate local fallible readings. G3e-2 (under CI validation) adds
+observe separate local fallible readings. G3e-2 (verified and merged in PR #48) adds
 independent specialist challenges, one world-drawn station test per actor,
 source-event-backed reported measurements, private post-test positions,
 and an optional Lin reassessment. World records are kept separately from

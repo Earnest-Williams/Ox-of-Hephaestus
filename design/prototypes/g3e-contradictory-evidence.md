@@ -1,6 +1,6 @@
 # G3e-2: independent challenges, contradictory experiments, and revision
 
-**Opt-in extension of G3e-1; experimental until final-head CI passes.**
+**Verified, opt-in extension of G3e-1 (PR #48, 46/46 final-head checks).**
 Five existing Concordia characters, existing seven compartments, existing
 world-sourced work receipts, no new personalities, skill vectors, or fixtures.
 
@@ -87,8 +87,8 @@ provenance, local travel gating, irreversible refused IDs, wrong hypotheses
 and rollback of failed second/third journal events.
 `.github/workflows/ox-g3e-investigation.yml` does the G3e-1 and G3e-2
 world tests plus a true five-WebSocket-client, separate-world restart trial,
-followed by an independently queried authoritative DB verdict. Final-head
-CI must pass before merging.
+followed by an independently queried authoritative DB verdict. Final-head CI passed and PR #48 was merged. The CI outcome confirms protocol
+and world integration, not general model diagnostic accuracy.
 
 **Out of scope:** generalized scientific research plans, repeated rounds of
 sampling, automatic proof of cause, physical intervention/safety resolution,

@@ -497,7 +497,7 @@ dashboard. See [architecture](../../ARCHITECTURE.md) and
 
 The optional `OX_G3E_INVESTIGATION=1` first-stage dispatcher from merged
 PR #47 obtains five separate local measurements and one unconfirmed bridge
-hypothesis. The G3e-2 extension (under validation) additionally requires
+hypothesis. The verified G3e-2 extension (merged PR #48; 46/46 checks) additionally requires
 `OX_G3E_FOLLOWUP=1`: specialists may submit a different hypothesis,
 perform a fresh world-local `oxprobe`, send the verified *reading* (not an
 asserted cause) to Lin, and reconsider independently. Lin sees only their
