@@ -173,3 +173,22 @@ actual cause and separately addressed private observations are preserved.
 [Detailed contract and verified gate](prototypes/g3e-contradictory-evidence.md).
 This is not a general reasoner or physics simulator; deterministic MockModel
 CI checks the integration, not open-ended diagnosis competence.
+
+## G3e-3 — Independent investigation of unanswered questions
+
+**Verified and merged in PR #51 (50/50 final-head checks), 19 October 2026.**
+After a firsthand G3e-1 report, each existing specialist can independently
+register a known-unknown question and conduct one local, fallible follow-up
+experiment. They need not challenge Lin, and Lin need not have issued a
+provisional theory. Measurements and their provenance can be reported while
+leaving the cause unknown. The earlier challenge-based system remains available
+behind an opt-in feature switch.
+
+The hosted-model A/B comparison against the same five seeded cases showed
+**0 baseline versus 15 final-head extra tests** across the four Gemini runs;
+three of four final cases ended with a correct *available but unverified*
+provisional theory. The fourth retained a wrong theory even after four tests.
+A prior rerun collected 16 extra Gemini tests, illustrating variation in
+actual choices despite identical world seeds. No expansion of ship, crew,
+personality or skills was required. This is bounded, one-extra-test autonomy,
+not general freeform inquiry. [Full operator-audited comparison](prototypes/g3e3-independent-questions-results.md).
