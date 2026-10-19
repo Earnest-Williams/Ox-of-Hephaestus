@@ -122,7 +122,12 @@ class CaptainFollowthrough:
                 and e["data"].get("ticket_id") == ticket_id
                 and e["sequence"] > responses[-1]["sequence"]
             ]
-            if not due:
+            physically_changed = [
+                e for e in messages if e["kind"] == "captain_equipment_change"
+                and e["data"].get("ticket_id") == ticket_id
+                and e["sequence"] > responses[-1]["sequence"]
+            ]
+            if not due and not physically_changed:
                 return False
             await self._work(
                 record, "review:" + assigned_id, "captain", "captain_review",
@@ -272,6 +277,14 @@ class CaptainFollowthrough:
                 e["data"]["role"] for e in order_events
                 if e["data"].get("role") in ROLES
             }
+            # World-addressed prior test receipts prevent a captain from
+            # reassigning work that could not produce a fresh measurement.
+            used.update(
+                e["data"]["role"] for e in messages
+                if e["kind"] == "captain_specialist_test_logged"
+                and e["data"].get("ticket_id") == ticket_id
+                and e["data"].get("role") in ROLES
+            )
             candidates = ["teo"] if kind == "atmosphere_alarm" else list(ROLES)
             remaining = [role for role in candidates if role not in used]
             # A world-timed reminder permits re-review after escalation.
@@ -310,7 +323,7 @@ class CaptainFollowthrough:
                         raise PermissionError("Invalid captain assignment proposal")
                     record["next_role"] = selected
                     self.s.checkpoint()
-                choice = record.pop("next_role")
+                choice = record["next_role"]
                 if choice != "escalate":
                     role = choice.removeprefix("assign:")
                     number = len(order_events) + 1
@@ -318,8 +331,11 @@ class CaptainFollowthrough:
                         record, "assign:" + str(number), "captain",
                         "captain_assign", {"ticket_id": ticket_id, "role": role},
                     )
+                    record.pop("next_role", None)
                     self.s.checkpoint()
                     return True
+                record.pop("next_role", None)
+                self.s.checkpoint()
             # No choice, or all local tests exhausted: an escalation is work,
             # but never a fictional scientific resolution.
             key = "escalate:" + str(len(order_events))
