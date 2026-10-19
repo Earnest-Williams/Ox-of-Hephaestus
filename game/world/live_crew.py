@@ -6,6 +6,8 @@ Physical operations remain in CoolingPump; private events are world-owned.
 """
 from __future__ import annotations
 
+from django.db import transaction
+
 from world.bootstrap import build_ship
 from world.event_journal import emit, inbox, inbox_page, wire_event
 
@@ -13,6 +15,19 @@ from world.event_journal import emit, inbox, inbox_page, wire_event
 def _world():
     ship = build_ship()
     return ship, ship["pump"], ship["roster"]
+
+
+def _mutating_world():
+    """Lock shared world effects before reading mutable world Attributes.
+
+    Social commands and oxwork acquire locks in pump-then-roster order.
+    The independent clock locks just the roster and never takes P-01.
+    """
+    from evennia.objects.models import ObjectDB
+    ship, pump, roster = _world()
+    pump = ObjectDB.objects.select_for_update().get(pk=pump.pk)
+    roster = ObjectDB.objects.select_for_update().get(pk=roster.pk)
+    return ship, pump, roster
 
 
 def fixture_setup(*, scheduled_clock: bool = False) -> None:
@@ -48,6 +63,7 @@ def fixture_setup(*, scheduled_clock: bool = False) -> None:
         raise RuntimeError(reason)
 
 
+@transaction.atomic
 def fault_alarm(pump) -> None:
     """Open/re-open an incident and deliver telemetry ONLY to bridge watch."""
     ship, _pump, _roster = _world()
@@ -107,8 +123,9 @@ def note_inspection(actor, pump) -> None:
         pump.db.ox_engineer_verified_version = int(pump.db.event_seq or 0)
 
 
+@transaction.atomic
 def request_release(actor) -> tuple[bool, str]:
-    ship, pump, roster = _world()
+    ship, pump, roster = _mutating_world()
     if (not _on_watch(actor, ship, roster) or pump.state != "repaired"
             or not pump.db.ox_chief_gate or pump.db.ox_release_request):
         return False, "No authorised repaired pump awaits chief review"
@@ -127,8 +144,9 @@ def request_release(actor) -> tuple[bool, str]:
     return True, "Safety release request delivered"
 
 
+@transaction.atomic
 def approve_release(actor) -> tuple[bool, str]:
-    ship, pump, roster = _world()
+    ship, pump, roster = _mutating_world()
     if (actor not in (ship["chief"], ship["watch"])
             or actor.location != pump.location
             or actor.db.crew_role not in ("chief_engineer", "watch_engineer")
@@ -152,8 +170,9 @@ def approve_release(actor) -> tuple[bool, str]:
     return True, "Independent safety authorization recorded"
 
 
+@transaction.atomic
 def report_resolution(actor) -> tuple[bool, str]:
-    ship, pump, roster = _world()
+    ship, pump, roster = _mutating_world()
     if (not _on_watch(actor, ship, roster)
             or pump.state != "normal" or pump.db.ox_incident_closed
             or pump.db.ox_engineer_verified_version != int(pump.db.event_seq or 0)
@@ -176,8 +195,9 @@ def report_resolution(actor) -> tuple[bool, str]:
     return True, "Verified incident closed"
 
 
+@transaction.atomic
 def offer_watch(actor) -> tuple[bool, str]:
-    ship, pump, roster = _world()
+    ship, pump, roster = _mutating_world()
     if (not _on_watch(actor, ship, roster) or not roster.db.ox_handover_due
             or roster.db.ox_handover_offer is not None
             or int(roster.db.ox_world_minute or 0)
@@ -191,8 +211,9 @@ def offer_watch(actor) -> tuple[bool, str]:
     return True, "Watch handover offered"
 
 
+@transaction.atomic
 def accept_watch(actor) -> tuple[bool, str]:
-    ship, pump, roster = _world()
+    ship, pump, roster = _mutating_world()
     if (actor != ship["chief"] or actor.location != ship["engineering"]
             or actor.db.crew_role != "chief_engineer"
             or roster.db.ox_handover_offer != ship["watch"].dbref
