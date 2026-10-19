@@ -8,7 +8,7 @@ from commands.inventory import CmdOxInventory
 from commands.crew import (
     CmdOxInbox, CmdOxRadioAlarm, CmdOxRequestRelease,
     CmdOxApproveRelease, CmdOxResolve, CmdOxOfferWatch, CmdOxAcceptWatch,
-    CmdOxHail, CmdOxAnswer, CmdOxWork, CmdOxWorkReceipt, CmdOxSample, CmdOxProbe,
+    CmdOxHail, CmdOxAnswer, CmdOxWork, CmdOxWorkReceipt, CmdOxSample, CmdOxProbe, CmdOxCaptainInspect,
 )
 
 from commands.departments import (
@@ -67,5 +67,6 @@ class CharacterCmdSet(BaseCmdSet):
             CmdOxWorkReceipt,
             CmdOxSample,
             CmdOxProbe,
+            CmdOxCaptainInspect,
         ):
             self.add(command())
