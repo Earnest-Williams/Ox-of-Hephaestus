@@ -437,3 +437,21 @@ work interruption. The browser observatory remains deferred.
 
 See [setup](../INSTALL.md), [handler operations](../services/ai-handler/README.md),
 [P4 status](../design/STATUS.md) and [original P2 scenario](../scenarios/coolant_fault/README.md).
+
+
+## G3e uncertain case and follow-up (opt-in)
+
+G3e-1 merged PR #47. The operator may arm one intermittent analyzer anomaly
+using `world.investigation.arm_anomaly()`; five crew independently sample
+existing station instruments with `oxsample <case-id>`. The latent cause is
+never in the initial addressed notice; authenticated world WorkReceipts
+gate each report and Lin's unconfirmed first assessment.
+
+G3e-2 (under validation) adds `oxprobe <case-id>` for role-specific
+second-stage diagnostics after a specialist has challenged Lin's first
+explanation. Global `oxwork` operations `anomaly_challenge`,
+`anomaly_probe_report`, `anomaly_reconsider` and `anomaly_reassess`
+require the actual local sample and appropriate evidence/role.
+These are testimony and tentative hypotheses, never physical repairs
+or oracle lookups. Existing emergency and safety procedures take priority.
+[Detailed contract](../design/prototypes/g3e-contradictory-evidence.md).

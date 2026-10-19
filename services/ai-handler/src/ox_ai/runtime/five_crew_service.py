@@ -569,7 +569,16 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
         # investigation, then optional wear rounds. No idle model polling.
         if await self.service_uncertain_investigation():
             return True
+        if await self.service_followup_investigation():
+            return True
         return await self._service_existing_independent_rounds()
+
+    async def service_followup_investigation(self) -> bool:
+        """Opt-in independent challenges/tests before optional wear rounds."""
+        if os.getenv("OX_G3E_FOLLOWUP", "0") != "1":
+            return False
+        from ox_ai.runtime.investigation_followup import FollowupInvestigation
+        return await FollowupInvestigation(self).advance()
 
     async def _service_existing_independent_rounds(self) -> bool:
         """Let one actor elect a private world-created duty opportunity.
@@ -858,6 +867,18 @@ async def run(mode: str) -> None:
                 raise RuntimeError("Cargo pause did not stop after real restow")
             print("OX_G2_CARGO_PAUSED_AFTER_WORLD_RESTOW")
             return
+        if mode == "followup-drain":
+            if os.getenv("OX_G3E_FOLLOWUP", "0") != "1":
+                raise RuntimeError("G3e follow-up requires explicit opt-in")
+            count = 0
+            for _ in range(6):
+                if not await supervisor.service_followup_investigation():
+                    break
+                count += 1
+            else:
+                raise RuntimeError("Follow-up exceeded bounded work stages")
+            print("OX_G3E_FOLLOWUP_DRAINED", count)
+            return
         if mode == "investigation-drain":
             if os.getenv("OX_G3E_INVESTIGATION", "0") != "1":
                 raise RuntimeError("G3e investigation requires opt-in")
@@ -914,13 +935,13 @@ def main() -> None:
             or not (sys.argv[1] in (
                 "serve", "drop-replace-ack",
                 "agenda-pause-cargo", "agenda-once", "agenda-finish",
-                "round-drain", "investigation-drain",
+                "round-drain", "investigation-drain", "followup-drain",
             )
                     or sys.argv[1].startswith("interrupt-")
                     or sys.argv[1].startswith("finish-"))):
         raise SystemExit(
             "Usage: python -m ox_ai.runtime.five_crew_service "
-            "serve|drop-replace-ack|agenda-pause-cargo|agenda-once|agenda-finish|round-drain|investigation-drain|"
+            "serve|drop-replace-ack|agenda-pause-cargo|agenda-once|agenda-finish|round-drain|investigation-drain|followup-drain|"
             "interrupt-<role>-<op>-<point>|finish-<role>"
         )
     asyncio.run(run(sys.argv[1]))

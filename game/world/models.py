@@ -120,4 +120,11 @@ class InvestigationCase(models.Model):
     samples = models.JSONField(default=dict)
     reports = models.JSONField(default=dict)
     assessment = models.JSONField(default=dict)
+    # Independent and optionally contradictory second-stage evidence.
+    # Kept out of actor observations unless explicitly relayed by Evennia.
+    probe_key = models.CharField(max_length=32, default="")
+    challenges = models.JSONField(default=dict)
+    probes = models.JSONField(default=dict)
+    reconsiderations = models.JSONField(default=dict)
+    reassessment = models.JSONField(default=dict)
     created_game_time = models.FloatField()

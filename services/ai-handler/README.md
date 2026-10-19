@@ -491,3 +491,21 @@ and [P4b runtime](../../design/prototypes/p4b-autonomous-watch.md).
 The external handler and the game can operate without any visual
 dashboard. See [architecture](../../ARCHITECTURE.md) and
 [contracts](../../contracts/README.md) for the authority boundary.
+
+
+## G3e actor-driven scientific disagreement (experimental)
+
+The optional `OX_G3E_INVESTIGATION=1` first-stage dispatcher from merged
+PR #47 obtains five separate local measurements and one unconfirmed bridge
+hypothesis. The G3e-2 extension (under validation) additionally requires
+`OX_G3E_FOLLOWUP=1`: specialists may submit a different hypothesis,
+perform a fresh world-local `oxprobe`, send the verified *reading* (not an
+asserted cause) to Lin, and reconsider independently. Lin sees only their
+addressed reports and can change, retain or defer a new explanation.
+
+`python -m ox_ai.runtime.five_crew_service followup-drain` is a disposable
+bounded trial mode; ordinary `serve` stays event-driven and opt-in,
+with fault/hail/handover priority. Private, persisted intentions and
+per-person epistemics never receive operator cause records. Offline
+MockModel tests demonstrate world/action integration, not AI diagnostic
+accuracy. [Full boundary](../../design/prototypes/g3e-contradictory-evidence.md).
