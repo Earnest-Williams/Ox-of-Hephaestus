@@ -211,7 +211,32 @@ class DurableEvenniaPort:
         elif request.target == "learning":
             operation = request.verb
             args = dict(request.arguments)
-            if operation == "lesson_offer":
+            if operation in ("inquiry_predict", "inquiry_review", "inquiry_reflect"):
+                case_id = args.get("case_id")
+                expected = {"case_id"}
+                if operation == "inquiry_predict":
+                    expected.add("prediction")
+                elif operation == "inquiry_reflect":
+                    expected |= {"interpretation", "independent_sources"}
+                if (
+                    set(args) != expected
+                    or not isinstance(case_id, str)
+                    or re.fullmatch(r"[0-9a-f]{32}", case_id) is None
+                ):
+                    raise ValueError("Investigative learning requires a typed world case")
+                suffix = " " + case_id
+                if operation == "inquiry_predict":
+                    if args["prediction"] not in ("supports", "does_not_support"):
+                        raise ValueError("Unsupported local-probe prediction")
+                    suffix += " " + args["prediction"]
+                elif operation == "inquiry_reflect":
+                    if args["interpretation"] not in (
+                        "supported_unconfirmed",
+                        "unsupported_not_excluded",
+                    ) or args["independent_sources"] not in ("one_source", "two_sources"):
+                        raise ValueError("Unsupported investigative-method answer")
+                    suffix += f" {args['interpretation']} {args['independent_sources']}"
+            elif operation == "lesson_offer":
                 course_id, learner = args.get("course_id"), args.get("learner_dbref")
                 if (
                     set(args) != {"course_id", "learner_dbref"}

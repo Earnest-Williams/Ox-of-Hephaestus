@@ -46,7 +46,8 @@ feature inventories.
 | G4d — authoritative diagnostic skill and task shadows | Tested and merged (27/27 workflows) | [PR #58](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/58): captain inspection reads skill >= 40/100; old 0–4 competencies retired. Read-only routine/novel task comparisons have no physical effects. |
 | G4e — separate conceptual knowledge and procedure familiarity | Tested and merged (28/28 workflows) | [PR #59](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/59): personal theoretical foundation and exact equipment/procedure ledgers; independently sourced, initially estimates, no hidden-fact disclosure. |
 | G4f — verified practical experience | Tested and merged (29/29 workflows) | [PR #60](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/60): successful physical work receipts increment bounded practical skill and procedure familiarity, with replay and rate limits. No routine theory XP or graded real-world failure mechanics yet. |
-| G4g — verified conceptual instruction | Implemented; focused world and transport gates | [Design and verification](prototypes/g4g-verified-conceptual-learning.md): a qualified, separately identified instructor and consenting local learner complete a timed course and private transfer assessment. Passed work creates bounded conceptual progress under global receipts; no practical, permission or hidden-fact grants. General investigative learning and autonomous study remain future work. |
+| G4g — verified conceptual instruction | Tested and merged in PR #62 (35/35 focused workflows) | [Design and verification](prototypes/g4g-verified-conceptual-learning.md): a qualified, separately identified instructor and consenting local learner complete a timed course and private transfer assessment. Passed work creates bounded conceptual progress under global receipts; no practical, permission or hidden-fact grants. |
+| G4h — firsthand investigative learning | Implemented; focused world and transport gates | [Design and verification](prototypes/g4h-investigative-learning.md): a saved pre-test forecast, real actor-local probe/report and assessed evidence-limits/source-independence reflection can generate bounded `investigation.methods` study progress. Hidden causes and diagnosis accuracy never determine credit. Autonomous study remains future work. |
 | P5 — browser observatory | **Deferred / not built** | No browser UI, joined handler/world API, or operator dashboard |
 
 **Naming note:** the original Prototype 1 plan used “P4” for the first
@@ -227,8 +228,8 @@ The G4f `CharacterLearningEvidence` ledger credits limited, successful P-01
 repair, C-01 restow and A-01 cartridge replacement with replay-safe, capped
 practical practice. It does **not** grant knowledge for routine repairs, award
 experience for rejected commands, or resolve actual physical failures by
-aptitude. Gameplay still needs a graded attempt/result model and verified
-instruction or inquiry before those forms of learning can be activated.
+aptitude. G4g and G4h add separate verified conceptual instruction and inquiry
+activities. Gameplay still needs a graded physical attempt/result model.
 
 Stock Evennia gameplay command sets are no longer inherited wholesale:
 Ox uses explicit character and account allowlists. Authentication, command

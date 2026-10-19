@@ -79,7 +79,18 @@ do not improve practical skill, grant duties or expose hidden ship causes.
 Normal movement interrupts supervision, and assessment/evidence/progression
 commit atomically. The first curriculum and its two-client restart gate are
 [specified here](design/prototypes/g4g-verified-conceptual-learning.md).
-Autonomous study scheduling and investigative conceptual gains remain future.
+
+G4h adds a second, independent conceptual activity grounded in firsthand
+investigation. The world records a prediction before an actor's real local
+probe, binds its receipted report, then assesses evidence limits and a fresh
+source-independence example. It grades only actor-available evidence and
+method, without loading the latent cause, private noise or bridge theories.
+Passed reflections can advance `investigation.methods` under the same
+learning ledger and transaction, with per-case uniqueness, daily spacing and
+a 70/100 ceiling. Forecast accuracy and diagnosis agreement grant no credit;
+neither case closure nor physical competence is inferred. See the
+[activity and restart gate](design/prototypes/g4h-investigative-learning.md).
+Autonomous study scheduling remains future work.
 
 **Evennia contraction:** character and account command sets are explicit
 Ox allowlists instead of inheriting all stock MUD actions. User-level

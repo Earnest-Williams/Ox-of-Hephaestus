@@ -124,7 +124,9 @@ game clock at 60×; the normal game and curriculum duration are unchanged.
 The probe solves only the learner's delivered measurements. It is an authored
 acceptance policy, not an LLM reasoning benchmark.
 
-**Remaining:** evidence-backed learning from real investigations, additional
-curricula and teaching-quality effects, autonomous study agendas, and typed
+G4h now adds a separate [firsthand investigative-method activity](g4h-investigative-learning.md).
+
+**Remaining:** additional curricula and teaching-quality effects, autonomous
+study agendas, and typed
 graded physical task attempts. Ordinary repairs, reports, speculation,
 hearsay and agreeing with a world-secret answer do not acquire theory XP.

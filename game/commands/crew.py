@@ -136,6 +136,9 @@ class CmdOxWork(Command):
         oxwork <32-hex-id> lesson_offer learning <course-id> <learner-dbref>
         oxwork <32-hex-id> lesson_begin learning <lesson-id>
         oxwork <32-hex-id> lesson_answer learning <lesson-id> <supported-factor> <controlled-factor>
+        oxwork <32-hex-id> inquiry_predict learning <case-id> <supports|does_not_support>
+        oxwork <32-hex-id> inquiry_review learning <case-id>
+        oxwork <32-hex-id> inquiry_reflect learning <case-id> <interpretation> <independent-sources>
 
     Every command is checked again by the world. No client may grant its
     own work permission by offering a model-generated command.
@@ -157,7 +160,17 @@ class CmdOxWork(Command):
         request_id, operation, target = parts[:3]
         arguments = None
         if target == "learning":
-            if operation == "lesson_offer" and len(parts) == 5:
+            if operation == "inquiry_predict" and len(parts) == 5:
+                arguments = {"case_id": parts[3], "prediction": parts[4]}
+            elif operation == "inquiry_review" and len(parts) == 4:
+                arguments = {"case_id": parts[3]}
+            elif operation == "inquiry_reflect" and len(parts) == 6:
+                arguments = {
+                    "case_id": parts[3],
+                    "interpretation": parts[4],
+                    "independent_sources": parts[5],
+                }
+            elif operation == "lesson_offer" and len(parts) == 5:
                 arguments = {"course_id": parts[3], "learner_dbref": parts[4]}
             elif operation == "lesson_begin" and len(parts) == 4:
                 arguments = {"lesson_id": parts[3]}

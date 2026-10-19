@@ -37,6 +37,7 @@ outcomes are cross-linked instead of retroactively erasing the history.
 - [P4b: persistent supervisor, world-owned watch deadline](prototypes/p4b-autonomous-watch.md)
 - [G3e-3: independent unanswered-question protocol](prototypes/g3e-independent-questions.md)
 - [G4g: supervised conceptual learning and transfer assessment](prototypes/g4g-verified-conceptual-learning.md)
+- [G4h: firsthand investigative learning and evidence limits](prototypes/g4h-investigative-learning.md)
 
 ## Retained deterministic regression fixtures
 

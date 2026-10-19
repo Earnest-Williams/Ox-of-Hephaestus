@@ -383,3 +383,72 @@ class ConceptLesson(models.Model):
                 name="ox_lesson_learner_course",
             ),
         ]
+
+
+class InquiryLearningAttempt(models.Model):
+    """One person's prediction and assessed reflection on their own real probe.
+
+    This stores observed provenance and demonstrated investigative method,
+    never the case's latent cause or a certificate of diagnostic correctness.
+    """
+
+    prediction_id = models.CharField(max_length=32, primary_key=True)
+    person = models.ForeignKey(
+        CharacterProfile,
+        on_delete=models.PROTECT,
+        related_name="inquiry_learning",
+    )
+    case = models.ForeignKey(
+        InvestigationCase,
+        on_delete=models.PROTECT,
+        related_name="learning_attempts",
+    )
+    status = models.CharField(max_length=16, default="predicted")
+    prediction = models.CharField(max_length=32)
+    initial_report_event_id = models.CharField(max_length=64)
+    inquiry_event_id = models.CharField(max_length=64)
+    prediction_event_id = models.CharField(max_length=64)
+    sample_event_id = models.CharField(max_length=64, null=True)
+    report_event_id = models.CharField(max_length=64, null=True)
+    result_event_id = models.CharField(max_length=64, null=True)
+    reading = models.CharField(max_length=32, default="")
+    tested_hypothesis = models.CharField(max_length=32, default="")
+    created_game_time = models.FloatField()
+    due_game_time = models.FloatField(null=True)
+    expires_game_time = models.FloatField()
+    completed_game_time = models.FloatField(null=True)
+    exercise = models.JSONField(default=dict)
+    answers = models.JSONField(default=dict)
+    prediction_receipt = models.OneToOneField(
+        WorkReceipt,
+        on_delete=models.PROTECT,
+        null=True,
+        related_name="predicted_inquiry_learning",
+    )
+    report_receipt = models.ForeignKey(
+        WorkReceipt,
+        on_delete=models.PROTECT,
+        null=True,
+        related_name="reviewed_inquiry_learning",
+    )
+    completion_receipt = models.OneToOneField(
+        WorkReceipt,
+        on_delete=models.PROTECT,
+        null=True,
+        related_name="completed_inquiry_learning",
+    )
+
+    class Meta:
+        """Keep one attempt per actual investigator/case and finite typed states."""
+
+        constraints = [
+            models.UniqueConstraint(fields=["person", "case"], name="ox_inquiry_person_case"),
+            models.CheckConstraint(
+                condition=models.Q(status__in=["predicted", "reviewing", "passed", "failed"]),
+                name="ox_inquiry_learning_status",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(prediction__in=["supports", "does_not_support"]),
+                name="ox_inquiry_prediction_valid",
+            ),
+        ]
