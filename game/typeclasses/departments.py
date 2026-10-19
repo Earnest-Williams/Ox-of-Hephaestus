@@ -323,6 +323,38 @@ class AtmosphereScrubber(DepartmentFixture):
         return True, "A-01 cartridge replaced; verify before restart."
 
     @transaction.atomic
+    def diagnostic_exchange(self, actor) -> tuple[bool, str]:
+        """Replace a nominal cartridge for diagnosis using actual finite stock.
+
+        A nominal gauge is evidence, not proof that the gauge itself is sound.
+        An authorized technician may swap a working cartridge as a deliberate
+        diagnostic test. The composite service isolates, exchanges, reinspects
+        and restarts A-01. It cannot repair a separate pressure-plenum leak.
+        """
+        if not self._authorized(actor, "environment_tech"):
+            return False, "Qualified environmental technician must attend A-01."
+        if self.state != "nominal":
+            return False, "Use standard maintenance for a non-nominal scrubber."
+        if not self._fresh_inspection(actor):
+            return False, "Inspect A-01 before exchanging a nominal cartridge."
+        from world.supply import total_local_spares
+        if total_local_spares(self) <= 0:
+            return False, "No physically accessible replacement cartridge remains."
+        self._record("diagnostic_isolate", "isolated", actor=actor)
+        replaced, message = self.replace(actor)
+        if not replaced:
+            raise RuntimeError("Cartridge exchange failed after isolation: " + message)
+        self.note_inspection(actor)
+        restarted, message = self.restart(actor)
+        if not restarted:
+            raise RuntimeError("Cartridge exchange failed on restart: " + message)
+        return True, (
+            "Real A-01 cartridge replaced; one physical spare consumed. "
+            "A-01 operates nominally again, but the shipwide pressure loss "
+            "continues. The diagnostic substitution does not establish its cause."
+        )
+
+    @transaction.atomic
     def restart(self, actor) -> tuple[bool, str]:
         if not self._authorized(actor, "environment_tech"):
             return False, "The environmental technician must attend A-01."
