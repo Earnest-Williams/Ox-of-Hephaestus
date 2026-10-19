@@ -32,10 +32,13 @@ def _specialist_here(actor, ship) -> str | None:
 
 
 def _case(case_id):
-    case = _open_case(case_id)
-    if case is None or not case.assessment:
-        return None
-    return case
+    """World-open case, even if the bridge has not offered a diagnosis."""
+    return _open_case(case_id)
+
+
+def _authorized_inquiry(case, actor):
+    """World-verified question or challenged hypothesis from this actor."""
+    return actor.dbref in case.questions or actor.dbref in case.challenges
 
 
 def _measurement(case, role: str) -> str:
@@ -56,9 +59,10 @@ def file_challenge(actor, case_id: str, hypothesis: str) -> tuple[bool, str]:
     # authenticated sessions. WorkReceipt itself holds the pump lock.
     case = _case(case_id)
     role = _specialist_here(actor, ship)
-    if (case is None or role is None or hypothesis not in CAUSES
+    if (case is None or not case.assessment or role is None
+            or hypothesis not in CAUSES
             or hypothesis == case.assessment.get("hypothesis")
-            or actor.dbref not in case.reports or actor.dbref in case.challenges):
+            or actor.dbref not in case.reports or _authorized_inquiry(case, actor)):
         return False, "No eligible firsthand alternative for this case"
     basis_id = case.reports[actor.dbref]
     data = {
@@ -84,6 +88,46 @@ def file_challenge(actor, case_id: str, hypothesis: str) -> tuple[bool, str]:
 
 
 @transaction.atomic
+def file_question(actor, case_id: str) -> tuple[bool, str]:
+    """Independently pursue an unanswered symptom with one diagnostic.
+
+    A specialist must have filed firsthand initial evidence and be at their
+    own installed station. There is no prerequisite bridge hypothesis,
+    disagreement or permission from another character.
+    """
+    ship = build_ship()
+    case = _case(case_id)
+    role = _specialist_here(actor, ship)
+    if (case is None or role is None or actor.dbref not in case.reports
+            or _authorized_inquiry(case, actor)):
+        return False, "No eligible local, firsthand unanswered question"
+    indicator, candidate, _tp, _fp = PROBES[role]
+    data = {
+        "case_id": case_id, "question": "cause_of_analyzer_disagreement",
+        "indicator": indicator, "tested_hypothesis": candidate,
+        "basis_event_id": case.reports[actor.dbref],
+        "status": "open",
+    }
+    recorded = emit(
+        ship["pump"], actor, "anomaly_question_recorded", sender=actor,
+        data=data, text="Your independent diagnostic question was registered; no diagnosis is required.",
+    )
+    emit(
+        ship["pump"], ship["officer"], "anomaly_question_received", sender=actor,
+        data=data, text=f"{actor.key} requested a second independent instrument reading.",
+    )
+    questions = dict(case.questions)
+    questions[actor.dbref] = {
+        "question": data["question"], "indicator": indicator,
+        "basis_event_id": data["basis_event_id"],
+        "event_id": recorded["event_id"], "status": "open",
+    }
+    case.questions = questions
+    case.save(update_fields=["questions"])
+    return True, "World accepted one independent diagnostic question"
+
+
+@transaction.atomic
 def take_probe(actor, case_id: str) -> dict | None:
     """Perform a role-specific diagnostic at the existing physical station.
 
@@ -94,7 +138,7 @@ def take_probe(actor, case_id: str) -> dict | None:
     ship = build_ship()
     case = _case(case_id)
     role = _specialist_here(actor, ship)
-    if (case is None or role is None or actor.dbref not in case.challenges
+    if (case is None or role is None or not _authorized_inquiry(case, actor)
             or actor.dbref not in case.reports):
         return None
     name, tested, _true, _false = PROBES[role]
@@ -130,8 +174,8 @@ def report_probe(actor, case_id: str) -> tuple[bool, str]:
     ship = build_ship()
     case = _case(case_id)
     role = _specialist_here(actor, ship)
-    if case is None or role is None or actor.dbref not in case.challenges:
-        return False, "No eligible local case challenge"
+    if case is None or role is None or not _authorized_inquiry(case, actor):
+        return False, "No eligible local diagnostic question or challenge"
     observed = dict(case.probes).get(actor.dbref)
     if observed is None or "report_event_id" in observed:
         return False, "No unreported firsthand experiment"
@@ -166,16 +210,17 @@ def file_reconsideration(actor, case_id: str, hypothesis: str) -> tuple[bool, st
     case = _case(case_id)
     role = _specialist_here(actor, ship)
     if (case is None or role is None or hypothesis not in CAUSES
-            or actor.dbref not in case.challenges
+            or not _authorized_inquiry(case, actor)
             or actor.dbref in case.reconsiderations):
         return False, "No eligible reconsideration"
     probe = dict(case.probes).get(actor.dbref)
     if probe is None or "report_event_id" not in probe:
         return False, "An independently reported follow-up test is required"
-    prior = case.challenges[actor.dbref]["hypothesis"]
+    prior = case.challenges.get(actor.dbref, {}).get("hypothesis")
     data = {
         "case_id": case_id, "hypothesis": hypothesis,
-        "previous_hypothesis": prior, "changed": hypothesis != prior,
+        "previous_hypothesis": prior,
+        "changed": None if prior is None else hypothesis != prior,
         "basis_event_id": probe["report_event_id"],
         "verification": "hypothesis",
     }
@@ -209,21 +254,32 @@ def file_reassessment(actor, case_id: str, hypothesis: str) -> tuple[bool, str]:
             or _local_role(actor, ship) != "lin"
             or hypothesis not in CAUSES or case.reassessment):
         return False, "No authorized outstanding bridge reassessment"
-    views = case.reconsiderations
-    # No single echo chamber may settle the diagnosis: the bridge must
-    # receive at least one engineering AND one specialist post-test view.
+    # Legacy challenge-based G3e-2 requires post-test views. If at
+    # least one independent question was opened, raw firsthand reports are
+    # sufficient: a specialist needn't guess a cause to contribute data.
+    if case.questions:
+        evidence_by_actor = {
+            dbref: entry["report_event_id"]
+            for dbref, entry in case.probes.items()
+            if "report_event_id" in entry
+            and (dbref in case.questions or dbref in case.challenges)
+        }
+    else:
+        evidence_by_actor = {
+            dbref: entry["basis_event_id"]
+            for dbref, entry in case.reconsiderations.items()
+        }
     if not (
-        any(ship[r].dbref in views for r in ("watch", "chief"))
-        and any(ship[r].dbref in views for r in ("cargo", "environment"))
+        any(ship[r].dbref in evidence_by_actor for r in ("watch", "chief"))
+        and any(ship[r].dbref in evidence_by_actor for r in ("cargo", "environment"))
     ):
-        return False, "Independent engineering and specialist views required"
-    evidence = sorted(
-        record["basis_event_id"] for record in views.values()
-    )
-    original = case.assessment["hypothesis"]
+        return False, "Independent engineering and specialist evidence required"
+    evidence = sorted(evidence_by_actor.values())
+    original = case.assessment.get("hypothesis")
     data = {
         "case_id": case_id, "hypothesis": hypothesis,
-        "previous_hypothesis": original, "changed": hypothesis != original,
+        "previous_hypothesis": original,
+        "changed": None if original is None else hypothesis != original,
         "evidence_count": len(evidence), "verification": "unconfirmed",
     }
     first = emit(
