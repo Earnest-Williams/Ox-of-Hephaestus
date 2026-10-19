@@ -47,7 +47,7 @@ feature inventories.
 | G4e — separate conceptual knowledge and procedure familiarity | Tested and merged (28/28 workflows) | [PR #59](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/59): personal theoretical foundation and exact equipment/procedure ledgers; independently sourced, initially estimates, no hidden-fact disclosure. |
 | G4f — verified practical experience | Tested and merged (29/29 workflows) | [PR #60](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/60): successful physical work receipts increment bounded practical skill and procedure familiarity, with replay and rate limits. No routine theory XP or graded real-world failure mechanics yet. |
 | G4g — verified conceptual instruction | Tested and merged in PR #62 (35/35 focused workflows) | [Design and verification](prototypes/g4g-verified-conceptual-learning.md): a qualified, separately identified instructor and consenting local learner complete a timed course and private transfer assessment. Passed work creates bounded conceptual progress under global receipts; no practical, permission or hidden-fact grants. |
-| G4h — firsthand investigative learning | Implemented; focused world and transport gates | [Design and verification](prototypes/g4h-investigative-learning.md): a saved pre-test forecast, real actor-local probe/report and assessed evidence-limits/source-independence reflection can generate bounded `investigation.methods` study progress. Hidden causes and diagnosis accuracy never determine credit. Autonomous study remains future work. |
+| G4h — firsthand investigative learning | Tested and merged in [PR #63](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/63) (36/36 applicable workflows; 194 world and 150 handler tests) | [Design and verification](prototypes/g4h-investigative-learning.md): a saved pre-test forecast, real actor-local probe/report and assessed evidence-limits/source-independence reflection can generate bounded `investigation.methods` study progress. Hidden causes and diagnosis accuracy never determine credit. Autonomous study remains future work. |
 | P5 — browser observatory | **Deferred / not built** | No browser UI, joined handler/world API, or operator dashboard |
 
 **Naming note:** the original Prototype 1 plan used “P4” for the first
@@ -101,6 +101,8 @@ future work. P4f does **not** establish arbitrary mid-scene transaction
 recovery or general LLM-driven planning.
 
 ## What the prototype does today
+
+G4g [PR #62](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/62) and G4h [PR #63](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/63) are now **merged and verified**, not merely proposed or under review. Together they supply one assessed supervised lesson and one firsthand investigative-method reflection. Neither is chosen autonomously by the ordinary handler.
 
 - **Evennia** owns the seven-room ship, three stateful physical systems
   (cooling P-01, cargo restraints C-01 and atmospheric scrubber A-01),

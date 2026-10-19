@@ -1,52 +1,55 @@
 # Ox design, decisions and test evidence
 
-This directory holds **Ox-specific** architecture, accepted decisions,
-historical proof-of-concept phases and runnable evidence. The repository's
-`docs/` folder remains the inherited Evennia engine manual.
+This is **Ox-specific** project documentation. The repository's `docs/`
+directory is the inherited Evennia manual, not the Ox implementation guide.
 
-For the next implementation sequence see [the execution roadmap](ROADMAP.md) and [ADR 0009](decisions/0009-durable-events-and-work.md). GitHub Issues were disabled at roadmap creation, so roadmap entries are the tracked backlog.
+**Authoritative current-state index:** [STATUS.md](STATUS.md), updated
+through merged **G4h (PR #63, 19 October 2026)**. The
+[ROADMAP](ROADMAP.md) separates completed gates from pending implementation.
+Earlier ADRs, P2 scenarios and milestone plans retain their original
+historical framing; an old “not yet implemented” in one of those documents
+is not a description of today's `main`. P5 is postponed.
 
-**Current truth:** [P0–P4 status and documented limitations](STATUS.md).
-Do not read a P2/P3 historical description of “future P3 integration” as
-the present implementation; those milestones are now merged. P5 is
-deliberately postponed.
+## Decisions and authority
 
-## Accepted architectural decisions
-
-| Record | Original decision |
+| Decision | Accepted subject |
 | --- | --- |
-| [ADR 0001](decisions/0001-concordia-first.md) | Concordia as the initial cognitive foundation |
-| [ADR 0002](decisions/0002-game-master-world-authority.md) | Deterministic GM, Evennia as sole live authority |
-| [ADR 0003](decisions/0003-three-services.md) | Independent game, AI handler and future UI |
-| [ADR 0004](decisions/0004-ci-scope.md) | Targeted Ox tests, upstream matrix manual |
-| [ADR 0005](decisions/0005-typed-decisions-free-api.md) | Bounded hosted decisions (Gemini trial) |
-| [ADR 0006](decisions/0006-zero-inference-goap.md) | Model-free GOAP for known engineering tasks |
-| [ADR 0007](decisions/0007-three-crew-watch-supervision.md) | Three-crew mock handover, scoped memory |
-| [ADR 0008](decisions/0008-coordinated-coolant-incident.md) | Mock coolant incident and safety signoff |
+| [ADR 0001](decisions/0001-concordia-first.md) | Concordia for initial private agent cognition |
+| [ADR 0002](decisions/0002-game-master-world-authority.md) | Deterministic Evennia world authority |
+| [ADR 0003](decisions/0003-three-services.md) | Separate game, handler and deferred interface |
+| [ADR 0004](decisions/0004-ci-scope.md) | Focused Ox CI rather than mandatory upstream matrix |
+| [ADR 0005](decisions/0005-typed-decisions-free-api.md) | Bounded model decisions; optional hosted-model experiments |
+| [ADR 0006](decisions/0006-zero-inference-goap.md) | Model-free planning for familiar work |
+| [ADR 0007](decisions/0007-three-crew-watch-supervision.md) | Historical mock watch supervision |
+| [ADR 0008](decisions/0008-coordinated-coolant-incident.md) | Historical mock safety signoff |
+| [ADR 0009](decisions/0009-durable-events-and-work.md) | World-issued events and durable action ledger |
 
-These ADRs preserve their **original decision context**. Later milestone
-outcomes are cross-linked instead of retroactively erasing the history.
+## Important implementation trails
 
-## Prototype and implementation notes
+- [Original prototype](prototypes/01-autonomous-crew.md) ·
+  [P3 authenticated sessions](prototypes/p3a-transport.md) ·
+  [P4e five-crew runtime](prototypes/p4e-five-crew-autonomy.md)
+- [G3 private epistemics](prototypes/g3-epistemics.md) ·
+  [G3c real supply cooperation](prototypes/g3-cooperation.md) ·
+  [G3e independent questions](prototypes/g3e-independent-questions.md) ·
+  [five-scenario comparison](prototypes/g3e3-independent-questions-results.md)
+- [G3f sixth captain](prototypes/g3f-captain-followthrough.md)
+- [G4a traits](prototypes/g4a-character-foundation.md) ·
+  [G4b identity/skills](prototypes/g4b-world-character-ledger.md) ·
+  [G4c account boundary](prototypes/g4c-account-boundary.md)
+- [G4d task shadows](prototypes/g4d-skill-shadow.md) ·
+  [G4e knowledge/techniques](prototypes/g4e-independent-knowledge-techniques.md) ·
+  [G4f practical learning](prototypes/g4f-world-receipt-learning.md)
+- [G4g taught conceptual assessment](prototypes/g4g-verified-conceptual-learning.md) ·
+  [G4h firsthand investigative method](prototypes/g4h-investigative-learning.md)
+- [G5 adversarial/restart tests](prototypes/g5-adversarial-voyage.md)
 
-- [Prototype 1: goals and acceptance gates](prototypes/01-autonomous-crew.md)
-- [P3a: ordinary authenticated transport](prototypes/p3a-transport.md)
-- [P3b: durable physical receipts and GOAP](prototypes/p3b-durable.md)
-- [P3c: three real client characters](prototypes/p3c-live-crew.md)
-- [P4a: three native Concordia actors](prototypes/p4a-live-cognition.md)
-- [P4b: persistent supervisor, world-owned watch deadline](prototypes/p4b-autonomous-watch.md)
-- [G3e-3: independent unanswered-question protocol](prototypes/g3e-independent-questions.md)
-- [G4g: supervised conceptual learning and transfer assessment](prototypes/g4g-verified-conceptual-learning.md)
-- [G4h: firsthand investigative learning and evidence limits](prototypes/g4h-investigative-learning.md)
+## Retained early scenarios
 
-## Retained deterministic regression fixtures
+[P2 watch handover](../scenarios/shift_handover/README.md) and
+[P2 cooling incident](../scenarios/coolant_fault/README.md) remain useful
+deterministic regressions. Real server, multi-client and PostgreSQL tests
+are covered by focused `.github/workflows/ox-*` actions.
 
-- [P2 Scenario 0: watch handover](../scenarios/shift_handover/README.md)
-- [P2 Scenario 1: cooling-fault coordination](../scenarios/coolant_fault/README.md)
-
-The P2 mock suites remain useful for rapid permission, model-free
-routing and checkpoint regressions. **Live** P3/P4 behavior is tested
-separately by focused Evennia-server GitHub workflows.
-
-For setup and operations, use [INSTALL.md](../INSTALL.md) and
-[AI handler README](../services/ai-handler/README.md).
+See [setup](../INSTALL.md), [game commands](../game/README.md) and
+[AI-handler operations](../services/ai-handler/README.md).

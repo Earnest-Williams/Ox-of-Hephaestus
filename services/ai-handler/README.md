@@ -1,15 +1,19 @@
 # Ox AI handler — native Concordia, GOAP and live crew
 
-**Status (18 October 2026):** Two independently runnable supervisor
-variants exist: three legacy crew or five crew with cargo and environmental
-specialists. Five ordinary nonprivileged Evennia characters have their own
-native Concordia memory/checkpoints. The P4e full-server trial passed actual
-cargo, atmospheric and coolant work, hails and a deliberately lost cartridge
-ACK across a handler restart. This is **not** deployed production software
+**Status (19 October 2026, through merged G4h):** The external handler
+supports the legacy three-person supervisor and a separate five-specialist
+supervisor, with **optional sixth-captain oversight** (G3f). Six distinct
+world character identities and private Concordia checkpoints are available
+in the opt-in configuration. The original P4e full-server trial covered
+cargo, atmosphere, coolant, hails and lost-ACK recovery; later G3–G4 gates
+added real inventory, uncertain investigation, receipt-backed practical
+learning and two **world-owned** assessed conceptual-learning activities.
+The ordinary handler does **not** yet autonomously schedule those lessons
+or investigative reflections. This is **not** deployed production software
 or proof of unconstrained multi-agent intelligence.
 [Current status](../../design/STATUS.md).
 
-## G3d optional independently elected crew rounds (PR #46, under review)
+## G3d optional independently elected crew rounds (PR #46, merged)
 
 The existing external five-crew supervisor has an opt-in
 `OX_G3D_INDEPENDENT_ROUNDS=1` decision source, independent of fault alarms.
@@ -292,7 +296,7 @@ All 13 focused Ox workflows passed on the final PR commit; P4e is merged.
 | Location | Function |
 | --- | --- |
 | `src/ox_ai/agents/crew.py` | Single native Concordia `EntityAgentWithLogging`, bounded proposals, per-agent journal and native checkpoint |
-| `src/ox_ai/agents/live_concordia.py` | Five role-specific Concordia entities (Lin, Ari, Iona, Mara, Teo), individual observations, deferred choices and restoration |
+| `src/ox_ai/agents/live_concordia.py` | Five specialist Concordia entities and optional independent sixth-captain cognition; actor-private observations, bounded choices and restoration |
 | `src/ox_ai/agents/goap_crew.py` and `src/ox_ai/planning/` | Deterministic engineering action search; beliefs checked against observations |
 | `src/ox_ai/ports/evennia/client.py` | Normal `v1.evennia.com` authenticated WebSocket and character identity proof |
 | `src/ox_ai/ports/evennia/durable.py` | World-owned actor-bound equipment action receipts and recovery queries |
@@ -468,11 +472,32 @@ Read [Scenario 0](../../scenarios/shift_handover/README.md),
 [P4a integration](../../design/prototypes/p4a-live-cognition.md)
 and [P4b runtime](../../design/prototypes/p4b-autonomous-watch.md).
 
+## G4 character development is world-owned
+
+The persistent formative traits, 55 skills, independent knowledge and exact
+procedure familiarity are **world data**, not personality claims from a
+Concordia prompt. Successful selected physical work earns bounded practical
+and procedural credit only after an authoritative receipt. The G4g lesson
+and G4h investigation-reflection activities likewise earn theory credit only
+through assessed world records and receipts, **never** from a model's own
+story about learning. Their first live authentication/restart tests were
+merged in [PR #62](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/62)
+and [PR #63](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/63).
+
+These are presently explicit actor-authorized world activities; normal
+`five_crew_service serve` does not autonomously plan enrollment or reflection.
+The routine/novel task resolver remains an operator-only shadow comparison,
+not the equipment physics. See [G4 status](../../design/STATUS.md),
+[the lesson protocol](../../design/prototypes/g4g-verified-conceptual-learning.md)
+and [inquiry protocol](../../design/prototypes/g4h-investigative-learning.md).
+
 ## Known runtime limits
 
-1. The current implementation covers **five distinct crew** across
-   cooling, cargo and environmental departments, not general skill
-   progression, a complete freighter or unscripted social AI.
+1. The standard supervisor runs **five specialist crew**, with an opt-in
+   sixth captain. The world implements bounded practical progression and
+   two assessed conceptual activities, **not** graded physical task success,
+   autonomous teaching/study agendas, a complete freighter or unscripted
+   social intelligence.
 2. `serve` is code that can run as a separate process; no init system,
    deployment recipe, load testing or long-running uptime guarantee
    has been validated.

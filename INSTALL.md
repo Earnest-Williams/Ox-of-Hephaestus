@@ -122,6 +122,24 @@ commands**: they intentionally forget an isolation ACK so the next
 process can reconcile it without repeating the physical action. They
 are not normal operational commands; `serve` is the runtime entry point.
 
+### Five-specialist and optional captain mode
+
+The `watch_service` example above is the historical **three-person**
+configuration. For the standard five-specialist runtime, provision separate
+Lin/Ari/Iona/Mara/Teo accounts in a **disposable world**, configure the
+five-person identity mapping, and launch
+`python -m ox_ai.runtime.five_crew_service serve` instead. Optional
+`OX_CAPTAIN_OVERSIGHT=1` adds the independently authenticated sixth captain,
+who follows unresolved obligations without inheriting technical permissions.
+Do not run the three-person and five/six-person supervisors against the same
+world concurrently. Exact fixture provisioning and checkpoint paths are in
+the [handler guide](services/ai-handler/README.md) and
+[captain protocol](design/prototypes/g3f-captain-followthrough.md).
+
+The current game also exposes G4g/G4h assessed learning via ordinary
+character-authorized `oxwork` requests; running the handler does not
+automatically schedule study. See the [world guide](game/README.md).
+
 ## Model configuration and boundaries
 
 By default the Concordia actor factory uses a **deterministic MockModel**;

@@ -104,7 +104,7 @@ G3d test workflow exercises these rules and a five-client decision path.
 | Cargo Hold | Mara Voss and cargo restraint grid C-01; local inspection, restow and certification |
 | Environmental Plant | Teo Hale and scrubber A-01; cartridge fault, isolation, replacement, verified restart |
 | Crew Mess | Navigable living/galley area, not yet a nutrition or morale simulation |
-| Machine Shop | Navigable engineering annex, reserved for later fabrication and tools |
+| Machine Shop | Engineering annex and G4g supervised-training bench; fabrication and full workshop simulation remain future work |
 | Operations Console | Bridge-only readout of cargo restraint and atmosphere scrubber states |
 | Cooling Pump P-01 | `normal → low_pressure → isolated → repaired → normal`; durable event history and physical command receipts |
 | Ship roster | Active engineering duty holder, independent safety reviewer and handover state |
@@ -113,11 +113,12 @@ G3d test workflow exercises these rules and a five-client decision path.
 
 The ship now has separate bounded physical cargo and atmosphere procedures.
 There is still **no propulsion, trading economy, general cargo routing,
-manufacturing, or skill-by-use progression**. The P4e supervisor runs
+manufacturing or skill-sensitive graded physical task outcome system**.
+Selected authenticated successful work now grants bounded practice in G4f. The P4e supervisor runs
 five private cognitive agents; the original P4c three-crew supervisor
 remains available but must not be run simultaneously on the same ship.
 
-## Independent PostgreSQL concurrency gate (under validation)
+## Independent PostgreSQL concurrency gate (verified in merged PR #28)
 
 Ox's development world continues to use SQLite. The G1 concurrency
 trial uses disposable PostgreSQL 16 in GitHub Actions with the
@@ -359,8 +360,9 @@ predates the P4e autonomous-specialist milestone: **Mara and Teo now have
 their own separate Concordia agents**, and C-01/A-01 have durable
 actor-bound receipts. P4g additionally offers a common typed work
 namespace; the existing five-crew supervisor still uses the compatible
-fixture-specific recovery path. Competence tags are future skill hooks,
-not a live skill progression mechanism. See
+fixture-specific recovery path. Those original P4d competence tags were later superseded by the G4
+world-owned skill/knowledge/technique ledgers and G4f practical progression;
+this paragraph otherwise describes historical P4d/P4g sequencing. See
 [the P4d implementation history](../design/prototypes/p4d-ship-departments.md).
 
 ## Authenticated three-crew protocol (P3)
