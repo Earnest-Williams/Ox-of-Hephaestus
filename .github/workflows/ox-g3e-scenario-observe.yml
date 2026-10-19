@@ -1,0 +1,206 @@
+# Explicit one-off experimental PR battery, using a disposable world.
+# Live model jobs run only on a same-repository branch; never on untrusted forks.
+# Never treat MockModel output as independent inference evidence.
+name: Ox G3e crew behavior scenarios
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/ox-g3e-scenario-observe.yml"
+      - "game/world/scenario_observer.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ox-g3e-observation-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  observe:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    name: "${{ matrix.name }} (${{ matrix.provider }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - name: cargo-pattern
+            cause: cargo_vapors
+            seed: 3
+            provider: gemini
+          - name: scrubber-false-negative
+            cause: scrubber_bypass
+            seed: 6
+            provider: gemini
+          - name: bus-pattern
+            cause: bus_interference
+            seed: 5
+            provider: gemini
+          - name: all-four-elevated
+            cause: scrubber_bypass
+            seed: 2
+            provider: gemini
+          - name: deterministic-control
+            cause: scrubber_bypass
+            seed: 6
+            provider: mock
+
+    env:
+      OX_SCENARIO_NAME: ${{ matrix.name }}
+      OX_SCENARIO_CAUSE: ${{ matrix.cause }}
+      OX_SCENARIO_SEED: ${{ matrix.seed }}
+      OX_COGNITION_PROVIDER: ${{ matrix.provider }}
+      OX_LLM_MODEL: gemini-3.1-flash-lite
+      OX_COGNITION_TIMEOUT_SECONDS: "45"
+      OX_MAX_PARALLEL_COGNITION: "1"
+      OX_COGNITION_ACTOR_BUDGET: "30"
+      OX_COGNITION_TOTAL_BUDGET: "50"
+      OX_G3E_INVESTIGATION: "1"
+      OX_G3E_FOLLOWUP: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install original ship and five-crew handler
+        run: |
+          python -m pip install .
+          python -m pip install -e './services/ai-handler[concordia,transport]'
+          python -m compileall -q game services/ai-handler/src
+
+      - name: Validate opt-in real model credentials
+        if: ${{ matrix.provider == 'gemini' }}
+        env:
+          MODEL_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$MODEL_KEY" ]; then
+            echo "::error::No GEMINI_API_KEY secret: unable to observe actual hosted-model decisions."
+            exit 1
+          fi
+          echo "GEMINI_API_KEY=$MODEL_KEY" >> "$GITHUB_ENV"
+
+      - name: Create disposable account credentials
+        run: |
+          set -euo pipefail
+          TOKEN="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          OWNER="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          echo "::add-mask::$TOKEN"
+          echo "::add-mask::$OWNER"
+          echo "OX_PROBE_PASSWORD=$TOKEN" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_PASSWORD=$OWNER" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_USERNAME=OxScenarioOwner" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_EMAIL=scenario-owner@example.invalid" >> "$GITHUB_ENV"
+
+      - name: Provision five accounts and hidden cause (no model access)
+        working-directory: game
+        shell: bash
+        run: |
+          set -euo pipefail
+          evennia migrate --noinput
+          evennia shell --command="import os; from world.transport_probe import provision; from world.investigation import arm_anomaly; provision(include_specialists=True); arm_anomaly(cause=os.environ['OX_SCENARIO_CAUSE'], seed=int(os.environ['OX_SCENARIO_SEED'])); print('OX_SCENARIO_ARMED')"
+
+      - name: Start disposable ship
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd game && evennia start)
+          python - <<'PY'
+          import socket, time
+          for i in range(90):
+              try:
+                  with socket.create_connection(("127.0.0.1",4002), timeout=1):
+                      break
+              except OSError:
+                  time.sleep(1)
+          else:
+              raise RuntimeError("Evennia WebSocket did not start")
+          PY
+          sleep 4
+
+      - name: Give five crew their first uncertain case
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .ox-state/observations
+          python -m ox_ai.runtime.five_crew_service investigation-drain \
+            | tee .ox-state/observations/initial-crew.log
+
+      - name: Let crew challenge and retest (no forced conclusions)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m ox_ai.runtime.five_crew_service followup-drain \
+            | tee .ox-state/observations/followup-crew.log
+
+      - name: Stop and audit world, outside every crew session
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd game && evennia stop) || true
+          mkdir -p .ox-state/observations
+          (cd game && evennia shell --command="import os; from world.scenario_observer import emit_report; emit_report(scenario=os.environ['OX_SCENARIO_NAME'], provider=os.environ['OX_COGNITION_PROVIDER'])") \
+            | tee .ox-state/observations/operator-world.log
+
+      - name: Produce readable character-by-character report
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, pathlib
+          directory = pathlib.Path(".ox-state/observations")
+          text = (directory / "operator-world.log").read_text(encoding="utf-8")
+          lines = text.splitlines()
+          try:
+              start = next(i for i, line in enumerate(lines) if line.strip() == "OX_SCENARIO_RESULT_BEGIN")
+              end = next(i for i, line in enumerate(lines) if line.strip() == "OX_SCENARIO_RESULT_END" and i > start)
+              document = json.loads("\n".join(lines[start+1:end]))
+          except (StopIteration, ValueError, json.JSONDecodeError) as exc:
+              raise RuntimeError("No complete, independently audited scenario transcript") from exc
+          (directory / "scenario.json").write_text(json.dumps(document, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          actual = document["world_truth"]["cause"]
+          first, second = document["first_diagnosis"], document["second_diagnosis"]
+          out = [f"# Scenario: {document['scenario']} ({document['provider']})",
+                 f"Actual cause (operator-only): {actual}",
+                 f"Lin first: {first['hypothesis'] or 'none'}; correct={first['correct']}",
+                 f"Lin second: {second['hypothesis'] or 'none'}; correct={second['correct']}; changed={second['changed']}",
+                 "",
+                 "| Crew | Investigated | First reading | Challenge | Second reading | After test |",
+                 "|---|---|---|---|---|---|"]
+          for role in ["lin", "ari", "iona", "mara", "teo"]:
+              c = document["crew"][role]
+              probe = c["probe"]
+              reading = (probe["indicator"] + ":" + probe["reading"]) if probe else "-"
+              values = [c["name"], str(c["joined_initial_investigation"]),
+                        str(c["initial_instrument"] or "-"), str(c["challenge"] or "-"),
+                        reading, str(c["post_test_hypothesis"] or "-")]
+              out.append("| " + " | ".join(values) + " |")
+          out.extend(["", "## World-recorded sequence"])
+          for e in document["timeline"]:
+              details = ", ".join(f"{k}={v}" for k, v in e["data"].items())
+              out.append(f"- {e['seq']} {e['source']} -> {e['actor']}: {e['kind']}" +
+                         (f" ({details})" if details else ""))
+          (directory / "scenario.md").write_text("\n".join(out) + "\n", encoding="utf-8")
+          print("\n".join(out[:13]))
+          print("OX_SCENARIO_AUDIT_COMPLETE")
+          PY
+
+      - name: Archive synthetic, secret-free observations
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: g3e-observation-${{ matrix.name }}
+          path: |
+            .ox-state/observations/scenario.md
+            .ox-state/observations/scenario.json
+            .ox-state/observations/initial-crew.log
+            .ox-state/observations/followup-crew.log
+          if-no-files-found: warn
+          retention-days: 14
