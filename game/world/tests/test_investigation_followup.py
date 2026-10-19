@@ -41,7 +41,7 @@ class FollowupWorldTests(EvenniaTestCase):
             who, label, "anomaly_challenge", hypothesis=theory,
         )["status"], "succeeded")
 
-    def tested(self, who, a, b, c, hypothesis):
+    def _complete_followup(self, who, a, b, c, hypothesis):
         self.challenge(who, a, "scrubber_bypass" if who != "watch" else "bus_interference")
         sample = take_probe(self.ship[who], self.cid)
         self.assertIsNotNone(sample)
@@ -83,7 +83,7 @@ class FollowupWorldTests(EvenniaTestCase):
                                    hypothesis="cargo_vapors")["status"], "succeeded")
 
     def test_independent_incompatible_views_can_produce_wrong_reassessment(self):
-        self.tested("watch", "b", "c", "d", "bus_interference")
+        self._complete_followup("watch", "b", "c", "d", "bus_interference")
         self.tested("chief", "e", "f", "1", "scrubber_bypass")
         self.tested("cargo", "2", "3", "4", "cargo_vapors")
         self.tested("environment", "5", "6", "7", "scrubber_bypass")
