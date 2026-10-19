@@ -138,12 +138,16 @@ class CoolingPump(FixedFixture):
         )
         self.db.event_history = history
         if self.location:
-            self.location.msg_contents(
-                f"P-01 changes state: {before} -> {new_state}.",
-                exclude=actor,
+            # An aborted database transition must not announce a physical
+            # change that never committed to world truth.
+            room = self.location
+            notice = f"P-01 changes state: {before} -> {new_state}."
+            transaction.on_commit(
+                lambda: room.msg_contents(notice, exclude=actor)
             )
         return True, f"P-01: {before.replace('_', ' ')} -> {new_state.replace('_', ' ')}."
 
+    @transaction.atomic
     def inject_fault(self, actor=None) -> tuple[bool, str]:
         """Simulate a fault; only the system or a developer can introduce it."""
         succeeded, message = self._transition("fault", actor=actor)
