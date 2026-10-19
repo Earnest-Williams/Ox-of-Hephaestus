@@ -508,3 +508,20 @@ Experiment outcomes are informative but non-conclusive, and even the final
 bridge position remains an explicitly unconfirmed hypothesis. This is
 a bounded case-specific proving ground, not generalized diagnosis, skill
 progression, or automatic repair.
+
+## G3e-3 — Actor-authorized unanswered questions
+
+G3e-3 (merged PR #51) adds a world-authoritative, actor-bound `anomaly_question`
+receipt distinct from a `anomaly_challenge`. Specialists may request one
+additional measurement of a world-known physical anomaly from their
+existing installed instrument after filing their own firsthand report.
+They need neither a bridge theory nor a competing hypothesis. The second
+reading is privately sampled, repeat-safe and separately reported to Lin;
+reporting a reading does not require asserting its cause. The external
+Concordia handler `IndependentInquiry` is opt-in with
+`OX_G3E_INDEPENDENT_QUESTIONS=1`, and the original G3e-2 challenge-only path
+remains available when disabled. Case truth, sample noise and
+character-specific knowledge stay in their existing authority domains.
+Only one follow-up measurement per eligible actor is supported; this is
+**bounded initiative**, not arbitrary experimental design or a world-oracle
+diagnosis. [Observed A/B behavior and remaining limits](design/prototypes/g3e3-independent-questions-results.md).

@@ -191,3 +191,21 @@ must never become an actor-visible affordance or model context.
 [Design and gates](prototypes/g3e-contradictory-evidence.md).
 The uncertainty-to-reassessment path is now verified. New compartments,
 skills and personalities remain deferred until a deliberate next-stage plan.
+
+## G3e-3 complete — Known unknowns can drive work without disagreement
+
+G3e-3 is merged in PR #51 (50/50 final-head checks). A specialist's
+independently identified unanswered analyzer question can cause one
+world-authorized local experiment after that actor's original firsthand
+report, without needing a dissenting alternative to Lin's theory. Lin can
+make a provisional assessment from cross-department second measurements,
+including after previously deferring; no model receives the world-owned
+latent cause. Old G3e-2 challenge-only behavior remains as an explicit
+control. [Implementation and three-run comparison](prototypes/g3e3-independent-questions-results.md).
+
+Next acceptance study, before adding more roles or rooms: vary bounded
+choice-menu ordering and experimental evidence, repeat hosted-model trials,
+and distinguish genuine evidence-seeking from menu-position biases. Probe
+selection is not yet open-ended, and one follow-up per character does not
+support indefinite pursuit of unanswered questions. Diagnose rather than
+paper over the retained wrong theory in the all-elevated case.
