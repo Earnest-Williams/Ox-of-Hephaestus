@@ -35,7 +35,7 @@ jobs:
       - name: Seeded multi-system incidents, rollback and recipient privacy
         working-directory: game
         run: |
-          python -m world.test_runner world.tests.test_adversarial_voyage --verbosity=2
+          python -m world.test_runner world.tests.test_adversarial_voyage world.tests.test_adversarial_transactions --verbosity=2
 
   seeded-handler-recovery:
     runs-on: ubuntu-latest
