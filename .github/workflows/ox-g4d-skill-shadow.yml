@@ -1,0 +1,41 @@
+name: Ox G4d canonical skills and shadow task comparisons
+
+on:
+  pull_request:
+    paths:
+      - "game/world/**"
+      - "game/commands/**"
+      - "services/ai-handler/**"
+      - ".github/workflows/ox-g4d-skill-shadow.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  skills-and-shadow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install world
+        run: |
+          python -m pip install .
+          python -m pip install -e './services/ai-handler'
+      - name: Validate compiled world code
+        run: python -m compileall -q game/world game/commands
+      - name: Check world migration drift
+        working-directory: game
+        run: DJANGO_SETTINGS_MODULE=server.conf.settings python -m django makemigrations world --check --dry-run
+      - name: Validate skill authority, bootstraps, calibration and world safety
+        working-directory: game
+        run: |
+          python -m world.test_runner \
+            world.tests.test_character_profiles \
+            world.tests.test_captain_followthrough \
+            world.tests.test_task_resolution \
+            world.tests.test_capabilities \
+            world.tests.test_work_receipts --verbosity=2
