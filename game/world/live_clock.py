@@ -36,7 +36,10 @@ def tick_game_clock(*, now_game_time: float | None = None) -> bool:
     from world.bootstrap import build_ship
     from world.live_crew import emit
     ship = build_ship()
-    roster = ship["roster"]
+    from evennia.objects.models import ObjectDB
+    # Read the duty fields AFTER acquiring the roster lock. Otherwise two
+    # independent Script/database writers can both emit a due notification.
+    roster = ObjectDB.objects.select_for_update().get(pk=ship["roster"].pk)
     delay = roster.db.ox_handover_delay_seconds
     if delay is None:
         return False
