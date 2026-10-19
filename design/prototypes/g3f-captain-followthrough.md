@@ -69,7 +69,11 @@ bypasses physical permission checks. The captain's starting diagnostics
 score is **1**: command responsibility does not imply diagnostic competence.
 The optional, personally performed bridge check requires **diagnostics >= 2**
 AND presence on the Bridge, and still reveals only available telemetry, not
-a root cause. This defines an initial qualification boundary, **not** a
+a root cause. The captain's Concordia action menu includes this personal
+inspection choice only when the world-issued problem notice establishes
+the necessary qualification; otherwise the captain must delegate. A
+world-verified `captain_inspect` receipt binds the observation to the
+captain's own session and prevents invented expertise. This defines an initial qualification boundary, **not** a
 use-based progression/experience system; progression must later use verified
 consequential work rather than mere button presses.
 
