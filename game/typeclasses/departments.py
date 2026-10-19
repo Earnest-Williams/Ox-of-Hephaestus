@@ -67,8 +67,11 @@ class DepartmentFixture(FixedFixture):
         })
         self.db.event_history = history
         if self.location:
-            self.location.msg_contents(
-                f"{self.key}: {before} -> {new_state}.", exclude=actor,
+            # Messages about world state are advisory and post-commit only.
+            room = self.location
+            notice = f"{self.key}: {before} -> {new_state}."
+            transaction.on_commit(
+                lambda: room.msg_contents(notice, exclude=actor)
             )
 
     def _alert(self, kind: str, assigned_role: str, message: str) -> None:
@@ -167,6 +170,7 @@ class CargoCradle(DepartmentFixture):
             f"Unsecured restraints: {int(self.db.loose_restraints or 0)}."
         )
 
+    @transaction.atomic
     def inject_fault(self, actor=None) -> tuple[bool, str]:
         if actor is not None and not actor.check_permstring("Developer"):
             return False, "Only developers may inject a cargo shift."
@@ -228,6 +232,7 @@ class AtmosphereScrubber(DepartmentFixture):
             f"Local spare cartridges: {total_local_spares(self)}."
         )
 
+    @transaction.atomic
     def inject_fault(self, actor=None) -> tuple[bool, str]:
         if actor is not None and not actor.check_permstring("Developer"):
             return False, "Only developers may inject a scrubber fault."
