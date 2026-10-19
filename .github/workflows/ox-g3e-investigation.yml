@@ -1,4 +1,4 @@
-name: Ox G3e uncertain investigation
+name: Ox G3e uncertain investigation and revision
 
 on:
   pull_request:
@@ -30,13 +30,14 @@ jobs:
           python -m pip install -e './services/ai-handler'
           python -m compileall -q game services/ai-handler/src
       - working-directory: game
-        run: python -m world.test_runner world.tests.test_investigation --verbosity=2
+        run: python -m world.test_runner world.tests.test_investigation world.tests.test_investigation_followup --verbosity=2
 
   five-crew-world:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
       OX_G3E_INVESTIGATION: "1"
+      OX_G3E_FOLLOWUP: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -64,7 +65,7 @@ jobs:
           set -euo pipefail
           cd game
           evennia migrate --noinput
-          evennia shell --command="from world.transport_probe import provision; from world.investigation import arm_anomaly; ids=provision(include_specialists=True); cid=arm_anomaly(cause='scrubber_bypass', seed=7); print('OX_G3E_HIDDEN_CASE_ARMED')"
+          evennia shell --command="from world.transport_probe import provision; from world.investigation import arm_anomaly; ids=provision(include_specialists=True); cid=arm_anomaly(cause='scrubber_bypass', seed=6); print('OX_G3E_HIDDEN_CASE_ARMED')"
       - name: Start authenticated ship and collect five independent observations
         shell: bash
         run: |
@@ -84,6 +85,46 @@ jobs:
           sleep 4
           python -m ox_ai.runtime.five_crew_service investigation-drain | tee /tmp/g3e.log
           grep -q 'OX_G3E_INVESTIGATION_DRAINED 6' /tmp/g3e.log
+      - name: Restart authoritative world before the second-stage investigation
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd game && evennia stop)
+          (cd game && evennia start)
+          python - <<'PY'
+          import socket,time
+          for _ in range(90):
+              try:
+                  with socket.create_connection(("127.0.0.1",4002),timeout=1):
+                      break
+              except OSError:
+                  time.sleep(1)
+          else:
+              raise RuntimeError("Restarted crew transport unavailable")
+          PY
+          sleep 4
+          python -m ox_ai.runtime.five_crew_service followup-drain | tee /tmp/g3e-followup.log
+          grep -q 'OX_G3E_FOLLOWUP_DRAINED 5' /tmp/g3e-followup.log
+      - name: Restart world and crew again; demonstrate no duplicate testimony
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd game && evennia stop)
+          (cd game && evennia start)
+          python - <<'PY'
+          import socket,time
+          for _ in range(90):
+              try:
+                  with socket.create_connection(("127.0.0.1",4002),timeout=1):
+                      break
+              except OSError:
+                  time.sleep(1)
+          else:
+              raise RuntimeError("Second restarted crew transport unavailable")
+          PY
+          sleep 4
+          python -m ox_ai.runtime.five_crew_service followup-drain | tee /tmp/g3e-replayed.log
+          grep -q 'OX_G3E_FOLLOWUP_DRAINED 0' /tmp/g3e-replayed.log
       - name: Stop ship and audit world facts separately
         if: always()
         working-directory: game
@@ -93,4 +134,4 @@ jobs:
         working-directory: game
         run: |
           set -euo pipefail
-          evennia shell --command="from world.models import InvestigationCase,WorkReceipt; from world.bootstrap import build_ship; from world.event_journal import inbox; c=InvestigationCase.objects.get(status='open'); s=build_ship(); assert c.cause=='scrubber_bypass'; assert len(c.samples)==5 and len(c.reports)==5; assert WorkReceipt.objects.filter(operation='anomaly_report',outcome__status='succeeded').count()==5; assert WorkReceipt.objects.filter(operation='anomaly_assess',outcome__status='succeeded').count()==1; assert c.assessment['verification']=='unconfirmed'; assert all(c.cause not in str(e) for k in ('officer','watch','chief','cargo','environment') for e in inbox(s[k]) if e['kind']=='anomaly_notice'); print('OX_G3E_FIVE_REAL_MEASUREMENTS_AND_UNCONFIRMED_DIAGNOSIS')"
+          evennia shell --command="from world.models import InvestigationCase,WorkReceipt; from world.bootstrap import build_ship; from world.event_journal import inbox; c=InvestigationCase.objects.get(status='open'); s=build_ship(); assert c.cause=='scrubber_bypass'; assert len(c.samples)==5 and len(c.reports)==5; assert WorkReceipt.objects.filter(operation='anomaly_report',outcome__status='succeeded').count()==5; assert WorkReceipt.objects.filter(operation='anomaly_assess',outcome__status='succeeded').count()==1; assert c.assessment['verification']=='unconfirmed'; assert c.assessment['hypothesis']=='cargo_vapors'; assert len(c.challenges)==4 and len(c.probes)==4 and len(c.reconsiderations)==4; assert len(set(v['sample_event_id'] for v in c.probes.values()))==4; assert all('report_event_id' in v for v in c.probes.values()); assert c.reassessment['previous_hypothesis']=='cargo_vapors' and c.reassessment['hypothesis']=='scrubber_bypass' and c.reassessment['verification']=='unconfirmed'; assert WorkReceipt.objects.filter(operation='anomaly_challenge',outcome__status='succeeded').count()==4; assert WorkReceipt.objects.filter(operation='anomaly_probe_report',outcome__status='succeeded').count()==4; assert WorkReceipt.objects.filter(operation='anomaly_reconsider',outcome__status='succeeded').count()==4; assert WorkReceipt.objects.filter(operation='anomaly_reassess',outcome__status='succeeded').count()==1; assert all(c.cause not in str(e) for k in ('officer','watch','chief','cargo','environment') for e in inbox(s[k]) if e['kind']=='anomaly_notice'); print('OX_G3E_FIVE_MEASUREMENTS_FOUR_CHALLENGES_FOUR_TESTS_ONE_REVISION')"
