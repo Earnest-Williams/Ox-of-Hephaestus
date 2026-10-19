@@ -184,6 +184,7 @@ class CharacterSkill(models.Model):
     proficiency = models.PositiveSmallIntegerField()
     source = models.CharField(max_length=48, default="g3f_initial_estimate")
     first_recorded_game_time = models.FloatField(default=0.0)
+    practice_progress = models.PositiveSmallIntegerField(default=0)
 
     class Meta:
         constraints = [
@@ -234,6 +235,7 @@ class CharacterTechnique(models.Model):
     familiarity = models.PositiveSmallIntegerField()
     source = models.CharField(max_length=48, default="g4e_initial_estimate")
     first_recorded_game_time = models.FloatField(default=0.0)
+    practice_progress = models.PositiveSmallIntegerField(default=0)
 
     class Meta:
         constraints = [
@@ -242,5 +244,54 @@ class CharacterTechnique(models.Model):
             ),
             models.CheckConstraint(
                 condition=models.Q(familiarity__lte=100), name="ox_technique_familiarity_range",
+            ),
+        ]
+
+
+class CharacterLearningEvidence(models.Model):
+    """Append-only provenance from exactly one verified world work receipt.
+
+    A failed or refused action cannot create practice credit. When evidence is
+    applicable but repetition no longer teaches, credit_units may be zero so
+    the underlying real attempt remains auditable.
+    """
+    person = models.ForeignKey(
+        CharacterProfile, on_delete=models.PROTECT, related_name="learning_evidence",
+    )
+    receipt = models.ForeignKey(
+        WorkReceipt, on_delete=models.PROTECT, related_name="learning_evidence",
+    )
+    event_key = models.CharField(max_length=128)
+    task_id = models.CharField(max_length=96)
+    component_kind = models.CharField(max_length=16)
+    component_id = models.CharField(max_length=96)
+    credit_units = models.PositiveSmallIntegerField(default=0)
+    score_before = models.PositiveSmallIntegerField()
+    score_after = models.PositiveSmallIntegerField()
+    progress_before = models.PositiveSmallIntegerField(default=0)
+    progress_after = models.PositiveSmallIntegerField(default=0)
+    game_time = models.FloatField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["person", "receipt", "component_kind", "component_id"],
+                name="ox_learning_one_receipt_topic",
+            ),
+            models.UniqueConstraint(
+                fields=["person", "event_key", "component_kind", "component_id"],
+                name="ox_learning_one_event_topic",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(credit_units__lte=1),
+                name="ox_learning_credit_bounded",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(score_before__lte=100, score_after__lte=100),
+                name="ox_learning_score_bounded",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(progress_before__lte=999, progress_after__lte=999),
+                name="ox_learning_progress_bound",
             ),
         ]
