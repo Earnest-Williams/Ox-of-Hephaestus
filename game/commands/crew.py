@@ -118,6 +118,7 @@ class CmdOxWork(Command):
         oxwork <32-hex-id> <radio|request|approve|resolve|offer|accept> ship
         oxwork <32-hex-id> answer ship <hail-id> <status|ack|decline>
         oxwork <32-hex-id> <operation> <pump|cargo|scrubber>
+        oxwork <32-hex-id> round_report ship <operations|pump|cargo|scrubber>
         oxwork <32-hex-id> request_supply inventory
         oxwork <32-hex-id> <accept_supply|collect_supply|deliver_supply> inventory <order-id>
 
@@ -145,12 +146,15 @@ class CmdOxWork(Command):
                 return
             arguments = {"hail_id": parts[3], "mode": parts[4]}
         elif len(parts) == 4:
-            if target != "inventory" or operation not in (
+            if target == "ship" and operation == "round_report":
+                arguments = {"station": parts[3]}
+            elif target == "inventory" and operation in (
                 "accept_supply", "collect_supply", "deliver_supply",
             ):
+                arguments = {"order_id": parts[3]}
+            else:
                 self.caller.msg(usage)
                 return
-            arguments = {"order_id": parts[3]}
         try:
             result = execute_work(
                 self.caller, request_id, operation, target,

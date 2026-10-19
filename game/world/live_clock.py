@@ -78,6 +78,8 @@ class ShipDutyClock(DefaultScript):
 
     def at_repeat(self) -> None:
         tick_game_clock()
+        from world.independent_rounds import tick_rounds
+        tick_rounds()
 
 
 def ensure_clock_script() -> None:
