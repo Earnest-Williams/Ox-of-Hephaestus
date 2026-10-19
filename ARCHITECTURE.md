@@ -508,3 +508,25 @@ Experiment outcomes are informative but non-conclusive, and even the final
 bridge position remains an explicitly unconfirmed hypothesis. This is
 a bounded case-specific proving ground, not generalized diagnosis, skill
 progression, or automatic repair.
+
+
+## G3e-3: actor-owned known unknowns and continued investigation
+
+[The G3e-3 design contract](design/prototypes/g3e-independent-questions.md)
+extends the existing case rather than introducing another subsystem.
+`InvestigationCase.questions` is a private authoritative record of
+one specialist-requested experiment supported by that actor's own first
+stage WorkReceipt. Only the physical local source may be sampled; the
+world sends the verified reading to the sample author and relays the
+report to Lin without interpreting the root cause. Each private
+`AgentEpistemics` records an unanswered question rather than inventing
+knowledge. Cross-department follow-up reports can lead to an explicitly
+unconfirmed reassessment even when Lin previously deferred. The
+legacy G3e-2 challenge prerequisite remains selectable as the control
+using `OX_G3E_INDEPENDENT_QUESTIONS=0`; the new protocol is opt-in via
+`OX_G3E_INDEPENDENT_QUESTIONS=1`. No existing world authority,
+scheduling priority, character or physical layout is replaced.
+
+[PR #51](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/51)
+merged after a final 50/50 CI matrix. Paired hosted model trials showed
+more independent testing, not reliably accurate diagnoses.
