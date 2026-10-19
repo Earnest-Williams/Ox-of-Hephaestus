@@ -647,6 +647,41 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
                 evidence_id=outcome.source_event_id,
                 at=float(latest["game_time"]), source="world_receipt",
             )
+            # The first-person world round receipt is not a diagnosis.
+            # Re-read this actor's addressed report for its wear finding;
+            # do not consult world Attributes or the bridge's private mail.
+            own = await self.read_inbox(role)
+            reports = [
+                e for e in own if e["kind"] == "round_recorded"
+                and e["event_id"] == outcome.source_event_id
+                and e["data"].get("cycle") == record["cycle"]
+                and e["data"].get("station") == station
+            ]
+            if not reports:
+                raise RuntimeError("Authenticated local round proof not delivered")
+            report = reports[-1]
+            if (role in ("mara", "teo")
+                    and report["data"].get("finding") == "maintenance_due"):
+                operation = "retension" if role == "mara" else "purge"
+                target = "cargo" if role == "mara" else "scrubber"
+                if "preventive_selected" not in record:
+                    choice = await self.choose(
+                        role, CommandOption(
+                            "Perform locally indicated preventive " + operation,
+                            operation + "_" + target,
+                        ), alternative="File finding without preventive intervention",
+                    )
+                    record["preventive_selected"] = (
+                        choice.verb == operation + "_" + target
+                    )
+                    self.checkpoint()
+                if record["preventive_selected"]:
+                    await WorkStepLedger(
+                        record, self.checkpoint, character_ids=self.ids,
+                    ).run(
+                        "preventive", role, operation + "_" + target,
+                        target, DurableEvenniaPort(client),
+                    )
             record["done"] = True
             self.checkpoint()
             return True
