@@ -129,3 +129,27 @@ class InvestigationCase(models.Model):
     reconsiderations = models.JSONField(default=dict)
     reassessment = models.JSONField(default=dict)
     created_game_time = models.FloatField()
+
+
+class CaptainObligation(models.Model):
+    """Persistent command responsibility for unresolved world-created problems.
+
+    A captain's theory, assignment, or report cannot change physical state
+    or close an obligation. Closure requires an authoritative world outcome.
+    """
+    ticket_id = models.CharField(max_length=32, primary_key=True)
+    kind = models.CharField(max_length=32)
+    source_ref = models.CharField(max_length=64)
+    priority = models.PositiveSmallIntegerField()
+    status = models.CharField(max_length=16, default="open")
+    captain_dbref = models.CharField(max_length=32)
+    assignment = models.JSONField(default=dict)
+    history = models.JSONField(default=list)
+    due_game_time = models.FloatField()
+    last_reminded_game_time = models.FloatField(default=0)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["status", "due_game_time"],
+                         name="ox_captain_due"),
+        ]
