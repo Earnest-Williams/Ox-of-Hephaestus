@@ -52,9 +52,10 @@ jobs:
       max-parallel: 2
       fail-fast: false
       matrix:
-        # Gate six paid/model trials on one real-server GOAP integration.
-        provider: [goap]
-        seed: [241]
+        # Both controllers use identical world seeds and six authenticated
+        # characters. The focused GOAP smoke passed in run 39337213487.
+        provider: [goap, gemini]
+        seed: [241, 577, 911]
     env:
       OX_TERMINAL_LIVE_CI: "1"
       OX_CAPTAIN_OVERSIGHT: "1"
