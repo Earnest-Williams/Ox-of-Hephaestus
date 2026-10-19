@@ -19,6 +19,14 @@ class ShipRoom(DefaultRoom):
 class CrewCharacter(DefaultCharacter):
     """A persistent physical shipboard person, not a session-scoped avatar."""
 
+    def at_pre_move(self, destination, **kwargs) -> bool:
+        # World-authored G6 death outlives supervisor disconnects and blocks
+        # all regular Evennia exit traversal, including unprompted AI moves.
+        if self.db.ox_terminal_dead:
+            self.msg("This crewmember is deceased and cannot move.")
+            return False
+        return super().at_pre_move(destination, **kwargs)
+
     def at_post_move(self, source_location, **kwargs) -> None:
         """Keep ordinary Evennia movement while interrupting supervised study."""
         super().at_post_move(source_location, **kwargs)

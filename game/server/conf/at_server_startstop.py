@@ -12,6 +12,8 @@ def at_server_start() -> None:
     """Ensure a persistent, world-owned duty timer exists after every boot."""
     from world.live_clock import ensure_clock_script
     ensure_clock_script()
+    from world.terminal_failure import ensure_terminal_clock
+    ensure_terminal_clock()
 
 
 def at_server_stop() -> None:

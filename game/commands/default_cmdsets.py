@@ -3,6 +3,7 @@
 from evennia.commands.cmdset import CmdSet
 from evennia.commands.default import general, help
 
+from commands.terminal import CmdOxTerminal
 from commands.capabilities import CmdOxCapabilities
 from commands.inventory import CmdOxInventory
 
@@ -49,6 +50,7 @@ class CharacterCmdSet(CmdSet):
             help.CmdHelp,
             CmdInspect,
             CmdOxCapabilities,
+            CmdOxTerminal,
             CmdOxInventory,
             CmdOxIdentity,
             CmdOxAction,
