@@ -250,6 +250,16 @@ class CaptainFollowthrough:
                     {"ticket_id": ticket_id},
                 )
                 return True
+            if (kind == "atmosphere_alarm"
+                    and "initial_review" not in record.get("work_steps", {})):
+                # Urgent Teo work may have finished before command could act.
+                # Inspect world truth first, rather than ordering redundant
+                # procedures against an already restored A-01.
+                await self._work(
+                    record, "initial_review", "captain", "captain_review",
+                    {"ticket_id": ticket_id},
+                )
+                return True
             order_events = [
                 e for e in messages if e["kind"] == "captain_assignment_recorded"
                 and e["data"].get("ticket_id") == ticket_id
