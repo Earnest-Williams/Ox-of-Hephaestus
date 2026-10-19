@@ -11,7 +11,7 @@ from evennia.utils.create import create_object
 
 FIXTURE_CATEGORY = "ox_ship_prototype"
 
-CREW_MARKERS = ("crew-chief", "crew-watch", "crew-bridge", "crew-cargo", "crew-environment")
+CREW_MARKERS = ("crew-chief", "crew-watch", "crew-bridge", "crew-cargo", "crew-environment", "crew-captain")
 
 
 def find_fixture(marker: str):
@@ -56,7 +56,7 @@ def _exit(marker: str, name: str, origin, destination, aliases=()):
 
 
 def build_ship() -> dict[str, object]:
-    """Install a navigable departmental ship and five initially idle crew.
+    """Install a navigable departmental ship and six initially idle crew.
 
     This can be run repeatedly, from the one-time startup hook or via shell.
     It does not create accounts, sessions, autonomous cognition or a timed AI
@@ -241,8 +241,18 @@ def build_ship() -> dict[str, object]:
             "Atmospheric servicing and cartridge replacement",
             "Environmental duty",
         ),
+        (
+            "crew-captain",
+            "Ship's Captain",
+            bridge,
+            "captain",
+            "Own unresolved problems and require accountable follow-up",
+            "Command duty",
+        ),
     )
     members = {}
+    from world.crew_competencies import skills_for
+
     for marker, key, room, role, duty, watch in crew_spec:
         existing = find_fixture(marker)
         member = _ensure(
@@ -257,6 +267,10 @@ def build_ship() -> dict[str, object]:
             member.db.duty_title = duty
             member.db.watch_window = watch
             member.db.desc = "A crew member standing their posted shipboard watch."
+        # An additive skill seed, not a mutable level system. Rerunning the
+        # bootstrap never overwrites existing individual competence records.
+        if member.db.ox_skills is None:
+            member.db.ox_skills = skills_for(role)
         members[marker] = member
 
     return {
@@ -279,4 +293,5 @@ def build_ship() -> dict[str, object]:
         "officer": members["crew-bridge"],
         "cargo": members["crew-cargo"],
         "environment": members["crew-environment"],
+        "captain": members["crew-captain"],
     }
