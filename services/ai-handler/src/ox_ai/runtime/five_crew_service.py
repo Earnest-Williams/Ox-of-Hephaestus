@@ -687,6 +687,113 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
             return True
         return False
 
+    async def service_uncertain_investigation(self) -> bool:
+        """Opt-in five-person investigation, with no oracle and no forced answer.
+
+        Each participant receives their own case notice, chooses to visit the
+        instrument, obtains a real local sample, and files one durable report.
+        Only Lin sees reported cross-department evidence. A diagnosis may be
+        wrong and is explicitly tentative; unseen root cause is never read.
+        """
+        if os.getenv("OX_G3E_INVESTIGATION", "0") != "1":
+            return False
+        stations = {
+            "lin": "Bridge", "ari": "Engineering", "iona": "Engineering",
+            "mara": "Cargo Hold", "teo": "Environmental Plant",
+        }
+        cases = self.state.setdefault("g3e_investigations", {})
+        if not isinstance(cases, dict) or any(k not in self.ids for k in cases):
+            raise PermissionError("Foreign investigation checkpoint")
+        for role in self.ids:
+            messages = await self.read_inbox(role)
+            notices = [e for e in messages if e["kind"] == "anomaly_notice"]
+            if not notices:
+                continue
+            notice = notices[-1]
+            case_id = notice["data"].get("case_id")
+            if not isinstance(case_id, str) or len(case_id) != 32:
+                raise RuntimeError("Malformed world investigation identity")
+            record = cases.get(role)
+            if record is not None and (record.get("actor") != self.ids[role]
+                                       or record.get("case_id") != case_id):
+                raise PermissionError("Investigation case identity mismatch")
+            if record is None:
+                decision = await self.choose(
+                    role, CommandOption("Investigate the unexplained anomaly", "investigate"),
+                    alternative="Defer nonurgent investigation",
+                )
+                record = {"actor": self.ids[role], "case_id": case_id,
+                          "selected": decision.verb == "investigate", "done": False}
+                cases[role] = record
+                self.checkpoint()
+            if not record["selected"] or record["done"]:
+                continue
+            await self.ensure_station(role, stations[role])
+            client = self.clients[role]
+            if "report" not in record.get("work_steps", {}):
+                await client.send_line("oxsample " + case_id)
+                reading = await client.expect_text("OX_ANOMALY_SAMPLE " + case_id, timeout=12)
+                self.brains[role].observe_local("Firsthand anomaly instrument", reading)
+                self.checkpoint()
+            result = await WorkStepLedger(
+                record, self.checkpoint, character_ids=self.ids,
+            ).run(
+                "report", role, "anomaly_report", "ship",
+                DurableEvenniaPort(client), arguments={"case_id": case_id},
+            )
+            if not result.source_event_id:
+                raise RuntimeError("No world-proven anomaly report")
+            events = await self.read_inbox(role)
+            if not any(e["event_id"] == result.source_event_id
+                       and e["kind"] == "anomaly_report_recorded" for e in events):
+                raise RuntimeError("Report not visible to its own author")
+            record["done"] = True
+            self.checkpoint()
+            return True
+        # Assessment is a separate bridge decision after authenticated
+        # reports from engineering and a specialist; never forced by the GM.
+        lin = cases.get("lin")
+        if lin is None or not lin.get("done") or lin.get("assessment_done"):
+            return False
+        case_id = lin["case_id"]
+        events = await self.read_inbox("lin")
+        reports = [e for e in events if e["kind"] == "anomaly_crew_report"
+                   and e["data"].get("case_id") == case_id]
+        senders = {e["sender_dbref"] for e in reports}
+        if not (any(self.ids[r] in senders for r in ("ari", "iona"))
+                and any(self.ids[r] in senders for r in ("mara", "teo"))):
+            return False
+        # Preserve all candidate causes. Inference sees only Lin's own
+        # memory, which includes legitimate world-delivered crew reports.
+        if "hypothesis" not in lin:
+            options = [
+                CommandOption("Hypothesis: cargo vapors", "cargo_vapors"),
+                CommandOption("Hypothesis: scrubber bypass", "scrubber_bypass"),
+                CommandOption("Hypothesis: electrical bus interference", "bus_interference"),
+                CommandOption("Insufficient evidence: defer diagnosis", "defer"),
+            ]
+            choice = await self.cognition.decide(
+                "lin", self.brains["lin"].agent, options,
+            )
+            lin["hypothesis"] = choice.verb
+            self.checkpoint()
+        if lin["hypothesis"] == "defer":
+            lin["assessment_done"] = True
+            self.checkpoint()
+            return True
+        result = await WorkStepLedger(
+            lin, self.checkpoint, character_ids=self.ids,
+        ).run(
+            "assessment", "lin", "anomaly_assess", "ship",
+            DurableEvenniaPort(self.clients["lin"]),
+            arguments={"case_id": case_id, "hypothesis": lin["hypothesis"]},
+        )
+        if not result.source_event_id:
+            raise RuntimeError("World did not record provisional assessment")
+        lin["assessment_done"] = True
+        self.checkpoint()
+        return True
+
     async def service_departments(self) -> bool:
         """Choose actual duties, then consider blocked real supply dependencies."""
         for role in EXTRA_ACCOUNTS:
@@ -744,6 +851,18 @@ async def run(mode: str) -> None:
                 raise RuntimeError("Cargo pause did not stop after real restow")
             print("OX_G2_CARGO_PAUSED_AFTER_WORLD_RESTOW")
             return
+        if mode == "investigation-drain":
+            if os.getenv("OX_G3E_INVESTIGATION", "0") != "1":
+                raise RuntimeError("G3e investigation requires opt-in")
+            total = 0
+            for _ in range(8):
+                if not await supervisor.service_uncertain_investigation():
+                    break
+                total += 1
+            else:
+                raise RuntimeError("Investigation exceeded bounded steps")
+            print("OX_G3E_INVESTIGATION_DRAINED", total)
+            return
         if mode == "round-drain":
             if os.getenv("OX_G3D_INDEPENDENT_ROUNDS", "0") != "1":
                 raise RuntimeError("Independent round test requires explicit opt-in")
@@ -788,13 +907,13 @@ def main() -> None:
             or not (sys.argv[1] in (
                 "serve", "drop-replace-ack",
                 "agenda-pause-cargo", "agenda-once", "agenda-finish",
-                "round-drain",
+                "round-drain", "investigation-drain",
             )
                     or sys.argv[1].startswith("interrupt-")
                     or sys.argv[1].startswith("finish-"))):
         raise SystemExit(
             "Usage: python -m ox_ai.runtime.five_crew_service "
-            "serve|drop-replace-ack|agenda-pause-cargo|agenda-once|agenda-finish|round-drain|"
+            "serve|drop-replace-ack|agenda-pause-cargo|agenda-once|agenda-finish|round-drain|investigation-drain|"
             "interrupt-<role>-<op>-<point>|finish-<role>"
         )
     asyncio.run(run(sys.argv[1]))
