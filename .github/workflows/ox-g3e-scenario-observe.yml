@@ -61,6 +61,7 @@ jobs:
       OX_COGNITION_TOTAL_BUDGET: "50"
       OX_G3E_INVESTIGATION: "1"
       OX_G3E_FOLLOWUP: "1"
+      OX_G3E_INDEPENDENT_QUESTIONS: "1"
 
     steps:
       - uses: actions/checkout@v4
@@ -172,15 +173,17 @@ jobs:
                  f"Lin first: {first['hypothesis'] or 'none'}; correct={first['correct']}",
                  f"Lin second: {second['hypothesis'] or 'none'}; correct={second['correct']}; changed={second['changed']}",
                  "",
-                 "| Crew | Investigated | First reading | Challenge | Second reading | After test |",
-                 "|---|---|---|---|---|---|"]
+                 "| Crew | Investigated | First reading | Opened question | Challenge | Second reading | After test |",
+                 "|---|---|---|---|---|---|---|"]
           for role in ["lin", "ari", "iona", "mara", "teo"]:
               c = document["crew"][role]
               probe = c["probe"]
               reading = (probe["indicator"] + ":" + probe["reading"]) if probe else "-"
               values = [c["name"], str(c["joined_initial_investigation"]),
-                        str(c["initial_instrument"] or "-"), str(c["challenge"] or "-"),
-                        reading, str(c["post_test_hypothesis"] or "-")]
+                        str(c["initial_instrument"] or "-"),
+                        "yes" if c["independent_question"] else "-",
+                        str(c["challenge"] or "-"), reading,
+                        str(c["post_test_hypothesis"] or "-")]
               out.append("| " + " | ".join(values) + " |")
           out.extend(["", "## World-recorded sequence"])
           for e in document["timeline"]:
@@ -190,6 +193,13 @@ jobs:
           (directory / "scenario.md").write_text("\n".join(out) + "\n", encoding="utf-8")
           print("\n".join(out[:13]))
           print("OX_SCENARIO_AUDIT_COMPLETE")
+          if document["provider"] == "mock":
+              counts = document["world_action_counts"]
+              assert document["independent_questions_registered"] == 4, "MockModel must exercise four independently authorized questions"
+              assert counts.get("anomaly_question", {}).get("succeeded") == 4
+              assert counts.get("anomaly_probe_report", {}).get("succeeded") == 4
+              assert counts.get("anomaly_reassess", {}).get("succeeded") == 1
+              print("OX_G3E_INDEPENDENT_QUESTION_CONTROL_VERIFIED")
           PY
 
       - name: Archive synthetic, secret-free observations
