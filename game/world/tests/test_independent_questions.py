@@ -52,7 +52,7 @@ class IndependentQuestionsTests(EvenniaTestCase):
         self.assertEqual(self.attempt("watch", "b", "anomaly_reconsider",
                                       hypothesis="bus_interference")["status"], "failed")
         ari = self.interrogate("watch", "c", "d", opinion="bus_interference", r="e")
-        mara = self.interrogate("cargo", "f", "a", opinion="cargo_vapors", r="b")
+        mara = self.interrogate("cargo", "f", "6", opinion="cargo_vapors", r="7")
         self.assertIn(ari["reading"], ("supports", "does_not_support"))
         self.assertIn(mara["reading"], ("supports", "does_not_support"))
         case = InvestigationCase.objects.get(pk=self.case_id)
