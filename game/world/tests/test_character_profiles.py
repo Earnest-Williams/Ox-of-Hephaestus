@@ -11,7 +11,7 @@ from world.character_dimensions import APTITUDES, PSYCHOLOGY, validate_profile
 from world.character_profiles import (
     FIXTURE_PERSON_IDS, profile_for_actor, seed_existing_crew, skill_for_actor,
 )
-from world.models import CharacterProfile, CharacterSkill
+from world.models import CharacterProfile, CharacterSkill, CharacterKnowledge, CharacterTechnique
 from world.crew_initial_skills import PERSON_STARTING_SKILLS, starting_skills_for_person
 from world.skill_catalogue import (
     DISCIPLINES, FOUNDATIONS, LEGACY_COMPETENCY_SKILLS, SKILLS,
@@ -150,7 +150,11 @@ class CharacterFoundationWorldTests(EvenniaTestCase):
     def test_legacy_world_vector_is_converted_and_destroyed_once(self):
         captain = self.ship["captain"]
         original = profile_for_actor(captain)
+        # Simulate a genuinely pre-G4d world. G4e's protected dependent
+        # records must be removed in this disposable test fixture first.
         CharacterSkill.objects.filter(person=original).delete()
+        CharacterKnowledge.objects.filter(person=original).delete()
+        CharacterTechnique.objects.filter(person=original).delete()
         original.delete()
         # A pre-upgrade world may have actual personalised coarse estimates.
         captain.db.ox_skills = {"diagnostics": 3, "command": 2}
