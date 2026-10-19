@@ -16,6 +16,7 @@ from dataclasses import dataclass
 
 from world.character_dimensions import APTITUDES
 from world.skill_catalogue import SKILLS
+from world.technique_catalogue import TECHNIQUES
 
 # Ordered: practical skill, conceptual knowledge, formative aptitude,
 # equipment/procedure familiarity. Each profile sums to exactly 100.
@@ -34,6 +35,7 @@ class TaskDefinition:
     relevant_aptitudes: tuple[str, ...]
     difficulty: int
     knowledge_floor: int = 0
+    technique_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,33 +59,40 @@ TASKS: dict[str, TaskDefinition] = {
     "pump.routine_service": TaskDefinition(
         "pump.routine_service", "mechanical.pump_service", "routine",
         ("dexterity", "spatial_sense"), 55,
+        technique_id="pump.p01.routine_service",
     ),
     "pump.unfamiliar_repair": TaskDefinition(
         "pump.unfamiliar_repair", "mechanical.pump_service",
         "unfamiliar_repair", ("dexterity", "spatial_sense", "reasoning"), 65,
         knowledge_floor=15,
+        technique_id="pump.p01.unfamiliar_repair",
     ),
     "pump.novel_interference": TaskDefinition(
         "pump.novel_interference", "mechanical.vibration_diagnostics",
         "novel_investigation", ("reasoning", "attention", "perception"), 70,
         knowledge_floor=20,
+        technique_id="pump.p01.vibration_analyzer",
     ),
     "analyzer.inconsistent_readings": TaskDefinition(
         "analyzer.inconsistent_readings", "investigation.instrument_analysis",
         "novel_investigation", ("reasoning", "perception", "attention"), 65,
         knowledge_floor=20,
+        technique_id="analyzer.bridge.inconsistent_readings",
     ),
     "cargo.restow": TaskDefinition(
         "cargo.restow", "freight.cargo_rigging", "routine",
         ("agility", "spatial_sense", "dexterity"), 50,
+        technique_id="cargo.c01.restow",
     ),
     "environment.scrubber_service": TaskDefinition(
         "environment.scrubber_service", "environmental.atmosphere_maintenance",
         "routine", ("dexterity", "attention"), 50,
+        technique_id="environment.a01.scrubber_service",
     ),
     "captain.bridge_instrument_review": TaskDefinition(
         "captain.bridge_instrument_review", "investigation.instrument_analysis",
         "routine", ("perception", "attention"), 45,
+        technique_id="captain.bridge.instrument_review",
     ),
 }
 
@@ -158,6 +167,10 @@ for _task in TASKS.values():
             or type(_task.knowledge_floor) is not int
             or not 0 <= _task.knowledge_floor <= 100):
         raise RuntimeError(f"Invalid shadow task calibration: {_task.task_id}")
+    if (_task.technique_id is not None and
+            (_task.technique_id not in TECHNIQUES or
+             TECHNIQUES[_task.technique_id].relevant_skill_id != _task.skill_id)):
+        raise RuntimeError(f"Invalid task-to-equipment familiarity binding: {_task.task_id}")
 if any(sum(weights) != 100 or any(w < 0 for w in weights)
        for weights in WEIGHTS.values()):
     raise RuntimeError("Shadow weights must sum to 100")
