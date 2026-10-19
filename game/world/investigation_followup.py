@@ -102,7 +102,8 @@ def take_probe(actor, case_id: str) -> dict | None:
     if existing is not None:
         return {
             "case_id": case_id, "indicator": name, "tested_hypothesis": tested,
-            "reading": existing["reading"], "event_id": existing["sample_event_id"],
+            "reading": existing["reading"], "quality": "indicative_only",
+            "event_id": existing["sample_event_id"],
         }
     reading = _measurement(case, role)
     data = {
