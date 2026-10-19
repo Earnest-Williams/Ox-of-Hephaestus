@@ -114,6 +114,12 @@ def assign(actor, ticket_id: str, role: str) -> tuple[bool, str]:
                    "mara": "cargo", "teo": "environment"}[role]]
     if member.dbref == actor.dbref:
         return False, "Command cannot self-authorize technical work"
+    if item.kind == "analyzer_anomaly":
+        case = InvestigationCase.objects.filter(pk=item.source_ref).first()
+        if case is None:
+            return False, "No source investigation for this ticket"
+        if case.probes.get(member.dbref, {}).get("report_event_id"):
+            return False, "A completed old experiment cannot satisfy new orders"
     # An unproductive repeat of the exact same existing probe does not
     # count as a fresh investigation. A new role is required after a report.
     if item.kind == "analyzer_anomaly" and any(
@@ -290,6 +296,23 @@ def escalate(actor, ticket_id: str) -> tuple[bool, str]:
     )
     item.save(update_fields=["history", "due_game_time"])
     return True, "Escalation registered; unresolved obligation retained"
+
+
+@transaction.atomic
+def report_equipment_change(*, kind: str, source_ref: str, state: str) -> None:
+    """World-issued physical progress notification, without declaring success."""
+    item = CaptainObligation.objects.select_for_update().filter(
+        kind=kind, source_ref=source_ref, status="open",
+    ).first()
+    if item is None:
+        return
+    ship = build_ship()
+    emit(
+        ship["pump"], ship["captain"], "captain_equipment_change",
+        data={"ticket_id": item.ticket_id, "kind": kind,
+              "reported_state": state, "status": "open"},
+        text="Equipment changed physically; captain must verify actual resolution.",
+    )
 
 
 def captain_qualified_observation(actor, ticket_id: str) -> dict | None:
