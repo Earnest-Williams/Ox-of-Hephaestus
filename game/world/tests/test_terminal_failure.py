@@ -157,8 +157,80 @@ class TerminalFailureTests(EvenniaTestCase):
             )
             self.assertEqual(parsed["receipted_attempts"][0]["role"], "iona")
 
-    def test_world_workflow_does_not_invent_scrubber_damage(self):
-        self.assertEqual(self.ship["scrubber"].state, "nominal")
-        r = execute_work(self.ship["environment"], "e" * 32, "terminal_replace", "ship")
-        self.assertEqual(r["status"], "failed")
-        self.assertEqual(self.ship["scrubber"].state, "nominal")
+    def test_nominal_cartridge_replacement_is_valid_diagnostic_work(self):
+        scrubber = self.ship["scrubber"]
+        teo = self.ship["environment"]
+        self.assertEqual(scrubber.state, "nominal")
+        self.assertEqual(scrubber.db.spare_cartridges, 2)
+        early = execute_work(teo, "e" * 32, "terminal_replace", "ship")
+        self.assertEqual(early["status"], "failed")
+        self.assertEqual(scrubber.db.spare_cartridges, 2)
+        execute_work(teo, "a" * 32, "terminal_survey", "ship")
+        replaced = execute_work(teo, "b" * 32, "terminal_replace", "ship")
+        self.assertEqual(replaced["status"], "succeeded")
+        self.assertEqual(scrubber.db.spare_cartridges, 1)
+        self.assertEqual(scrubber.state, "nominal")
+        self.assertEqual(
+            execute_work(teo, "b" * 32, "terminal_replace", "ship"), replaced,
+        )
+        self.assertEqual(scrubber.db.spare_cartridges, 1)
+        self.assertIn("pressure loss", observe_terminal(teo)["own_finding"])
+        self.assertEqual(
+            [e["operation"] for e in scrubber.db.event_history][-3:],
+            ["diagnostic_isolate", "replace", "restart"],
+        )
+        for _ in range(60):
+            tick_terminal()
+        self.assertTrue(self.ship["pump"].db.ox_terminal_incident["fatal"])
+        self.assertTrue(teo.db.ox_terminal_dead)
+
+    def test_cartridge_shortage_and_crosscheck_are_physical_evidence(self):
+        scrubber = self.ship["scrubber"]
+        teo = self.ship["environment"]
+        execute_work(teo, "c" * 32, "terminal_survey", "ship")
+        scrubber.db.spare_cartridges = 0
+        no_stock = execute_work(teo, "d" * 32, "terminal_replace", "ship")
+        self.assertEqual(no_stock["status"], "failed")
+        self.assertEqual(scrubber.state, "nominal")
+        self.assertEqual(len(scrubber.db.event_history), 0)
+        self.assertEqual(observe_terminal(teo)["local_cartridge_spares"], 0)
+        self.assertIsNone(
+            observe_terminal(self.ship["officer"])["local_cartridge_spares"]
+        )
+        crosscheck = execute_work(teo, "f" * 32, "terminal_crosscheck", "ship")
+        self.assertEqual(crosscheck["status"], "succeeded")
+        self.assertIn("Independent differential-pressure", observe_terminal(teo)["own_finding"])
+        self.assertNotIn("Independent differential-pressure",
+                         observe_terminal(self.ship["officer"])["own_finding"])
+
+    def test_repeat_reports_and_captain_orders_need_new_evidence(self):
+        teo = self.ship["environment"]
+        captain = self.ship["captain"]
+        execute_work(teo, "0" * 32, "terminal_survey", "ship")
+        self.assertEqual(execute_work(
+            teo, "1" * 32, "terminal_broadcast", "ship",
+        )["status"], "succeeded")
+        first = len([e for e in inbox(captain) if e["kind"] == "terminal_report"])
+        self.assertEqual(first, 1)
+        self.assertEqual(execute_work(
+            teo, "2" * 32, "terminal_broadcast", "ship",
+        )["status"], "failed")
+        self.assertEqual(len([e for e in inbox(captain)
+                              if e["kind"] == "terminal_report"]), first)
+        self.assertEqual(execute_work(
+            captain, "3" * 32, "terminal_command", "ship",
+        )["status"], "succeeded")
+        order_count = len([e for e in inbox(teo) if e["kind"] == "terminal_order"])
+        self.assertEqual(execute_work(
+            captain, "4" * 32, "terminal_command", "ship",
+        )["status"], "failed")
+        self.assertEqual(len([e for e in inbox(teo)
+                              if e["kind"] == "terminal_order"]), order_count)
+        execute_work(teo, "5" * 32, "terminal_crosscheck", "ship")
+        self.assertEqual(execute_work(
+            teo, "6" * 32, "terminal_broadcast", "ship",
+        )["status"], "succeeded")
+        self.assertEqual(execute_work(
+            captain, "7" * 32, "terminal_command", "ship",
+        )["status"], "succeeded")
+
