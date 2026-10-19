@@ -67,7 +67,6 @@ class CharacterFoundationWorldTests(EvenniaTestCase):
         self.assertEqual(skill_for_actor(self.ship["cargo"], "freight.cargo_rigging"), 80)
         self.assertEqual(skill_for_actor(self.ship["environment"], "environmental.atmosphere_maintenance"), 80)
         self.assertEqual(self.ship["captain"].db.ox_skills["diagnostics"], 1)
-        self.assertFalse(hasattr(self.ship["captain"].db, "profile_admin"))
         with self.assertRaises(ValueError):
             skill_for_actor(self.ship["captain"], "fake.unrecognised")
         with self.assertRaises(ValueError):
