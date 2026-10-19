@@ -63,7 +63,8 @@ def valid_options(role: str, view: dict, known: dict) -> list[CommandOption]:
         choices.append(CommandOption("Inspect local equipment and sensor evidence",
                                      "terminal_survey"))
         action, label = PRIMARY[role]
-        choices.append(CommandOption(label, action))
+        if action != "terminal_replace":
+            choices.append(CommandOption(label, action))
     if role == "teo" and here == "Environmental Plant":
         choices.append(CommandOption(
             "Independently cross-check A-01's nominal pressure sensor",
