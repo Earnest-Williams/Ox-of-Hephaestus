@@ -7,16 +7,21 @@ and existing world locks control replay and concurrency.
 
 Current training is deliberately narrow: a physical repair/restow/replacement
 improves practical skill and familiarity with that precise procedure, NOT
-theoretical knowledge or psychological traits. Verified conceptual instruction
-and learning from well-diagnosed failures require separate evidence types.
+theoretical knowledge or psychological traits. G4g conceptual instruction
+enters through the separately validated concept_learning activity. Learning
+from well-diagnosed physical failures still requires its own evidence type.
 """
+
 from __future__ import annotations
 
 from django.db import transaction
-
 from world.character_profiles import profile_for_actor
 from world.models import (
-    CharacterLearningEvidence, CharacterSkill, CharacterTechnique, WorkReceipt,
+    CharacterKnowledge,
+    CharacterLearningEvidence,
+    CharacterSkill,
+    CharacterTechnique,
+    WorkReceipt,
 )
 from world.task_resolution import TASKS
 
@@ -47,61 +52,99 @@ def progression_threshold(level: int) -> int:
     return 30
 
 
-def _award_for_component(person, receipt, event_key: str,
-                         task_id: str, component_kind: str,
-                         component_id: str) -> bool:
+def _award_for_component(
+    person,
+    receipt,
+    event_key: str,
+    task_id: str,
+    component_kind: str,
+    component_id: str,
+    *,
+    score_limit: int = 100,
+) -> bool:
+    """Record one verified event and bounded progress on one independent ledger.
+
+    Callers must first verify the activity's provenance and eligibility. A
+    curriculum ceiling prevents an elementary course teaching expert mastery.
+    """
     if component_kind == "skill":
         instance, _ = CharacterSkill.objects.select_for_update().get_or_create(
-            person=person, skill_id=component_id,
+            person=person,
+            skill_id=component_id,
             defaults={"proficiency": 0, "source": "world_practice_first_success"},
         )
         score_field = "proficiency"
     elif component_kind == "technique":
         instance, _ = CharacterTechnique.objects.select_for_update().get_or_create(
-            person=person, technique_id=component_id,
+            person=person,
+            technique_id=component_id,
             defaults={"familiarity": 0, "source": "world_practice_first_success"},
         )
         score_field = "familiarity"
+    elif component_kind == "knowledge":
+        instance, _ = CharacterKnowledge.objects.select_for_update().get_or_create(
+            person=person,
+            foundation_id=component_id,
+            defaults={
+                "mastery": 0,
+                "source": "world_verified_instruction",
+                "first_recorded_game_time": receipt.game_time,
+            },
+        )
+        score_field = "mastery"
     else:
-        raise ValueError("Learning can only credit registered skill or technique")
+        raise ValueError("Unknown learning component")
+    progress_field = "study_progress" if component_kind == "knowledge" else "practice_progress"
 
     # If the same physical event was rewrapped under another request ID,
     # do not credit it twice and do not create a second evidence row.
     if CharacterLearningEvidence.objects.filter(
-        person=person, event_key=event_key,
-        component_kind=component_kind, component_id=component_id,
+        person=person,
+        event_key=event_key,
+        component_kind=component_kind,
+        component_id=component_id,
     ).exists():
         return False
 
     recent = CharacterLearningEvidence.objects.filter(
-        person=person, component_kind=component_kind,
+        person=person,
+        component_kind=component_kind,
         component_id=component_id,
         game_time__gt=receipt.game_time - LEARNING_WINDOW_SECONDS,
         game_time__lte=receipt.game_time,
         credit_units__gt=0,
     ).count()
     previous_score = getattr(instance, score_field)
-    previous_progress = instance.practice_progress
-    credit = int(previous_score < 100 and recent < MAX_CREDITED_REPETITIONS)
+    previous_progress = getattr(instance, progress_field)
+    credit = int(previous_score < score_limit and recent < MAX_CREDITED_REPETITIONS)
     next_score = previous_score
     next_progress = previous_progress + credit
-    if (credit and next_progress >= progression_threshold(previous_score)
-            and previous_score < 100):
+    if (
+        credit
+        and next_progress >= progression_threshold(previous_score)
+        and previous_score < score_limit
+    ):
         next_score += 1
         next_progress -= progression_threshold(previous_score)
-    if next_score >= 100:
+    if next_score >= score_limit:
         next_progress = 0
     if credit:
         setattr(instance, score_field, next_score)
-        instance.practice_progress = next_progress
-        instance.save(update_fields=[score_field, "practice_progress"])
+        setattr(instance, progress_field, next_progress)
+        instance.save(update_fields=[score_field, progress_field])
 
     CharacterLearningEvidence.objects.create(
-        person=person, receipt=receipt, event_key=event_key, task_id=task_id,
-        component_kind=component_kind, component_id=component_id,
+        person=person,
+        receipt=receipt,
+        event_key=event_key,
+        task_id=task_id,
+        component_kind=component_kind,
+        component_id=component_id,
         credit_units=credit,
-        score_before=previous_score, score_after=next_score,
-        progress_before=previous_progress, progress_after=next_progress,
+        score_before=previous_score,
+        score_after=next_score,
+        progress_before=previous_progress,
+        progress_after=next_progress,
         game_time=receipt.game_time,
     )
     return True
@@ -111,9 +154,11 @@ def record_work_experience(actor, receipt: WorkReceipt) -> int:
     """Authoritative post-work hook. Must share execute_work's transaction."""
     if not transaction.get_connection().in_atomic_block:
         raise RuntimeError("Experience requires the physical work transaction")
-    if (receipt.actor_dbref != getattr(actor, "dbref", None) or
-            receipt.outcome.get("request_id") != receipt.request_id or
-            receipt.outcome.get("actor_dbref") != receipt.actor_dbref):
+    if (
+        receipt.actor_dbref != getattr(actor, "dbref", None)
+        or receipt.outcome.get("request_id") != receipt.request_id
+        or receipt.outcome.get("actor_dbref") != receipt.actor_dbref
+    ):
         raise PermissionError("Work experience cannot be claimed for another actor")
 
     task_id = ELIGIBLE_WORK.get((receipt.target, receipt.operation))
@@ -122,8 +167,7 @@ def record_work_experience(actor, receipt: WorkReceipt) -> int:
     if receipt.outcome.get("reason") != "transition_applied":
         raise RuntimeError("Unexpected accepted-work provenance for credit")
     source_event_id = receipt.outcome.get("source_event_id")
-    if (not isinstance(source_event_id, str) or
-            not source_event_id or len(source_event_id) > 96):
+    if not isinstance(source_event_id, str) or not source_event_id or len(source_event_id) > 96:
         raise RuntimeError("Completed physical work must name its world event")
 
     person = profile_for_actor(actor)
@@ -138,9 +182,16 @@ def record_work_experience(actor, receipt: WorkReceipt) -> int:
         ("skill", task.skill_id),
         ("technique", task.technique_id),
     ):
-        result += int(_award_for_component(
-            person, receipt, event_key, task_id, kind, topic,
-        ))
+        result += int(
+            _award_for_component(
+                person,
+                receipt,
+                event_key,
+                task_id,
+                kind,
+                topic,
+            )
+        )
     return result
 
 

@@ -7,17 +7,18 @@ at most one world effect, and records an immutable receipt in one transaction.
 Existing legacy oxaction/oxreceipt routes continue to work, so migration is
 additive. The new global namespace prevents cross-fixture request-ID reuse.
 """
+
 from __future__ import annotations
 
-from collections.abc import Mapping
 import re
+from collections.abc import Mapping
 
 from django.db import transaction
-from evennia.objects.models import ObjectDB
-from evennia.utils import gametime
-
 from world.bootstrap import find_fixture
 from world.models import CrewEvent, WorkReceipt
+
+from evennia.objects.models import ObjectDB
+from evennia.utils import gametime
 
 _REQUEST_ID = re.compile(r"[0-9a-f]{32}")
 _EQUIPMENT = {
@@ -64,34 +65,57 @@ def _arguments(operation: str, target: str, arguments: Mapping | None) -> dict:
         arguments = {}
     if not isinstance(arguments, Mapping):
         raise ValueError("Work arguments must be a mapping")
+    if target == "learning":
+        from world.concept_learning import validate_arguments
+
+        return validate_arguments(operation, arguments)
     if target == "ship":
         if operation not in _SOCIAL:
             raise ValueError("Unknown shipboard work operation")
         if operation in (
-            "captain_claim", "captain_inspect", "captain_assign", "captain_answer",
-            "captain_review", "captain_escalate",
+            "captain_claim",
+            "captain_inspect",
+            "captain_assign",
+            "captain_answer",
+            "captain_review",
+            "captain_escalate",
         ):
             ticket_id = arguments.get("ticket_id")
-            if (not isinstance(ticket_id, str)
-                    or _REQUEST_ID.fullmatch(ticket_id) is None):
+            if not isinstance(ticket_id, str) or _REQUEST_ID.fullmatch(ticket_id) is None:
                 raise ValueError("Captain work requires typed obligation ID")
-            if operation in ("captain_claim", "captain_inspect", "captain_review", "captain_escalate"):
+            if operation in (
+                "captain_claim",
+                "captain_inspect",
+                "captain_review",
+                "captain_escalate",
+            ):
                 if set(arguments) == {"ticket_id"}:
                     return {"ticket_id": ticket_id}
             elif operation == "captain_assign":
-                if (set(arguments) == {"ticket_id", "role"}
-                        and arguments["role"] in ("ari", "iona", "mara", "teo")):
+                if set(arguments) == {"ticket_id", "role"} and arguments["role"] in (
+                    "ari",
+                    "iona",
+                    "mara",
+                    "teo",
+                ):
                     return {"ticket_id": ticket_id, "role": arguments["role"]}
             elif operation == "captain_answer":
-                if (set(arguments) == {"ticket_id", "mode"}
-                        and arguments["mode"] in ("accept", "decline", "blocked")):
+                if set(arguments) == {"ticket_id", "mode"} and arguments["mode"] in (
+                    "accept",
+                    "decline",
+                    "blocked",
+                ):
                     return {"ticket_id": ticket_id, "mode": arguments["mode"]}
             raise ValueError("Unsupported captain task arguments")
         if operation in (
-            "anomaly_question", "anomaly_challenge", "anomaly_probe_report",
-            "anomaly_reconsider", "anomaly_reassess",
+            "anomaly_question",
+            "anomaly_challenge",
+            "anomaly_probe_report",
+            "anomaly_reconsider",
+            "anomaly_reassess",
         ):
             from world.investigation import CAUSES
+
             case_id = arguments.get("case_id")
             if not isinstance(case_id, str) or _REQUEST_ID.fullmatch(case_id) is None:
                 raise ValueError("A world case ID is required")
@@ -112,12 +136,16 @@ def _arguments(operation: str, target: str, arguments: Mapping | None) -> dict:
                 return {"case_id": case_id}
             if operation == "anomaly_assess" and set(arguments) == {"case_id", "hypothesis"}:
                 from world.investigation import CAUSES
+
                 if arguments["hypothesis"] in CAUSES:
                     return {"case_id": case_id, "hypothesis": arguments["hypothesis"]}
             raise ValueError("Malformed typed anomaly work")
         if operation == "round_report":
             if set(arguments) != {"station"} or arguments["station"] not in (
-                "operations", "pump", "cargo", "scrubber",
+                "operations",
+                "pump",
+                "cargo",
+                "scrubber",
             ):
                 raise ValueError("Round report requires one typed station")
             return {"station": arguments["station"]}
@@ -126,9 +154,11 @@ def _arguments(operation: str, target: str, arguments: Mapping | None) -> dict:
                 raise ValueError("Answer requires a hail ID and response mode")
             hail_id = arguments["hail_id"]
             mode = arguments["mode"]
-            if (not isinstance(hail_id, str) or
-                    re.fullmatch(r"hail-[0-9]{4,}", hail_id) is None or
-                    mode not in ("status", "ack", "decline")):
+            if (
+                not isinstance(hail_id, str)
+                or re.fullmatch(r"hail-[0-9]{4,}", hail_id) is None
+                or mode not in ("status", "ack", "decline")
+            ):
                 raise ValueError("Invalid hail response parameters")
             return {"hail_id": hail_id, "mode": mode}
         if arguments:
@@ -136,7 +166,9 @@ def _arguments(operation: str, target: str, arguments: Mapping | None) -> dict:
         return {}
     if target == "inventory":
         if operation not in (
-            "request_supply", "accept_supply", "collect_supply",
+            "request_supply",
+            "accept_supply",
+            "collect_supply",
             "deliver_supply",
         ):
             raise ValueError("Unknown supply workflow action")
@@ -156,8 +188,9 @@ def _arguments(operation: str, target: str, arguments: Mapping | None) -> dict:
     return {}
 
 
-def _validate(actor, request_id: str, operation: str, target: str,
-              arguments: Mapping | None) -> dict:
+def _validate(
+    actor, request_id: str, operation: str, target: str, arguments: Mapping | None
+) -> dict:
     if actor is None or not isinstance(getattr(actor, "dbref", None), str):
         raise PermissionError("An authenticated character must issue work")
     if not isinstance(request_id, str) or _REQUEST_ID.fullmatch(request_id) is None:
@@ -170,10 +203,12 @@ def _validate(actor, request_id: str, operation: str, target: str,
 def _social_action(actor, operation: str, arguments: dict) -> tuple[bool, str]:
     from world import live_crew
     from world.crew_interaction import answer_hail
+
     if operation == "answer":
         return answer_hail(actor, arguments["hail_id"], arguments["mode"])
     if operation.startswith("captain_"):
         from world import captain
+
         if operation == "captain_claim":
             return captain.claim(actor, arguments["ticket_id"])
         if operation == "captain_inspect":
@@ -188,32 +223,45 @@ def _social_action(actor, operation: str, arguments: dict) -> tuple[bool, str]:
             return captain.escalate(actor, arguments["ticket_id"])
     if operation == "anomaly_report":
         from world.investigation import report_sample
+
         return report_sample(actor, arguments["case_id"])
     if operation == "anomaly_assess":
         from world.investigation import file_assessment
+
         return file_assessment(actor, arguments["case_id"], arguments["hypothesis"])
     if operation in (
-        "anomaly_question", "anomaly_challenge", "anomaly_probe_report",
-        "anomaly_reconsider", "anomaly_reassess",
+        "anomaly_question",
+        "anomaly_challenge",
+        "anomaly_probe_report",
+        "anomaly_reconsider",
+        "anomaly_reassess",
     ):
         from world import investigation_followup as followup
+
         if operation == "anomaly_question":
             return followup.file_question(actor, arguments["case_id"])
         if operation == "anomaly_challenge":
             return followup.file_challenge(
-                actor, arguments["case_id"], arguments["hypothesis"],
+                actor,
+                arguments["case_id"],
+                arguments["hypothesis"],
             )
         if operation == "anomaly_probe_report":
             return followup.report_probe(actor, arguments["case_id"])
         if operation == "anomaly_reconsider":
             return followup.file_reconsideration(
-                actor, arguments["case_id"], arguments["hypothesis"],
+                actor,
+                arguments["case_id"],
+                arguments["hypothesis"],
             )
         return followup.file_reassessment(
-            actor, arguments["case_id"], arguments["hypothesis"],
+            actor,
+            arguments["case_id"],
+            arguments["hypothesis"],
         )
     if operation == "round_report":
         from world.independent_rounds import file_round_report
+
         return file_round_report(actor, arguments["station"])
     return getattr(live_crew, _SOCIAL[operation])(actor)
 
@@ -229,8 +277,12 @@ def _unknown(actor, request_id: str) -> dict:
 
 
 def execute_work(
-    actor, request_id: str, operation: str, target: str = "ship",
-    *, arguments: Mapping | None = None,
+    actor,
+    request_id: str,
+    operation: str,
+    target: str = "ship",
+    *,
+    arguments: Mapping | None = None,
 ) -> dict:
     """Commit one validated social or physical world transition and receipt.
 
@@ -248,15 +300,25 @@ def execute_work(
         ObjectDB.objects.select_for_update().get(pk=pump.pk)
         old = WorkReceipt.objects.filter(pk=request_id).first()
         if old is not None:
-            if (old.actor_dbref != actor.dbref or old.target != target
-                    or old.operation != operation or old.arguments != validated):
+            if (
+                old.actor_dbref != actor.dbref
+                or old.target != target
+                or old.operation != operation
+                or old.arguments != validated
+            ):
                 raise PermissionError("Request ID already belongs to other work")
             return dict(old.outcome)
 
-        if target == "inventory":
-            from world.supply import execute_supply
-            succeeded, source_event = execute_supply(
-                actor, request_id, operation, validated,
+        if target in ("inventory", "learning"):
+            if target == "inventory":
+                from world.supply import execute_supply as execute_activity
+            else:
+                from world.concept_learning import execute_lesson as execute_activity
+            succeeded, source_event = execute_activity(
+                actor,
+                request_id,
+                operation,
+                validated,
             )
             outcome = {
                 "request_id": request_id,
@@ -278,14 +340,11 @@ def execute_work(
             outcome = {**result, "target": target}
         else:
             before = (
-                CrewEvent.objects.order_by("-sequence")
-                .values_list("sequence", flat=True).first() or 0
+                CrewEvent.objects.order_by("-sequence").values_list("sequence", flat=True).first()
+                or 0
             )
             succeeded, message = _social_action(actor, operation, validated)
-            first_event = (
-                CrewEvent.objects.filter(sequence__gt=before)
-                .order_by("sequence").first()
-            )
+            first_event = CrewEvent.objects.filter(sequence__gt=before).order_by("sequence").first()
             outcome = {
                 "request_id": request_id,
                 "actor_dbref": actor.dbref,
@@ -293,9 +352,7 @@ def execute_work(
                 "target": target,
                 "status": "succeeded" if succeeded else "failed",
                 "reason": "world_accepted" if succeeded else "world_refused",
-                "source_event_id": (
-                    first_event.event_id if first_event else None
-                ),
+                "source_event_id": (first_event.event_id if first_event else None),
                 "game_time": float(gametime.gametime(absolute=True)),
             }
             # This is a world-authored diagnostic, never an LLM claim.
@@ -314,7 +371,12 @@ def execute_work(
         # Actual work and its limited learning evidence commit together.
         # On retry the existing receipt returns above without granting XP.
         from world.learning import record_work_experience
+
         record_work_experience(actor, receipt)
+        if target == "learning":
+            from world.concept_learning import record_concept_experience
+
+            record_concept_experience(actor, receipt)
         return dict(outcome)
 
 
@@ -324,6 +386,5 @@ def work_receipt(actor, request_id: str) -> dict:
         raise PermissionError("An authenticated character is required")
     if not isinstance(request_id, str) or _REQUEST_ID.fullmatch(request_id) is None:
         raise ValueError("Invalid work ID")
-    stored = WorkReceipt.objects.filter(pk=request_id,
-                                        actor_dbref=actor.dbref).first()
+    stored = WorkReceipt.objects.filter(pk=request_id, actor_dbref=actor.dbref).first()
     return dict(stored.outcome) if stored is not None else _unknown(actor, request_id)
