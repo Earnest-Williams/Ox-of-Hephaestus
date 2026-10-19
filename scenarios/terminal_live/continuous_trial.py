@@ -115,6 +115,7 @@ class AdaptiveGoap:
         self.command_observation_id = 0
         self.critical_assessed = False
         self.last_archived_stage = -1
+        self.last_help_stage = -1
         self.last_assessed_stage = -1
         self.last_reported_stage = -1
 
