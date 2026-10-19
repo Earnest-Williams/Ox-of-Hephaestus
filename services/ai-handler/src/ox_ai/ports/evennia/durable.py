@@ -100,21 +100,21 @@ class DurableEvenniaPort:
             if request.verb not in (
                 "radio", "request", "approve", "resolve", "offer",
                 "accept", "answer", "round_report", "anomaly_report", "anomaly_assess",
-                "anomaly_challenge", "anomaly_probe_report",
+                "anomaly_question", "anomaly_challenge", "anomaly_probe_report",
                 "anomaly_reconsider", "anomaly_reassess",
             ):
                 raise ValueError("Unsupported shipboard operation")
             operation = request.verb
             if operation in (
                 "anomaly_report", "anomaly_assess",
-                "anomaly_challenge", "anomaly_probe_report",
+                "anomaly_question", "anomaly_challenge", "anomaly_probe_report",
                 "anomaly_reconsider", "anomaly_reassess",
             ):
                 args = dict(request.arguments)
                 case_id = args.get("case_id")
                 if not isinstance(case_id, str) or re.fullmatch(r"[0-9a-f]{32}", case_id) is None:
                     raise ValueError("Case ID required")
-                if operation in ("anomaly_report", "anomaly_probe_report"):
+                if operation in ("anomaly_report", "anomaly_question", "anomaly_probe_report"):
                     if set(args) != {"case_id"}:
                         raise ValueError("Report accepts case ID only")
                     suffix = " " + case_id
