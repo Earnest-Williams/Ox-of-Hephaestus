@@ -62,6 +62,9 @@ def open_obligation(kind: str, source_ref: str, *, priority: int,
             data={
                 "ticket_id": identity, "kind": kind,
                 "priority": priority, "status": "open",
+                "can_personally_inspect": int(
+                    (ship["captain"].db.ox_skills or {}).get("diagnostics", 0)
+                ) >= 2,
             },
             text="Unresolved ship problem: maintain accountable follow-up.",
         )
@@ -343,6 +346,15 @@ def captain_qualified_observation(actor, ticket_id: str) -> dict | None:
     )
     return {"ticket_id": ticket_id, "reading": reading,
             "event_id": entry["event_id"]}
+
+
+def inspect(actor, ticket_id: str) -> tuple[bool, str]:
+    """Receipted firsthand command observation, never a privileged oracle."""
+    result = captain_qualified_observation(actor, ticket_id)
+    return (bool(result), (
+        "Qualified captain inspected local bridge instrumentation"
+        if result else "World refused unqualified or nonlocal captain inspection"
+    ))
 
 
 def tick_captain_obligations(*, now_game_time: float | None = None) -> int:
