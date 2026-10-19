@@ -59,6 +59,7 @@ _SOCIAL = {
     "captain_escalate": "escalate",
     # G6 opt-in world effects, still using the existing global receipt ledger.
     "terminal_survey": "terminal_action",
+    "terminal_crosscheck": "terminal_action",
     "terminal_reroute": "terminal_action",
     "terminal_patch": "terminal_action",
     "terminal_replace": "terminal_action",
