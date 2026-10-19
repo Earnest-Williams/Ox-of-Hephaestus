@@ -150,10 +150,22 @@ class CoolingPump(FixedFixture):
     @transaction.atomic
     def inject_fault(self, actor=None) -> tuple[bool, str]:
         """Simulate a fault; only the system or a developer can introduce it."""
+        # Evennia's cached Attribute models outlive a rolled-back Django
+        # transaction. Preserve the pre-fault values in memory too if the
+        # alarm writer fails AFTER this local physical transition.
+        prior_state = self.db.operating_state
+        prior_sequence = int(self.db.event_seq or 0)
+        prior_history = list(self.db.event_history or [])
         succeeded, message = self._transition("fault", actor=actor)
         if succeeded and self.db.ox_chief_gate:
             from world.live_crew import fault_alarm
-            fault_alarm(self)
+            try:
+                fault_alarm(self)
+            except BaseException:
+                self.db.operating_state = prior_state
+                self.db.event_seq = prior_sequence
+                self.db.event_history = prior_history
+                raise
         return succeeded, message
 
     def isolate(self, actor) -> tuple[bool, str]:
