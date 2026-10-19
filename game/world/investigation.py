@@ -86,6 +86,7 @@ def arm_anomaly(*, cause: str | None = None, seed: int | None = None) -> str:
     case_id = uuid.uuid4().hex
     InvestigationCase.objects.create(
         case_id=case_id, status="open", cause=selected, signals=signals,
+        probe_key=format(rng.getrandbits(64), "016x"),
         created_game_time=float(gametime.gametime(absolute=True)),
     )
     # Each character receives the same ambiguous alert, not the cause or
