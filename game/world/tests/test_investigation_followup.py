@@ -78,15 +78,15 @@ class FollowupWorldTests(EvenniaTestCase):
             e for e in inbox(lin) if e["kind"] == "anomaly_probe_report"
         ]))
         self.assertEqual(self.work("cargo", "f", "anomaly_probe_report")["status"], "succeeded")
-        self.assertEqual(self.work("cargo", "g", "anomaly_probe_report")["status"], "failed")
-        self.assertEqual(self.work("cargo", "h", "anomaly_reconsider",
+        self.assertEqual(self.work("cargo", "8", "anomaly_probe_report")["status"], "failed")
+        self.assertEqual(self.work("cargo", "9", "anomaly_reconsider",
                                    hypothesis="cargo_vapors")["status"], "succeeded")
 
     def test_independent_incompatible_views_can_produce_wrong_reassessment(self):
         self._complete_followup("watch", "b", "c", "d", "bus_interference")
-        self.tested("chief", "e", "f", "1", "scrubber_bypass")
-        self.tested("cargo", "2", "3", "4", "cargo_vapors")
-        self.tested("environment", "5", "6", "7", "scrubber_bypass")
+        self._complete_followup("chief", "e", "f", "1", "scrubber_bypass")
+        self._complete_followup("cargo", "2", "3", "4", "cargo_vapors")
+        self._complete_followup("environment", "5", "6", "7", "scrubber_bypass")
         self.assertEqual(self.work(
             "environment", "8", "anomaly_reassess",
             hypothesis="bus_interference",
@@ -127,12 +127,12 @@ class FollowupWorldTests(EvenniaTestCase):
                     self.assertNotIn("root_cause", str(event))
 
     def test_no_shortcut_without_two_independent_departments(self):
-        self.tested("watch", "b", "c", "d", "bus_interference")
+        self._complete_followup("watch", "b", "c", "d", "bus_interference")
         self.assertEqual(self.work(
             "officer", "e", "anomaly_reassess", hypothesis="scrubber_bypass",
         )["status"], "failed")
         # An immutable refusal cannot become a successful receipt later.
-        self.tested("cargo", "f", "1", "2", "scrubber_bypass")
+        self._complete_followup("cargo", "f", "1", "2", "scrubber_bypass")
         self.assertEqual(self.work(
             "officer", "e", "anomaly_reassess", hypothesis="scrubber_bypass",
         )["status"], "failed")
@@ -168,8 +168,8 @@ class FollowupWorldTests(EvenniaTestCase):
 
     def test_failed_reassessment_notification_is_atomically_unpublished(self):
         from world import investigation_followup
-        self.tested("watch", "b", "c", "d", "bus_interference")
-        self.tested("cargo", "e", "f", "1", "cargo_vapors")
+        self._complete_followup("watch", "b", "c", "d", "bus_interference")
+        self._complete_followup("cargo", "e", "f", "1", "cargo_vapors")
         before = CrewEvent.objects.count()
         original = investigation_followup.emit
         calls = 0
