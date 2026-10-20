@@ -1,0 +1,148 @@
+name: Ox G8 six-crew soap opera 500-turn live trial
+on:
+  push:
+    branches: [experiment/g8-authored-memories]
+    paths:
+      - "scenarios/g8_soap_opera/live_trial.py"
+      - "services/ai-handler/src/ox_ai/memory/seeds.py"
+      - "services/ai-handler/src/ox_ai/memory/temporal.py"
+      - "services/ai-handler/src/ox_ai/memory/interpretation.py"
+      - "services/ai-handler/src/ox_ai/agents/crew.py"
+      - "services/ai-handler/tests/test_memory_seeding.py"
+      - "services/ai-handler/tests/test_g8_longrun.py"
+      - "services/ai-handler/tests/test_memory_interpretation.py"
+      - ".github/workflows/ox-g8-live-soap.yml"
+      - "!**/*.md"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: g8-experiment
+  cancel-in-progress: true
+jobs:
+  g8-six-real-clients:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      OX_G8_LIVE_CI: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            services/ai-handler/pyproject.toml
+            uv.lock
+            .github/ci/cache-profiles/concordia.txt
+      - name: Install native Evennia, pinned Concordia and transport
+        run: |
+          python -m pip install .
+          python -m pip install -e './services/ai-handler[concordia,transport]'
+      - name: Narrow memory and run-policy tests
+        run: |
+          python -m unittest discover -s services/ai-handler/tests -p test_memory_seeding.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_memory_interpretation.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_g8_longrun.py -v
+      - name: Prepare disposable credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .ox-state/g8
+          PASSWORD="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          OWNER="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          echo "::add-mask::$PASSWORD"
+          echo "::add-mask::$OWNER"
+          echo "OX_PROBE_PASSWORD=$PASSWORD" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_PASSWORD=$OWNER" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_USERNAME=OxG8Operator" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_EMAIL=g8@example.invalid" >> "$GITHUB_ENV"
+      - name: Provision six characters in a shared crew mess
+        working-directory: game
+        shell: bash
+        run: |
+          set -euo pipefail
+          evennia migrate --noinput
+          evennia shell --command="from world.transport_probe import provision; from world.bootstrap import build_ship; ids=provision(include_specialists=True, include_captain=True); ship=build_ship(); [ship[key].move_to(ship['mess']) for key in ('watch','officer','chief','cargo','environment','captain')]; assert len(ids)==6; print('OX_G8_PROVISIONED')" > ../.ox-state/g8/provision.log
+          grep -Fq OX_G8_PROVISIONED ../.ox-state/g8/provision.log
+      - name: Start Evennia and confirm stable WebSocket
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd game && evennia start)
+          python - <<'PY'
+          import socket, time
+          limit = time.monotonic() + 120
+          stable = None
+          while time.monotonic() < limit:
+              try:
+                  with socket.create_connection(("127.0.0.1", 4002), timeout=1):
+                      pass
+              except OSError:
+                  stable = None
+              else:
+                  stable = stable or time.monotonic()
+                  if time.monotonic() - stable >= 12:
+                      break
+              time.sleep(1)
+          else:
+              raise RuntimeError("Evennia never became ready")
+          PY
+      - name: Perform 500 client decisions with operator-only restart injections
+        shell: bash
+        run: |
+          set -euo pipefail
+          run="scenarios/g8_soap_opera/live_trial.py"
+          inject() {
+            fixture="$1"
+            label="$2"
+            # Never mutate Evennia's database from a different process while
+            # the running server may have cached the relevant Attributes.
+            (cd game && evennia stop)
+            (cd game && evennia shell --command="from world.bootstrap import build_ship; ok,msg=build_ship()['$fixture'].inject_fault(); assert ok,msg; print('$label')") > ".ox-state/g8/$label.log"
+            grep -Fq "$label" ".ox-state/g8/$label.log"
+            (cd game && evennia start)
+            python - <<'PY'
+          import socket, time
+          limit = time.monotonic() + 120
+          stable = None
+          while time.monotonic() < limit:
+              try:
+                  with socket.create_connection(("127.0.0.1", 4002), timeout=1):
+                      pass
+              except OSError:
+                  stable = None
+              else:
+                  stable = stable or time.monotonic()
+                  if time.monotonic() - stable >= 12:
+                      break
+              time.sleep(1)
+          else:
+              raise RuntimeError("Evennia did not restart after operator injection")
+          PY
+          }
+          python "$run" --start 1 --end 34
+          inject cradle G8_FAULT1
+          python "$run" --start 35 --end 137
+          inject scrubber G8_FAULT2
+          python "$run" --start 138 --end 255
+          inject cradle G8_FAULT3
+          python "$run" --start 256 --end 366
+          inject scrubber G8_FAULT4
+          python "$run" --start 367 --end 443
+          inject cradle G8_FAULT5
+          python "$run" --start 444 --end 500 | tee .ox-state/g8/final-log.txt
+          grep -Fq OX_G8_REAL_500_TURN_PASS .ox-state/g8/final-log.txt
+      - name: Stop Evennia
+        if: always()
+        working-directory: game
+        run: evennia stop || true
+      - name: Archive evidence and separate private snapshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-g8-real-500-turn-run
+          path: .ox-state/g8/
+          retention-days: 14
+          if-no-files-found: ignore
