@@ -460,6 +460,8 @@ def audit_terminal(path: str) -> dict:
         {
             "role": roles.get(receipt.actor_dbref, "unknown"),
             "operation": receipt.operation, "status": receipt.outcome["status"],
+            "reason": receipt.outcome.get("reason", ""),
+            "arguments": dict(receipt.arguments),
             "request_id": receipt.pk,
             "event_id": receipt.outcome.get("source_event_id"),
         }

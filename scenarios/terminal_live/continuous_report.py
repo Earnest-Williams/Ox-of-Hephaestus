@@ -54,11 +54,35 @@ def main() -> None:
         assert receipt["operation"] == d["decision"]
         assert receipt["status"] == d["result"]
         assert receipt["request_id"] == d["receipt_id"]
+        if d["decision"] == "terminal_assess":
+            assert receipt["arguments"] == d["assessment"], (
+                "World must record exactly the actor's authored assessment"
+            )
+            assert receipt["reason"] == d["receipt_reason"]
     assert not any(d["kind"] == "travel" and d.get("arrived_at") is None for d in decisions)
     assert all(d["result"] == "arrived" for d in movement)
     assert all(d["result"] == "waiting_for_new_evidence" for d in waiting)
 
     counts = Counter(d["decision"] for d in decisions)
+    assessment_actions = [
+        d for d in work if d["decision"] == "terminal_assess"
+    ]
+    duplicate_refusals = [
+        d for d in assessment_actions
+        if d["result"] == "failed"
+        and d["receipt_reason"] == "unchanged_assessment"
+    ]
+    # An assessment is a belief report, not a world-computed diagnosis.
+    accepted_assessments = [
+        d for d in assessment_actions if d["result"] == "succeeded"
+    ]
+    world_assessments = world["actor_assessments"]
+    assert len(world_assessments) == len(accepted_assessments)
+    assert all(
+        any(x["submission"] == d["assessment"] and x["actor"] == d["role"]
+            for x in world_assessments)
+        for d in accepted_assessments
+    )
     lines = [
         "# G6b: continuous GOAP during terminal atmosphere loss",
         "",
@@ -69,6 +93,9 @@ def main() -> None:
         f"{crew['turn_limits']['per_character']} per crew member).",
         f"**Decisions:** {len(decisions)} including {len(work)} receipted actions, "
         f"{len(movement)} chosen movements and {len(waiting)} monitoring choices.",
+        f"**Authored provisional assessments:** "
+        f"{len(accepted_assessments)} recorded; "
+        f"{len(duplicate_refusals)} refused as literally unchanged.",
         f"**Model calls:** {crew['inference_calls']}   "
         f"**A-01 spare cartridges after scenario:** {world['cartridges_at_a01']}   "
         f"**Emergency bottles left:** {world['reserve_left']}",

@@ -20,6 +20,7 @@ from ox_ai.ports.base import ActionRequest
 from ox_ai.ports.evennia.durable import DurableEvenniaPort
 from ox_ai.runtime.five_crew_service import FiveCrewSupervisor
 from ox_ai.runtime.watch_service import atomic_json
+from assessment_payload import compose_assessment
 
 ROLES = ("lin", "ari", "iona", "mara", "teo", "captain")
 STATIONS = {
@@ -251,8 +252,26 @@ async def experiment(seed, provider, out):
                     "operation": option.verb, "target": "ship",
                 }
                 atomic_json(Path(".ox-state/g6-intents") / f"{role}-{turn}.json", intent)
+                # Historical bounded G6 trials remain manual-dispatchable
+                # with the new explicit assessment work contract.
+                assessment = (
+                    compose_assessment(
+                        after_travel,
+                        claim="Recovery is not currently verified",
+                        confidence="tentative",
+                        rationale="This is my provisional interpretation of the personally observed pressure warning.",
+                        evidence_sequence=max(
+                            (int(evt["sequence"]) for evt in events
+                             if evt["kind"] in (
+                                 "terminal_alarm", "terminal_report",
+                                 "terminal_critical", "terminal_assistance")),
+                            default=0,
+                        ),
+                    ) if option.verb == "terminal_assess" else {}
+                )
                 actual = await DurableEvenniaPort(actor).submit_work(ActionRequest(
                     request_id, actor.character_dbref, option.verb, "ship",
+                    arguments=assessment,
                 ))
                 if actual.status == "unknown":
                     # Never submit another action with a fresh ID on ACK loss.

@@ -26,6 +26,7 @@ from ox_ai.runtime.watch_service import atomic_json
 
 from trial import ROLES, STATIONS, PRIMARY, sensor
 from turn_budget import TurnBudget, TurnCapReached
+from assessment_payload import compose_assessment
 
 DESTINATIONS = ("Bridge", "Environmental Plant", "Engineering",
                 "Cargo Hold", "Crew Mess")
@@ -120,6 +121,10 @@ class AdaptiveGoap:
         self.last_archived_stage = -1
         self.last_help_stage = -1
         self.last_assessed_stage = -1
+        self.last_assessed_evidence_seq = 0
+        self.last_assessed_finding = None
+        self.last_assessment_content = None
+        self.last_refused_assessment_content = None
         self.last_reported_stage = -1
         self.awaiting_post_exchange_survey = False
         self.post_exchange_surveys = 0
@@ -127,7 +132,27 @@ class AdaptiveGoap:
     def state(self) -> dict:
         return {"last_relayed": self.last_relayed}
 
-    def notice(self, selected: str, status: str, view: dict, last_event: int) -> None:
+    def notice(self, selected: str, status: str, view: dict,
+               last_event: int, *, assessment: dict | None = None,
+               refusal_reason: str = "") -> None:
+        # Refusal feedback is scoped to precisely the same authored claim,
+        # confidence, interpretation AND evidence. It is not a veto on a
+        # genuinely changed reading or a reconsidered interpretation.
+        if selected == "terminal_assess" and assessment is not None:
+            if status == "succeeded":
+                self.last_assessment_content = dict(assessment)
+                self.last_refused_assessment_content = None
+                self.last_assessed_stage = urgency(view)
+                self.last_assessed_evidence_seq = int(assessment["evidence_sequence"])
+                self.last_assessed_finding = assessment["finding_digest"]
+            elif status == "failed":
+                self.last_refused_assessment_content = dict(assessment)
+                # The actor did attempt a revision for this risk band; another
+                # unchanged opinion should wait, but a new report/reading,
+                # proposition or confidence may justify a new attempt.
+                self.last_assessed_stage = urgency(view)
+                self.last_assessed_evidence_seq = int(assessment["evidence_sequence"])
+                self.last_assessed_finding = assessment["finding_digest"]
         if status == "succeeded":
             self.attempts[selected] += 1
             if selected == "terminal_replace":
@@ -142,8 +167,6 @@ class AdaptiveGoap:
                 self.last_reported_stage = urgency(view)
             elif selected == "terminal_command":
                 self.command_observation_id = last_event
-            elif selected == "terminal_assess":
-                self.last_assessed_stage = urgency(view)
             elif selected == "terminal_archive":
                 self.last_archived_stage = urgency(view)
             elif selected == "terminal_comfort":
@@ -152,6 +175,30 @@ class AdaptiveGoap:
             # World refusals must not be treated as successful work, but
             # repeated identical attempts should not be a scripted loop.
             self.attempts["failed:" + selected] += 1
+
+    def propose_assessment(self, view: dict, evidence_sequence: int) -> dict:
+        band = urgency(view)
+        # A subjective, fallible opinion authored from the character's own
+        # measured risk and local evidence; not the world's hidden cause.
+        propositions = {
+            0: "Atmospheric recovery remains uncertain",
+            1: "Atmospheric decline requires further investigation",
+            2: "Current atmosphere threatens crew survival",
+            3: "Immediate atmospheric survival is in doubt",
+        }
+        confidence = (
+            "strong" if band >= 3 else
+            "moderate" if band >= 2 else "tentative"
+        )
+        rationale = (
+            "I interpret the local oxygen and CO2 instruments, and the "
+            "evidence addressed to me, as grounds for this provisional "
+            "assessment. I may revise it after further observation."
+        )
+        return compose_assessment(
+            view, claim=propositions[band], confidence=confidence,
+            rationale=rationale, evidence_sequence=evidence_sequence,
+        )
 
     def select(self, view: dict, events: list[dict],
                options: list[CommandOption], last_event: int):
@@ -203,7 +250,26 @@ class AdaptiveGoap:
 
         received_diagnostic = any(e["kind"] == "terminal_report" for e in events)
         critical = any(e["kind"] == "terminal_critical" for e in events)
-        if (received_diagnostic or stage >= 2) and self.last_assessed_stage != stage:
+        proposal = self.propose_assessment(view, last_event)
+        # Risk transitions and newly addressed evidence legitimately change
+        # a prognosis. Compare the complete assessment, never merely a verb
+        # or a local inspection/message cursor.
+        substantive_trigger = (
+            stage != self.last_assessed_stage
+            or last_event > self.last_assessed_evidence_seq
+            or proposal["finding_digest"] != self.last_assessed_finding
+            or (
+                self.last_assessment_content is not None
+                and any(proposal[k] != self.last_assessment_content[k]
+                        for k in ("claim", "confidence", "rationale"))
+            )
+        )
+        not_same_payload = (
+            proposal != self.last_assessment_content
+            and proposal != self.last_refused_assessment_content
+        )
+        if ((received_diagnostic or stage >= 2)
+                and substantive_trigger and not_same_payload):
             goal(115 if critical else 75, "update_provisional_assessment",
                  "terminal_assess")
 
@@ -277,6 +343,7 @@ async def experiment(seed: int, provider: str, destination: Path) -> None:
         brain = supervisor.brains[role]
         policy = AdaptiveGoap(role)
         last_sequence = 0
+        last_evidence_sequence = 0
         previous_band = -1
         last_decision_world_minute = -100
         work_index = 0
@@ -295,6 +362,18 @@ async def experiment(seed: int, provider: str, destination: Path) -> None:
             ]
             if relevant:
                 last_sequence = max(int(x["sequence"]) for x in relevant)
+                evidence_events = [
+                    x for x in relevant
+                    if x["kind"] in (
+                        "terminal_alarm", "terminal_report", "terminal_critical",
+                        "terminal_assistance",
+                    )
+                ]
+                if evidence_events:
+                    last_evidence_sequence = max(
+                        last_evidence_sequence,
+                        *(int(x["sequence"]) for x in evidence_events),
+                    )
                 heard_critical[role] |= any(
                     x["kind"] == "terminal_critical" for x in relevant
                 )
@@ -320,7 +399,9 @@ async def experiment(seed: int, provider: str, destination: Path) -> None:
             previous_band = level
             menu = valid_options(role, current, policy.state())
             if provider == "goap":
-                selected, why = policy.select(current, events, menu, last_sequence)
+                selected, why = policy.select(
+                    current, events, menu, last_evidence_sequence,
+                )
             else:
                 brain.observe_local("Live authenticated atmosphere", json.dumps(
                     current, sort_keys=True,
@@ -362,14 +443,26 @@ async def experiment(seed: int, provider: str, destination: Path) -> None:
                 ).hex
                 work_index += 1
                 entry["receipt_id"] = request_id
+                assessment = (
+                    policy.propose_assessment(current, last_evidence_sequence)
+                    if selected.verb == "terminal_assess" else None
+                )
+                if assessment is not None:
+                    entry["assessment"] = dict(assessment)
                 actual = await DurableEvenniaPort(client).submit_work(ActionRequest(
                     request_id, client.character_dbref, selected.verb, "ship",
+                    arguments=assessment or {},
                 ))
                 if actual.status == "unknown":
                     actual = await DurableEvenniaPort(client).reconcile_work(request_id)
                 entry["result"] = actual.status
+                entry["receipt_reason"] = actual.description
                 entry["source_event_id"] = actual.source_event_id
-                policy.notice(selected.verb, actual.status, current, last_sequence)
+                policy.notice(
+                    selected.verb, actual.status, current,
+                    last_evidence_sequence, assessment=assessment,
+                    refusal_reason=actual.description,
+                )
             records.append(entry)
             await asyncio.sleep(pulse[role])
         fatal_confirmations[role] = seen_death
