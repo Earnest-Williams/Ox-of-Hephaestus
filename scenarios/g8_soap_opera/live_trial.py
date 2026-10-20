@@ -751,6 +751,10 @@ class Trial:
             await self.read_inbox(clients, ids)
             for turn in range(start, end + 1):
                 self.turn = turn
+                # G8 uses explicit deterministic virtual turns. The clock
+                # advances for every person even when they recall no events.
+                for brain in self.brains.values():
+                    brain.advance_memory_turn(turn)
                 role = ROSTER[(turn - 1) % 6]
                 if not await self.do_work(role, clients):
                     await self.social(role, clients, ids)
