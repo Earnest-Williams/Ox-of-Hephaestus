@@ -1,0 +1,167 @@
+# G6b: one GOAP experiment only, no hosted model calls or six-job matrix.
+# World tests gate a single disposable six-authenticated-character trial.
+name: Ox G6b one continuous six-crew GOAP trial
+
+on:
+  pull_request:
+    paths:
+      - "game/world/terminal_failure.py"
+      - "game/typeclasses/departments.py"
+      - "game/server/conf/at_server_startstop.py"
+      - "game/world/work_actions.py"
+      - "game/world/tests/test_terminal_failure.py"
+      - "game/commands/terminal.py"
+      - "game/commands/default_cmdsets.py"
+      - "game/typeclasses/ship.py"
+      - "services/ai-handler/src/ox_ai/ports/evennia/durable.py"
+      - "scenarios/terminal_live/continuous_trial.py"
+      - "scenarios/terminal_live/turn_budget.py"
+      - "scenarios/terminal_live/test_turn_budget.py"
+      - "scenarios/terminal_live/test_assessment_policy.py"
+      - "scenarios/terminal_live/prognosis_policy.py"
+      - "scenarios/terminal_live/assessment_payload.py"
+      - "game/world/terminal_assessments.py"
+      - "game/commands/crew.py"
+      - "scenarios/terminal_live/continuous_report.py"
+      - ".github/workflows/ox-g6b-continuous.yml"
+      - "!**/*.md"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  world-tests:
+    name: G6b targeted world and cartridge tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Evennia
+        run: python -m pip install .
+      - name: Check decision ceilings (no live server)
+        run: python -m unittest discover -s scenarios/terminal_live -p test_turn_budget.py -v
+      - name: Run new world module tests only
+        working-directory: game
+        run: python -m world.test_runner world.tests.test_terminal_failure --verbosity=2
+
+  six-characters:
+    name: "${{ matrix.provider }} seed ${{ matrix.seed }} (six actual clients)"
+    needs: world-tests
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      max-parallel: 2
+      fail-fast: false
+      matrix:
+        # User explicitly requested ONE non-generative integration trial.
+        # Never add Gemini to this automated PR workflow.
+        provider: [goap]
+        seed: [241]
+    env:
+      OX_TERMINAL_LIVE_CI: "1"
+      OX_CAPTAIN_OVERSIGHT: "1"
+      OX_COGNITION_PROVIDER: mock
+      OX_LLM_MODEL: gemini-3.1-flash-lite
+      OX_MAX_PARALLEL_COGNITION: "3"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Evennia, pinned Concordia, and transport
+        run: |
+          python -m pip install .
+          python -m pip install -e './services/ai-handler[concordia,transport]'
+      - name: Check evidence-sensitive assessment policy without a server
+        run: python -m unittest discover -s scenarios/terminal_live -p test_assessment_policy.py -v
+      - name: Create disposable six-account credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          OWNER="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          echo "::add-mask::$TOKEN"
+          echo "::add-mask::$OWNER"
+          echo "OX_PROBE_PASSWORD=$TOKEN" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_PASSWORD=$OWNER" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_USERNAME=OxTerminalCI" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_EMAIL=terminal@example.invalid" >> "$GITHUB_ENV"
+      - name: Arm authoritative incident and six real character accounts
+        working-directory: game
+        env:
+          TRIAL_SEED: ${{ matrix.seed }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ../.ox-state
+          evennia migrate --noinput
+          evennia shell --command="from world.transport_probe import provision; from world.terminal_failure import arm_terminal; assert len(provision(include_specialists=True,include_captain=True))==6; arm_terminal(seed=int('$TRIAL_SEED')); print('OX_G6B_SIX_AUTHORISED_BODIES_ARMED')" | tee ../.ox-state/arm.log
+          grep -Fq "OX_G6B_SIX_AUTHORISED_BODIES_ARMED" ../.ox-state/arm.log
+      - name: Start actual Evennia portal and server clock
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd game && evennia start)
+          python - <<'PY'
+          import socket, time
+          for _ in range(90):
+              try:
+                  with socket.create_connection(("127.0.0.1", 4002), timeout=1):
+                      break
+              except OSError:
+                  time.sleep(1)
+          else:
+              raise RuntimeError("Actual Evennia WebSocket portal unavailable")
+          PY
+          sleep 4
+      - name: Run unbounded event-driven six-person GOAP crisis
+        shell: bash
+        env:
+          TRIAL_SEED: ${{ matrix.seed }}
+          PROVIDER: ${{ matrix.provider }}
+        run: |
+          set -euo pipefail
+          python scenarios/terminal_live/continuous_trial.py --provider "$PROVIDER" --seed "$TRIAL_SEED" --out .ox-state/g6b-handler.json | tee .ox-state/trial.log
+          grep -Fq "OX_G6B_CONTINUOUS_SIX_CREW_PASS" .ox-state/trial.log
+      - name: Stop actual world server before operator audit
+        if: always()
+        working-directory: game
+        shell: bash
+        run: evennia stop || true
+      - name: Capture world state even when a client trial fails
+        if: always()
+        working-directory: game
+        shell: bash
+        run: |
+          evennia shell --command="from world.terminal_failure import audit_terminal; a=audit_terminal('../.ox-state/g6b-world.json'); print('OX_G6B_AUDIT_SNAPSHOT fatal=', a['fatal'], 'world_minute=', a['world_minute'], 'receipts=', len(a['receipted_attempts']))" > ../.ox-state/world-audit.log 2>&1 || true
+          grep 'OX_G6B_AUDIT_SNAPSHOT' ../.ox-state/world-audit.log || true
+      - name: Verify actual world deaths and private receipts
+        working-directory: game
+        shell: bash
+        run: |
+          set -euo pipefail
+          python ../scenarios/terminal_live/continuous_report.py --world ../.ox-state/g6b-world.json --crew ../.ox-state/g6b-handler.json --out ../.ox-state/g6b-report.md
+      - name: Preserve six-character and operator-separated findings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: g6b-continuous-${{ matrix.provider }}-${{ matrix.seed }}
+          path: |
+            .ox-state/g6b-handler.json
+            .ox-state/g6b-partial.json
+            .ox-state/g6b-world.json
+            .ox-state/g6b-report.md
+            .ox-state/trial.log
+            .ox-state/arm.log
+            .ox-state/world-audit.log
+          retention-days: 14
+          if-no-files-found: ignore

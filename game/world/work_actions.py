@@ -59,6 +59,7 @@ _SOCIAL = {
     "captain_escalate": "escalate",
     # G6 opt-in world effects, still using the existing global receipt ledger.
     "terminal_survey": "terminal_action",
+    "terminal_crosscheck": "terminal_action",
     "terminal_reroute": "terminal_action",
     "terminal_patch": "terminal_action",
     "terminal_replace": "terminal_action",
@@ -85,6 +86,9 @@ def _arguments(operation: str, target: str, arguments: Mapping | None) -> dict:
     if target == "ship":
         if operation not in _SOCIAL:
             raise ValueError("Unknown shipboard work operation")
+        if operation == "terminal_assess":
+            from world.terminal_assessments import validate_shape
+            return validate_shape(dict(arguments))
         if operation in (
             "captain_claim",
             "captain_inspect",
@@ -219,7 +223,7 @@ def _social_action(actor, operation: str, arguments: dict) -> tuple[bool, str]:
 
     if operation.startswith("terminal_"):
         from world.terminal_failure import terminal_work
-        return terminal_work(actor, operation)
+        return terminal_work(actor, operation, arguments=arguments)
     if operation == "answer":
         return answer_hail(actor, arguments["hail_id"], arguments["mode"])
     if operation.startswith("captain_"):
@@ -371,7 +375,12 @@ def execute_work(
                 "operation": operation,
                 "target": target,
                 "status": "succeeded" if succeeded else "failed",
-                "reason": "world_accepted" if succeeded else "world_refused",
+                "reason": (
+                    "world_accepted" if succeeded else
+                    "unchanged_assessment" if operation == "terminal_assess"
+                    and message == "unchanged_assessment" else
+                    "world_refused"
+                ),
                 "source_event_id": (first_event.event_id if first_event else None),
                 "game_time": float(gametime.gametime(absolute=True)),
             }

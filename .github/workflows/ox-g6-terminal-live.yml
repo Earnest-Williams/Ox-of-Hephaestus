@@ -4,19 +4,8 @@
 name: Ox G6 six-authenticated terminal-voyage experiment
 
 on:
-  pull_request:
-    paths:
-      - "game/world/terminal_failure.py"
-      - "game/server/conf/at_server_startstop.py"
-      - "game/world/work_actions.py"
-      - "game/world/tests/test_terminal_failure.py"
-      - "game/commands/terminal.py"
-      - "game/commands/default_cmdsets.py"
-      - "game/typeclasses/ship.py"
-      - "services/ai-handler/src/ox_ai/ports/evennia/durable.py"
-      - "scenarios/terminal_live/**"
-      - ".github/workflows/ox-g6-terminal-live.yml"
-      - "!**/*.md"
+  # The historical six-run baseline remains available by explicit dispatch
+  # only; changes to G6b must not silently spend Gemini calls.
   workflow_dispatch:
 
 concurrency:

@@ -13,6 +13,7 @@ from world.terminal_failure import (
 )
 from world.work_actions import execute_work
 from world.models import WorkReceipt
+from world.terminal_assessments import finding_digest, EVIDENCE_KINDS
 
 
 class TerminalFailureTests(EvenniaTestCase):
@@ -20,6 +21,143 @@ class TerminalFailureTests(EvenniaTestCase):
         super().setUp()
         self.ship = build_ship()
         self.case_id = arm_terminal(seed=241)
+
+    @staticmethod
+    def _authored_assessment(actor, *, claim="Emergency outcome uncertain",
+                             confidence="tentative",
+                             rationale="My current personally observed evidence informs this prognosis",
+                             evidence_sequence=None, observed=None):
+        view = observed if observed is not None else observe_terminal(actor)
+        if evidence_sequence is None:
+            evidence_sequence = max(
+                (x["sequence"] for x in inbox(actor)
+                 if x["kind"] in EVIDENCE_KINDS), default=0,
+            )
+        return {
+            "claim": claim,
+            "confidence": confidence,
+            "rationale": rationale,
+            "reading_proof": view["reading_proof"],
+            "reading_minute": str(view["minute"]),
+            "oxygen_kpa": f"{view['oxygen_kpa']:.2f}",
+            "co2_percent": f"{view['co2_percent']:.2f}",
+            "evidence_sequence": str(evidence_sequence),
+            "finding_digest": finding_digest(view["own_finding"]),
+        }
+
+    def test_only_actually_identical_assessment_is_duplicate(self):
+        captain = self.ship["captain"]
+        original_view = observe_terminal(captain)
+        original = self._authored_assessment(captain, observed=original_view)
+        accepted = execute_work(
+            captain, "1" * 32, "terminal_assess", "ship", arguments=original,
+        )
+        self.assertEqual(accepted["status"], "succeeded")
+        # This is a NEW request ID but exactly the same actor-authored
+        # belief, confidence, rationale and observation, so it is a no-op.
+        identical = execute_work(
+            captain, "2" * 32, "terminal_assess", "ship", arguments=original,
+        )
+        self.assertEqual(identical["status"], "failed")
+        self.assertEqual(identical["reason"], "unchanged_assessment")
+        case = self.ship["pump"].db.ox_terminal_incident
+        self.assertEqual(len(case["assessments"]), 1)
+        # Original receipt remains globally idempotent too.
+        self.assertEqual(
+            execute_work(captain, "1" * 32, "terminal_assess",
+                         "ship", arguments=original), accepted,
+        )
+        self.assertEqual(len(case["assessments"]), 1)
+
+    def test_new_sensor_evidence_changes_assessment_without_new_reports(self):
+        captain = self.ship["captain"]
+        seen = observe_terminal(captain)
+        first = self._authored_assessment(captain, observed=seen)
+        self.assertEqual(execute_work(
+            captain, "3" * 32, "terminal_assess", "ship",
+            arguments=first,
+        )["status"], "succeeded")
+        # No new message, no new firsthand inspection. Only the world clock
+        # and *actually observed pressure/CO2* have changed.
+        # Three world ticks reduce true oxygen by 0.792 kPa, more than
+        # the sensor's +/-0.35 kPa noise can cancel between samples.
+        for _ in range(3):
+            tick_terminal()
+        later = self._authored_assessment(captain,
+                                          evidence_sequence=int(first["evidence_sequence"]))
+        self.assertEqual(later["finding_digest"], first["finding_digest"])
+        self.assertEqual(later["evidence_sequence"], first["evidence_sequence"])
+        self.assertNotEqual(later["oxygen_kpa"], first["oxygen_kpa"])
+        self.assertEqual(later["claim"], first["claim"])
+        self.assertEqual(later["confidence"], first["confidence"])
+        self.assertEqual(later["rationale"], first["rationale"])
+        updated = execute_work(
+            captain, "4" * 32, "terminal_assess", "ship", arguments=later,
+        )
+        self.assertEqual(updated["status"], "succeeded")
+        self.assertEqual(len(self.ship["pump"].db.ox_terminal_incident["assessments"]), 2)
+
+    def test_changed_interpretation_of_same_observation_is_permitted(self):
+        captain = self.ship["captain"]
+        source = self._authored_assessment(captain)
+        self.assertEqual(execute_work(
+            captain, "5" * 32, "terminal_assess", "ship",
+            arguments=source,
+        )["status"], "succeeded")
+        same_data_new_thinking = {
+            **source,
+            "claim": "A pressure reduction may have a recoverable cause",
+            "confidence": "moderate",
+            "rationale": "On reconsideration the same evidence also permits alternative repairs",
+        }
+        self.assertEqual(execute_work(
+            captain, "6" * 32, "terminal_assess", "ship",
+            arguments=same_data_new_thinking,
+        )["status"], "succeeded")
+        self.assertEqual(len(self.ship["pump"].db.ox_terminal_incident["assessments"]), 2)
+        again = execute_work(
+            captain, "7" * 32, "terminal_assess", "ship",
+            arguments=same_data_new_thinking,
+        )
+        self.assertEqual(again["reason"], "unchanged_assessment")
+
+    def test_new_addressed_report_qualifies_as_revised_evidence(self):
+        captain = self.ship["captain"]
+        first = self._authored_assessment(captain)
+        execute_work(captain, "8" * 32, "terminal_assess", "ship", arguments=first)
+        teo = self.ship["environment"]
+        execute_work(teo, "9" * 32, "terminal_survey", "ship")
+        execute_work(teo, "a" * 32, "terminal_broadcast", "ship")
+        new_report = max(
+            x["sequence"] for x in inbox(captain)
+            if x["kind"] == "terminal_report"
+        )
+        revised = {**first, "evidence_sequence": str(new_report)}
+        self.assertEqual(execute_work(
+            captain, "b" * 32, "terminal_assess", "ship",
+            arguments=revised,
+        )["status"], "succeeded")
+
+    def test_cannot_forge_or_borrow_private_evidence(self):
+        captain = self.ship["captain"]
+        other = self.ship["officer"]
+        captain_view = observe_terminal(captain)
+        stolen = self._authored_assessment(captain, observed=captain_view)
+        with self.assertRaises(PermissionError):
+            execute_work(other, "c" * 32, "terminal_assess",
+                         "ship", arguments=stolen)
+        tampered = {**stolen, "oxygen_kpa": "00.00"}
+        with self.assertRaises(ValueError):
+            execute_work(captain, "d" * 32, "terminal_assess",
+                         "ship", arguments=tampered)
+        forged = {**stolen, "oxygen_kpa": "18.40"}
+        with self.assertRaises(PermissionError):
+            execute_work(captain, "e" * 32, "terminal_assess",
+                         "ship", arguments=forged)
+        self.assertFalse(WorkReceipt.objects.filter(
+            operation="terminal_assess",
+        ).exists())
+        self.assertEqual(len(self.ship["pump"].db.ox_terminal_incident["assessments"]), 0)
 
     def test_timer_is_only_started_from_real_server_lifecycle(self):
         """A management-shell arm must not schedule a disposable reactor."""
@@ -157,8 +295,99 @@ class TerminalFailureTests(EvenniaTestCase):
             )
             self.assertEqual(parsed["receipted_attempts"][0]["role"], "iona")
 
-    def test_world_workflow_does_not_invent_scrubber_damage(self):
-        self.assertEqual(self.ship["scrubber"].state, "nominal")
-        r = execute_work(self.ship["environment"], "e" * 32, "terminal_replace", "ship")
-        self.assertEqual(r["status"], "failed")
-        self.assertEqual(self.ship["scrubber"].state, "nominal")
+    def test_nominal_cartridge_replacement_is_valid_diagnostic_work(self):
+        scrubber = self.ship["scrubber"]
+        teo = self.ship["environment"]
+        self.assertEqual(scrubber.state, "nominal")
+        self.assertEqual(scrubber.db.spare_cartridges, 2)
+        early = execute_work(teo, "e" * 32, "terminal_replace", "ship")
+        self.assertEqual(early["status"], "failed")
+        self.assertEqual(scrubber.db.spare_cartridges, 2)
+        execute_work(teo, "a" * 32, "terminal_survey", "ship")
+        firsthand_before = observe_terminal(teo)["own_finding"]
+        self.assertIn("ship minute 0", firsthand_before)
+        replaced = execute_work(teo, "b" * 32, "terminal_replace", "ship")
+        self.assertEqual(replaced["status"], "succeeded")
+        self.assertEqual(scrubber.db.spare_cartridges, 1)
+        self.assertEqual(scrubber.state, "nominal")
+        self.assertEqual(
+            execute_work(teo, "b" * 32, "terminal_replace", "ship"), replaced,
+        )
+        self.assertEqual(scrubber.db.spare_cartridges, 1)
+        # World work succeeded, but NO atmospheric conclusion is smuggled
+        # into the work-result message or the character's prior findings.
+        self.assertEqual(observe_terminal(teo)["own_finding"], firsthand_before)
+        results = [e for e in inbox(teo) if e["kind"] == "terminal_work_result"]
+        self.assertTrue(results)
+        self.assertIn("cartridge exchanged", results[-1]["text"])
+        self.assertNotIn("pressure loss", results[-1]["text"])
+        self.assertNotIn("shipwide", results[-1]["text"].lower())
+        self.assertEqual(
+            [e["operation"] for e in scrubber.db.event_history][-3:],
+            ["diagnostic_isolate", "replace", "restart"],
+        )
+        tick_terminal()
+        # A SECOND authenticated observation, not the replacement receipt,
+        # supplies the post-work pressure and equipment-status evidence.
+        reread = execute_work(teo, "9" * 32, "terminal_survey", "ship")
+        self.assertEqual(reread["status"], "succeeded")
+        firsthand_after = observe_terminal(teo)["own_finding"]
+        self.assertNotEqual(firsthand_after, firsthand_before)
+        self.assertIn("ship minute 4", firsthand_after)
+        self.assertIn("A-01 service event sequence 3", firsthand_after)
+        self.assertIn("A-01 indicator NOMINAL", firsthand_after)
+        for _ in range(60):
+            tick_terminal()
+        self.assertTrue(self.ship["pump"].db.ox_terminal_incident["fatal"])
+        self.assertTrue(teo.db.ox_terminal_dead)
+
+    def test_cartridge_shortage_and_crosscheck_are_physical_evidence(self):
+        scrubber = self.ship["scrubber"]
+        teo = self.ship["environment"]
+        execute_work(teo, "c" * 32, "terminal_survey", "ship")
+        scrubber.db.spare_cartridges = 0
+        no_stock = execute_work(teo, "d" * 32, "terminal_replace", "ship")
+        self.assertEqual(no_stock["status"], "failed")
+        self.assertEqual(scrubber.state, "nominal")
+        self.assertEqual(len(scrubber.db.event_history), 0)
+        self.assertEqual(observe_terminal(teo)["local_cartridge_spares"], 0)
+        self.assertIsNone(
+            observe_terminal(self.ship["officer"])["local_cartridge_spares"]
+        )
+        crosscheck = execute_work(teo, "f" * 32, "terminal_crosscheck", "ship")
+        self.assertEqual(crosscheck["status"], "succeeded")
+        self.assertIn("Independent A-01 differential-pressure", observe_terminal(teo)["own_finding"])
+        self.assertNotIn("Independent A-01 differential-pressure",
+                         observe_terminal(self.ship["officer"])["own_finding"])
+
+    def test_repeat_reports_and_captain_orders_need_new_evidence(self):
+        teo = self.ship["environment"]
+        captain = self.ship["captain"]
+        execute_work(teo, "0" * 32, "terminal_survey", "ship")
+        self.assertEqual(execute_work(
+            teo, "1" * 32, "terminal_broadcast", "ship",
+        )["status"], "succeeded")
+        first = len([e for e in inbox(captain) if e["kind"] == "terminal_report"])
+        self.assertEqual(first, 1)
+        self.assertEqual(execute_work(
+            teo, "2" * 32, "terminal_broadcast", "ship",
+        )["status"], "failed")
+        self.assertEqual(len([e for e in inbox(captain)
+                              if e["kind"] == "terminal_report"]), first)
+        self.assertEqual(execute_work(
+            captain, "3" * 32, "terminal_command", "ship",
+        )["status"], "succeeded")
+        order_count = len([e for e in inbox(teo) if e["kind"] == "terminal_order"])
+        self.assertEqual(execute_work(
+            captain, "4" * 32, "terminal_command", "ship",
+        )["status"], "failed")
+        self.assertEqual(len([e for e in inbox(teo)
+                              if e["kind"] == "terminal_order"]), order_count)
+        execute_work(teo, "5" * 32, "terminal_crosscheck", "ship")
+        self.assertEqual(execute_work(
+            teo, "6" * 32, "terminal_broadcast", "ship",
+        )["status"], "succeeded")
+        self.assertEqual(execute_work(
+            captain, "7" * 32, "terminal_command", "ship",
+        )["status"], "succeeded")
+
