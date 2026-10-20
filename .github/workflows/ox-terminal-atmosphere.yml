@@ -4,14 +4,12 @@ name: Ox terminal atmosphere six-run experiment
 
 on:
   pull_request:
-    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
     types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - "scenarios/terminal_loss/trial.py"
       - ".github/workflows/ox-terminal-atmosphere.yml"
       - "!**/*.md"
   workflow_dispatch:
-    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
 
 permissions:
   contents: read
