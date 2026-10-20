@@ -258,6 +258,8 @@ class CrewAgent:
             raise TypeError("Only typed personal episodes can be remembered")
         # Never retain the caller's mutable object as internal owned memory.
         entry = TemporalMemory(**asdict(entry))
+        if entry.last_recalled_turn is not None or entry.recall_count != 0:
+            raise ValueError("A new witnessed episode cannot arrive pre-rehearsed")
         if entry.kind not in ("witnessed_speech", "world_receipt"):
             raise ValueError("Only observed new events may enter this route")
         if not entry.source_event_id:

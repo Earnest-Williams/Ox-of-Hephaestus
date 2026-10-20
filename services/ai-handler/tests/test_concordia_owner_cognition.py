@@ -91,6 +91,14 @@ class OwnerMutationBoundaryTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 restored.reconsider_memory("absent")
 
+    def test_untrusted_episode_cannot_preadmit_rehearsal(self):
+        with self.assertRaises(ValueError):
+            self.crew.remember_timed(TemporalMemory(
+                "rogue.1", "ari", "Claimed advance recall",
+                "witnessed_speech", 10, 10, 100, 80,
+                last_recalled_turn=11, recall_count=9, source_event_id="world10"))
+        self.assertEqual(self.crew.cognition_revision, 0)
+
     def test_episode_does_not_retain_mutable_caller_alias(self):
         episode = TemporalMemory("new.2", "ari", "He said he fixed it",
                                  "witnessed_speech", 20, 20, 100, 80,
