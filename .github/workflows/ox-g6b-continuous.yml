@@ -15,6 +15,8 @@ on:
       - "game/typeclasses/ship.py"
       - "services/ai-handler/src/ox_ai/ports/evennia/durable.py"
       - "scenarios/terminal_live/continuous_trial.py"
+      - "scenarios/terminal_live/turn_budget.py"
+      - "scenarios/terminal_live/test_turn_budget.py"
       - "scenarios/terminal_live/continuous_report.py"
       - ".github/workflows/ox-g6b-continuous.yml"
       - "!**/*.md"
@@ -39,6 +41,8 @@ jobs:
           python-version: "3.12"
       - name: Install Evennia
         run: python -m pip install .
+      - name: Check decision ceilings (no live server)
+        run: python -m unittest discover -s scenarios/terminal_live -p test_turn_budget.py -v
       - name: Run new world module tests only
         working-directory: game
         run: python -m world.test_runner world.tests.test_terminal_failure --verbosity=2

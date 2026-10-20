@@ -25,6 +25,7 @@ from ox_ai.runtime.five_crew_service import FiveCrewSupervisor
 from ox_ai.runtime.watch_service import atomic_json
 
 from trial import ROLES, STATIONS, PRIMARY, sensor
+from turn_budget import TurnBudget, TurnCapReached
 
 DESTINATIONS = ("Bridge", "Environmental Plant", "Engineering",
                 "Cargo Hold", "Crew Mess")
@@ -254,26 +255,21 @@ async def experiment(seed: int, provider: str, destination: Path) -> None:
     records: list[dict] = []
     fatal_confirmations: dict[str, bool] = {}
     heard_critical: dict[str, bool] = {role: False for role in ROLES}
-    turn_counts: dict[str, int] = {role: 0 for role in ROLES}
+    budget = TurnBudget(
+        ROLES, max_per_character=MAX_TURNS_PER_CHARACTER,
+        max_total=MAX_TURNS_TOTAL,
+    )
     stop_requested = asyncio.Event()
     stopped_for_limit: dict[str, str | None] = {"reason": None}
-    total_turns = 0
     started = time.monotonic()
 
     def claim_turn(role: str) -> int | None:
-        # No await inside this function: claims from concurrent asyncio
-        # actors cannot interleave or exceed either explicit ceiling.
-        nonlocal total_turns
-        if total_turns >= MAX_TURNS_TOTAL:
-            stopped_for_limit["reason"] = "total_turn_limit"
-        elif turn_counts[role] >= MAX_TURNS_PER_CHARACTER:
-            stopped_for_limit["reason"] = "character_turn_limit:" + role
-        if stopped_for_limit["reason"] is not None:
+        try:
+            return budget.claim(role)
+        except TurnCapReached as error:
+            stopped_for_limit["reason"] = str(error)
             stop_requested.set()
             return None
-        total_turns += 1
-        turn_counts[role] += 1
-        return turn_counts[role]
 
     async def role_loop(role: str) -> None:
         await asyncio.sleep(startup_offsets[role])
@@ -398,8 +394,8 @@ async def experiment(seed: int, provider: str, destination: Path) -> None:
             ),
             "all_six_confirmed_dead": all_dead,
             "termination_reason": termination_reason,
-            "turn_count": total_turns,
-            "turn_counts_by_role": turn_counts,
+            "turn_count": budget.total,
+            "turn_counts_by_role": dict(budget.counts),
             "turn_limits": {
                 "per_character": MAX_TURNS_PER_CHARACTER,
                 "total": MAX_TURNS_TOTAL,
@@ -430,8 +426,8 @@ async def experiment(seed: int, provider: str, destination: Path) -> None:
             "fatal_confirmations": fatal_confirmations,
             "heard_critical": heard_critical,
             "termination_reason": stopped_for_limit["reason"],
-            "turn_count": total_turns,
-            "turn_counts_by_role": turn_counts,
+            "turn_count": budget.total,
+            "turn_counts_by_role": dict(budget.counts),
             "turn_limits": {
                 "per_character": MAX_TURNS_PER_CHARACTER,
                 "total": MAX_TURNS_TOTAL,
