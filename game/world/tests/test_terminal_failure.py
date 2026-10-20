@@ -218,8 +218,8 @@ class TerminalFailureTests(EvenniaTestCase):
         )
         crosscheck = execute_work(teo, "f" * 32, "terminal_crosscheck", "ship")
         self.assertEqual(crosscheck["status"], "succeeded")
-        self.assertIn("Independent differential-pressure", observe_terminal(teo)["own_finding"])
-        self.assertNotIn("Independent differential-pressure",
+        self.assertIn("Independent A-01 differential-pressure", observe_terminal(teo)["own_finding"])
+        self.assertNotIn("Independent A-01 differential-pressure",
                          observe_terminal(self.ship["officer"])["own_finding"])
 
     def test_repeat_reports_and_captain_orders_need_new_evidence(self):
