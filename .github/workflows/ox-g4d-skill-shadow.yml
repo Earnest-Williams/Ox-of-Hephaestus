@@ -2,7 +2,6 @@ name: Ox G4d canonical skills and shadow task comparisons
 
 on:
   pull_request:
-    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
     types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - "game/world/**"
@@ -11,7 +10,6 @@ on:
       - ".github/workflows/ox-g4d-skill-shadow.yml"
       - "!**/*.md"
   workflow_dispatch:
-    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
