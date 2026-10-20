@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       repetitions:
-        description: "Paired repeats, 1-3 (8-24 hosted requests)"
+        description: "Isolated challenge uses fixed two paired repetitions (24 hosted requests)"
         type: choice
         required: true
         default: "1"
@@ -40,7 +40,7 @@ jobs:
         run: python -m unittest discover -s services/ai-handler/tests -p test_concordia_memory_ab.py -v
       - name: Verify harder paired fixtures without hosted calls
         run: |
-          python scenarios/g11_memory_challenge_trial.py --provider capture \\
+          python scenarios/g11_memory_challenge_trial.py --provider capture \
             --repetitions 1 --output /tmp/g11-challenge-smoke.json
       - name: Run hosted matched-evidence A/B
         run: |
