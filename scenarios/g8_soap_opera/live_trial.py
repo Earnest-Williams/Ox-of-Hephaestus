@@ -23,6 +23,7 @@ from concordia.testing.mock_model import MockModel
 from ox_ai.agents.crew import CrewAgent, CrewIdentity
 from ox_ai.agents.live_concordia import ROLES
 from ox_ai.memory.seeds import SeededMemory
+from ox_ai.memory.temporal import TemporalMemory
 from ox_ai.planning.goap import GoapAction, GoapPlanner
 from ox_ai.ports.base import WorldObservation
 from ox_ai.ports.evennia.client import EvenniaWebSocketClient
@@ -52,6 +53,16 @@ SEED_TEXT = {
     "captain": (("iona", "Iona and I have been dating; I want more commitment."),
                 ("ari", "I know Iona has history with Ari."),
                 ("teo", "Teo once mistook my support for romantic interest.")),
+}
+# (when, impact on trust, impact on interest), all subjective, not truth.
+# Event occurrence is different from when the character learned about it.
+SEED_TIMELINE = {
+    "lin": ((-900, -11, 8), (-32, 9, 17), (-65, -13, -5)),
+    "ari": ((-900, -16, 10), (-610, 8, 9), (-63, -17, -4)),
+    "iona": ((-610, 8, 10), (-65, -16, -7), (-92, 8, 11)),
+    "mara": ((-32, -8, 17), (-280, -6, -17), (-72, 9, 3)),
+    "teo": ((-280, -11, 15), (-70, -11, -6), (-120, -7, 4)),
+    "captain": ((-92, 8, 14), (-610, -5, -2), (-120, 2, -6)),
 }
 AFFECTION = {
     "lin": (65, 80, 32, 84, 20, 40),
@@ -89,12 +100,17 @@ GOALS = {
 }
 
 def seeds_for(role):
-    return tuple(
-        SeededMemory(f"g8.{role}.{i}", text, subject,
-                     "interpretation" if i == 3 else "recollection",
-                     70 if i == 3 else 88, 82)
-        for i, (subject, text) in enumerate(SEED_TEXT[role], 1)
-    )
+    result = []
+    for i, (subject, text) in enumerate(SEED_TEXT[role]):
+        event_time, trust_bias, interest_bias = SEED_TIMELINE[role][i]
+        result.append(SeededMemory(
+            f"g8.{role}.{i + 1}", text, subject,
+            "interpretation" if i == 2 else "recollection",
+            70 if i == 2 else 88, 82,
+            occurred_turn=event_time, learned_turn=0,
+            trust_effect=trust_bias, interest_effect=interest_bias,
+        ))
+    return tuple(result)
 
 def token(value):
     return base64.urlsafe_b64encode(
@@ -337,6 +353,20 @@ class Trial:
         return [(key, entry) for key, entry in self.agreements.items()
                 if entry["state"] == "pending" and entry["recipient"] == role]
 
+    def perspective(self, role, other, *, rehearse=False):
+        bank = self.brains[role].temporal_memories
+        trust_bias, interest_bias, sources = bank.appraisal(other, self.turn)
+        if rehearse:
+            # This person consciously recalls at most three episodes;
+            # rehearsal changes future accessibility, never the historical date.
+            bank.retrieve(other, self.turn, limit=3, rehearse=True)
+        mind = self.private[role]
+        return (
+            max(0, min(100, mind["trust"][other] + trust_bias)),
+            max(0, min(100, mind["affection"][other] + interest_bias)),
+            sources,
+        )
+
     def candidate(self, role):
         mind = self.private[role]
         rng = random.Random(self.seed + self.turn * 7919 + ROSTER.index(role))
@@ -345,14 +375,37 @@ class Trial:
             if other == role or self.locations[other] != self.locations[role]:
                 continue
             prior = mind["last"].get(other, -60)
-            affection = mind["affection"][other]
-            trust = mind["trust"][other]
-            memory = sum(1 for subject, _ in SEED_TEXT[role] if subject == other)
-            value = (affection * .25 + (100-trust) * .11 +
-                     min(30, (self.turn-prior) * .22) + memory * 12 +
-                     rng.uniform(0, 28))
+            trust, affection, sources = self.perspective(role, other)
+            recalled = self.brains[role].temporal_memories.retrieve(
+                other, self.turn, limit=2)
+            relevance = sum(entry.importance(self.turn) for entry in recalled)
+            # Old influential experiences can still win attention; recent
+            # relevant episodes can displace them without erasing history.
+            value = (affection * .34 + (100-trust) * .14
+                     + min(30, (self.turn-prior) * .22)
+                     + relevance * 18 + rng.uniform(0, 26))
             options.append((value, other))
         return max(options)[1] if options else None
+
+    def remember_contract(self, role, other, receipt, kind):
+        # Only a successful world operation + witnessed counterpart delivery
+        # reaches this method. Neither agent gets to manufacture assent.
+        effects = {
+            "proposed": (3, 4), "accepted": (13, 8),
+            "deferred": (-4, -3), "declined": (-13, -9),
+            "withdrawn": (-18, -12),
+        }
+        trust_bias, interest_bias = effects[kind]
+        event_id = str(receipt["source_event_id"])
+        for observer, subject in ((role, other), (other, role)):
+            self.brains[observer].remember_timed(TemporalMemory(
+                memory_id=f"g8.world.{receipt['request_id']}.{observer}",
+                source_event_id=event_id, subject=subject,
+                text=f"{ROLES[role][0]} {kind} a commitment involving {ROLES[other][0]}.",
+                kind="world_receipt", occurred_turn=self.turn,
+                learned_turn=self.turn, confidence=100, salience=88,
+                trust_effect=trust_bias, interest_effect=interest_bias,
+            ))
 
     def current_offer(self, role, other):
         return next(((key, entry) for key, entry in reversed(list(self.agreements.items()))
@@ -361,19 +414,29 @@ class Trial:
 
     async def speak(self, clients, ids, role, other, line, intent):
         visible = await spoken(clients, self.locations, role, line)
+        attitude = {
+            "reassure": (7, 2), "confront": (-10, -5),
+            "connect": (2, 4), "boundary": (-7, -4),
+            "question": (1, 0), "disclose": (2, 1), "reflect": (0, 0),
+        }
         for observer in visible:
             if observer == role:
                 continue
+            msg_id = f"g8-speech-{self.turn}-{role}"
             self.brains[observer].observe(WorldObservation(
-                f"g8-speech-{self.turn}-{role}", ids[observer], float(self.turn),
+                msg_id, ids[observer], float(self.turn),
                 f"{ROLES[role][0]} said: {line}", kind="heard_speech",
             ))
-        if intent == "reassure":
-            self.private[other]["trust"][role] = min(
-                100, self.private[other]["trust"][role] + 2)
-        if intent == "confront":
-            self.private[other]["trust"][role] = max(
-                0, self.private[other]["trust"][role] - 3)
+            trust_bias, interest_bias = (attitude[intent] if observer == other
+                                         else (0, 0))
+            self.brains[observer].remember_timed(TemporalMemory(
+                memory_id=f"g8.speech.{self.turn}.{role}.{observer}",
+                subject=role, text=f"{ROLES[role][0]} said: {line}",
+                source_event_id=msg_id, kind="witnessed_speech",
+                occurred_turn=self.turn, learned_turn=self.turn,
+                confidence=100, salience=52 if observer == other else 30,
+                trust_effect=trust_bias, interest_effect=interest_bias,
+            ))
         self.record(role, "spoken_" + intent, target=other, heard_by=visible)
 
     async def social(self, role, clients, ids):
@@ -383,7 +446,8 @@ class Trial:
             other = agreement["proposer"]
             m = self.private[role]
             rng = random.Random(self.seed + self.turn * 29)
-            score = m["affection"][other] + m["trust"][other] * .25 + rng.randint(-25, 20)
+            trust, affection, sources = self.perspective(role, other, rehearse=True)
+            score = affection + trust * .25 + rng.randint(-25, 20)
             answer = "accept" if score >= 88 else ("defer" if score >= 71 else "decline")
             receipt, heard = await social_action(
                 clients, ids, role, other, "social_reply",
@@ -391,7 +455,9 @@ class Trial:
                  "answer": answer})
             agreement["state"] = {"accept": "accepted", "defer": "deferred",
                                   "decline": "declined"}[answer]
+            self.remember_contract(role, other, receipt, agreement["state"])
             self.record(role, "relationship_" + answer, target=other,
+                        remembered=sources, appraisal=(trust, affection),
                         agreement=key, receipt=receipt["request_id"],
                         listener_event=heard["event_id"])
             return
@@ -402,8 +468,7 @@ class Trial:
         mind = self.private[role]
         mind["last"][other] = self.turn
         rng = random.Random(self.seed + self.turn * 127 + ROSTER.index(role))
-        score = mind["affection"][other]
-        trust = mind["trust"][other]
+        trust, score, sources = self.perspective(role, other, rehearse=True)
         key, agreement = self.current_offer(role, other)
         # The acceptance record belongs to Evennia. The handler may ask to
         # withdraw but cannot edit a durable agreement locally.
@@ -412,7 +477,9 @@ class Trial:
                 clients, ids, role, other, "social_withdraw",
                 {"agreement_id": key, "revision": agreement["revision"]})
             agreement["state"] = "withdrawn"
+            self.remember_contract(role, other, receipt, "withdrawn")
             self.record(role, "relationship_withdrawn", target=other,
+                        remembered=sources, appraisal=(trust, score),
                         agreement=key, receipt=receipt["request_id"],
                         listener_event=heard["event_id"])
             return
@@ -431,45 +498,60 @@ class Trial:
                 "proposer": role, "recipient": other, "state": "pending",
                 "revision": receipt["revision"], "turn": self.turn,
             }
+            self.remember_contract(role, other, receipt, "proposed")
             self.record(role, "relationship_proposed", target=other,
+                        remembered=sources, appraisal=(trust, score),
                         agreement=key, receipt=receipt["request_id"],
                         listener_event=heard["event_id"])
             return
-        r = rng.random()
-        if r < .13 and trust < 72:
-            intent = "confront"
-        elif r < .33:
-            intent = "question"
-        elif r < .46:
-            intent = "reassure"
-        elif r < .59:
-            intent = "disclose"
-        elif r < .66 and score < 48:
-            intent = "boundary"
-        elif r < .91:
-            intent = "connect"
-        else:
-            intent = "reflect"
+        # Goal priority responds to recalled, time-weighted experiences.
+        # No event dictates an outcome or confers permission for intimacy.
+        options = ("confront", "question", "reassure", "disclose",
+                   "boundary", "connect", "reflect")
+        weights = (
+            max(1, 28 - trust * .32),
+            12,
+            max(2, trust * .19),
+            12 if sources else 6,
+            max(1, 35 - score) * .35,
+            max(2, score * .31),
+            8,
+        )
+        intent = rng.choices(options, weights=weights)[0]
         goal = GOALS[intent]
         plan = GOAP.plan({"together", "conversation_open", "heard_uncertainty"}, {goal})
         if not plan.actions:
             raise AssertionError("Social goal has no GOAP operator")
         selected = plan.actions[0].name
         if intent == "disclose":
-            remembered = [(subject, text) for subject, text in SEED_TEXT[role]
-                          if subject == other and text not in mind["disclosed"]]
+            remembered = [
+                entry for entry in self.brains[role].temporal_memories.retrieve(
+                    other, self.turn, limit=12)
+                if entry.kind in ("recollection", "testimony", "interpretation")
+                and entry.memory_id not in mind["disclosed"]
+            ]
             if remembered:
-                line = "I remember this differently: " + remembered[0][1][:145]
-                mind["disclosed"].append(remembered[0][1])
+                episode = remembered[0]
+                intro = ("Someone told me: " if episode.kind == "testimony"
+                         else "I believe: " if episode.kind == "interpretation"
+                         else "I remember: ")
+                line = intro + episode.text[:140]
+                mind["disclosed"].append(episode.memory_id)
             else:
-                line = "I have some things I have not quite worked through."
+                line = "I have been rethinking how I remember our history."
         elif intent == "confront":
-            line = "I feel we have not been entirely honest about the past."
-            mind["trust"][other] = max(0, trust - 1)
+            old = self.brains[role].temporal_memories.retrieve(
+                other, self.turn, limit=1, affective_only=True)
+            line = ("That conversation left me thinking about our past."
+                    if old else "I feel we have not been entirely honest.")
         else:
             line = next((op.line for op in SOCIAL_OPERATORS if op.name == selected),
                         "We should talk.")
         await self.speak(clients, ids, role, other, line, intent)
+        # Explain the subjective sources of a decision without declaring
+        # those memories accurate or publishing the whole private bank.
+        self.trace[-1]["remembered"] = sources
+        self.trace[-1]["appraisal"] = [trust, score]
 
     async def run_phase(self, ids, start, end):
         if self.turn != start - 1:
@@ -518,7 +600,9 @@ class Trial:
                   "actors": list(ROSTER), "authenticated_client_sessions": 36,
                   "world": "real_evennia", "model_calls": 0,
                   "faults": self.faults, "counts": counts,
-                  "agreements": self.agreements, "trace": self.trace}
+                  "agreements": self.agreements, "trace": self.trace,
+                  "temporal_memory_counts": {role: len(self.brains[role].temporal_memories)
+                                             for role in ROSTER}}
         (self.root / "final.json").write_text(json.dumps(report, indent=2))
         return report
 
