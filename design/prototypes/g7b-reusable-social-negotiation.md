@@ -5,7 +5,7 @@
 Expand the existing G7 apartment experiment rather than extending the ship.
 GOAP chooses actions, not just dialogue. New reusable packages:
 - services/ai-handler/src/ox_ai/social/domain.py — 75 typed actions covering contact, emotion, limits, reciprocity, bargaining, cooperation and non-explicit physical proximity.
-- services/ai-handler/src/ox_ai/social/contracts.py — 32 negotiable activities with typed scope, consideration, ordering, counteroffer revisions, independent assent, revocation, and separately verified performance.
+- services/ai-handler/src/ox_ai/social/contracts.py — 36 negotiable activities with typed scope, consideration, ordering, counteroffer revisions, independent assent, revocation, and separately verified performance.
 - services/ai-handler/src/ox_ai/scenarios/apartment_extended.py — scenario adapter with independent GOAP minds, private motives, emotional updates, and an explicitly disposable simulated world.
 
 The same bargaining vocabulary accommodates hand-holding, a kiss, staying
