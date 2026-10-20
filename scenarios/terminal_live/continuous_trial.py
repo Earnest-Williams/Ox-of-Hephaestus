@@ -27,6 +27,7 @@ from ox_ai.runtime.watch_service import atomic_json
 from trial import ROLES, STATIONS, PRIMARY, sensor
 from turn_budget import TurnBudget, TurnCapReached
 from assessment_payload import compose_assessment
+from prognosis_policy import PrognosisReview
 
 DESTINATIONS = ("Bridge", "Environmental Plant", "Engineering",
                 "Cargo Hold", "Crew Mess")
@@ -98,10 +99,11 @@ def valid_options(role: str, view: dict, known: dict) -> list[CommandOption]:
             "Offer assistance to a physically present colleague: " + present,
             "terminal_comfort",
         ))
-    choices.append(CommandOption(
-        "Record a provisional assessment subject to new evidence",
-        "terminal_assess",
-    ))
+    if known.get("assessment_ready", False):
+        choices.append(CommandOption(
+            "Record an initial prognosis or one revised by contrary evidence",
+            "terminal_assess",
+        ))
     choices.append(CommandOption(
         "Preserve an incident record at the current station",
         "terminal_archive",
@@ -117,51 +119,42 @@ class AdaptiveGoap:
         self.attempts = Counter()
         self.last_relayed = ""
         self.command_observation_id = 0
-        self.critical_assessed = False
         self.last_archived_stage = -1
         self.last_help_stage = -1
-        self.last_assessed_stage = -1
-        self.last_assessed_evidence_seq = 0
-        self.last_assessed_finding = None
-        self.last_assessment_content = None
-        self.last_refused_assessment_content = None
-        self.last_refusal_reason = ""
-        self.last_assessed_oxygen = None
-        self.last_assessed_co2 = None
         self.last_reported_stage = -1
+        self.prognosis = PrognosisReview()
         self.awaiting_post_exchange_survey = False
         self.post_exchange_surveys = 0
 
     def state(self) -> dict:
-        return {"last_relayed": self.last_relayed}
+        return {
+            "last_relayed": self.last_relayed,
+            "assessment_ready": self.prognosis.pending is not None,
+        }
+
+    def review_evidence(self, view: dict, recent: list[dict]) -> bool:
+        """Watch for evidence opposing the standing prognosis.
+
+        This only identifies contradictions. No new prognosis is constructed
+        or compared while all observations merely reinforce the existing
+        conclusion. Urgent operations continue without a prognostic review.
+        """
+        available = bool(view.get("own_finding")) or any(
+            event["kind"] == "terminal_report" for event in recent
+        )
+        return self.prognosis.inspect(
+            view, recent, has_firsthand_or_addressed_evidence=available,
+        )
 
     def notice(self, selected: str, status: str, view: dict,
                last_event: int, *, assessment: dict | None = None,
                refusal_reason: str = "") -> None:
-        # Refusal feedback is scoped to precisely the same authored claim,
-        # confidence, interpretation AND evidence. It is not a veto on a
-        # genuinely changed reading or a reconsidered interpretation.
-        if selected == "terminal_assess" and assessment is not None:
-            if status == "succeeded":
-                self.last_assessment_content = dict(assessment)
-                self.last_refused_assessment_content = None
-                self.last_refusal_reason = ""
-                self.last_assessed_oxygen = float(assessment["oxygen_kpa"])
-                self.last_assessed_co2 = float(assessment["co2_percent"])
-                self.last_assessed_stage = urgency(view)
-                self.last_assessed_evidence_seq = int(assessment["evidence_sequence"])
-                self.last_assessed_finding = assessment["finding_digest"]
-            elif status == "failed":
-                self.last_refused_assessment_content = dict(assessment)
-                self.last_refusal_reason = refusal_reason
-                self.last_assessed_oxygen = float(assessment["oxygen_kpa"])
-                self.last_assessed_co2 = float(assessment["co2_percent"])
-                # The actor did attempt a revision for this risk band; another
-                # unchanged opinion should wait, but a new report/reading,
-                # proposition or confidence may justify a new attempt.
-                self.last_assessed_stage = urgency(view)
-                self.last_assessed_evidence_seq = int(assessment["evidence_sequence"])
-                self.last_assessed_finding = assessment["finding_digest"]
+        if selected == "terminal_assess":
+            if assessment is None:
+                raise ValueError("Prognosis submission requires explicit content")
+            self.prognosis.note(
+                status, assessment, view, refusal_reason=refusal_reason,
+            )
         if status == "succeeded":
             self.attempts[selected] += 1
             if selected == "terminal_replace":
@@ -186,26 +179,11 @@ class AdaptiveGoap:
             self.attempts["failed:" + selected] += 1
 
     def propose_assessment(self, view: dict, evidence_sequence: int) -> dict:
-        band = urgency(view)
-        # A subjective, fallible opinion authored from the character's own
-        # measured risk and local evidence; not the world's hidden cause.
-        propositions = {
-            0: "Atmospheric recovery remains uncertain",
-            1: "Atmospheric decline requires further investigation",
-            2: "Current atmosphere threatens crew survival",
-            3: "Immediate atmospheric survival is in doubt",
-        }
-        confidence = (
-            "strong" if band >= 3 else
-            "moderate" if band >= 2 else "tentative"
-        )
-        rationale = (
-            "I interpret the local oxygen and CO2 instruments, and the "
-            "evidence addressed to me, as grounds for this provisional "
-            "assessment. I may revise it after further observation."
-        )
+        # Only called after review_evidence() establishes an initial basis
+        # or genuine counterevidence against the previous prognosis.
+        claim, confidence, rationale = self.prognosis.wording()
         return compose_assessment(
-            view, claim=propositions[band], confidence=confidence,
+            view, claim=claim, confidence=confidence,
             rationale=rationale, evidence_sequence=evidence_sequence,
         )
 
@@ -257,49 +235,12 @@ class AdaptiveGoap:
         if evid and self.last_relayed != evid:
             goal(150, "share_new_primary_evidence", "terminal_broadcast")
 
-        received_diagnostic = any(e["kind"] == "terminal_report" for e in events)
-        critical = any(e["kind"] == "terminal_critical" for e in events)
-        proposal = self.propose_assessment(view, last_event)
-        # Risk transitions and newly addressed evidence legitimately change
-        # a prognosis. Compare the complete assessment, never merely a verb
-        # or a local inspection/message cursor.
-        # A new reading can warrant an assessment *within* the same risk
-        # band, but minor noise need not produce a new report every few
-        # seconds. This is a planner relevance threshold; the world NEVER
-        # labels two actually different readings "identical".
-        material_sensor_change = (
-            self.last_assessed_oxygen is not None and (
-                abs(view["oxygen_kpa"] - self.last_assessed_oxygen) >= 0.5
-                or abs(view["co2_percent"] - self.last_assessed_co2) >= 0.3
-            )
-        )
-        reinterpreted = any(
-            previous is not None
-            and any(proposal[k] != previous[k]
-                    for k in ("claim", "confidence", "rationale"))
-            for previous in (
-                self.last_assessment_content,
-                self.last_refused_assessment_content,
-            )
-        )
-        substantive_trigger = (
-            stage != self.last_assessed_stage
-            or last_event > self.last_assessed_evidence_seq
-            or proposal["finding_digest"] != self.last_assessed_finding
-            or material_sensor_change or reinterpreted
-        )
-        not_same_payload = (
-            proposal != self.last_assessment_content
-            and proposal != self.last_refused_assessment_content
-        )
-        revisiting_lower_risk = (
-            self.last_assessed_stage >= 0
-            and stage != self.last_assessed_stage
-        )
-        if ((received_diagnostic or stage >= 2 or revisiting_lower_risk)
-                and substantive_trigger and not_same_payload):
-            goal(115 if critical else 75, "update_provisional_assessment",
-                 "terminal_assess")
+        # Ordinary alarms, deteriorating sensors and confirming messages
+        # affect ACTION urgency only. They do not justify reconsidering an
+        # existing prognosis. The independent evidence gate authorizes a
+        # new assessment solely on counterevidence (or first assessment).
+        if self.prognosis.pending is not None:
+            goal(75, "initial_or_counterevidence_prognosis", "terminal_assess")
 
         if self.last_archived_stage != stage and stage >= 1:
             goal(65, "preserve_changing_incident_record", "terminal_archive")
@@ -425,10 +366,11 @@ async def experiment(seed: int, provider: str, destination: Path) -> None:
             if actor_turn is None:
                 break
             previous_band = level
+            policy.review_evidence(current, relevant)
             menu = valid_options(role, current, policy.state())
             if provider == "goap":
                 selected, why = policy.select(
-                    current, events, menu, last_evidence_sequence,
+                    current, relevant, menu, last_evidence_sequence,
                 )
             else:
                 brain.observe_local("Live authenticated atmosphere", json.dumps(
