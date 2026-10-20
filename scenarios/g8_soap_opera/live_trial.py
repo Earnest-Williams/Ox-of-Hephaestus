@@ -64,6 +64,54 @@ SEED_TIMELINE = {
     "teo": ((-280, -11, 15), (-70, -11, -6), (-120, -7, 4)),
     "captain": ((-92, 8, 14), (-610, -5, -2), (-120, 2, -6)),
 }
+# Typed *subjective* claims from individual prehistories. Keys mean a
+# proposition is being entertained, never that it is true. Other characters
+# can later hear contradictory statements without getting omniscient facts.
+# (claim_key, subject_of_claim, stance, correlated_source)
+CLAIM_SEEDS = {
+    "lin": {
+        0: ("lin_ari_separated", "ari", -1, "lin.marriage_account"),
+        1: ("lin_mara_involved", "mara", 1, "lin.own_encounters"),
+    },
+    "ari": {
+        0: ("lin_ari_separated", "lin", -1, "ari.marriage_account"),
+        2: ("lin_mara_involved", "mara", 1, "ari.suspicion"),
+    },
+    "iona": {
+        1: ("lin_mara_involved", "lin", 1, "iona.lounge_sighting"),
+        2: ("iona_captain_exclusive", "captain", -1, "iona.relationship_view"),
+    },
+    "mara": {
+        0: ("lin_ari_separated", "lin", 1, "lin.marriage_account"),
+        1: ("mara_teo_finished", "teo", 1, "mara.relationship_view"),
+        2: ("lin_is_reliable", "lin", -1, "iona.warning"),
+    },
+    "teo": {
+        0: ("mara_teo_finished", "mara", -1, "teo.relationship_view"),
+        1: ("lin_mara_involved", "lin", 1, "teo.suspicion"),
+    },
+    "captain": {
+        0: ("iona_captain_exclusive", "iona", -1, "captain.relationship_view"),
+    },
+}
+# Scenario-specific consequences of believing the listed hypotheses.
+# The second coordinate is willingness to *approach*, NOT romantic desire.
+CLAIM_EFFECTS = {
+    "lin_ari_separated": (16, 14),
+    "mara_teo_finished": (-6, -12),
+    "lin_mara_involved": (-11, -4),
+    "iona_captain_exclusive": (0, -12),
+    "lin_is_reliable": (20, 4),
+    "willing_to_negotiate": (0, 9),
+}
+CLAIM_DESCRIPTIONS = {
+    "lin_ari_separated": "Lin and Ari had separated",
+    "mara_teo_finished": "Mara and Teo had broken up",
+    "lin_mara_involved": "Lin and Mara were involved",
+    "iona_captain_exclusive": "Iona and the Captain were exclusive",
+    "lin_is_reliable": "Lin could be relied upon",
+    "willing_to_negotiate": "a proposal would be welcomed",
+}
 AFFECTION = {
     "lin": (65, 80, 32, 84, 20, 40),
     "ari": (76, 50, 73, 15, 45, 45),
@@ -103,12 +151,18 @@ def seeds_for(role):
     result = []
     for i, (subject, text) in enumerate(SEED_TEXT[role]):
         event_time, trust_bias, interest_bias = SEED_TIMELINE[role][i]
+        claim = CLAIM_SEEDS[role].get(i)
         result.append(SeededMemory(
             f"g8.{role}.{i + 1}", text, subject,
             "interpretation" if i == 2 else "recollection",
             70 if i == 2 else 88, 82,
             occurred_turn=event_time, learned_turn=0,
             trust_effect=trust_bias, interest_effect=interest_bias,
+            claim_key=claim[0] if claim else None,
+            claim_subject=claim[1] if claim else None,
+            claim_stance=claim[2] if claim else 0,
+            source_group=claim[3] if claim else None,
+            claim_credibility=78 if claim else 70,
         ))
     return tuple(result)
 
@@ -195,6 +249,7 @@ class Trial:
             self.agreements = d["agreements"]
             self.faults = d["faults"]
             self.trace = d["trace"]
+            self.reinterpretations = d.get("reinterpretations", [])
             self.locations = d["locations"]
             self.seen = {tuple(item) for item in d["seen"]}
             for role in ROSTER:
@@ -210,6 +265,7 @@ class Trial:
                 for i, (kind, at) in enumerate(SCHEDULE)
             ]
             self.trace = []
+            self.reinterpretations = []
             self.locations = {r: "mess" for r in ROSTER}
             self.seen = set()
             for role in ROSTER:
@@ -244,7 +300,8 @@ class Trial:
         state = {
             "seed": self.seed, "turn": self.turn, "private": self.private,
             "agreements": self.agreements, "faults": self.faults,
-            "trace": self.trace, "locations": self.locations,
+            "trace": self.trace, "reinterpretations": self.reinterpretations,
+            "locations": self.locations,
             "seen": sorted(self.seen),
         }
         staging = self.file.with_suffix(".tmp")
@@ -353,16 +410,43 @@ class Trial:
         return [(key, entry) for key, entry in self.agreements.items()
                 if entry["state"] == "pending" and entry["recipient"] == role]
 
+    def interpreted_influence(self, role, other):
+        """One character's opinion about another; never share the ledger."""
+        trust_delta = 0
+        approach_delta = 0
+        doubt = False
+        views = []
+        for view in self.brains[role].interpretations.for_subject(other):
+            influence = CLAIM_EFFECTS.get(view.claim_key)
+            if influence is None:
+                continue
+            confidence = (view.confidence - 50) / 50
+            trust_delta += round(influence[0] * confidence)
+            approach_delta += round(influence[1] * confidence)
+            doubt |= view.contradictory or view.view == "unsettled"
+            views.append({
+                "claim": view.claim_key, "confidence": view.confidence,
+                "view": view.view, "contradictory": view.contradictory,
+                "sources": view.evidence_ids,
+            })
+        return (
+            max(-25, min(25, trust_delta)),
+            max(-20, min(20, approach_delta)),
+            doubt, tuple(views),
+        )
+
     def perspective(self, role, other, *, rehearse=False):
         bank = self.brains[role].temporal_memories
         trust_bias, interest_bias, sources = bank.appraisal(other, self.turn)
+        belief_trust, _approach, _doubt, _views = self.interpreted_influence(
+            role, other)
         if rehearse:
             # This person consciously recalls at most three episodes;
             # rehearsal changes future accessibility, never the historical date.
             bank.retrieve(other, self.turn, limit=3, rehearse=True)
         mind = self.private[role]
         return (
-            max(0, min(100, mind["trust"][other] + trust_bias)),
+            max(0, min(100, mind["trust"][other] + trust_bias + belief_trust)),
             max(0, min(100, mind["affection"][other] + interest_bias)),
             sources,
         )
@@ -379,9 +463,12 @@ class Trial:
             recalled = self.brains[role].temporal_memories.retrieve(
                 other, self.turn, limit=2)
             relevance = sum(entry.importance(self.turn) for entry in recalled)
-            # Old influential experiences can still win attention; recent
-            # relevant episodes can displace them without erasing history.
-            value = (affection * .34 + (100-trust) * .14
+            _belief_trust, approach, doubt, _views = self.interpreted_influence(
+                role, other)
+            # Doubt may provoke a conversation even when attraction is low.
+            # It does not automatically grant intimacy or actual permission.
+            value = (affection * .34 + (100-trust) * .14 + approach * .75
+                     + (7 if doubt else 0)
                      + min(30, (self.turn-prior) * .22)
                      + relevance * 18 + rng.uniform(0, 26))
             options.append((value, other))
