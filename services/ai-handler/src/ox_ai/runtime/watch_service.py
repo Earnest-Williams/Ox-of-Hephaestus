@@ -30,6 +30,7 @@ from ox_ai.agents.goap_crew import pump_action_model
 from ox_ai.planning.goap import GoapPlanner
 from ox_ai.ports.base import ActionRequest
 from ox_ai.ports.evennia.client import EvenniaWebSocketClient, WebPacket
+from ox_ai.ports.evennia.clock import WorldClockPort
 from ox_ai.ports.evennia.durable import DurableEvenniaPort
 from ox_ai.scenarios.p3b_goap import inspect
 from ox_ai.scenarios.p3c_crew import IDS, URL, next_event, replayable_event
@@ -267,6 +268,11 @@ class CrewWatchSupervisor:
         self.lease.assert_held()
         if role not in self.brains or role not in self.clients:
             raise PermissionError("Cannot schedule thought for an unknown actor")
+        # The world, not this supervisor, supplies elapsed simulation time.
+        # A read-only, nonce-checked observation precedes each model choice,
+        # including choices taken after a long interval without new memories.
+        clock = await WorldClockPort(self.clients[role]).observe()
+        self.brains[role].advance_game_time(clock.game_seconds)
         return await self.cognition.choose(
             role, self.brains[role], primary, alternative=alternative,
         )

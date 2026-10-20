@@ -7,6 +7,7 @@ from commands.social import CmdOxSocialStatus
 from commands.terminal import CmdOxTerminal
 from commands.capabilities import CmdOxCapabilities
 from commands.inventory import CmdOxInventory
+from commands.clock import CmdOxClock
 
 from commands.crew import (
     CmdOxInbox, CmdOxRadioAlarm, CmdOxRequestRelease,
@@ -53,6 +54,7 @@ class CharacterCmdSet(CmdSet):
             CmdOxCapabilities,
             CmdOxTerminal,
             CmdOxInventory,
+            CmdOxClock,
             CmdOxIdentity,
             CmdOxAction,
             CmdOxReceipt,
