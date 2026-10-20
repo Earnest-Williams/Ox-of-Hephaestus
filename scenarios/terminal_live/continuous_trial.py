@@ -33,7 +33,9 @@ TERMINAL_KINDS = frozenset((
     "terminal_order", "terminal_assistance", "terminal_work_result",
     "terminal_death",
 ))
-TIMELIMIT = 230  # CI deadlock safety; never a character decision budget
+TIMELIMIT = 230  # Independent wall-clock watchdog for stalled servers.
+MAX_TURNS_PER_CHARACTER = 100   # Previous trial peaked at 30 per character.
+MAX_TURNS_TOTAL = 480           # Previous complete trial had 137 total.
 
 
 def urgency(view: dict) -> int:
@@ -118,6 +120,8 @@ class AdaptiveGoap:
         self.last_help_stage = -1
         self.last_assessed_stage = -1
         self.last_reported_stage = -1
+        self.awaiting_post_exchange_survey = False
+        self.post_exchange_surveys = 0
 
     def state(self) -> dict:
         return {"last_relayed": self.last_relayed}
@@ -125,6 +129,13 @@ class AdaptiveGoap:
     def notice(self, selected: str, status: str, view: dict, last_event: int) -> None:
         if status == "succeeded":
             self.attempts[selected] += 1
+            if selected == "terminal_replace":
+                # Maintenance success is NOT diagnostic success. Require a
+                # fresh independent survey to discover any effect.
+                self.awaiting_post_exchange_survey = True
+            elif selected == "terminal_survey" and self.awaiting_post_exchange_survey:
+                self.awaiting_post_exchange_survey = False
+                self.post_exchange_surveys += 1
             if selected == "terminal_broadcast":
                 self.last_relayed = view.get("own_finding", "")
                 self.last_reported_stage = urgency(view)
@@ -165,6 +176,9 @@ class AdaptiveGoap:
                 goal(160 + stage * 5, "reach_breathing_reserves",
                      "move:Environmental Plant")
 
+        if (self.role == "teo" and location == "Environmental Plant"
+                and self.awaiting_post_exchange_survey):
+            goal(220, "measure_after_cartridge_exchange", "terminal_survey")
         if location == STATIONS[self.role] and not previously["terminal_survey"]:
             goal(170, "establish_personal_evidence", "terminal_survey")
 
@@ -240,7 +254,26 @@ async def experiment(seed: int, provider: str, destination: Path) -> None:
     records: list[dict] = []
     fatal_confirmations: dict[str, bool] = {}
     heard_critical: dict[str, bool] = {role: False for role in ROLES}
+    turn_counts: dict[str, int] = {role: 0 for role in ROLES}
+    stop_requested = asyncio.Event()
+    stopped_for_limit: dict[str, str | None] = {"reason": None}
+    total_turns = 0
     started = time.monotonic()
+
+    def claim_turn(role: str) -> int | None:
+        # No await inside this function: claims from concurrent asyncio
+        # actors cannot interleave or exceed either explicit ceiling.
+        nonlocal total_turns
+        if total_turns >= MAX_TURNS_TOTAL:
+            stopped_for_limit["reason"] = "total_turn_limit"
+        elif turn_counts[role] >= MAX_TURNS_PER_CHARACTER:
+            stopped_for_limit["reason"] = "character_turn_limit:" + role
+        if stopped_for_limit["reason"] is not None:
+            stop_requested.set()
+            return None
+        total_turns += 1
+        turn_counts[role] += 1
+        return turn_counts[role]
 
     async def role_loop(role: str) -> None:
         await asyncio.sleep(startup_offsets[role])
@@ -254,6 +287,8 @@ async def experiment(seed: int, provider: str, destination: Path) -> None:
         seen_death = False
 
         while True:
+            if stop_requested.is_set():
+                break
             if time.monotonic() - started > TIMELIMIT:
                 raise TimeoutError("World did not reach fatal state in time")
             events = await supervisor.read_inbox(role)
@@ -280,6 +315,12 @@ async def experiment(seed: int, provider: str, destination: Path) -> None:
             if not significant:
                 await asyncio.sleep(pulse[role])
                 continue
+            # A ceiling is a harness safeguard, not simulated fatigue.
+            # Preserve an explicit stopped/incomplete experiment instead
+            # of claiming that characters died or that the task passed.
+            actor_turn = claim_turn(role)
+            if actor_turn is None:
+                break
             previous_band = level
             menu = valid_options(role, current, policy.state())
             if provider == "goap":
@@ -294,7 +335,7 @@ async def experiment(seed: int, provider: str, destination: Path) -> None:
                 why = {"source": "Concordia_bounded_choice", "risk_band": level}
             entry = {
                 "role": role, "character_dbref": client.character_dbref,
-                "world_minute": current["minute"],
+                "turn_number": actor_turn, "world_minute": current["minute"],
                 "oxygen_kpa": current["oxygen_kpa"],
                 "location": current["location"], "status": "alive",
                 "decision": selected.verb, "reasoning": why,
@@ -341,31 +382,60 @@ async def experiment(seed: int, provider: str, destination: Path) -> None:
         await supervisor.open()
         async with asyncio.timeout(TIMELIMIT + 25):
             await asyncio.gather(*(role_loop(role) for role in ROLES))
-        if set(fatal_confirmations) != set(ROLES) or not all(fatal_confirmations.values()):
-            raise AssertionError("Six independently authenticated deaths not observed")
+        all_dead = (
+            set(fatal_confirmations) == set(ROLES)
+            and all(fatal_confirmations.values())
+        )
+        termination_reason = (
+            "all_six_world_confirmed_deaths" if all_dead else
+            stopped_for_limit["reason"] or "incomplete"
+        )
         summary = {
             "controller": provider, "seed": seed,
             "connected_characters": dict(supervisor.ids),
             "decisions": sorted(
                 records, key=lambda d: (d["world_minute"], d["role"]),
             ),
-            "all_six_confirmed_dead": True,
+            "all_six_confirmed_dead": all_dead,
+            "termination_reason": termination_reason,
+            "turn_count": total_turns,
+            "turn_counts_by_role": turn_counts,
+            "turn_limits": {
+                "per_character": MAX_TURNS_PER_CHARACTER,
+                "total": MAX_TURNS_TOTAL,
+            },
             "heard_critical": heard_critical,
             "inference_calls": sum(b.inference_calls for b in supervisor.brains.values()),
             "elapsed_seconds": round(time.monotonic() - started, 2),
-            "no_fixed_decision_cap": True,
+            "turn_cap_reached": stopped_for_limit["reason"] is not None,
         }
         if provider == "goap" and summary["inference_calls"] != 0:
             raise AssertionError("GOAP must never query a generative model")
         if provider == "gemini" and not summary["inference_calls"]:
             raise AssertionError("Gemini must invoke the actual provider")
         atomic_json(destination, summary)
+        if not all_dead:
+            print(
+                "OX_G6B_EXPERIMENT_INCOMPLETE",
+                termination_reason, provider, seed, len(records), flush=True,
+            )
+            raise RuntimeError(
+                "Scenario ended without six verified world deaths: "
+                + termination_reason
+            )
         print("OX_G6B_CONTINUOUS_SIX_CREW_PASS", provider, seed, len(records), flush=True)
     finally:
         atomic_json(Path(".ox-state/g6b-partial.json"), {
             "seed": seed, "controller": provider, "decisions": records,
             "fatal_confirmations": fatal_confirmations,
             "heard_critical": heard_critical,
+            "termination_reason": stopped_for_limit["reason"],
+            "turn_count": total_turns,
+            "turn_counts_by_role": turn_counts,
+            "turn_limits": {
+                "per_character": MAX_TURNS_PER_CHARACTER,
+                "total": MAX_TURNS_TOTAL,
+            },
         })
         await supervisor.close()
 

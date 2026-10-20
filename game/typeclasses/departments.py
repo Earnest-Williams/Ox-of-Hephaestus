@@ -348,10 +348,12 @@ class AtmosphereScrubber(DepartmentFixture):
         restarted, message = self.restart(actor)
         if not restarted:
             raise RuntimeError("Cartridge exchange failed on restart: " + message)
+        # The work receipt reports only what the technician accomplished.
+        # Whether the original symptom changed requires a NEW local reading;
+        # never infer or append a diagnosis as a side effect of replacement.
         return True, (
-            "Real A-01 cartridge replaced; one physical spare consumed. "
-            "A-01 operates nominally again, but the shipwide pressure loss "
-            "continues. The diagnostic substitution does not establish its cause."
+            "A-01 cartridge exchanged; one physical spare consumed. "
+            "Isolation and restart procedure completed."
         )
 
     @transaction.atomic

@@ -45,7 +45,7 @@ FINDINGS = {
     "ari": "Alternative return duct rejoins the damaged shared manifold; no independent bypass is fitted.",
     "iona": "Fracture echoes behind an inaccessible bulkhead web; on-board pressure repair is unlikely.",
     "mara": "Freight is not rated as independent pressure accommodation; stores have no breathable gas source.",
-    "teo": "A-01 cartridge readings are nominal but post-treatment pressure continues to fall.",
+    "teo": "Inspect A-01 locally and compare its indicator with shipboard atmosphere sensors.",
     "captain": "Bridge emergency records show no launch craft; rescue ETA remains unconfirmed.",
 }
 PRIVATE_CAUSE = "irreparable fracture of shared post-treatment atmospheric plenum"
@@ -93,6 +93,14 @@ def _pressure(case):
 
 def _co2(case):
     return 1.1 + 0.019 * case["minute"]
+
+
+def _measured_oxygen(case, role: str) -> float:
+    """Repeatable noisy sample shared by telemetry and a local inspection."""
+    rng = random.Random(
+        case["seed"] * 100003 + case["minute"] * 37 + list(ROLES).index(role)
+    )
+    return round(_pressure(case) + rng.uniform(-0.35, 0.35), 2)
 
 
 class TerminalClock(DefaultScript):
@@ -219,9 +227,8 @@ def observe_terminal(actor) -> dict:
     case = _state(pump)
     if case is None:
         raise RuntimeError("There is no terminal incident")
-    # Stable station-specific noise for the same game-time/recipient sample.
-    rng = random.Random(case["seed"] * 100003 + case["minute"] * 37 + list(ROLES).index(role))
-    oxygen = round(_pressure(case) + rng.uniform(-0.35, 0.35), 2)
+    # Local sensor readings are evidence, not knowledge of the hidden cause.
+    oxygen = _measured_oxygen(case, role)
     return {
         "case_id": case["id"], "character_dbref": actor.dbref, "role": role,
         "location": actor.location.key, "minute": case["minute"],
@@ -301,17 +308,31 @@ def terminal_work(actor, verb: str) -> tuple[bool, str]:
     status = True
     if verb == "terminal_survey":
         if role == "teo":
-            ship["scrubber"].note_inspection(actor)
-        _append_finding(case, actor, FINDINGS[role])
-        message = "Firsthand local survey: " + FINDINGS[role]
+            scrubber = ship["scrubber"]
+            scrubber.note_inspection(actor)
+            # The technician learns only what an actual instrument survey
+            # shows at this time. A post-replacement survey must be a new
+            # action, and does not automatically declare the crisis solved.
+            finding = (
+                f"A-01 indicator {scrubber.state.upper()}; "
+                f"oxygen sensor {_measured_oxygen(case, role):.2f} kPa; "
+                f"CO2 sensor {_co2(case):.2f} percent; "
+                f"A-01 service event sequence {int(scrubber.db.event_seq or 0)}; "
+                f"ship minute {case['minute']}."
+            )
+        else:
+            finding = FINDINGS[role]
+        _append_finding(case, actor, finding)
+        message = "Firsthand local survey: " + finding
     elif verb == "terminal_crosscheck":
         if role != "teo":
             status, message = False, "Qualified environmental technician required."
         else:
             message = (
-                "Independent differential-pressure gauge and A-01 telemetry "
-                "both indicate nominal cartridge throughput. Shipwide pressure "
-                "still falls. The readings do not by themselves identify the cause."
+                "Independent A-01 differential-pressure gauge reports nominal "
+                f"throughput at ship minute {case['minute']}; "
+                f"local oxygen sensor reads {_measured_oxygen(case, role):.2f} kPa. "
+                "The instrument measurements do not identify a root cause."
             )
             _append_finding(case, actor, message)
     elif verb in ROLE_ACTION.values():
@@ -322,12 +343,10 @@ def terminal_work(actor, verb: str) -> tuple[bool, str]:
         elif verb == "terminal_reroute":
             status, message = False, "Bypass route rejoins the pressure-loss path; no pressure recovery"
         elif verb == "terminal_replace":
-            # Technically successful maintenance and successful repair of
-            # the *incident* are different things. The actual A-01 fixture
-            # owns its inventory and authenticates Teo's local inspection.
+            # The fixture owns the finite inventory and the actual physical
+            # transition. Its receipt must NOT state whether the atmospheric
+            # symptom improved or add an unmeasured finding to Teo's memory.
             status, message = ship["scrubber"].diagnostic_exchange(actor)
-            if status:
-                _append_finding(case, actor, message)
         elif verb == "terminal_search":
             message = "No sealed independent refuge and no breathing-gas stock found"
             _append_finding(case, actor, message)

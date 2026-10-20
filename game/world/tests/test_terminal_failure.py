@@ -166,6 +166,8 @@ class TerminalFailureTests(EvenniaTestCase):
         self.assertEqual(early["status"], "failed")
         self.assertEqual(scrubber.db.spare_cartridges, 2)
         execute_work(teo, "a" * 32, "terminal_survey", "ship")
+        firsthand_before = observe_terminal(teo)["own_finding"]
+        self.assertIn("ship minute 0", firsthand_before)
         replaced = execute_work(teo, "b" * 32, "terminal_replace", "ship")
         self.assertEqual(replaced["status"], "succeeded")
         self.assertEqual(scrubber.db.spare_cartridges, 1)
@@ -174,11 +176,28 @@ class TerminalFailureTests(EvenniaTestCase):
             execute_work(teo, "b" * 32, "terminal_replace", "ship"), replaced,
         )
         self.assertEqual(scrubber.db.spare_cartridges, 1)
-        self.assertIn("pressure loss", observe_terminal(teo)["own_finding"])
+        # World work succeeded, but NO atmospheric conclusion is smuggled
+        # into the work-result message or the character's prior findings.
+        self.assertEqual(observe_terminal(teo)["own_finding"], firsthand_before)
+        results = [e for e in inbox(teo) if e["kind"] == "terminal_work_result"]
+        self.assertTrue(results)
+        self.assertIn("cartridge exchanged", results[-1]["text"])
+        self.assertNotIn("pressure loss", results[-1]["text"])
+        self.assertNotIn("shipwide", results[-1]["text"].lower())
         self.assertEqual(
             [e["operation"] for e in scrubber.db.event_history][-3:],
             ["diagnostic_isolate", "replace", "restart"],
         )
+        tick_terminal()
+        # A SECOND authenticated observation, not the replacement receipt,
+        # supplies the post-work pressure and equipment-status evidence.
+        reread = execute_work(teo, "9" * 32, "terminal_survey", "ship")
+        self.assertEqual(reread["status"], "succeeded")
+        firsthand_after = observe_terminal(teo)["own_finding"]
+        self.assertNotEqual(firsthand_after, firsthand_before)
+        self.assertIn("ship minute 4", firsthand_after)
+        self.assertIn("A-01 service event sequence 3", firsthand_after)
+        self.assertIn("A-01 indicator NOMINAL", firsthand_after)
         for _ in range(60):
             tick_terminal()
         self.assertTrue(self.ship["pump"].db.ox_terminal_incident["fatal"])

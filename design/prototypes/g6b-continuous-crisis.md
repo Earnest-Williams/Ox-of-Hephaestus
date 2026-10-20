@@ -25,10 +25,13 @@ remain unchanged and were merged before G6b was created.
 A-01's real finite stock, already represented in the fixture and physical
 supply ledger, is consumed by the authorized environmental technician during
 a safe diagnostic replacement. The operation isolates A-01, exchanges one
-physical cartridge, performs a local post-service inspection, and restarts
-the machine. The equipment operation may **succeed** even when the downstream
-pressure-plenum failure remains fatal. The actor receives separate, grounded
-evidence from a differential-pressure crosscheck. No operator secret is
+physical cartridge, and restarts the machine. The **work receipt reports
+only the maintenance operation** and use of one spare; it does not announce
+whether the pressure emergency improved. Teo must choose a subsequent
+authenticated local survey and compare readings before drawing that
+conclusion. The GOAP controller explicitly considers this post-service
+observation rather than receiving an automatic diagnosis. The independent
+differential-pressure crosscheck is a separate optional observation. No operator secret is
 revealed to any actor: hypotheses of sensor or cartridge failure can still be
 wrong, and actions cannot alter the hidden plenum fracture.
 
@@ -42,12 +45,14 @@ physically present colleague, not an empty receipt.
 ## Continuous six-person experiment
 
 The new `continuous_trial.py` creates one independent coroutine per genuine
-authenticated Evennia identity and stays active **until each body is reported
-dead by the world**. No fixed per-actor decision quota exists. Characters
-reconsider when addressed events arrive, atmospheric urgency changes, or their
-own periodic watch reaches its next interval. The world's Script, not the
-handler, owns elapsed time and fatality. A deliberately high wall-clock
-watchdog exists only to catch CI deadlocks.
+authenticated Evennia identity. Each character remains responsive to addressed
+events, changing sensor urgency, and periodic watch intervals until world-owned
+death **or an explicit safety ceiling**. The ceiling is **100 decisions per
+character and 480 decisions total**, comfortably above the previous 137-decision
+trial. The runner also retains an independent wall-clock watchdog. If either
+turn ceiling is reached with anyone still alive, the run stops, preserves its
+trace and marks itself **incomplete/turn-capped**, never successfully fatal.
+The world's Script, not the handler, owns elapsed time and mortality.
 
 The action menu is generated from the actor's authentic location,
 recipient-specific observations, local stock and nearby crewmembers. Travel
@@ -76,9 +81,9 @@ equipment code; the new scenario itself never requests the large test matrix.
 
 ## Questions for the single trial
 
-- Does Teo cross-check contradictory instrumentation and attempt diagnostic
-  replacement when a spare remains, without the world declaring the fatal
-  problem repaired?
+- Can Teo cross-check doubtful instrumentation, replace a nominal cartridge
+  when a spare remains, and then separately remeasure A-01 and atmosphere
+  without receiving an unearned diagnosis from the work result?
 - Does the captain move deliberately to Environmental Plant if atmospheric
   urgency makes use of an available reserve useful?
 - Does each crew member continue reacting to evidence and urgent messages

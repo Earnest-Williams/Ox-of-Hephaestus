@@ -20,6 +20,14 @@ def main() -> None:
     assert len(set(ids.values())) == 6, "Six unique authenticated body bindings required"
     assert world["all_six_dead"] and world["fatal"]
     assert crew["all_six_confirmed_dead"]
+    assert crew["termination_reason"] == "all_six_world_confirmed_deaths"
+    assert not crew["turn_cap_reached"]
+    assert crew["turn_count"] == len(crew["decisions"])
+    assert crew["turn_count"] <= crew["turn_limits"]["total"]
+    assert all(
+        n <= crew["turn_limits"]["per_character"]
+        for n in crew["turn_counts_by_role"].values()
+    )
     assert crew["inference_calls"] == 0 and crew["controller"] == "goap"
     assert world["seed"] == crew["seed"]
     assert world["case_id"] not in ("", None)
@@ -56,6 +64,9 @@ def main() -> None:
         "",
         "**Actual Evennia universe:** six separately authenticated accounts, persistent fatality.",
         f"**Seed:** {crew['seed']}   **World death minute:** {world['world_minute']}",
+        f"**Termination:** {crew['termination_reason']} "
+        f"(ceiling {crew['turn_limits']['total']} total, "
+        f"{crew['turn_limits']['per_character']} per crew member).",
         f"**Decisions:** {len(decisions)} including {len(work)} receipted actions, "
         f"{len(movement)} chosen movements and {len(waiting)} monitoring choices.",
         f"**Model calls:** {crew['inference_calls']}   "
@@ -88,7 +99,9 @@ def main() -> None:
         "",
         "### Interpretation rules",
         "",
-        "- An equipment service may succeed without correcting the fatal pressure loss.",
+        "- A cartridge exchange receipt reports only the physical maintenance; "
+        "any effect on atmosphere must be checked with a later observation.",
+        "- The decision limits stop runaway trials without fabricating deaths.",
         "- An action rejected by the world is not a successful physical transition.",
         "- A monitor or movement decision is a genuine decision, but not a WorkReceipt.",
         "- An independently received critical alarm must lead to reconsideration.",
