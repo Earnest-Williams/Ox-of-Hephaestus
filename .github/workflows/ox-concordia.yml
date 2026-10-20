@@ -47,6 +47,7 @@ jobs:
         run: |
           python -c "from concordia.agents.entity_agent_with_logging import EntityAgentWithLogging; print('Concordia API available:', EntityAgentWithLogging)"
           python -m unittest discover -s services/ai-handler/tests -p 'test_concordia_*.py' -v
+          python -m unittest discover -s services/ai-handler/tests -p 'test_cognition_scheduler.py' -v
           python -m unittest discover -s services/ai-handler/tests -p 'test_character_factory.py' -v
           python -m unittest discover -s services/ai-handler/tests -p 'test_profile_decision_trials.py' -v
           python -m ox_ai.agents.decision_trials > /tmp/ox-personality-trials.json
