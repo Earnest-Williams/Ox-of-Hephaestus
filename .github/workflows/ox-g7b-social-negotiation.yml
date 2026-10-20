@@ -44,7 +44,7 @@ jobs:
           set -euo pipefail
           mkdir -p .ox-state/g7b
           for variant in mutual cautious instrumental mismatch obligation work_trade reconsider; do
-            python -m ox_ai.scenarios.apartment_extended --variant "$variant" --turn-cap 64 > ".ox-state/g7b/VAR"
+            python -m ox_ai.scenarios.apartment_extended --variant "$variant" --turn-cap 64 > ".ox-state/g7b/$variant.json"
           done
           python - <<'PY'
           import json
