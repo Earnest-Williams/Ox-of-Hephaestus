@@ -8,6 +8,15 @@ on:
       - "services/ai-handler/src/ox_ai/scenarios/apartment_extended.py"
       - "services/ai-handler/tests/test_social_expanded.py"
       - "scenarios/apartment_goap/expanded_live_trial.py"
+      - "scenarios/apartment_goap/authoritative_live_trial.py"
+      - "game/world/social_authority.py"
+      - "game/world/models.py"
+      - "game/world/migrations/0013_social_agreements.py"
+      - "game/world/tests/test_social_authority.py"
+      - "game/commands/social.py"
+      - "game/commands/default_cmdsets.py"
+      - "game/commands/crew.py"
+      - "game/world/work_actions.py"
       - ".github/workflows/ox-g7b-social-negotiation.yml"
       - "!**/*.md"
   workflow_dispatch:
@@ -38,6 +47,9 @@ jobs:
       - name: Targeted reusable social GOAP and negotiation tests
         run: |
           python -m unittest discover -s services/ai-handler/tests -p test_social_expanded.py -v
+      - name: Targeted persistent agreement and receipt tests
+        working-directory: game
+        run: python -m world.test_runner world.tests.test_social_authority --verbosity=2
       - name: Seven independent deterministic comparison outcomes
         shell: bash
         run: |
@@ -121,6 +133,50 @@ jobs:
               --out ".ox-state/g7b/live-$variant.json" | tee ".ox-state/g7b/live-$variant.log"
             grep -Fq 'OX_G7B_LIVE_GOAP_PASS' ".ox-state/g7b/live-$variant.log"
           done
+      - name: Three GOAP-led world-authoritative negotiated conversations
+        shell: bash
+        run: |
+          set -euo pipefail
+          for variant in mutual mismatch reconsider; do
+            python scenarios/apartment_goap/authoritative_live_trial.py \
+              --variant "$variant" --out ".ox-state/g7b/authority-$variant.json" \
+              | tee ".ox-state/g7b/authority-$variant.log"
+            grep -Fq "OX_G7B_WORLD_AUTHORITY_PASS" ".ox-state/g7b/authority-$variant.log"
+          done
+      - name: Create accepted agreement for server-restart recovery
+        shell: bash
+        run: |
+          python scenarios/apartment_goap/authoritative_live_trial.py \
+            --phase prepare --out .ox-state/g7b/recovery-prepared.json
+      - name: Restart actual game server with persistent database
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd game && evennia stop)
+          (cd game && evennia start)
+          python - <<'PY'
+          import socket, time
+          until = time.monotonic() + 120
+          stable = None
+          while time.monotonic() < until:
+              try:
+                  with socket.create_connection(("127.0.0.1", 4002), timeout=1):
+                      pass
+              except OSError:
+                  stable = None
+              else:
+                  stable = stable or time.monotonic()
+                  if time.monotonic() - stable >= 12:
+                      break
+              time.sleep(1)
+          else:
+              raise RuntimeError("Evennia failed to recover from deliberate restart")
+          PY
+      - name: Newly authenticated clients complete agreement after restart
+        shell: bash
+        run: |
+          python scenarios/apartment_goap/authoritative_live_trial.py \
+            --phase resume --out .ox-state/g7b/recovery-resumed.json
       - name: Stop server
         if: always()
         working-directory: game

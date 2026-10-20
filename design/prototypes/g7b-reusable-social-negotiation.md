@@ -61,21 +61,29 @@ It performs three live zero-consideration cases (mutual, mismatch,
 reconsider) via normal say/pose commands, confirming that both actual
 characters saw each utterance before updating GOAP.
 
-## What is NOT yet implemented
+## Persistent Evennia integration
 
-- The offline ContractBoard is a fake authoritative world for rigorous
-  model-free tests; not a durable Evennia-wide agreement registry.
-- The live world action for physical contact is an observed POSE/emote,
-  not authoritative spatial/contact physics or a game-enforced consent
-  receipt for every possible player. The handler does precheck exact
-  agreed terms before sending its own pose.
-- The real-world live test does not pretend to deliver information,
-  resources, money or favors via a line of spoken dialogue. Material
-  concession verification happens only inside the offline fake world.
-- No open-ended speech comprehension, long-term emotional memory,
-  specialist social skill resolver, or hosted model calls are claimed.
+The original in-memory ContractBoard remains a GOAP comparison model. The
+actual game now owns persistent, authenticated, versioned social agreements
+and separate consideration and performance receipts in its world database.
 
-Later, a proper Evennia-native contract/work protocol can ground actual
-reciprocal obligations and verified physical interaction. The reusable
-GOAP operators and typed negotiation structures are deliberately separate
-from that future authority layer.
+The new G7b authoritative runner sends GOAP-selected proposals, replies,
+withdrawals and agreed physical interactions as typed ordinary world work.
+Only after the world returns its durable receipt AND delivers the counterpart's
+private observation may the local planning shadow advance. It verifies each
+subsequent world snapshot against that comparison shadow.
+
+See [World-owned social authority](g7c-world-social-authority.md) for exact
+terms, provenance, work evidence, transaction boundaries, accepted-but-unfilled
+obligations, and recovery across a real game-server restart.
+
+## Still beyond this milestone
+
+- Ongoing and repeated payment/performance installments, verified cash or
+  inventory transfer without a corresponding real game operation.
+- Free-text dialogue understanding and long-term emotional memory.
+- Physics-backed contact: performed interactions are world-owned witnessed
+  social events, not literal anatomical/positional simulations.
+- A promise never proves desire and an accepted obligation never proves
+  it has been fulfilled.
+

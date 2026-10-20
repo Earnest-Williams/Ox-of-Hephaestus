@@ -452,3 +452,99 @@ class InquiryLearningAttempt(models.Model):
                 name="ox_inquiry_prediction_valid",
             ),
         ]
+
+
+
+class SocialAgreement(models.Model):
+    """One world-owned bilateral, exactly-versioned agreement.
+
+    Terms are public to the parties; private attraction, fear, and bargaining
+    motivations never enter the authority table. Performance and consideration
+    have *separate* receipt identities and do not follow from acceptance.
+    """
+
+    agreement_id = models.CharField(max_length=32, primary_key=True)
+    pair_key = models.CharField(max_length=65)
+    first_dbref = models.CharField(max_length=32)
+    second_dbref = models.CharField(max_length=32)
+    proposer_dbref = models.CharField(max_length=32)
+    recipient_dbref = models.CharField(max_length=32)
+    initiator_dbref = models.CharField(max_length=32)
+    revision = models.PositiveSmallIntegerField(default=1)
+    terms = models.JSONField(default=dict)
+    state = models.CharField(max_length=16, default='pending')
+    opened_at = models.FloatField()
+    expires_at = models.FloatField()
+    accepted_at = models.FloatField(null=True)
+    consideration_id = models.CharField(max_length=32, null=True)
+    performance_id = models.CharField(max_length=32, null=True)
+    breached = models.BooleanField(default=False)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['first_dbref', 'state'], name='ox_social_first_state'),
+            models.Index(fields=['second_dbref', 'state'], name='ox_social_second_state'),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['pair_key'], condition=models.Q(state='pending'),
+                name='ox_social_one_pending_pair',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(state__in=[
+                    'pending', 'accepted', 'declined', 'deferred', 'withdrawn', 'expired'
+                ]), name='ox_social_state_valid',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(revision__gte=1, revision__lte=100),
+                name='ox_social_revision_range',
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(first_dbref=models.F('second_dbref')),
+                name='ox_social_distinct_people',
+            ),
+        ]
+
+
+class SocialAgreementEvent(models.Model):
+    """Append-only public agreement history; all versions remain inspectable."""
+
+    sequence = models.BigAutoField(primary_key=True)
+    agreement = models.ForeignKey(
+        SocialAgreement, on_delete=models.PROTECT, related_name='events',
+    )
+    request_id = models.CharField(max_length=32, unique=True)
+    actor_dbref = models.CharField(max_length=32)
+    kind = models.CharField(max_length=32)
+    revision = models.PositiveSmallIntegerField()
+    terms = models.JSONField(default=dict)
+    state = models.CharField(max_length=16)
+    game_time = models.FloatField()
+
+    class Meta:
+        indexes = [models.Index(
+            fields=['agreement', 'sequence'], name='ox_social_events_order',
+        )]
+
+
+class SocialEvidence(models.Model):
+    """A successful existing world receipt consumed at most once, for one side."""
+
+    agreement = models.ForeignKey(
+        SocialAgreement, on_delete=models.PROTECT, related_name='evidence',
+    )
+    side = models.CharField(max_length=16)
+    receipt = models.OneToOneField(
+        WorkReceipt, on_delete=models.PROTECT, related_name='social_fulfillment',
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['agreement', 'side'], name='ox_social_one_evidence_side',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(side__in=['activity', 'consideration']),
+                name='ox_social_evidence_side',
+            ),
+        ]

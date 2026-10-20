@@ -160,7 +160,30 @@ class CmdOxWork(Command):
             return
         request_id, operation, target = parts[:3]
         arguments = None
-        if target == "learning":
+        if target == "social" and len(parts) == 4:
+            import base64
+            import binascii
+            import json
+
+            token = parts[3]
+            if len(token) > 850 or re.fullmatch(r"[A-Za-z0-9_-]+", token) is None:
+                self.caller.msg(ox_receipt=([{
+                    "request_id": request_id, "actor_dbref": self.caller.dbref,
+                    "status": "failed", "reason": "invalid_or_colliding_request",
+                    "source_event_id": None,
+                }], {}))
+                return
+            try:
+                decoded = base64.urlsafe_b64decode(token + "=" * (-len(token) % 4))
+                arguments = json.loads(decoded.decode("utf-8"))
+            except (ValueError, UnicodeError, binascii.Error):
+                self.caller.msg(ox_receipt=([{
+                    "request_id": request_id, "actor_dbref": self.caller.dbref,
+                    "status": "failed", "reason": "invalid_or_colliding_request",
+                    "source_event_id": None,
+                }], {}))
+                return
+        elif target == "learning":
             if operation == "inquiry_predict" and len(parts) == 5:
                 arguments = {"case_id": parts[3], "prediction": parts[4]}
             elif operation == "inquiry_review" and len(parts) == 4:
