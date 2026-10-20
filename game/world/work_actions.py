@@ -79,6 +79,9 @@ def _arguments(operation: str, target: str, arguments: Mapping | None) -> dict:
         arguments = {}
     if not isinstance(arguments, Mapping):
         raise ValueError("Work arguments must be a mapping")
+    if target == "social":
+        from world.social_authority import validate_social_arguments
+        return validate_social_arguments(operation, arguments)
     if target == "learning":
         from world.learning_actions import validate_arguments
 
@@ -311,6 +314,62 @@ def execute_work(
     evidence of production concurrent-writer safety.
     """
     validated = _validate(actor, request_id, operation, target, arguments)
+    if target == "social":
+        # Social authority is NOT tied to a ship pump or equipment fixture.
+        # Its receipts inhabit the SAME globally unique work ID namespace.
+        from world.social_authority import apply_social_action
+        with transaction.atomic():
+            # Opposing simultaneous proposals must lock the SAME two
+            # persistent character rows in the SAME order on PostgreSQL.
+            # The partial unique pending-pair constraint is a second guard.
+            participants = {actor.pk}
+            if operation == "social_propose":
+                participants.add(int(validated["recipient"][1:]))
+            locked = set(ObjectDB.objects.select_for_update()
+                         .filter(pk__in=participants)
+                         .order_by("pk").values_list("pk", flat=True))
+            if locked != participants:
+                raise PermissionError("An agreement party does not exist")
+            previous = WorkReceipt.objects.filter(pk=request_id).first()
+            if previous is not None:
+                if (previous.actor_dbref != actor.dbref
+                        or previous.target != target
+                        or previous.operation != operation
+                        or previous.arguments != validated):
+                    raise PermissionError("Request ID already belongs to different work")
+                return dict(previous.outcome)
+            succeeded, reason, source, agreement = apply_social_action(
+                actor, request_id, operation, validated,
+            )
+            # The operator-facing diagnostic reason is NOT the event kind.
+            # Use the immutable SQL agreement-history row associated with
+            # this exact globally unique work request, not a guessed mapping.
+            from world.models import SocialAgreementEvent
+            history = (SocialAgreementEvent.objects.get(request_id=request_id)
+                       if succeeded else None)
+            if succeeded and (history is None or agreement is None
+                              or history.agreement_id != agreement.agreement_id
+                              or not source):
+                raise RuntimeError("Social transition missing its world event history")
+            outcome = {
+                "request_id": request_id, "actor_dbref": actor.dbref,
+                "operation": operation, "target": "social",
+                "status": "succeeded" if succeeded else "failed",
+                "reason": reason,
+                "event_kind": history.kind if history else None,
+                "history_id": history.sequence if history else None,
+                "source_event_id": source,
+                "agreement_id": agreement.agreement_id if agreement else None,
+                "revision": agreement.revision if agreement else None,
+                "game_time": float(gametime.gametime(absolute=True)),
+            }
+            WorkReceipt.objects.create(
+                request_id=request_id, actor_dbref=actor.dbref,
+                target="social", operation=operation, arguments=validated,
+                outcome=outcome, game_time=outcome["game_time"],
+            )
+            # Talking, accepting and consenting are not automatic skill XP.
+            return dict(outcome)
     pump = find_fixture("pump-p01")
     if pump is None:
         raise RuntimeError("No authoritative ship equipment is installed")

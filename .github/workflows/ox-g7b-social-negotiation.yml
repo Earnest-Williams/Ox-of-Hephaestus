@@ -1,0 +1,191 @@
+# G7b: expanded social GOAP. One scoped CI job; no models.
+name: Ox G7b social negotiation GOAP
+
+on:
+  pull_request:
+    paths:
+      - "services/ai-handler/src/ox_ai/social/**"
+      - "services/ai-handler/src/ox_ai/scenarios/apartment_extended.py"
+      - "services/ai-handler/tests/test_social_expanded.py"
+      - "scenarios/apartment_goap/expanded_live_trial.py"
+      - "scenarios/apartment_goap/authoritative_live_trial.py"
+      - "game/world/social_authority.py"
+      - "game/world/models.py"
+      - "game/world/migrations/0013_social_agreements.py"
+      - "game/world/tests/test_social_authority.py"
+      - "game/commands/social.py"
+      - "game/commands/default_cmdsets.py"
+      - "game/commands/crew.py"
+      - "game/world/work_actions.py"
+      - ".github/workflows/ox-g7b-social-negotiation.yml"
+      - "!**/*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g7b-social-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  social-negotiation:
+    name: GOAP contracts and three authenticated conversations
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    env:
+      OX_SOCIAL_GOAP_LIVE_CI: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Evennia and handler transport only
+        run: |
+          python -m pip install .
+          python -m pip install -e './services/ai-handler[transport]'
+      - name: Targeted reusable social GOAP and negotiation tests
+        run: |
+          python -m unittest discover -s services/ai-handler/tests -p test_social_expanded.py -v
+      - name: Targeted persistent agreement and receipt tests
+        working-directory: game
+        run: python -m world.test_runner world.tests.test_social_authority --verbosity=2
+      - name: Seven independent deterministic comparison outcomes
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .ox-state/g7b
+          for variant in mutual cautious instrumental mismatch obligation work_trade reconsider; do
+            python -m ox_ai.scenarios.apartment_extended --variant "$variant" --turn-cap 64 > ".ox-state/g7b/$variant.json"
+          done
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          results = {}
+          for file in sorted(Path(".ox-state/g7b").glob("*.json")):
+              case = json.loads(file.read_text(encoding="utf-8"))
+              assert case["status"] == "complete", file
+              assert case["model_calls"] == 0, file
+              results[file.stem] = {
+                  "turns": case["turns"], "proposals": len(case["offers"]),
+                  "counteroffers": sum(e["kind"] == "countered" for e in case["trace"]),
+                  "performed": sum(e["kind"] == "performed" for e in case["trace"]),
+                  "withdrawn": sum(e["kind"] == "withdrawn" for e in case["trace"]),
+              }
+          assert len(results) == 7
+          assert results["instrumental"]["counteroffers"] >= 1
+          assert results["reconsider"]["withdrawn"] >= 1
+          assert results["mismatch"]["performed"] == 0
+          assert results["mutual"]["performed"] >= 1
+          Path(".ox-state/g7b/summary.json").write_text(json.dumps(results, indent=2))
+          print("OX_G7B_SEVEN_GOAP_VARIANTS_PASS")
+          PY
+      - name: Create disposable, separate bot credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          PASSWORD="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          OWNER="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          echo "::add-mask::$PASSWORD"
+          echo "::add-mask::$OWNER"
+          echo "OX_PROBE_PASSWORD=$PASSWORD" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_PASSWORD=$OWNER" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_USERNAME=OxG7bOperator" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_EMAIL=g7b@example.invalid" >> "$GITHUB_ENV"
+      - name: Provision apartment without resetting ship work
+        working-directory: game
+        shell: bash
+        run: |
+          set -euo pipefail
+          evennia migrate --noinput
+          evennia shell --command="from world.bootstrap import build_ship; from world.social_apartment import provision_apartment; build_ship(); assert len(provision_apartment()) == 2; print('OX_G7B_APARTMENT_READY')" > ../.ox-state/g7b/arm.log
+          grep -Fq 'OX_G7B_APARTMENT_READY' ../.ox-state/g7b/arm.log
+      - name: Start real Evennia and check stable WebSocket readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd game && evennia start)
+          python - <<'PY'
+          import socket, time
+          until = time.monotonic() + 120
+          stable = None
+          while time.monotonic() < until:
+              try:
+                  with socket.create_connection(("127.0.0.1", 4002), timeout=1):
+                      pass
+              except OSError:
+                  stable = None
+              else:
+                  stable = stable or time.monotonic()
+                  if time.monotonic() - stable >= 12:
+                      break
+              time.sleep(1)
+          else:
+              raise RuntimeError("No stable game WebSocket after cold start")
+          PY
+      - name: Three real authenticated GOAP conversations
+        shell: bash
+        run: |
+          set -euo pipefail
+          for variant in mutual mismatch reconsider; do
+            python scenarios/apartment_goap/expanded_live_trial.py \
+              --variant "$variant" --turn-cap 64 \
+              --out ".ox-state/g7b/live-$variant.json" | tee ".ox-state/g7b/live-$variant.log"
+            grep -Fq 'OX_G7B_LIVE_GOAP_PASS' ".ox-state/g7b/live-$variant.log"
+          done
+      - name: Three GOAP-led world-authoritative negotiated conversations
+        shell: bash
+        run: |
+          set -euo pipefail
+          for variant in mutual mismatch reconsider; do
+            python scenarios/apartment_goap/authoritative_live_trial.py \
+              --variant "$variant" --out ".ox-state/g7b/authority-$variant.json" \
+              | tee ".ox-state/g7b/authority-$variant.log"
+            grep -Fq "OX_G7B_WORLD_AUTHORITY_PASS" ".ox-state/g7b/authority-$variant.log"
+          done
+      - name: Create accepted agreement for server-restart recovery
+        shell: bash
+        run: |
+          python scenarios/apartment_goap/authoritative_live_trial.py \
+            --phase prepare --out .ox-state/g7b/recovery-prepared.json
+      - name: Restart actual game server with persistent database
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd game && evennia stop)
+          (cd game && evennia start)
+          python - <<'PY'
+          import socket, time
+          until = time.monotonic() + 120
+          stable = None
+          while time.monotonic() < until:
+              try:
+                  with socket.create_connection(("127.0.0.1", 4002), timeout=1):
+                      pass
+              except OSError:
+                  stable = None
+              else:
+                  stable = stable or time.monotonic()
+                  if time.monotonic() - stable >= 12:
+                      break
+              time.sleep(1)
+          else:
+              raise RuntimeError("Evennia failed to recover from deliberate restart")
+          PY
+      - name: Newly authenticated clients complete agreement after restart
+        shell: bash
+        run: |
+          python scenarios/apartment_goap/authoritative_live_trial.py \
+            --phase resume --out .ox-state/g7b/recovery-resumed.json
+      - name: Stop server
+        if: always()
+        working-directory: game
+        run: evennia stop || true
+      - name: Preserve public speech and separate private operator traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: g7b-social-negotiation
+          path: .ox-state/g7b/
+          retention-days: 14
+          if-no-files-found: ignore
