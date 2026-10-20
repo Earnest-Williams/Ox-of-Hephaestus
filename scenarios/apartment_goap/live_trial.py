@@ -14,6 +14,8 @@ import argparse
 import asyncio
 import json
 import os
+import re
+from html import unescape
 from pathlib import Path
 
 from ox_ai.ports.evennia.client import EvenniaWebSocketClient
@@ -64,8 +66,19 @@ async def run(*, variant: str, turn_cap: int) -> dict:
             await clients[role].send_line("say " + proposed.line)
             # No projected effect is committed until the real server reports
             # that the authenticated speaker spoke AND the listener heard it.
-            await clients[role].expect_text(proposed.line, timeout=15)
-            await clients[listener_role].expect_text(proposed.line, timeout=15)
+            own_echo = await clients[role].expect_text(proposed.line, timeout=15)
+            heard = await clients[listener_role].expect_text(proposed.line, timeout=15)
+            # Stock Evennia CmdSay identifies the speaker differently to
+            # the speaker and the listener. A command-error echo containing
+            # the proposed words must not masquerade as actual speech.
+            strip_markup = lambda s: re.sub(r"\|[A-Za-z]", "", unescape(s))
+            own_text, heard_text = strip_markup(own_echo), strip_markup(heard)
+            if "You say," not in own_text or proposed.line not in own_text:
+                raise AssertionError("The world's speaker speech confirmation is absent")
+            if not re.search(r"\b" + re.escape(brain.name) + r"\s+says,", heard_text):
+                raise AssertionError("The listener did not observe the named speaker")
+            if proposed.line not in heard_text:
+                raise AssertionError("The listener did not hear the proposed words")
             brain.confirm_spoken(proposed.line)
             listener.hear(
                 sender=brain.name, event_id=f"world-heard-{turn + 1}",
