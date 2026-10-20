@@ -65,6 +65,30 @@ goals (diagnosis, life extension, reporting, welfare, and archiving).
 These are **authored policy goals**, not free-form general reasoning. Gemini
 is supported as an experiment option but **not run in this PR**.
 
+The G6b refusal investigation found that nine allegedly duplicated
+provisional assessments were not necessarily identical: changes in measured
+oxygen, CO2 or danger interpretation were being ignored by world-side
+deduplication. Assessment work now carries the *actor's own* conclusion,
+confidence, reasoning, authenticated sensor reading, firsthand finding
+fingerprint, and highest cited addressed event sequence. The world checks
+authorship and evidence provenance but does not decide whether the conclusion
+is correct. Only an identical normalized submission (including its evidence)
+is refused as unchanged; reinterpreting old evidence, changing confidence,
+receiving a new report, or seeing different atmospheric measurements remain
+legitimate.
+
+GOAP remembers the exact last accepted and refused submissions, including a
+typed refusal reason. It does not blanket-suppress the assessment verb after
+failure. Risk-band changes in either direction, new addressed evidence, new
+firsthand findings, materially changed sensor readings within a band, and
+changed interpretations can trigger reconsideration. Sensor changes below
+the planner's relevance threshold may simply be monitored; the world does
+not relabel genuinely different readings as duplicates. The immutable
+actor-submitted content and its evidence are preserved in each WorkReceipt
+and in the operator's post-run assessment audit. The signed sensor reference
+is bound to one authenticated character, so another person's private
+measurement cannot be cited as firsthand evidence.
+
 The audit verifies six unique accounts, six deaths, a real critical alarm
 received by each, continued decisions *after* the critical alert, and exact
 one-to-one reconciliation of world receipts for all physical actions.
