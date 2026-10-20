@@ -64,6 +64,8 @@ class CrewJournalTests(EvenniaTestCase):
         self.assertTrue(done[0]["has_more"])
         self.assertGreater(done[0]["next_cursor"], 0)
         self.assertIn("datum_sample", events[1])
+        self.assertTrue(all(frame["ox_event"][1].get("ox_inbox_page") is True
+                            for frame in frames if "ox_event" in frame))
         command.args = str(done[0]["next_cursor"])
         with patch.object(self.lin, "msg") as second:
             command.func()

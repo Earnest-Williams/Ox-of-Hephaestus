@@ -18,8 +18,14 @@ class FakeClient:
     async def send_line(self, command):
         self.commands.append(command)
 
-    async def receive(self):
-        return self.responses.popleft()
+    async def receive_matching(self, predicate, *, frame_budget=256):
+        for _ in range(frame_budget):
+            if not self.responses:
+                raise RuntimeError("No response")
+            packet = self.responses.popleft()
+            if predicate(packet):
+                return packet
+        raise RuntimeError("No matching response")
 
     def receipt(self, request_id, status="succeeded", event_id="oxevt-v2-0042"):
         self.responses.append(

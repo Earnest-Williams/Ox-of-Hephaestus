@@ -4,7 +4,7 @@ import asyncio
 import json
 import unittest
 
-from ox_ai.ports.evennia.client import EvenniaWebSocketClient, IdentityMismatch
+from ox_ai.ports.evennia.client import EvenniaWebSocketClient, IdentityMismatch, MAX_COMMAND_CHARS
 
 
 class FakeSocket:
@@ -100,6 +100,44 @@ class ClientTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             await client.receive()
         await client.close()
+
+
+    async def test_transport_command_limit_matches_world_size(self):
+        socket = FakeSocket()
+        async def connector(*args, **kwargs):
+            return socket
+        client = EvenniaWebSocketClient("ws://localhost:4002", "OxBotAri",
+            "AnEphemeralPass_123456", "#42", connector=connector)
+        await client.open()
+        try:
+            await client.send_line("a" * MAX_COMMAND_CHARS)
+            with self.assertRaises(ValueError):
+                await client.send_line("a" * (MAX_COMMAND_CHARS + 1))
+            self.assertEqual(len(socket.sent[-1]), MAX_COMMAND_CHARS)
+        finally:
+            await client.close()
+
+    async def test_interleaved_observations_and_out_of_order_receipts_survive(self):
+        socket = FakeSocket()
+        async def connector(*args, **kwargs):
+            return socket
+        client = EvenniaWebSocketClient("ws://localhost:4002", "OxBotAri",
+            "AnEphemeralPass_123456", "#42", connector=connector)
+        await client.open()
+        try:
+            socket.frames.extend([
+                json.dumps(["text", ["Lin says important words"], {}]),
+                json.dumps(["ox_event", [{"event_id": "oxevt-v2-0001", "recipient_dbref": "#42"}], {}]),
+                json.dumps(["ox_receipt", [{"request_id": "a" * 32}], {}]),
+                json.dumps(["ox_receipt", [{"request_id": "b" * 32}], {}]),
+            ])
+            wanted = lambda rid: lambda p: p.kind == "ox_receipt" and p.args[0]["request_id"] == rid
+            self.assertEqual((await client.receive_matching(wanted("b" * 32))).args[0]["request_id"], "b" * 32)
+            self.assertIn("important", (await client.receive()).text)
+            self.assertEqual((await client.receive()).kind, "ox_event")
+            self.assertEqual((await client.receive_matching(wanted("a" * 32))).args[0]["request_id"], "a" * 32)
+        finally:
+            await client.close()
 
 
 if __name__ == "__main__":
