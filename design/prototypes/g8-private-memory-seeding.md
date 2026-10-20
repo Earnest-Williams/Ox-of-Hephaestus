@@ -68,3 +68,36 @@ require a new complete successful trial before any merge or result claim.
 
 Run the narrow native unit tests with
 `python -m unittest discover -s services/ai-handler/tests -p 'test_memory_seeding.py' -v`.
+
+
+## G8 temporal and causal memory upgrade
+
+A private per-person \`TemporalMemoryBank\` now records two distinct times:
+**when an event occurred** and **when the character learned about it**. The
+G8 social experiment measures both in a single relative simulation-turn
+domain; this must not be conflated with wall-clock time or Evennia's absolute
+game-time seconds. Seeds can represent events long before the test begins.
+
+Retrieval blends occurrence age, time since latest voluntary rehearsal,
+confidence, salience, remembered source reliability and bounded repetition.
+A formative memory can retain influence despite great age; more recent
+directly observed conversations can supersede its current social weight
+without rewriting the original memory. Contradictory recollections remain
+distinct and privately attributable, and a character's recollection is not
+a verified fact about the other person.
+
+GOAP interpersonal appraisal now uses retrieved experiences rather than a
+flat count of mentions in authored backstory. Recall affects candidate
+selection, trust, romantic interest, proposal/reply/withdrawal thresholds,
+choice of social goal and what a person chooses to disclose. When real
+authenticated speech is heard, only those present receive that episode.
+Bilateral social events enter both individual histories only *after* durable
+world receipts and addressed recipient delivery.
+
+The temporal index persists in the same private per-character checkpoint as
+native Concordia state, is copied independently for inference, is bounded at
+1,024 entries and accepts the older no-index checkpoint shape. It is a
+supplementary indexed memory for explicit GOAP access; it does **not** replace
+Concordia's native text memory or the world's authoritative ledger.
+The six-client acceptance run remains model-free and deterministic; these
+changes still need full 500-turn re-verification on the revised head.
