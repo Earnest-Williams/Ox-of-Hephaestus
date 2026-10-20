@@ -121,3 +121,50 @@ commitment **neutral with respect to romantic desire**: a character may
 interpret accepted terms as a modest trust improvement, but consent,
 agreement or obligation does not manufacture affection. That corrected head
 also needs its own focused final acceptance result.
+
+
+## G8 private reinterpretation (continuation)
+
+An independently owned \`InterpretationBank\` now sits beside the actor's
+unchanged private chronological event records. It holds attributed hypotheses,
+confidence, contradictory accounts, correlated source groups, and revision
+history. **What happened or was said is never overwritten when the character
+changes their explanation.**
+
+Memories may contain explicit *subjective claim metadata*, including the
+proposition key, inferred subject, supporting or opposing stance, source
+credibility, source group and original observation ID. Memories without a
+semantically typed claim are simply remembered, not interpreted by guessing
+from free text. No NLP model is silently promoted to a truth authority.
+
+Interpretations are updated only when a new, topic-relevant, personally
+received claim provides independent evidence or the original source recants.
+Repetition from the same source is not corroboration. Opposed evidence can
+shift a view from \`favoured\` through \`unsettled\` to \`doubted\`; competing
+interpretations and the original account remain visible to that character.
+The confidence computation is bounded, source-weighted, character-specific
+and fallible, not an objective probability of truth. Directly hearing a
+statement proves the words were spoken, **not that their content is true**.
+Real world receipts can only support propositions explicitly entailed by
+their action, such as agreeing to, refusing or withdrawing the exact offer;
+they cannot prove romantic desire, motive, or sincerity.
+
+Each agent's interpretation and revision history is saved in its existing
+native Concordia checkpoint. Inference forks receive detached copies. Older
+checkpoints without an interpretation ledger can rebuild it from typed
+chronological memories, without creating any world receipts. The engine is
+limited to 128 interpretations, 24 independent source groups per claim, and
+96 recent revision entries per claim.
+
+The six-person live G8 runner now deliberately permits adults to disclose
+their *own* third-party recollections. Only co-located clients that confirm
+receipt of the actual Evennia utterance incorporate it. A disagreement changes
+GOAP attention, the likelihood of seeking clarification, trust assessments,
+willingness to approach and eventual decisions about relationships. It **never
+automatically creates desire, consent, or canonical knowledge**.
+
+The acceptance gate additionally exercises correlated testimony, recantation,
+contradictory records, explicit non-reconsideration on irrelevant or duplicate
+evidence, private checkpoint/fork recovery, and six real Evennia sessions
+across a complete 500-decision ship run. A published summary must distinguish
+unit-test reinterpretations from those actually witnessed during the run.

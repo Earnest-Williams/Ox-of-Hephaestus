@@ -6,6 +6,7 @@ on:
       - "scenarios/g8_soap_opera/**"
       - "services/ai-handler/src/ox_ai/memory/**"
       - "services/ai-handler/tests/test_g8_longrun.py"
+      - "services/ai-handler/tests/test_memory_interpretation.py"
       - ".github/workflows/ox-g8-live-soap.yml"
       - "!**/*.md"
   workflow_dispatch:
@@ -38,6 +39,7 @@ jobs:
       - name: Narrow memory and run-policy tests
         run: |
           python -m unittest discover -s services/ai-handler/tests -p test_memory_seeding.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_memory_interpretation.py -v
           python -m unittest discover -s services/ai-handler/tests -p test_g8_longrun.py -v
       - name: Prepare disposable credentials
         shell: bash

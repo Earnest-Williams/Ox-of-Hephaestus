@@ -35,6 +35,50 @@ class TrialWiringTests(unittest.TestCase):
         self.assertTrue(plan.actions)
 
 
+    def test_private_reinterpretation_changes_goap_social_appraisal(self):
+        from pathlib import Path
+        import tempfile
+        mod = load_trial()
+        with tempfile.TemporaryDirectory() as directory:
+            t = mod.Trial(241, Path(directory))
+            t.bind({r: f"#{i+1}" for i, r in enumerate(mod.ROSTER)})
+            t.turn = 95
+            before = t.perspective("mara", "lin")
+            original = t.brains["mara"].temporal_memories.get("g8.mara.1").text
+            opposing = mod.TemporalMemory(
+                "g8.received.ari.statement", "ari",
+                "Ari said: Lin is still my spouse.",
+                "witnessed_speech", 95, 95, 100, 95,
+                source_event_id="g8.real.heard.95",
+                claim_key="lin_ari_separated", claim_subject="lin",
+                claim_stance=-1, source_group="ari.marriage_account",
+                claim_credibility=92,
+            )
+            t.remember_episode("mara", opposing)
+            after = t.perspective("mara", "lin")
+            self.assertLess(after[0], before[0])
+            self.assertEqual(t.brains["mara"].temporal_memories.get(
+                "g8.mara.1").text, original)
+            revisions = [r for r in t.reinterpretations
+                         if r["claim"] == "lin_ari_separated"]
+            self.assertTrue(revisions)
+            self.assertEqual(revisions[-1]["reason"], "counterevidence")
+            self.assertEqual(revisions[-1]["source_id"], "g8.real.heard.95")
+            self.assertIsNone(t.brains["teo"].temporal_memories.get(
+                "g8.received.ari.statement"))
+            # Two more same-origin repetitions cannot manufacture consensus.
+            previous = len(t.reinterpretations)
+            t.turn = 96
+            t.remember_episode("mara", mod.TemporalMemory(
+                "g8.received.ari.again", "ari", "Ari repeated the same account.",
+                "witnessed_speech", 96, 96, 100, 95,
+                source_event_id="g8.real.heard.96",
+                claim_key="lin_ari_separated", claim_subject="lin",
+                claim_stance=-1, source_group="ari.marriage_account",
+                claim_credibility=92,
+            ))
+            self.assertEqual(len(t.reinterpretations), previous)
+
     def test_world_agreement_does_not_create_desire(self):
         import tempfile
         from pathlib import Path
