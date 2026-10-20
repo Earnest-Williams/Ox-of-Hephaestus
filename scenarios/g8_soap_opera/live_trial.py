@@ -450,7 +450,7 @@ class Trial:
         if rehearse:
             # This person consciously recalls at most three episodes;
             # rehearsal changes future accessibility, never the historical date.
-            bank.retrieve(other, self.turn, limit=3, rehearse=True)
+            self.brains[role].rehearse_memories(other, self.turn, limit=3)
         mind = self.private[role]
         return (
             max(0, min(100, mind["trust"][other] + trust_bias + belief_trust)),

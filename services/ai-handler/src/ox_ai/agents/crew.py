@@ -23,6 +23,7 @@ from ox_ai.inference.usage import MeteredModel
 from ox_ai.memory.seeds import SeededMemory, validate_seed_memories
 from ox_ai.memory.temporal import TemporalMemory, TemporalMemoryBank
 from ox_ai.memory.interpretation import InterpretationBank
+from ox_ai.memory.views import InterpretationReadView, TemporalMemoryReadView
 from ox_ai.ports.base import ActionOutcome, ActionRequest, WorldObservation
 
 
@@ -97,9 +98,9 @@ class CrewAgent:
         # Authored recollections are private cognitive data, never world events.
         # Restored agents supply none here: native memory is restored verbatim.
         seeded = validate_seed_memories(initial_memories)
-        self.temporal_memories = TemporalMemoryBank.from_seeds(seeded)
+        self._temporal_memories = TemporalMemoryBank.from_seeds(seeded)
         # A person's interpretation is distinct from the event recollection.
-        self.interpretations = InterpretationBank.rebuild(self.temporal_memories)
+        self._interpretations = InterpretationBank.rebuild(self._temporal_memories)
         self.usage = MeteredModel(model)
         self._journal_path = Path(journal_path) if journal_path else None
         self._revision = 0
@@ -168,6 +169,74 @@ class CrewAgent:
         return self._cognition_revision
 
     @property
+    def temporal_memories(self) -> TemporalMemoryReadView:
+        """Expose private recollections read-only, with detached return values."""
+        return TemporalMemoryReadView(self._temporal_memories)
+
+    @property
+    def interpretations(self) -> InterpretationReadView:
+        """Expose private hypotheses read-only, with detached return values."""
+        return InterpretationReadView(self._interpretations)
+
+    def rehearse_memories(
+        self, subject: str, now_turn: int, *, limit: int = 3,
+        affective_only: bool = False,
+    ) -> tuple[TemporalMemory, ...]:
+        """Consciously rehearse private episodes through their sole owner.
+
+        The model's automatic prompt retrieval remains read-only. Explicit
+        rehearsal affects future accessibility and invalidates stale inference.
+        """
+        selected = self._temporal_memories.retrieve(
+            subject, now_turn, limit=limit, affective_only=affective_only
+        )
+        if any(entry.recall_count >= 100000 for entry in selected):
+            raise ValueError("Memory rehearsal counter exhausted")
+        if not selected:
+            return ()
+        rehearsed = self._temporal_memories.retrieve(
+            subject, now_turn, limit=limit, rehearse=True,
+            affective_only=affective_only,
+        )
+        self._cognition_revision += 1
+        self._record("subjective_rehearsal", memory_ids=[
+            entry.memory_id for entry in rehearsed
+        ], at_turn=now_turn)
+        return tuple(TemporalMemory(**asdict(entry)) for entry in rehearsed)
+
+    def reconsider_memory(
+        self, memory_id: str, *, at_turn: int | None = None,
+    ) -> bool:
+        """Update an interpretation only from an already-held typed memory.
+
+        Return True for *any* source-state mutation, including weak evidence
+        that does not warrant a reported view change. Replays are no-ops.
+        """
+        entry = self._temporal_memories.get(memory_id)
+        if entry is None or entry.claim_key is None:
+            raise ValueError("Reconsideration requires an admitted typed claim")
+        revised = InterpretationBank.from_records(
+            self._interpretations.to_records())
+        previous = self._interpretations.to_records()
+        change = revised.admit(entry, at_turn=at_turn)
+        if revised.to_records() == previous:
+            return False
+        self._interpretations = revised
+        self._cognition_revision += 1
+        self._record("interpretation_evidence_admitted",
+                     memory_id=memory_id, at_turn=at_turn)
+        if change is not None:
+            self._record("reinterpreted", claim_key=entry.claim_key,
+                         claim_subject=entry.claim_subject or entry.subject,
+                         evidence_id=memory_id,
+                         previous_view=change.previous_view,
+                         new_view=change.new_view,
+                         previous_confidence=change.previous_confidence,
+                         new_confidence=change.new_confidence,
+                         reason=change.reason)
+        return True
+
+    @property
     def pending_requests(self) -> tuple[ActionRequest, ...]:
         """Return attempts needing world acknowledgment or reconciliation."""
         return tuple(self._pending.values())
@@ -185,27 +254,31 @@ class CrewAgent:
 
         The subjective record never grants authority or proves a claim.
         """
+        if not isinstance(entry, TemporalMemory):
+            raise TypeError("Only typed personal episodes can be remembered")
+        # Never retain the caller's mutable object as internal owned memory.
+        entry = TemporalMemory(**asdict(entry))
         if entry.kind not in ("witnessed_speech", "world_receipt"):
             raise ValueError("Only observed new events may enter this route")
         if not entry.source_event_id:
             raise ValueError("New episode needs its source identity")
         # Preserve exact idempotent delivery even if it is retried much later.
-        prior = self.temporal_memories.get(entry.memory_id)
+        prior = self._temporal_memories.get(entry.memory_id)
         if prior is not None:
-            return self.temporal_memories.add(entry)
+            return self._temporal_memories.add(entry)
         revision = None
         revised = None
         if entry.claim_key is not None:
             # Validate interpretation capacity/chronology before mutating
             # the event bank, so a rejected assessment cannot orphan an entry.
             revised = InterpretationBank.from_records(
-                self.interpretations.to_records())
+                self._interpretations.to_records())
             revision = revised.admit(entry, at_turn=entry.learned_turn)
-        accepted = self.temporal_memories.add(entry)
+        accepted = self._temporal_memories.add(entry)
         if accepted:
             self._cognition_revision += 1
             if revised is not None:
-                self.interpretations = revised
+                self._interpretations = revised
             self._record("subjective_episode", memory_id=entry.memory_id,
                          source_event_id=entry.source_event_id,
                          occurred_turn=entry.occurred_turn)
@@ -277,10 +350,10 @@ class CrewAgent:
         """
         fork = CrewAgent(self.identity, self._model, blueprint=self.blueprint)
         fork._entity.set_state(deepcopy(self._entity.get_state()))
-        fork.temporal_memories = TemporalMemoryBank.from_records(
-            self.temporal_memories.to_records())
-        fork.interpretations = InterpretationBank.from_records(
-            self.interpretations.to_records())
+        fork._temporal_memories = TemporalMemoryBank.from_records(
+            self._temporal_memories.to_records())
+        fork._interpretations = InterpretationBank.from_records(
+            self._interpretations.to_records())
         fork._revision = self._revision
         fork._cognition_revision = self._cognition_revision
         fork._seen_observations = set(self._seen_observations)
@@ -329,10 +402,10 @@ class CrewAgent:
         # No suspension between the revision gate and state/proposal adoption.
         # Preserve any native Concordia act-state evolution on successful work.
         self._entity.set_state(fork._entity.get_state())
-        self.temporal_memories = TemporalMemoryBank.from_records(
-            fork.temporal_memories.to_records())
-        self.interpretations = InterpretationBank.from_records(
-            fork.interpretations.to_records())
+        self._temporal_memories = TemporalMemoryBank.from_records(
+            fork._temporal_memories.to_records())
+        self._interpretations = InterpretationBank.from_records(
+            fork._interpretations.to_records())
         self.usage.choice_calls += fork.usage.choice_calls
         self.usage.text_calls += fork.usage.text_calls
         self._pending[draft.request_id] = draft
@@ -460,8 +533,8 @@ class CrewAgent:
             "last_game_time": self._last_game_time,
             "pending_requests": [asdict(item) for item in self.pending_requests],
             "concordia_state": self._entity.get_state(),
-            "temporal_memories": self.temporal_memories.to_records(),
-            "interpretations": self.interpretations.to_records(),
+            "temporal_memories": self._temporal_memories.to_records(),
+            "interpretations": self._interpretations.to_records(),
         }
 
     def save_checkpoint(self, path: Path) -> None:
@@ -512,17 +585,17 @@ class CrewAgent:
         )
         crew._entity.set_state(checkpoint["concordia_state"])
         # Existing pre-G8 checkpoints contain only native Concordia memory.
-        crew.temporal_memories = TemporalMemoryBank.from_records(
+        crew._temporal_memories = TemporalMemoryBank.from_records(
             checkpoint.get("temporal_memories", []))
         # Legacy checkpoints predate this optional private interpretation
         # snapshot. Rebuild only their first-generation hypothesis index;
         # never duplicate or silently rewrite an existing revision history.
         if "interpretations" in checkpoint:
-            crew.interpretations = InterpretationBank.from_records(
+            crew._interpretations = InterpretationBank.from_records(
                 checkpoint["interpretations"])
         else:
-            crew.interpretations = InterpretationBank.rebuild(
-                crew.temporal_memories)
+            crew._interpretations = InterpretationBank.rebuild(
+                crew._temporal_memories)
         crew._revision = checkpoint["revision"]
         saved_cognition = checkpoint.get("cognition_revision", 0)
         if (type(saved_cognition) is not int or saved_cognition < 0):
