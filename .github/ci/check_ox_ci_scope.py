@@ -175,6 +175,26 @@ def main() -> int:
         if not would_run(events.get("pull_request", []), (expected, "game/README.md")):
             failures.append(f"{name} must still run for mixed code/documentation")
 
+    # Reject malformed event-level if conditions and duplicate job condition keys.
+    # These errors can make GitHub reject a workflow before it has any test jobs.
+    for workflow in sorted(WORKFLOWS.glob("ox-*.yml")):
+        source = workflow.read_text(encoding="utf-8")
+        pre, separator, body = source.partition("\njobs:\n")
+        if not separator:
+            failures.append(f"{workflow.name} has no jobs section")
+            continue
+        if re.search(r"(?m)^  (?:pull_request|push|workflow_dispatch):\\n    if:", pre):
+            failures.append(f"{workflow.name} has an invalid event-level if")
+        blocks = re.split(r"(?=^  [a-z][a-z0-9_-]*:\\s*$)", body, flags=re.MULTILINE)
+        for block in blocks:
+            if block.startswith("  ") and len(re.findall(r"(?m)^    if:", block)) > 1:
+                failures.append(f"{workflow.name} contains duplicate job if keys")
+        if workflow.name not in (DOCUMENTATION, "ox-fast.yml") and "  pull_request:" in pre:
+            if "ready_for_review" not in pre:
+                failures.append(f"{workflow.name} must trigger when a draft becomes ready")
+            if "github.event.pull_request.draft == false" not in body:
+                failures.append(f"{workflow.name} must defer expensive PR jobs while draft")
+
     for failure in failures:
         print(f"CI scope ERROR: {failure}", file=sys.stderr)
     print(f"Ox CI scope: checked {checked} automatic code-workflow event filters; {len(failures)} errors")
