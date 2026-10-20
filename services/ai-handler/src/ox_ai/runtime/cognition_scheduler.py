@@ -129,6 +129,7 @@ class DecisionScheduler:
         ):
             raise ValueError("Duplicate/empty offered option")
         revision = agent.revision
+        cognition_revision = agent.cognition_revision
         shadow = agent.fork_for_inference()
         self._attempts[role] = self._attempts.get(role, 0) + 1
         self._total_attempts += 1
@@ -160,9 +161,13 @@ class DecisionScheduler:
         try:
             draft = await asyncio.wait_for(asyncio.shield(task), self._timeout)
             # Only the live agent, on the event loop, can adopt the proposed
-            # action. An observation received during inference increments the
-            # live revision and makes the snapshot's choice uncommittable.
-            return agent.adopt_inference(shadow, draft, offered, expected_revision=revision)
+            # action. Both authenticated observations AND new private memories
+            # can invalidate a detached actor while inference is underway.
+            return agent.adopt_inference(
+                shadow, draft, offered,
+                expected_revision=revision,
+                expected_cognition_revision=cognition_revision,
+            )
         except asyncio.TimeoutError:
             abandoned.set()
             raise CognitionTimedOut("Inference deadline passed; proposed action discarded") from None

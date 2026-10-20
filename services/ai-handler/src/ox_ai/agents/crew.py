@@ -23,6 +23,7 @@ from ox_ai.inference.usage import MeteredModel
 from ox_ai.memory.seeds import SeededMemory, validate_seed_memories
 from ox_ai.memory.temporal import TemporalMemory, TemporalMemoryBank
 from ox_ai.memory.interpretation import InterpretationBank
+from ox_ai.memory.concordia_context import OxMemoryContext
 from ox_ai.ports.base import ActionOutcome, ActionRequest, WorldObservation
 
 
@@ -102,6 +103,11 @@ class CrewAgent:
         self.usage = MeteredModel(model)
         self._journal_path = Path(journal_path) if journal_path else None
         self._revision = 0
+        # Observation and private-cognition changes independently invalidate
+        # detached inference. The latter must not overwrite newly admitted
+        # memories simply because no WorldObservation arrived.
+        self._cognition_revision = 0
+        self._memory_query_text = ""
         self._seen_observations: set[str] = set()
         self._pending: dict[str, ActionRequest] = {}
         self._last_game_time: float | None = None
@@ -119,6 +125,9 @@ class CrewAgent:
                 state=identity.goal,
                 pre_act_label="Goal",
             ),
+            # Read only: projects relevant Ox private histories at PRE_ACT.
+            # It must be bound to this agent (not its original when forked).
+            "OxMemoryContext": OxMemoryContext(self),
             "ObservationToMemory": observation.ObservationToMemory(),
             observation.DEFAULT_OBSERVATION_COMPONENT_KEY: (
                 observation.LastNObservations(history_length=32)
@@ -152,6 +161,11 @@ class CrewAgent:
     def revision(self) -> int:
         """Return the observation revision that decisions must reference."""
         return self._revision
+
+    @property
+    def cognition_revision(self) -> int:
+        """Revision for decision-relevant private cognition, not observations."""
+        return self._cognition_revision
 
     @property
     def pending_requests(self) -> tuple[ActionRequest, ...]:
@@ -189,6 +203,7 @@ class CrewAgent:
             revision = revised.admit(entry, at_turn=entry.learned_turn)
         accepted = self.temporal_memories.add(entry)
         if accepted:
+            self._cognition_revision += 1
             if revised is not None:
                 self.interpretations = revised
             self._record("subjective_episode", memory_id=entry.memory_id,
@@ -267,6 +282,7 @@ class CrewAgent:
         fork.interpretations = InterpretationBank.from_records(
             self.interpretations.to_records())
         fork._revision = self._revision
+        fork._cognition_revision = self._cognition_revision
         fork._seen_observations = set(self._seen_observations)
         fork._last_game_time = self._last_game_time
         return fork
@@ -274,6 +290,7 @@ class CrewAgent:
     def adopt_inference(
         self, fork: CrewAgent, draft: ActionRequest,
         offered: Sequence[CommandOption], *, expected_revision: int,
+        expected_cognition_revision: int,
     ) -> ActionRequest:
         """Commit a validated *proposal* from a snapshot, never a world effect.
 
@@ -284,9 +301,18 @@ class CrewAgent:
         if (not isinstance(fork, CrewAgent) or fork is self
                 or fork.identity != self.identity or fork.blueprint != self.blueprint):
             raise PermissionError("Detached inference belongs to another person")
-        if self._revision != expected_revision or fork.revision != expected_revision:
-            self._record("stale_decision_discarded", inferred_revision=expected_revision)
-            raise StaleAgentRevision("World observation changed during cognition")
+        if (self._revision != expected_revision
+                or fork.revision != expected_revision
+                or self._cognition_revision != expected_cognition_revision
+                or fork.cognition_revision != expected_cognition_revision):
+            self._record(
+                "stale_decision_discarded",
+                inferred_revision=expected_revision,
+                inferred_cognition_revision=expected_cognition_revision,
+            )
+            raise StaleAgentRevision(
+                "World observation or private cognition changed during inference"
+            )
         if (not isinstance(draft, ActionRequest)
                 or draft.character_id != self.identity.character_id
                 or draft.agent_revision != expected_revision
@@ -348,21 +374,40 @@ class CrewAgent:
             raise ValueError("Commands need unique nonempty labels and verbs")
 
         revision_at_start = self._revision
+        cognition_at_start = self._cognition_revision
         calls_before = self.usage.total_calls
-        choice = self._entity.act(
-            entity_lib.choice_action_spec(
-                call_to_action=(
-                    "What should {name} attempt next on watch? "
-                    "Choose one of the supplied commands. "
-                    "Your choice is a request, not a completed action."
-                ),
-                options=tuple(by_label),
-                tag="ox_command_attempt",
+        # Labels alone can omit equipment names or the person being addressed.
+        # Convey the offered option's verb/target/arguments to the *local*
+        # read-only prompt projection, never to the world as new evidence.
+        self._memory_query_text = " ".join(
+            str(piece)
+            for option in choices
+            for piece in (
+                option.label, option.verb, option.target or "",
+                *tuple(str(value) for _, value in sorted(option.arguments.items())),
             )
         )
-        if self._revision != revision_at_start:
+        try:
+            choice = self._entity.act(
+                entity_lib.choice_action_spec(
+                    call_to_action=(
+                        "What should {name} attempt next on watch? "
+                        "Choose one of the supplied commands. "
+                        "Your choice is a request, not a completed action."
+                    ),
+                    options=tuple(by_label),
+                    tag="ox_command_attempt",
+                )
+            )
+        finally:
+            # Never let one decision's target contaminate a later prompt.
+            self._memory_query_text = ""
+        if (self._revision != revision_at_start
+                or self._cognition_revision != cognition_at_start):
             self._record("stale_decision_discarded", chosen_label=choice)
-            raise StaleAgentRevision("Observation changed during inference")
+            raise StaleAgentRevision(
+                "Observation or private cognition changed during inference"
+            )
         if choice not in by_label:
             self._record("invalid_decision", chosen_label=choice)
             raise ValueError("Concordia returned a command that was not offered")
@@ -408,6 +453,9 @@ class CrewAgent:
             "identity": asdict(self.identity),
             **({"character_blueprint": self.blueprint.to_record()} if self.blueprint is not None else {}),
             "revision": self._revision,
+            # Optional checkpoint addition; existing checkpoint_version=1
+            # files remain restorable with the default below.
+            "cognition_revision": self._cognition_revision,
             "seen_observations": sorted(self._seen_observations),
             "last_game_time": self._last_game_time,
             "pending_requests": [asdict(item) for item in self.pending_requests],
@@ -476,6 +524,10 @@ class CrewAgent:
             crew.interpretations = InterpretationBank.rebuild(
                 crew.temporal_memories)
         crew._revision = checkpoint["revision"]
+        saved_cognition = checkpoint.get("cognition_revision", 0)
+        if (type(saved_cognition) is not int or saved_cognition < 0):
+            raise ValueError("Invalid persisted private cognition revision")
+        crew._cognition_revision = saved_cognition
         crew._seen_observations = set(checkpoint["seen_observations"])
         crew._last_game_time = checkpoint["last_game_time"]
         crew._pending = {
