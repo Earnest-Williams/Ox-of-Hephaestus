@@ -183,9 +183,9 @@ def main() -> int:
         if not separator:
             failures.append(f"{workflow.name} has no jobs section")
             continue
-        if re.search(r"(?m)^  (?:pull_request|push|workflow_dispatch):\\n    if:", pre):
+        if re.search(r"(?m)^  (?:pull_request|push|workflow_dispatch):\n    if:", pre):
             failures.append(f"{workflow.name} has an invalid event-level if")
-        blocks = re.split(r"(?=^  [a-z][a-z0-9_-]*:\\s*$)", body, flags=re.MULTILINE)
+        blocks = re.split(r"(?=^  [a-z][a-z0-9_-]*:\s*$)", body, flags=re.MULTILINE)
         for block in blocks:
             if block.startswith("  ") and len(re.findall(r"(?m)^    if:", block)) > 1:
                 failures.append(f"{workflow.name} contains duplicate job if keys")
