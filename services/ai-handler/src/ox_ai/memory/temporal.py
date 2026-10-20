@@ -202,6 +202,14 @@ class TemporalMemoryBank:
                 max(-40, min(40, interest)),
                 tuple(x.memory_id for x in items))
 
+    def entries(self) -> tuple[TemporalMemory, ...]:
+        """Read-only consumers may inspect entries without replay/rehearsal.
+
+        Returned records remain character-owned; consumers must never mutate
+        them. The Concordia prompt projection only reads these attributes.
+        """
+        return tuple(self._entries.values())
+
     def get(self, memory_id: str) -> TemporalMemory | None:
         """Return a character-local record by exact immutable event identity."""
         return self._entries.get(memory_id)

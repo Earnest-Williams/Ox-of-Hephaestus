@@ -272,6 +272,10 @@ class InterpretationBank:
     def get(self, subject: str, claim_key: str) -> Interpretation | None:
         return self._states.get((subject, claim_key))
 
+    def views(self) -> tuple[Interpretation, ...]:
+        """Read-only consumers inspect the character's current hypotheses."""
+        return tuple(self._states[key] for key in sorted(self._states))
+
     def for_subject(self, subject: str) -> tuple[Interpretation, ...]:
         return tuple(
             self._states[k] for k in sorted(self._states)
