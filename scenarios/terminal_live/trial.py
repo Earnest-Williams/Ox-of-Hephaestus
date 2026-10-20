@@ -59,21 +59,19 @@ def choices(role):
 async def sensor(client):
     await client.send_line("oxterminal")
     async with asyncio.timeout(12):
-        for _ in range(200):
-            pkt = await client.receive()
-            if pkt.kind != "ox_terminal":
-                continue
-            if len(pkt.args) != 1 or not isinstance(pkt.args[0], dict):
-                raise ValueError("Malformed authenticated ship sensor response")
-            data = pkt.args[0]
-            if data.get("character_dbref") != client.character_dbref:
-                raise PermissionError("Sensor belongs to another crew member")
-            if not isinstance(data.get("minute"), int) or data.get("minute") < 0:
-                raise ValueError("Malformed world incident time")
-            if "cause" in data or "operator_only_hidden_cause" in data:
-                raise PermissionError("World secret leaked to a crew member")
-            return data
-    raise RuntimeError("World sensor OOB frame not received")
+        pkt = await client.receive_matching(
+            lambda packet: packet.kind == "ox_terminal", frame_budget=200,
+        )
+        if len(pkt.args) != 1 or not isinstance(pkt.args[0], dict):
+            raise ValueError("Malformed authenticated ship sensor response")
+        data = pkt.args[0]
+        if data.get("character_dbref") != client.character_dbref:
+            raise PermissionError("Sensor belongs to another crew member")
+        if not isinstance(data.get("minute"), int) or data.get("minute") < 0:
+            raise ValueError("Malformed world incident time")
+        if "cause" in data or "operator_only_hidden_cause" in data:
+            raise PermissionError("World secret leaked to a crew member")
+        return data
 
 
 class LocalGoap:

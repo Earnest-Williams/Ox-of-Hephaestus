@@ -154,30 +154,42 @@ class CapabilityPort:
             raise PermissionError("Capability read requires authenticated puppeting")
         nonce = secrets.token_hex(16)
         await self.client.send_line("oxcapabilities " + nonce)
+        def response_for_challenge(packet):
+            if packet.kind != "ox_capabilities":
+                return False
+            if len(packet.args) == 1 and isinstance(packet.args[0], str):
+                raw = packet.args[0]
+            elif not packet.args and isinstance(packet.options.get("payload"), str):
+                raw = packet.options["payload"]
+            else:
+                return True  # Malformed response is rejected below.
+            if len(raw) > 16384:
+                return True
+            payload = json.loads(raw)
+            return not (isinstance(payload, dict)
+                        and isinstance(payload.get("nonce"), str)
+                        and payload["nonce"] != nonce)
+
         try:
             async with asyncio.timeout(self.timeout):
-                for _ in range(256):
-                    packet = await self.client.receive()
-                    if packet.kind != "ox_capabilities":
-                        # Inbound OOB alarms have durable recipient-specific
-                        # journal copies; never reinterpret one as a capability.
-                        continue
-                    if len(packet.args) == 1 and isinstance(packet.args[0], str):
-                        raw = packet.args[0]
-                    elif not packet.args and isinstance(packet.options.get("payload"), str):
-                        raw = packet.options["payload"]
-                    else:
-                        raise ValueError("Malformed capability OOB response")
-                    if len(raw) > 16384:
-                        raise ValueError("Oversized capability response")
-                    return CapabilitySnapshot.parse(
-                        json.loads(raw),
-                        actor_dbref=self.client.character_dbref,
-                        nonce=nonce,
-                    )
+                packet = await self.client.receive_matching(
+                    response_for_challenge, frame_budget=256,
+                )
+                if len(packet.args) == 1 and isinstance(packet.args[0], str):
+                    raw = packet.args[0]
+                elif not packet.args and isinstance(packet.options.get("payload"), str):
+                    raw = packet.options["payload"]
+                else:
+                    raise ValueError("Malformed capability OOB response")
+                if len(raw) > 16384:
+                    raise ValueError("Oversized capability response")
+                return CapabilitySnapshot.parse(
+                    json.loads(raw),
+                    actor_dbref=self.client.character_dbref,
+                    nonce=nonce,
+                )
         except TimeoutError:
             raise TimeoutError("No world-validated local capability response") from None
-        raise RuntimeError("World capability response frame limit exceeded")
 
     async def traverse(
         self, current: CapabilitySnapshot, exit_capability: ExitCapability,

@@ -32,36 +32,39 @@ class DurableEvenniaPort:
         self.timeout = timeout
 
     async def _receipt(self, request_id: str) -> ActionOutcome:
+        def entry(packet):
+            if len(packet.args) == 1 and isinstance(packet.args[0], dict):
+                return packet.args[0]
+            if not packet.args and "request_id" in packet.options:
+                # Some Evennia versions normalize a singleton dict into
+                # OOB keyword arguments rather than positional args.
+                return packet.options
+            raise ValueError("Malformed authenticated world receipt")
+
+        def matches(packet):
+            if packet.kind != "ox_receipt":
+                return False
+            # A delayed receipt for a previous request belongs to that
+            # request; preserve it rather than misattributing or discarding it.
+            return entry(packet).get("request_id") == request_id
+
         try:
             async with asyncio.timeout(self.timeout):
-                for _ in range(128):
-                    packet = await self.client.receive()
-                    if packet.kind != "ox_receipt":
-                        continue
-                    if len(packet.args) == 1 and isinstance(packet.args[0], dict):
-                        entry = packet.args[0]
-                    elif not packet.args and "request_id" in packet.options:
-                        # Some Evennia versions normalize a singleton dict
-                        # into OOB kwargs rather than positional args.
-                        entry = packet.options
-                    else:
-                        raise ValueError("Malformed authenticated world receipt")
-                    if entry.get("request_id") != request_id:
-                        raise ValueError("Unexpected world request ID")
-                    if entry.get("actor_dbref") != self.client.character_dbref:
-                        raise PermissionError("Receipt addressed to a different character")
-                    status = entry.get("status")
-                    if status not in ("succeeded", "failed", "unknown"):
-                        raise ValueError("Invalid authoritative receipt status")
-                    return ActionOutcome(
-                        request_id,
-                        status,
-                        str(entry.get("reason", "")),
-                        entry.get("source_event_id"),
-                    )
+                packet = await self.client.receive_matching(
+                    matches, frame_budget=128,
+                )
+                result = entry(packet)
+                if result.get("actor_dbref") != self.client.character_dbref:
+                    raise PermissionError("Receipt addressed to a different character")
+                status = result.get("status")
+                if status not in ("succeeded", "failed", "unknown"):
+                    raise ValueError("Invalid authoritative receipt status")
+                return ActionOutcome(
+                    request_id, status, str(result.get("reason", "")),
+                    result.get("source_event_id"),
+                )
         except TimeoutError:
             return ActionOutcome(request_id, "unknown", "No authoritative receipt")
-        raise RuntimeError("World response budget exhausted")
 
     async def submit(self, request: ActionRequest) -> ActionOutcome:
         if not self.client.authenticated:
