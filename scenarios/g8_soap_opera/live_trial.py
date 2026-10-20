@@ -180,7 +180,7 @@ class Trial:
             self.faults = d["faults"]
             self.trace = d["trace"]
             self.locations = d["locations"]
-            self.seen = set(d["seen"])
+            self.seen = {tuple(item) for item in d["seen"]}
             for role in ROSTER:
                 self.brains[role] = CrewAgent.from_checkpoint(
                     root / f"{role}.brain.json", MockModel())
@@ -198,10 +198,7 @@ class Trial:
             self.seen = set()
             for role in ROSTER:
                 name, duty, goal = ROLES[role]
-                self.brains[role] = CrewAgent(
-                    CrewIdentity(f"ox.g8.{role}", "", name, duty, goal),
-                    MockModel(), initial_memories=seeds_for(role),
-                )
+                self.brains[role] = None  # Bind new brains only after authenticated IDs.
                 self.private[role] = {
                     "affection": dict(zip(ROSTER, AFFECTION[role])),
                     "trust": dict(zip(ROSTER, TRUST[role])),
@@ -212,7 +209,7 @@ class Trial:
         """Existing checkpoints are tied to the same authenticated body."""
         for role in ROSTER:
             brain = self.brains[role]
-            if brain.identity.character_id == "":
+            if brain is None:
                 name, duty, goal = ROLES[role]
                 self.brains[role] = CrewAgent(
                     CrewIdentity(f"ox.g8.{role}", ids[role], name, duty, goal),
