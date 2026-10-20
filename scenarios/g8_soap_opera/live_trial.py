@@ -96,6 +96,13 @@ CLAIM_SEEDS = {
 }
 # Scenario-specific consequences of believing the listed hypotheses.
 # The second coordinate is willingness to *approach*, NOT romantic desire.
+CLAIM_FOCUS = {
+    "lin_ari_separated": "lin",
+    "mara_teo_finished": "mara",
+    "lin_mara_involved": "lin",
+    "iona_captain_exclusive": "iona",
+    "lin_is_reliable": "lin",
+}
 CLAIM_EFFECTS = {
     "lin_ari_separated": (16, 14),
     "mara_teo_finished": (-6, -12),
@@ -159,7 +166,7 @@ def seeds_for(role):
             occurred_turn=event_time, learned_turn=0,
             trust_effect=trust_bias, interest_effect=interest_bias,
             claim_key=claim[0] if claim else None,
-            claim_subject=claim[1] if claim else None,
+            claim_subject=CLAIM_FOCUS.get(claim[0], claim[1]) if claim else None,
             claim_stance=claim[2] if claim else 0,
             source_group=claim[3] if claim else None,
             claim_credibility=78 if claim else 70,

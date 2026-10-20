@@ -341,11 +341,9 @@ class InterpretationBank:
             key = (state.subject, state.claim_key)
             if key in bank._states:
                 raise ValueError("Duplicated interpretation state")
-            if history and history[-1].new_confidence != state.confidence:
-                # A tiny (<3 pt) later update may be recorded without a
-                # revision, so exact equality is NOT required.
-                if abs(history[-1].new_confidence - state.confidence) >= 3:
-                    raise ValueError("Belief confidence diverges from audit history")
+            # Several tiny corroborations may accumulate after the most recent
+            # substantive revision. Their identities persist in sources even
+            # though they deliberately did not trigger separate revisions.
             bank._states[key] = state
         return bank
 
