@@ -3,6 +3,8 @@ name: Ox G7 apartment social GOAP
 
 on:
   pull_request:
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+    types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - "game/typeclasses/social.py"
       - "game/world/social_apartment.py"
@@ -13,6 +15,7 @@ on:
       - ".github/workflows/ox-g7-social-goap.yml"
       - "!**/*.md"
   workflow_dispatch:
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
 
 permissions:
   contents: read
@@ -23,6 +26,7 @@ concurrency:
 
 jobs:
   two-person-goap:
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
     name: Focused planner tests + one real apartment conversation
     runs-on: ubuntu-latest
     timeout-minutes: 22
@@ -33,6 +37,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            services/ai-handler/pyproject.toml
+            uv.lock
+            .github/ci/cache-profiles/concordia.txt
       - name: Install Evennia, handler and transport only (no model packages)
         run: |
           python -m pip install .
