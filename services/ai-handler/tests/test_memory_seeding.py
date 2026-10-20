@@ -140,6 +140,7 @@ class TemporalMemoryTests(unittest.TestCase):
         self.assertEqual(bank.retrieve("mara", 10), ())
         self.assertEqual(len(bank.retrieve("mara", 12)), 1)
 
+    @unittest.skipIf(MockModel is None, "Concordia not installed")
     def test_checkpoint_restores_time_and_recall_without_cross_agent_leakage(self):
         from ox_ai.memory.temporal import TemporalMemoryBank, TemporalMemory
         from ox_ai.agents.crew import CrewAgent, CrewIdentity
@@ -175,6 +176,7 @@ class TemporalMemoryTests(unittest.TestCase):
             self.assertNotEqual(fork.temporal_memories.to_records(),
                                 restored.temporal_memories.to_records())
 
+    @unittest.skipIf(MockModel is None, "Concordia not installed")
     def test_no_world_authority_from_subjective_memory(self):
         from ox_ai.agents.crew import CrewAgent, CrewIdentity
         from concordia.testing.mock_model import MockModel

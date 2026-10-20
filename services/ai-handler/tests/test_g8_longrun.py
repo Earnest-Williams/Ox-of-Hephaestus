@@ -2,12 +2,16 @@
 import unittest
 from pathlib import Path
 import ast
-from importlib.util import spec_from_file_location, module_from_spec
+from importlib.util import find_spec, spec_from_file_location, module_from_spec
 
 
 def load_trial():
     path = Path("scenarios/g8_soap_opera/live_trial.py")
     ast.parse(path.read_text(encoding="utf-8"))
+    # This model-backed fixture is exercised by the native G8 workflow.
+    # The minimal scaffold intentionally does not install Concordia.
+    if find_spec("concordia") is None:
+        raise unittest.SkipTest("G8 live fixture requires optional Concordia")
     spec = spec_from_file_location("ox_g8_live", path)
     module = module_from_spec(spec)
     spec.loader.exec_module(module)

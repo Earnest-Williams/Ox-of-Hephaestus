@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from importlib.util import find_spec
 from pathlib import Path
 import tempfile
 import unittest
@@ -160,6 +161,8 @@ class SubjectiveBeliefTests(unittest.TestCase):
                 claim_stance=1,
             )
 
+    @unittest.skipIf(find_spec("concordia") is None,
+                     "Native private checkpoint requires Concordia extra")
     def test_native_private_checkpoint_fork_and_legacy_rebuild(self):
         from concordia.testing.mock_model import MockModel
         from ox_ai.agents.crew import CrewAgent, CrewIdentity
