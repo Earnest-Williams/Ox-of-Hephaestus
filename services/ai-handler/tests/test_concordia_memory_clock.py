@@ -56,6 +56,16 @@ class OwnedMemoryClockTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.agent.advance_memory_turn(549)
 
+    def test_rehearsal_cannot_rewrite_time_from_the_past_or_future(self):
+        self.agent.advance_memory_turn(10)
+        with self.assertRaises(ValueError):
+            self.agent.rehearse_memories("ari", 9)
+        frame = MemoryClockBridge(2000.0, 10, 1.0)
+        self.agent.bind_memory_clock(frame)
+        with self.assertRaises(ValueError):
+            self.agent.rehearse_memories("ari", 11)
+        self.assertEqual(self.agent.cognition_revision, 1)
+
     def test_game_clock_advancement_rejects_stale_inference_without_rewriting_memory(self):
         from ox_ai.agents.crew import CommandOption, StaleAgentRevision
         offered = (CommandOption("Ask Ari", "speak", "ari"),)

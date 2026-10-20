@@ -68,16 +68,9 @@ class OxMemoryContext(entity_component.ContextComponent):
             return ""
 
         memories = self._owner.temporal_memories.entries()
-        # Prefer the owner-authorized simulation clock, not the timestamp
-        # of the last memory admitted. Preserve legacy future-seed visibility.
-        now_turn = max(
-            [self._owner.memory_now_turn] + [
-                max(entry.learned_turn, entry.last_recalled_turn
-                    if entry.last_recalled_turn is not None
-                    else entry.learned_turn)
-                for entry in memories
-            ]
-        )
+        # The owner clock, not the newest remembered episode, determines
+        # elapsed time. Future-dated memories are never surfaced early.
+        now_turn = self._owner.memory_now_turn
         ranked = []
         for entry in memories:
             if entry.learned_turn > now_turn:
@@ -96,6 +89,9 @@ class OxMemoryContext(entity_component.ContextComponent):
 
         beliefs = []
         for belief in self._owner.interpretations.views():
+            if (belief.last_assessed_turn is not None
+                    and belief.last_assessed_turn > now_turn):
+                continue
             if (_matches(belief.subject, query)
                     or _matches(belief.claim_key, query)):
                 beliefs.append(belief)

@@ -236,6 +236,10 @@ class CrewAgent:
         The model's automatic prompt retrieval remains read-only. Explicit
         rehearsal affects future accessibility and invalidates stale inference.
         """
+        if now_turn < self._memory_now_turn or (
+            self._memory_clock is not None and now_turn != self._memory_now_turn
+        ):
+            raise ValueError("Rehearsal must use current simulated memory time")
         selected = self._temporal_memories.retrieve(
             subject, now_turn, limit=limit, affective_only=affective_only
         )
@@ -267,6 +271,12 @@ class CrewAgent:
         revised = InterpretationBank.from_records(
             self._interpretations.to_records())
         previous = self._interpretations.to_records()
+        if at_turn is None:
+            at_turn = max(entry.learned_turn, self._memory_now_turn)
+        if at_turn < self._memory_now_turn or (
+            self._memory_clock is not None and at_turn != self._memory_now_turn
+        ):
+            raise ValueError("Reconsideration must use current simulated time")
         change = revised.admit(entry, at_turn=at_turn)
         if revised.to_records() == previous:
             return False
@@ -309,6 +319,9 @@ class CrewAgent:
         entry = TemporalMemory(**asdict(entry))
         if entry.last_recalled_turn is not None or entry.recall_count != 0:
             raise ValueError("A new witnessed episode cannot arrive pre-rehearsed")
+        if (self._memory_clock is not None
+                and entry.learned_turn > self._memory_now_turn):
+            raise ValueError("A world-timed episode cannot be learned in the future")
         if entry.kind not in ("witnessed_speech", "world_receipt"):
             raise ValueError("Only observed new events may enter this route")
         if not entry.source_event_id:
@@ -324,9 +337,14 @@ class CrewAgent:
             # the event bank, so a rejected assessment cannot orphan an entry.
             revised = InterpretationBank.from_records(
                 self._interpretations.to_records())
-            revision = revised.admit(entry, at_turn=entry.learned_turn)
+            revision = revised.admit(
+                entry, at_turn=max(entry.learned_turn, self._memory_now_turn)
+            )
         accepted = self._temporal_memories.add(entry)
         if accepted:
+            # Event admission may bring an unbound G8 virtual clock forward.
+            # It never substitutes for subsequent no-event clock advancement.
+            self._memory_now_turn = max(self._memory_now_turn, entry.learned_turn)
             self._cognition_revision += 1
             if revised is not None:
                 self._interpretations = revised
