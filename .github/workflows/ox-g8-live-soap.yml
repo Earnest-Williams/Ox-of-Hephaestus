@@ -1,6 +1,7 @@
 name: Ox G8 six-crew soap opera 500-turn live trial
 on:
   pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
     branches: [main]
     paths:
       - "scenarios/g8_soap_opera/live_trial.py"
@@ -10,7 +11,7 @@ on:
       - "services/ai-handler/src/ox_ai/agents/crew.py"
       - "services/ai-handler/src/ox_ai/agents/live_concordia.py"
       - "services/ai-handler/src/ox_ai/runtime/cognition_scheduler.py"
-      - "services/ai-handler/src/ox_ai/agents/memory_context.py"
+      - "services/ai-handler/src/ox_ai/memory/concordia_context.py"
       - "services/ai-handler/tests/test_cognition_scheduler.py"
       - "services/ai-handler/tests/test_concordia_crew.py"
       - "services/ai-handler/tests/test_memory_seeding.py"
@@ -22,10 +23,11 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: g8-experiment
-  cancel-in-progress: true
+  group: g8-experiment-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   g8-six-real-clients:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
     timeout-minutes: 55
     env:
