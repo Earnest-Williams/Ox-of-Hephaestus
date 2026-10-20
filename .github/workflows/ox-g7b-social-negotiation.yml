@@ -3,7 +3,6 @@ name: Ox G7b social negotiation GOAP
 
 on:
   pull_request:
-    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
     types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - "services/ai-handler/src/ox_ai/social/**"
@@ -22,7 +21,6 @@ on:
       - ".github/workflows/ox-g7b-social-negotiation.yml"
       - "!**/*.md"
   workflow_dispatch:
-    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
 
 permissions:
   contents: read

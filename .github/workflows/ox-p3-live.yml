@@ -3,7 +3,6 @@ name: Ox P3 external crew transport
 
 on:
   pull_request:
-    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
     types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - "game/**"
@@ -11,7 +10,6 @@ on:
       - ".github/workflows/ox-p3-live.yml"
       - "!**/*.md"
   push:
-    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
     branches: [main]
     paths:
       - "game/**"
@@ -19,7 +17,6 @@ on:
       - ".github/workflows/ox-p3-live.yml"
       - "!**/*.md"
   workflow_dispatch:
-    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}

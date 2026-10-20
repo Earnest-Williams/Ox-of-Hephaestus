@@ -3,7 +3,6 @@ name: Ox G7 apartment social GOAP
 
 on:
   pull_request:
-    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
     types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - "game/typeclasses/social.py"
@@ -15,7 +14,6 @@ on:
       - ".github/workflows/ox-g7-social-goap.yml"
       - "!**/*.md"
   workflow_dispatch:
-    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
 
 permissions:
   contents: read
