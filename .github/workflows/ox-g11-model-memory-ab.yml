@@ -1,6 +1,10 @@
-# Bounded, manual-only hosted model quality pilot. No automatic paid calls.
+# One-off owner-approved G11 discrimination probe on isolated experiment branch.
+# Main's manual-only workflow is unchanged.
 name: Ox G11 matched-evidence memory A/B
 on:
+  push:
+    branches: [experiment/g11-memory-discriminative-20261021]
+    paths: [".github/workflows/ox-g11-model-memory-ab.yml"]
   workflow_dispatch:
     inputs:
       repetitions:
@@ -34,16 +38,20 @@ jobs:
         run: python -m pip install -e './services/ai-handler[concordia]'
       - name: Check evidence parity without hosted calls
         run: python -m unittest discover -s services/ai-handler/tests -p test_concordia_memory_ab.py -v
+      - name: Verify harder paired fixtures without hosted calls
+        run: |
+          python scenarios/g11_memory_challenge_trial.py --provider capture \\
+            --repetitions 1 --output /tmp/g11-challenge-smoke.json
       - name: Run hosted matched-evidence A/B
         run: |
-          python scenarios/g11_memory_ab_trial.py --provider gemini \
-            --repetitions "${{ inputs.repetitions }}" \
-            --output .ox-state/g11/memory-ab-results.json
+          python scenarios/g11_memory_challenge_trial.py --provider gemini \
+            --repetitions 2 \
+            --output .ox-state/g11/memory-ab-challenge-results.json
       - name: Preserve bounded aggregate evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ox-g11-memory-ab
-          path: .ox-state/g11/memory-ab-results.json
+          name: ox-g11-memory-challenge
+          path: .ox-state/g11/memory-ab-challenge-results.json
           retention-days: 14
           if-no-files-found: ignore
