@@ -319,7 +319,17 @@ def execute_work(
         # Its receipts inhabit the SAME globally unique work ID namespace.
         from world.social_authority import apply_social_action
         with transaction.atomic():
-            ObjectDB.objects.select_for_update().get(pk=actor.pk)
+            # Opposing simultaneous proposals must lock the SAME two
+            # persistent character rows in the SAME order on PostgreSQL.
+            # The partial unique pending-pair constraint is a second guard.
+            participants = {actor.pk}
+            if operation == "social_propose":
+                participants.add(int(validated["recipient"][1:]))
+            locked = set(ObjectDB.objects.select_for_update()
+                         .filter(pk__in=participants)
+                         .order_by("pk").values_list("pk", flat=True))
+            if locked != participants:
+                raise PermissionError("An agreement party does not exist")
             previous = WorkReceipt.objects.filter(pk=request_id).first()
             if previous is not None:
                 if (previous.actor_dbref != actor.dbref
