@@ -100,9 +100,11 @@ class DurableSocialAuthorityTests(EvenniaTestCase):
         self.assertEqual(state['revision'], 2)
         self.assertEqual(state['initiator_dbref'], self.clara.dbref)
         self.assertEqual(state['recipient_dbref'], self.clara.dbref)
-        self.assertEqual(self.work(self.clara, 'social_reply', {
-            'agreement_id': agreement, 'revision': 1, 'answer': 'accept',
-        })['status'], 'failed')
+        # An out-of-date revision is invalid input, not a valid new decision.
+        with self.assertRaises(ValueError):
+            self.work(self.clara, 'social_reply', {
+                'agreement_id': agreement, 'revision': 1, 'answer': 'accept',
+            })
         self.accept(agreement, by=self.clara, revision=2)
         self.assertEqual(self.work(self.ben, 'social_disclose', {
             'agreement_id': agreement, 'revision': 2, 'text': 'I heard this once.',
