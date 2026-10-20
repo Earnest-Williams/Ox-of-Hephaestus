@@ -18,6 +18,7 @@ on:
       - "scenarios/terminal_live/turn_budget.py"
       - "scenarios/terminal_live/test_turn_budget.py"
       - "scenarios/terminal_live/test_assessment_policy.py"
+      - "scenarios/terminal_live/prognosis_policy.py"
       - "scenarios/terminal_live/assessment_payload.py"
       - "game/world/terminal_assessments.py"
       - "game/commands/crew.py"

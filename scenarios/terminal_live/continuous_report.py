@@ -72,6 +72,11 @@ def main() -> None:
         if d["result"] == "failed"
         and d["receipt_reason"] == "unchanged_assessment"
     ]
+    # The prior 69-in-142 behavior was the result of GOAP repeatedly
+    # reevaluating a standing belief without disconfirmation.
+    assessments_per_actor = dict(Counter(
+        d["role"] for d in assessment_actions if d["result"] == "succeeded"
+    ))
     # An assessment is a belief report, not a world-computed diagnosis.
     accepted_assessments = [
         d for d in assessment_actions if d["result"] == "succeeded"
@@ -96,6 +101,7 @@ def main() -> None:
         f"**Authored provisional assessments:** "
         f"{len(accepted_assessments)} recorded; "
         f"{len(duplicate_refusals)} refused as literally unchanged.",
+        f"**Per-actor accepted prognoses:** {assessments_per_actor}.",
         f"**Model calls:** {crew['inference_calls']}   "
         f"**A-01 spare cartridges after scenario:** {world['cartridges_at_a01']}   "
         f"**Emergency bottles left:** {world['reserve_left']}",

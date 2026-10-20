@@ -77,17 +77,44 @@ is refused as unchanged; reinterpreting old evidence, changing confidence,
 receiving a new report, or seeing different atmospheric measurements remain
 legitimate.
 
-GOAP remembers the exact last accepted and refused submissions, including a
-typed refusal reason. It does not blanket-suppress the assessment verb after
-failure. Risk-band changes in either direction, new addressed evidence, new
-firsthand findings, materially changed sensor readings within a band, and
-changed interpretations can trigger reconsideration. Sensor changes below
-the planner's relevance threshold may simply be monitored; the world does
-not relabel genuinely different readings as duplicates. The immutable
-actor-submitted content and its evidence are preserved in each WorkReceipt
-and in the operator's post-run assessment audit. The signed sensor reference
-is bound to one authenticated character, so another person's private
-measurement cannot be cited as firsthand evidence.
+The world continues to accept *genuinely different* actor-authored assessments
+and verifies evidence ownership; this is not a world-enforced theory of
+reasonable beliefs. In the first revised live trial, however, GOAP chose to
+file 69 assessments in 142 decisions because every changed sensor reading
+was treated as a reason to reconsider prognosis. Those assessments were not
+technically identical, but frequent updating was neither useful nor the
+intended crew behavior.
+
+The corrected **actor policy** now separates ongoing operational urgency from
+an established prognosis. A character makes an initial provisional prognosis
+after receiving firsthand or addressed evidence. Thereafter, the character
+does not reconsider or construct another prognosis unless NEW information
+*contradicts* the previously accepted view. Further oxygen decline, higher
+CO2, a more severe alarm, independent confirmation, or an isolated temporary
+oxygen improvement are not counterevidence. They still trigger operational
+responses, resource allocation and investigation.
+
+The bounded non-generative policy can recognize two sources of disconfirming
+evidence: (1) a typed, authenticated, actor-addressed report of a possible
+sustained recovery or refuge; or (2) observed oxygen AND CO2 stability over
+at least 24 game minutes, not a single potentially noisy sample. A subsequent
+typed refutation can invalidate a reported candidate. Reports of confirming
+deterioration or absence of safe refuge do not prompt another prognosis.
+Typed contradictory reports are an extensibility contract, not a claim that
+this fatal-world fixture currently produces positive recovery evidence.
+GOAP remembers the evidence that triggered each assessment, as well as
+the exact last accepted/refused submission and any refusal reason. It
+suppresses an identical retry without banning genuinely changed assessments.
+
+The character's ordinary choice menu, including the Gemini-accessible menu,
+offers `terminal_assess` only when an initial assessment is due or a real
+counterevidence gate opens. In a terminal failure where the evidence only
+confirms continued deterioration, the expected behavior is **one prognosis
+per character**, with all later attention spent on operational questions.
+The 100-per-character / 480-total decision ceilings remain unchanged.
+The immutable authored content and its evidence remain recorded in each
+WorkReceipt and operator audit. World evidence provenance remains
+character-scoped; neither the handler nor an actor reads the latent cause.
 
 The audit verifies six unique accounts, six deaths, a real critical alarm
 received by each, continued decisions *after* the critical alert, and exact
@@ -115,6 +142,10 @@ equipment code; the new scenario itself never requests the large test matrix.
 - Do duplicate broadcasts and orders cease generating false progress?
 - Are welfare actions offered only when a living colleague is present?
 - Are all physical operations, including refused ones, backed by real receipts?
+- Does each crew member form an initial assessment, then refrain from
+  revisiting prognosis when worsening atmospheric readings *confirm* it?
+  Do independently addressed contradictory reports or sustained instrument
+  stabilization open a justified opportunity to revise it?
 
 The result is a bounded, event-responsive *experiment*, not proof of
 unconstrained autonomy. Keep the single run's artifact as evidence rather than
