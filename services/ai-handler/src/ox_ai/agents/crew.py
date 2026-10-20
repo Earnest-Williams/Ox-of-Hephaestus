@@ -23,7 +23,6 @@ from ox_ai.inference.usage import MeteredModel
 from ox_ai.memory.seeds import SeededMemory, validate_seed_memories
 from ox_ai.memory.temporal import TemporalMemory, TemporalMemoryBank
 from ox_ai.memory.interpretation import InterpretationBank
-from ox_ai.memory.concordia_context import OxMemoryContext
 from ox_ai.ports.base import ActionOutcome, ActionRequest, WorldObservation
 
 
@@ -82,6 +81,7 @@ class CrewAgent:
         from concordia.components.agent import constant
         from concordia.components.agent import memory
         from concordia.components.agent import observation
+        from ox_ai.memory.concordia_context import OxMemoryContext
 
         self.identity = identity
         # Kept only inside this mind; cloned snapshots can use the same model
