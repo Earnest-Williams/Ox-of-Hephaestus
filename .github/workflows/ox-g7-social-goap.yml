@@ -18,8 +18,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: social-goap
-  cancel-in-progress: false
+  group: social-goap-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   two-person-goap:
@@ -62,7 +62,7 @@ jobs:
           set -euo pipefail
           mkdir -p ../.ox-state
           evennia migrate --noinput
-          evennia shell --command="from world.social_apartment import provision_apartment; assert len(provision_apartment()) == 2; print('OX_SOCIAL_APARTMENT_PROVISIONED')" > ../.ox-state/arm.log
+          evennia shell --command="from world.bootstrap import build_ship; from world.social_apartment import provision_apartment; build_ship(); assert len(provision_apartment()) == 2; print('OX_SOCIAL_APARTMENT_PROVISIONED')" > ../.ox-state/arm.log
           grep -Fq 'OX_SOCIAL_APARTMENT_PROVISIONED' ../.ox-state/arm.log
       - name: Start actual Evennia portal/server
         shell: bash
@@ -72,16 +72,24 @@ jobs:
           python - <<'PY'
           import socket
           import time
-          for _ in range(90):
+          deadline = time.monotonic() + 120
+          stable_since = None
+          while time.monotonic() < deadline:
               try:
                   with socket.create_connection(("127.0.0.1", 4002), timeout=1):
-                      break
+                      pass
               except OSError:
-                  time.sleep(1)
+                  stable_since = None
+              else:
+                  stable_since = stable_since or time.monotonic()
+                  # Cold Evennia first-run initialization can reset the
+                  # Portal/Server after a brief period of accepting sockets.
+                  if time.monotonic() - stable_since >= 12:
+                      break
+              time.sleep(1)
           else:
-              raise RuntimeError("Social GOAP Evennia WebSocket unavailable")
+              raise RuntimeError("Evennia did not reach 12 seconds of stable WebSocket readiness")
           PY
-          sleep 4
       - name: One actual two-client GOAP conversation (zero model calls)
         shell: bash
         run: |
