@@ -88,7 +88,8 @@ def _work_spec(value):
         'cargo': {'restow', 'certify', 'retension'},
         'scrubber': {'isolate', 'replace', 'restart', 'purge'},
         'inventory': {'accept_supply', 'collect_supply', 'deliver_supply'},
-        'ship': {'radio', 'request', 'approve', 'resolve', 'offer', 'accept'},
+        'ship': {'radio', 'request', 'approve', 'resolve', 'offer', 'accept',
+                 'anomaly_report', 'anomaly_probe_report', 'anomaly_assess'},
     }
     if not isinstance(target, str) or not isinstance(operation, str):
         raise ValueError('Malformed work evidence')
@@ -109,6 +110,10 @@ def _terms(value):
             raise ValueError('Unknown social term: ' + key)
     if data['consideration'] == 'none' and data['exchange_order'] != 'after':
         raise ValueError('No consideration can precede an act')
+    if data['exchange_order'] == 'simultaneous':
+        # Separate work receipts are not an atomic exchange of consideration
+        # and performance. Do not promise a guarantee the world cannot make.
+        raise ValueError('Atomic simultaneous exchange is not implemented')
     if data['consideration'] == 'none' and 'consideration_evidence' in data:
         raise ValueError('No phantom consideration evidence')
     if data['consideration'] != 'none':
@@ -128,6 +133,14 @@ def _terms(value):
         if 'activity_evidence' not in data:
             raise ValueError('Work activity must specify the actual world task')
         data['activity_evidence'] = _work_spec(data['activity_evidence'])
+        if (data['activity'] == 'shift_swap'
+                and data['activity_evidence'] != {'target': 'ship', 'operation': 'accept'}):
+            raise ValueError('A shift swap requires an actual world watch-handover receipt')
+        if (data['activity'] == 'joint_investigation'
+                and data['activity_evidence']['operation'] not in {
+                    'anomaly_report', 'anomaly_probe_report', 'anomaly_assess',
+                }):
+            raise ValueError('Investigation requires a world investigative work receipt')
     elif 'activity_evidence' in data:
         raise ValueError('Non-work activities cannot use unrelated work receipts')
     return data
