@@ -192,6 +192,46 @@ class DurableSocialAuthorityTests(EvenniaTestCase):
                               consideration_evidence={'target': 'social', 'operation': 'social_perform'}),
             })
 
+    def test_pending_pair_is_exclusive_even_from_the_other_participant(self):
+        first = self.offer()
+        opposing = self.work(self.ben, 'social_propose', {
+            'recipient': self.clara.dbref, 'terms': BASE,
+        })
+        self.assertEqual(opposing['status'], 'failed', opposing)
+        self.assertEqual(opposing['reason'], 'pending_offer_exists')
+        self.assertEqual(SocialAgreement.objects.count(), 1)
+        self.assertEqual(SocialAgreement.objects.first().agreement_id, first)
+
+    def test_simultaneous_and_unrelated_fulfillment_are_not_accepted(self):
+        with self.assertRaises(ValueError):
+            validate_social_arguments('social_propose', {
+                'recipient': self.ben.dbref,
+                'terms': dict(BASE, consideration='information',
+                              exchange_order='simultaneous'),
+            })
+        with self.assertRaises(ValueError):
+            validate_social_arguments('social_propose', {
+                'recipient': self.ben.dbref,
+                'terms': dict(BASE, activity='shift_swap', activity_evidence={
+                    'target': 'pump', 'operation': 'isolate',
+                }),
+            })
+        with self.assertRaises(ValueError):
+            validate_social_arguments('social_propose', {
+                'recipient': self.ben.dbref,
+                'terms': dict(BASE, activity='joint_investigation',
+                              activity_evidence={
+                                  'target': 'cargo', 'operation': 'restow',
+                              }),
+            })
+        permitted = validate_social_arguments('social_propose', {
+            'recipient': self.ben.dbref,
+            'terms': dict(BASE, activity='shift_swap', activity_evidence={
+                'target': 'ship', 'operation': 'accept',
+            }),
+        })
+        self.assertEqual(permitted['terms']['activity'], 'shift_swap')
+
     def test_expiration_reopens_pair_without_rewriting_first_offer(self):
         with patch('world.social_authority._now', return_value=100.0):
             old = self.offer()
