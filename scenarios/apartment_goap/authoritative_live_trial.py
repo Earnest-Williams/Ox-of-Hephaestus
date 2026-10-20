@@ -56,7 +56,9 @@ async def social_command(client, other, operation, payload):
     event_kind = 'social_' + receipt['event_kind']
     seen = await matching_oob(other, 'ox_event', predicate=lambda v:
                               v.get('kind') == event_kind
-                              and v.get('datum_agreement_id') == receipt.get('agreement_id'))
+                              and v.get('datum_history_id') == receipt['history_id']
+                              and v.get('datum_agreement_id') == receipt.get('agreement_id')
+                              and v.get('sender_dbref') == client.character_dbref)
     if seen.get('datum_revision') != receipt['revision']:
         raise AssertionError('Listener saw the wrong agreement revision')
     return receipt, seen
