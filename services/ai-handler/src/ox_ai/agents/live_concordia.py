@@ -14,6 +14,7 @@ import uuid
 
 from ox_ai.agents.crew import CommandOption, CrewAgent, CrewIdentity
 from ox_ai.agents.crew_blueprints import CrewBlueprint
+from ox_ai.memory.seeds import SeededMemory
 from ox_ai.ports.base import ActionOutcome, ActionRequest, WorldObservation
 
 
@@ -72,6 +73,7 @@ class LiveCrewBrain:
         self, role: str, character_dbref: str, model,
         *, journal_path: Path | None = None,
         blueprint: CrewBlueprint | None = None,
+        initial_memories: Sequence[SeededMemory] = (),
     ) -> None:
         if role not in ROLES:
             raise ValueError("Unknown crew assignment")
@@ -93,6 +95,7 @@ class LiveCrewBrain:
             model,
             journal_path=journal_path,
             blueprint=blueprint,
+            initial_memories=initial_memories,
         )
         self._game_time: float = 0.0
 
@@ -213,6 +216,7 @@ def build_live_brains(
     ids: Mapping[str, str], *, provider: str | None = None,
     journal_dir: Path | None = None,
     blueprints: Mapping[str, CrewBlueprint] | None = None,
+    memory_seeds: Mapping[str, Sequence[SeededMemory]] | None = None,
 ) -> dict[str, LiveCrewBrain]:
     """Construct independent models/entities; not one shared omniscient actor."""
     # Historical P4a trials provision three accounts. The P4e supervisor
@@ -227,11 +231,15 @@ def build_live_brains(
             or any(not isinstance(p, CrewBlueprint) for p in blueprints.values())
             or len({p.person_id for p in blueprints.values()}) != len(blueprints)):
         raise ValueError("Profiles must be unique and match authorised crew slots")
+    memory_seeds = {} if memory_seeds is None else dict(memory_seeds)
+    if not set(memory_seeds).issubset(ids):
+        raise ValueError("Memory seeds must match authenticated crew slots")
     return {
         role: LiveCrewBrain(
             role, str(ids[role]), make_model(provider),
             journal_path=(journal_dir / f"{role}.jsonl") if journal_dir else None,
             blueprint=blueprints.get(role),
+            initial_memories=memory_seeds.get(role, ()),
         )
         for role in ids
     }

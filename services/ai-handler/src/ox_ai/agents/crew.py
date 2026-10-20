@@ -20,6 +20,7 @@ from typing import Any
 import uuid
 
 from ox_ai.inference.usage import MeteredModel
+from ox_ai.memory.seeds import SeededMemory, validate_seed_memories
 from ox_ai.ports.base import ActionOutcome, ActionRequest, WorldObservation
 
 
@@ -64,6 +65,7 @@ class CrewAgent:
         *,
         journal_path: Path | None = None,
         blueprint: Any | None = None,
+        initial_memories: Sequence[SeededMemory] = (),
     ) -> None:
         """Construct the Concordia component graph around a supplied model.
 
@@ -89,6 +91,9 @@ class CrewAgent:
             if identity.agent_id != f"ox.person.{blueprint.person_id}" or identity.name != blueprint.name:
                 raise PermissionError("Blueprint identity does not match this agent")
         self.blueprint = blueprint
+        # Authored recollections are private cognitive data, never world events.
+        # Restored agents supply none here: native memory is restored verbatim.
+        seeded = validate_seed_memories(initial_memories)
         self.usage = MeteredModel(model)
         self._journal_path = Path(journal_path) if journal_path else None
         self._revision = 0
@@ -113,7 +118,9 @@ class CrewAgent:
             observation.DEFAULT_OBSERVATION_COMPONENT_KEY: (
                 observation.LastNObservations(history_length=32)
             ),
-            memory.DEFAULT_MEMORY_COMPONENT_KEY: memory.ListMemory([]),
+            memory.DEFAULT_MEMORY_COMPONENT_KEY: memory.ListMemory(
+                [seed.render() for seed in seeded]
+            ),
         }
         if blueprint is not None:
             components["CharacterProfile"] = constant.Constant(
