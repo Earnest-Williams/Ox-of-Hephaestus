@@ -331,11 +331,23 @@ def execute_work(
             succeeded, reason, source, agreement = apply_social_action(
                 actor, request_id, operation, validated,
             )
+            # The operator-facing diagnostic reason is NOT the event kind.
+            # Use the immutable SQL agreement-history row associated with
+            # this exact globally unique work request, not a guessed mapping.
+            from world.models import SocialAgreementEvent
+            history = (SocialAgreementEvent.objects.get(request_id=request_id)
+                       if succeeded else None)
+            if succeeded and (history is None or agreement is None
+                              or history.agreement_id != agreement.agreement_id
+                              or not source):
+                raise RuntimeError("Social transition missing its world event history")
             outcome = {
                 "request_id": request_id, "actor_dbref": actor.dbref,
                 "operation": operation, "target": "social",
                 "status": "succeeded" if succeeded else "failed",
-                "reason": reason, "event_kind": reason if succeeded else None,
+                "reason": reason,
+                "event_kind": history.kind if history else None,
+                "history_id": history.sequence if history else None,
                 "source_event_id": source,
                 "agreement_id": agreement.agreement_id if agreement else None,
                 "revision": agreement.revision if agreement else None,
