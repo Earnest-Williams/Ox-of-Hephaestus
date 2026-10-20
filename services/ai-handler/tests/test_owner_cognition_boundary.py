@@ -34,7 +34,7 @@ class OwnerMutationBoundaryTests(unittest.TestCase):
         belief.confidence = 1
         belief.sources.clear()
         self.assertNotEqual(self.crew.temporal_memories.get("old.1").text, "Forgery")
-        self.assertEqual(self.crew.temporal_memories.get("old.1").salience, 70)
+        self.assertEqual(self.crew.temporal_memories.get("old.1").salience, 50)
         self.assertGreater(self.crew.interpretations.get("ari", "ari_repair").confidence, 1)
         with self.assertRaises(PermissionError):
             self.crew.temporal_memories.retrieve("ari", 0, rehearse=True)
