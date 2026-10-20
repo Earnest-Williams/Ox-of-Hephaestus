@@ -2,12 +2,15 @@ name: Ox P4f indexed event journal
 
 on:
   pull_request:
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+    types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - "game/**"
       - "services/ai-handler/**"
       - ".github/workflows/ox-p4f-event-journal.yml"
       - "!**/*.md"
   push:
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
     branches: [main]
     paths:
       - "game/**"
@@ -15,6 +18,7 @@ on:
       - ".github/workflows/ox-p4f-event-journal.yml"
       - "!**/*.md"
   workflow_dispatch:
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -25,6 +29,7 @@ permissions:
 
 jobs:
   journal:
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
     runs-on: ubuntu-latest
     timeout-minutes: 18
     steps:
@@ -32,6 +37,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            services/ai-handler/pyproject.toml
+            uv.lock
+            .github/ci/cache-profiles/concordia.txt
       - name: Install actual Evennia and handler
         run: |
           python -m pip install .
