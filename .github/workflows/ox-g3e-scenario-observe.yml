@@ -5,13 +5,11 @@ name: Ox G3e crew behavior scenarios
 
 on:
   pull_request:
-    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
     types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - ".github/workflows/ox-g3e-scenario-observe.yml"
       - "game/world/scenario_observer.py"
   workflow_dispatch:
-    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
 
 permissions:
   contents: read
