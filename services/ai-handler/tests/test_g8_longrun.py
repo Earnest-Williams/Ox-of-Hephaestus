@@ -35,6 +35,23 @@ class TrialWiringTests(unittest.TestCase):
         self.assertTrue(plan.actions)
 
 
+    def test_world_agreement_does_not_create_desire(self):
+        import tempfile
+        from pathlib import Path
+        mod = load_trial()
+        with tempfile.TemporaryDirectory() as directory:
+            t = mod.Trial(241, Path(directory))
+            t.bind({role: f"#{i + 1}" for i, role in enumerate(mod.ROSTER)})
+            t.turn = 80
+            t.remember_contract("mara", "lin", {
+                "request_id": "a" * 32, "source_event_id": "oxevt-v2-999"
+            }, "accepted")
+            for observer in ("mara", "lin"):
+                episode = next(x for x in t.brains[observer].temporal_memories.to_records()
+                               if x["memory_id"].startswith("g8.world."))
+                self.assertEqual(episode["interest_effect"], 0)
+                self.assertGreater(episode["trust_effect"], 0)
+
     def test_temporal_memories_change_private_appraisal(self):
         from pathlib import Path
         import tempfile

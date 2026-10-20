@@ -101,3 +101,23 @@ supplementary indexed memory for explicit GOAP access; it does **not** replace
 Concordia's native text memory or the world's authoritative ledger.
 The six-client acceptance run remains model-free and deterministic; these
 changes still need full 500-turn re-verification on the revised head.
+
+
+### Verified temporal-memory run
+
+The dedicated 500-turn real-Evennia G8 workflow for the first temporal
+implementation succeeded: [run 39471476461]
+(https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/39471476461).
+All five real equipment incidents were repaired with twelve verified
+physical work receipts. Each character finished with 323–386 private
+time-indexed records, including original conflicting backstory, witnessed
+conversations and world-backed agreements. In that run the GOAP decisions
+produced 65 disclosures, 60 confrontations, 76 questions, eight commitment
+proposals, five acceptances and three deferrals. These are test outcomes, not
+evidence of fully emergent human psychology.
+
+The subsequent policy clarification makes acceptance of a proposed
+commitment **neutral with respect to romantic desire**: a character may
+interpret accepted terms as a modest trust improvement, but consent,
+agreement or obligation does not manufacture affection. That corrected head
+also needs its own focused final acceptance result.

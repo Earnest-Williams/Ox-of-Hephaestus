@@ -391,7 +391,7 @@ class Trial:
         # Only a successful world operation + witnessed counterpart delivery
         # reaches this method. Neither agent gets to manufacture assent.
         effects = {
-            "proposed": (3, 4), "accepted": (13, 8),
+            "proposed": (3, 0), "accepted": (13, 0),
             "deferred": (-4, -3), "declined": (-13, -9),
             "withdrawn": (-18, -12),
         }
