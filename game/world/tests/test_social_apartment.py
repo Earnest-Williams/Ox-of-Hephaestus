@@ -4,6 +4,7 @@ import os
 from unittest.mock import patch
 
 from evennia.utils.test_resources import EvenniaTestCase
+from evennia.utils.create import create_object
 
 from commands.default_cmdsets import CharacterCmdSet
 from world.social_apartment import build_apartment, provision_apartment
@@ -31,7 +32,10 @@ class SocialApartmentWorldTests(EvenniaTestCase):
 
     def test_repeat_fixture_does_not_teleport_or_reset_people(self):
         scene = build_apartment()
-        other = self.room1
+        other = create_object(
+            "typeclasses.social.SocialRoom", key="Unrelated Test Room",
+            nohome=True,
+        )
         ben = scene["ben"]
         ben.move_to(other, quiet=True)
         ben.db.social_note = "private operator marker"
