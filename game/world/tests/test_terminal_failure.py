@@ -79,7 +79,10 @@ class TerminalFailureTests(EvenniaTestCase):
         )["status"], "succeeded")
         # No new message, no new firsthand inspection. Only the world clock
         # and *actually observed pressure/CO2* have changed.
-        tick_terminal()
+        # Three world ticks reduce true oxygen by 0.792 kPa, more than
+        # the sensor's +/-0.35 kPa noise can cancel between samples.
+        for _ in range(3):
+            tick_terminal()
         later = self._authored_assessment(captain,
                                           evidence_sequence=int(first["evidence_sequence"]))
         self.assertEqual(later["finding_digest"], first["finding_digest"])
