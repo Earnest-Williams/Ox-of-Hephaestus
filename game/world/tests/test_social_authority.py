@@ -73,6 +73,10 @@ class DurableSocialAuthorityTests(EvenniaTestCase):
         args = {'agreement_id': agreement, 'revision': 1, 'activity': 'hold_hands'}
         done = self.work(self.clara, 'social_perform', args, request_id=rid)
         self.assertEqual(done['status'], 'succeeded', done)
+        self.assertEqual(done['event_kind'], 'performed')
+        self.assertEqual(SocialAgreementEvent.objects.get(request_id=rid).sequence,
+                         done['history_id'])
+        self.assertEqual(done['reason'], 'world_witnessed_physical_interaction')
         self.assertTrue(agreement_summary(self.ben, agreement)['performed'])
         first_events = SocialAgreementEvent.objects.count()
         self.assertEqual(self.work(self.clara, 'social_perform', args,
@@ -117,6 +121,8 @@ class DurableSocialAuthorityTests(EvenniaTestCase):
             'text': 'The notes are in the upper cabinet.',
         })
         self.assertEqual(delivered['status'], 'succeeded', delivered)
+        self.assertEqual(delivered['event_kind'], 'consideration_delivered')
+        self.assertEqual(delivered['reason'], 'information_transmitted_not_verified_true')
         self.assertTrue(agreement_summary(self.ben, agreement)['consideration_delivered'])
         self.assertTrue(CrewEvent.objects.filter(
             recipient_dbref=self.ben.dbref, kind='social_consideration_delivered',
@@ -233,6 +239,8 @@ class DurableSocialAuthorityTests(EvenniaTestCase):
             'side': 'activity', 'work_request_id': work_id,
         })
         self.assertEqual(confirmed['status'], 'succeeded', confirmed)
+        self.assertEqual(confirmed['reason'], 'world_work_receipt_verified')
+        self.assertEqual(confirmed['event_kind'], 'performed')
         self.assertEqual(SocialEvidence.objects.count(), 1)
         self.assertTrue(agreement_summary(iona, agreement)['performed'])
         self.assertNotEqual(work_id, confirmed['request_id'])
