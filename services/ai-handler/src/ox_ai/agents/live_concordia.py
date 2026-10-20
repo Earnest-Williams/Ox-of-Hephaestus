@@ -15,6 +15,7 @@ import uuid
 from ox_ai.agents.crew import CommandOption, CrewAgent, CrewIdentity
 from ox_ai.agents.crew_blueprints import CrewBlueprint
 from ox_ai.memory.seeds import SeededMemory
+from ox_ai.memory.clock import MemoryClockBridge
 from ox_ai.ports.base import ActionOutcome, ActionRequest, WorldObservation
 
 
@@ -120,10 +121,9 @@ class LiveCrewBrain:
         game_time = float(event["game_time"])
         if not math.isfinite(game_time) or game_time < 0:
             raise ValueError("Invalid authoritative game timestamp")
-        # Late recipient-specific events can have older timestamps. Preserve
-        # each event's actual time, and remember the newest known game time.
-        self._game_time = max(self._game_time, game_time)
-        return self.agent.observe(WorldObservation(
+        # Late recipient-specific events can have older timestamps.
+        # Only newly delivered addressed observations advance the local clock.
+        accepted = self.agent.observe(WorldObservation(
             observation_id=event_id,
             character_id=self.character_id,
             game_time=game_time,
@@ -132,6 +132,28 @@ class LiveCrewBrain:
             source_event_id=event_id,
             kind=str(event.get("kind", "event")),
         ))
+        if accepted:
+            self.advance_game_time(game_time)
+        return accepted
+
+    def advance_game_time(self, game_time: float) -> bool:
+        """Use a world-authoritative timestamp; never a handler wall clock."""
+        if not isinstance(game_time, (int, float)) or isinstance(game_time, bool):
+            raise ValueError("Authoritative game time must be numeric")
+        game_time = float(game_time)
+        if not math.isfinite(game_time) or game_time < 0:
+            raise ValueError("Invalid authoritative game timestamp")
+        if self.agent.memory_clock is None:
+            # Explicit origin: the first world time the character knows maps
+            # onto its already-held memory-domain cursor. Native units are
+            # Evennia game seconds; G8's virtual-turn clock is separate.
+            self.agent.bind_memory_clock(MemoryClockBridge(
+                game_epoch_seconds=game_time,
+                memory_epoch_turn=self.agent.memory_now_turn,
+                seconds_per_turn=1.0,
+            ))
+        self._game_time = max(self._game_time, game_time)
+        return self.agent.advance_game_time(game_time)
 
     def observe_local(self, description: str, text: str) -> None:
         """Only feed readouts actually returned to this character by the game."""

@@ -68,10 +68,10 @@ class OxMemoryContext(entity_component.ContextComponent):
             return ""
 
         memories = self._owner.temporal_memories.entries()
-        # No arbitrary conversion between simulated turns and game seconds.
-        # Choose the newest *memory-domain* timestamp the actor has recorded.
+        # Prefer the owner-authorized simulation clock, not the timestamp
+        # of the last memory admitted. Preserve legacy future-seed visibility.
         now_turn = max(
-            [0] + [
+            [self._owner.memory_now_turn] + [
                 max(entry.learned_turn, entry.last_recalled_turn
                     if entry.last_recalled_turn is not None
                     else entry.learned_turn)

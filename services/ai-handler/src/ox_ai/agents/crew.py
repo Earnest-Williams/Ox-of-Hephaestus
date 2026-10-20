@@ -13,6 +13,7 @@ from copy import deepcopy
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 import json
+import math
 import os
 from pathlib import Path
 import tempfile
@@ -24,6 +25,7 @@ from ox_ai.memory.seeds import SeededMemory, validate_seed_memories
 from ox_ai.memory.temporal import TemporalMemory, TemporalMemoryBank
 from ox_ai.memory.interpretation import InterpretationBank
 from ox_ai.memory.views import InterpretationReadView, TemporalMemoryReadView
+from ox_ai.memory.clock import MemoryClockBridge
 from ox_ai.ports.base import ActionOutcome, ActionRequest, WorldObservation
 
 
@@ -108,6 +110,8 @@ class CrewAgent:
         # detached inference. The latter must not overwrite newly admitted
         # memories simply because no WorldObservation arrived.
         self._cognition_revision = 0
+        self._memory_now_turn = 0
+        self._memory_clock: MemoryClockBridge | None = None
         self._memory_query_text = ""
         self._seen_observations: set[str] = set()
         self._pending: dict[str, ActionRequest] = {}
@@ -167,6 +171,51 @@ class CrewAgent:
     def cognition_revision(self) -> int:
         """Revision for decision-relevant private cognition, not observations."""
         return self._cognition_revision
+
+    @property
+    def memory_now_turn(self) -> int:
+        """Current simulated memory time, advanced even without new episodes."""
+        return self._memory_now_turn
+
+    @property
+    def memory_clock(self) -> MemoryClockBridge | None:
+        """Optional explicit mapping of authoritative Evennia game seconds."""
+        return self._memory_clock
+
+    def bind_memory_clock(self, bridge: MemoryClockBridge) -> None:
+        """Bind one stable clock domain; never silently rebase old memories."""
+        if not isinstance(bridge, MemoryClockBridge):
+            raise TypeError("An explicit MemoryClockBridge is required")
+        if self._memory_clock is not None and bridge != self._memory_clock:
+            raise ValueError("Cannot silently replace a bound memory time frame")
+        self._memory_clock = bridge
+
+    def advance_memory_turn(self, now_turn: int) -> bool:
+        """Set the owner-authorized simulated time independently of memory arrivals.
+
+        A later time changes recall importance even when no event is admitted.
+        It therefore invalidates stale model inference via cognition_revision.
+        """
+        if type(now_turn) is not int or now_turn < 0:
+            raise ValueError("Memory time must be a nonnegative integer turn")
+        if now_turn < self._memory_now_turn:
+            raise ValueError("Simulation memory time cannot run backward")
+        if now_turn == self._memory_now_turn:
+            return False
+        self._memory_now_turn = now_turn
+        self._cognition_revision += 1
+        self._record("memory_time_advanced", now_turn=now_turn)
+        return True
+
+    def advance_game_time(self, game_time: float) -> bool:
+        """Project authenticated Evennia game time via an explicit time frame."""
+        if self._memory_clock is None:
+            raise RuntimeError("Bind the authoritative game-time frame first")
+        mapped = self._memory_clock.turn_at(game_time)
+        # Late recipient deliveries must never rewind local cognition.
+        if mapped <= self._memory_now_turn:
+            return False
+        return self.advance_memory_turn(mapped)
 
     @property
     def temporal_memories(self) -> TemporalMemoryReadView:
@@ -306,6 +355,8 @@ class CrewAgent:
             "agent_id": self.identity.agent_id,
             "character_id": self.identity.character_id,
             "agent_revision": self._revision,
+            "cognition_revision": self._cognition_revision,
+            "memory_now_turn": self._memory_now_turn,
             "game_time": self._last_game_time,
             "wall_time_utc": datetime.now(timezone.utc).isoformat(),
             **details,
@@ -332,9 +383,16 @@ class CrewAgent:
             f"Game time {observation.game_time}; "
             f"observation {observation.observation_id}: {observation.text}"
         )
+        game_time = float(observation.game_time)
+        if not math.isfinite(game_time) or game_time < 0:
+            raise ValueError("Invalid authoritative world observation time")
+        if self._memory_clock is not None:
+            self._memory_clock.turn_at(game_time)  # validate before native state mutation
         self._entity.observe(annotated)
         self._seen_observations.add(observation.observation_id)
-        self._last_game_time = observation.game_time
+        self._last_game_time = max(self._last_game_time or 0.0, game_time)
+        if self._memory_clock is not None:
+            self.advance_game_time(game_time)
         self._revision += 1
         self._record(
             "observation",
@@ -358,6 +416,8 @@ class CrewAgent:
             self._interpretations.to_records())
         fork._revision = self._revision
         fork._cognition_revision = self._cognition_revision
+        fork._memory_now_turn = self._memory_now_turn
+        fork._memory_clock = self._memory_clock
         fork._seen_observations = set(self._seen_observations)
         fork._last_game_time = self._last_game_time
         return fork
@@ -531,6 +591,11 @@ class CrewAgent:
             # Optional checkpoint addition; existing checkpoint_version=1
             # files remain restorable with the default below.
             "cognition_revision": self._cognition_revision,
+            "memory_now_turn": self._memory_now_turn,
+            "memory_clock": (
+                self._memory_clock.to_record() if self._memory_clock is not None
+                else None
+            ),
             "seen_observations": sorted(self._seen_observations),
             "last_game_time": self._last_game_time,
             "pending_requests": [asdict(item) for item in self.pending_requests],
@@ -603,6 +668,23 @@ class CrewAgent:
         if (type(saved_cognition) is not int or saved_cognition < 0):
             raise ValueError("Invalid persisted private cognition revision")
         crew._cognition_revision = saved_cognition
+        # Existing G8/G9 version-one checkpoints have no explicit time frame.
+        # Their latest observed memory-domain date preserves existing ranking.
+        fallback_turn = max((0,) + tuple(
+            max(entry.learned_turn,
+                entry.last_recalled_turn
+                if entry.last_recalled_turn is not None else entry.learned_turn)
+            for entry in crew._temporal_memories.entries()
+        ))
+        now_turn = checkpoint.get("memory_now_turn", fallback_turn)
+        if type(now_turn) is not int or now_turn < 0:
+            raise ValueError("Invalid persisted private memory clock cursor")
+        crew._memory_now_turn = now_turn
+        saved_frame = checkpoint.get("memory_clock")
+        crew._memory_clock = (
+            MemoryClockBridge.from_record(saved_frame)
+            if saved_frame is not None else None
+        )
         crew._seen_observations = set(checkpoint["seen_observations"])
         crew._last_game_time = checkpoint["last_game_time"]
         crew._pending = {
