@@ -716,11 +716,23 @@ class ApartmentExpanded:
             # counteroffer from these public terms, not the other mind's score.
             pass
 
-    def step(self, index: int) -> bool:
+    def step(self, index: int, *, confirmed_choice: SocialChoice | None = None) -> bool:
+        """Commit ONE attempt after the outer world reports its command occurred.
+
+        Offline probes use the fake world directly. An authenticated live
+        adapter must supply a previously proposed choice *only after*
+        confirming the ordinary game client's actual speaker/listener output.
+        Neither planned speech nor an unsent gesture receives an effect.
+        """
         if not 0 <= index < 2:
             raise IndexError(index)
         mind = self.people[index]
-        choice = mind.propose()
+        if confirmed_choice is None:
+            choice = mind.propose()
+        else:
+            if mind.pending != confirmed_choice:
+                raise PermissionError("Unmatched or stale externally confirmed choice")
+            choice = confirmed_choice
         self.board.turn += 1
         if choice is None:
             return False
