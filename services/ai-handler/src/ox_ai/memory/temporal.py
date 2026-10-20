@@ -202,6 +202,10 @@ class TemporalMemoryBank:
                 max(-40, min(40, interest)),
                 tuple(x.memory_id for x in items))
 
+    def get(self, memory_id: str) -> TemporalMemory | None:
+        """Return a character-local record by exact immutable event identity."""
+        return self._entries.get(memory_id)
+
     def to_records(self) -> list[dict]:
         return [asdict(x) for x in self._entries.values()]
 

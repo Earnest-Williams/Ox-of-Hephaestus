@@ -22,6 +22,7 @@ import uuid
 from ox_ai.inference.usage import MeteredModel
 from ox_ai.memory.seeds import SeededMemory, validate_seed_memories
 from ox_ai.memory.temporal import TemporalMemory, TemporalMemoryBank
+from ox_ai.memory.interpretation import InterpretationBank
 from ox_ai.ports.base import ActionOutcome, ActionRequest, WorldObservation
 
 
@@ -96,6 +97,8 @@ class CrewAgent:
         # Restored agents supply none here: native memory is restored verbatim.
         seeded = validate_seed_memories(initial_memories)
         self.temporal_memories = TemporalMemoryBank.from_seeds(seeded)
+        # A person's interpretation is distinct from the event recollection.
+        self.interpretations = InterpretationBank.rebuild(self.temporal_memories)
         self.usage = MeteredModel(model)
         self._journal_path = Path(journal_path) if journal_path else None
         self._revision = 0
@@ -172,11 +175,36 @@ class CrewAgent:
             raise ValueError("Only observed new events may enter this route")
         if not entry.source_event_id:
             raise ValueError("New episode needs its source identity")
+        # Preserve exact idempotent delivery even if it is retried much later.
+        prior = self.temporal_memories.get(entry.memory_id)
+        if prior is not None:
+            return self.temporal_memories.add(entry)
+        revision = None
+        revised = None
+        if entry.claim_key is not None:
+            # Validate interpretation capacity/chronology before mutating
+            # the event bank, so a rejected assessment cannot orphan an entry.
+            revised = InterpretationBank.from_records(
+                self.interpretations.to_records())
+            revision = revised.admit(entry, at_turn=entry.learned_turn)
         accepted = self.temporal_memories.add(entry)
         if accepted:
+            if revised is not None:
+                self.interpretations = revised
             self._record("subjective_episode", memory_id=entry.memory_id,
                          source_event_id=entry.source_event_id,
                          occurred_turn=entry.occurred_turn)
+            if revision is not None:
+                self._record(
+                    "reinterpreted", claim_key=entry.claim_key,
+                    claim_subject=entry.claim_subject or entry.subject,
+                    evidence_id=entry.memory_id,
+                    previous_view=revision.previous_view,
+                    new_view=revision.new_view,
+                    previous_confidence=revision.previous_confidence,
+                    new_confidence=revision.new_confidence,
+                    reason=revision.reason,
+                )
         return accepted
 
     def _record(self, kind: str, **details: Any) -> None:
@@ -236,6 +264,8 @@ class CrewAgent:
         fork._entity.set_state(deepcopy(self._entity.get_state()))
         fork.temporal_memories = TemporalMemoryBank.from_records(
             self.temporal_memories.to_records())
+        fork.interpretations = InterpretationBank.from_records(
+            self.interpretations.to_records())
         fork._revision = self._revision
         fork._seen_observations = set(self._seen_observations)
         fork._last_game_time = self._last_game_time
@@ -275,6 +305,8 @@ class CrewAgent:
         self._entity.set_state(fork._entity.get_state())
         self.temporal_memories = TemporalMemoryBank.from_records(
             fork.temporal_memories.to_records())
+        self.interpretations = InterpretationBank.from_records(
+            fork.interpretations.to_records())
         self.usage.choice_calls += fork.usage.choice_calls
         self.usage.text_calls += fork.usage.text_calls
         self._pending[draft.request_id] = draft
@@ -381,6 +413,7 @@ class CrewAgent:
             "pending_requests": [asdict(item) for item in self.pending_requests],
             "concordia_state": self._entity.get_state(),
             "temporal_memories": self.temporal_memories.to_records(),
+            "interpretations": self.interpretations.to_records(),
         }
 
     def save_checkpoint(self, path: Path) -> None:
@@ -433,6 +466,15 @@ class CrewAgent:
         # Existing pre-G8 checkpoints contain only native Concordia memory.
         crew.temporal_memories = TemporalMemoryBank.from_records(
             checkpoint.get("temporal_memories", []))
+        # Legacy checkpoints predate this optional private interpretation
+        # snapshot. Rebuild only their first-generation hypothesis index;
+        # never duplicate or silently rewrite an existing revision history.
+        if "interpretations" in checkpoint:
+            crew.interpretations = InterpretationBank.from_records(
+                checkpoint["interpretations"])
+        else:
+            crew.interpretations = InterpretationBank.rebuild(
+                crew.temporal_memories)
         crew._revision = checkpoint["revision"]
         crew._seen_observations = set(checkpoint["seen_observations"])
         crew._last_game_time = checkpoint["last_game_time"]
