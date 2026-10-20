@@ -8,7 +8,10 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 import math
+import re
 from typing import Mapping, Sequence
+
+_CLAIM_KEY = re.compile(r"^[a-z0-9][a-z0-9_.:-]{0,95}$")
 
 KINDS = frozenset((
     "recollection", "testimony", "interpretation", "witnessed_speech",
@@ -49,6 +52,11 @@ class TemporalMemory:
     last_recalled_turn: int | None = None
     recall_count: int = 0
     source_event_id: str | None = None
+    claim_key: str | None = None
+    claim_subject: str | None = None
+    claim_stance: int = 0
+    source_group: str | None = None
+    claim_credibility: int = 70
 
     def __post_init__(self):
         if (not isinstance(self.memory_id, str) or not self.memory_id
@@ -76,6 +84,25 @@ class TemporalMemory:
             or not 1 <= len(self.source_event_id) <= 128
         ):
             raise ValueError("Invalid source event identifier")
+        if self.claim_key is None:
+            if self.claim_subject is not None or self.source_group is not None or self.claim_stance != 0:
+                raise ValueError("Unlabelled memory cannot contain claim metadata")
+        else:
+            if not isinstance(self.claim_key, str) or not _CLAIM_KEY.fullmatch(self.claim_key):
+                raise ValueError("Invalid interpretable proposition")
+            if type(self.claim_stance) is not int or self.claim_stance not in (-1, 1):
+                raise ValueError("Claim must be support or opposition, not a truth value")
+            if self.claim_subject is not None and (
+                not isinstance(self.claim_subject, str) or not self.claim_subject.strip()
+                or len(self.claim_subject) > 120
+            ):
+                raise ValueError("Claim subject is invalid")
+            if self.source_group is not None and (
+                not isinstance(self.source_group, str) or not self.source_group.strip()
+                or len(self.source_group) > 128
+            ):
+                raise ValueError("Correlated evidence group is invalid")
+        _integer(self.claim_credibility, "source credibility", minimum=0, maximum=100)
 
     def importance(self, now_turn: int) -> float:
         """Independent event-age and rehearsal-age components, no future leakage."""
@@ -112,6 +139,9 @@ class TemporalMemoryBank:
                 learned_turn=s.learned_turn,
                 confidence=s.confidence, salience=s.salience,
                 trust_effect=s.trust_effect, interest_effect=s.interest_effect,
+                claim_key=s.claim_key, claim_subject=s.claim_subject,
+                claim_stance=s.claim_stance, source_group=s.source_group,
+                claim_credibility=s.claim_credibility,
             ) for s in seeds
         ))
 

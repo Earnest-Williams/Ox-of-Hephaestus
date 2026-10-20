@@ -26,6 +26,12 @@ class SeededMemory:
     learned_turn: int = 0
     trust_effect: int = 0
     interest_effect: int = 0
+    # Optional assertion about a proposition. These are not world truths.
+    claim_key: str | None = None
+    claim_subject: str | None = None
+    claim_stance: int = 0
+    source_group: str | None = None
+    claim_credibility: int = 70
 
     def __post_init__(self) -> None:
         if not isinstance(self.memory_id, str) or not _SEED_ID.fullmatch(self.memory_id):
@@ -48,13 +54,34 @@ class SeededMemory:
         for label, effect in (("trust", self.trust_effect), ("interest", self.interest_effect)):
             if type(effect) is not int or not -40 <= effect <= 40:
                 raise ValueError(f"Subjective {label} effect must be an integer -40..40")
+        if self.claim_key is None:
+            if self.claim_subject is not None or self.source_group is not None or self.claim_stance != 0:
+                raise ValueError("An unlabelled memory cannot assert a hypothesis")
+        else:
+            if not isinstance(self.claim_key, str) or not _SEED_ID.fullmatch(self.claim_key):
+                raise ValueError("Invalid claim key")
+            if type(self.claim_stance) is not int or self.claim_stance not in (-1, 1):
+                raise ValueError("Claim must support or dispute a hypothesis")
+            if self.claim_subject is not None and (
+                not isinstance(self.claim_subject, str) or not self.claim_subject.strip()
+                or len(self.claim_subject) > 120
+            ):
+                raise ValueError("Invalid claim subject")
+            if self.source_group is not None and (
+                not isinstance(self.source_group, str) or not self.source_group.strip()
+                or len(self.source_group) > 128
+            ):
+                raise ValueError("Invalid claim source group")
+        if type(self.claim_credibility) is not int or not 0 <= self.claim_credibility <= 100:
+            raise ValueError("Claim credibility must be an integer 0-100")
 
     def render(self) -> str:
         """Mark authored information as uncertain recollection, not observation."""
         return (f"[authored-memory id={self.memory_id}; kind={self.kind}; "
                 f"about={self.about}; confidence={self.confidence}; "
                 f"salience={self.salience}; occurred_turn={self.occurred_turn}; "
-                f"learned_turn={self.learned_turn}; NOT world-verified] {self.text}")
+                f"learned_turn={self.learned_turn}; claim={self.claim_key or 'none'}; "
+                f"NOT world-verified] {self.text}")
 
 
 def validate_seed_memories(memories: Sequence[SeededMemory]) -> tuple[SeededMemory, ...]:
