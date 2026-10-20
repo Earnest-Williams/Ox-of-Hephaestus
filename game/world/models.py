@@ -530,6 +530,8 @@ class SocialAgreementEvent(models.Model):
 class SocialEvidence(models.Model):
     """A successful existing world receipt consumed at most once, for one side."""
 
+    # Match the explicit BigAutoField already created by migration 0013.
+    id = models.BigAutoField(primary_key=True)
     agreement = models.ForeignKey(
         SocialAgreement, on_delete=models.PROTECT, related_name='evidence',
     )
