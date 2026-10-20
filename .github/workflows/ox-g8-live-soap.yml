@@ -3,7 +3,7 @@ on:
   push:
     branches: [experiment/g8-authored-memories]
     paths:
-      - "scenarios/g8_soap_opera/**"
+      - "scenarios/g8_soap_opera/live_trial.py"
       - "services/ai-handler/src/ox_ai/memory/seeds.py"
       - "services/ai-handler/src/ox_ai/memory/temporal.py"
       - "services/ai-handler/src/ox_ai/memory/interpretation.py"
