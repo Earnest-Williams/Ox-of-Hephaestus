@@ -4,7 +4,11 @@ on:
     branches: [experiment/g8-authored-memories]
     paths:
       - "scenarios/g8_soap_opera/**"
-      - "services/ai-handler/src/ox_ai/memory/**"
+      - "services/ai-handler/src/ox_ai/memory/seeds.py"
+      - "services/ai-handler/src/ox_ai/memory/temporal.py"
+      - "services/ai-handler/src/ox_ai/memory/interpretation.py"
+      - "services/ai-handler/src/ox_ai/agents/crew.py"
+      - "services/ai-handler/tests/test_memory_seeding.py"
       - "services/ai-handler/tests/test_g8_longrun.py"
       - "services/ai-handler/tests/test_memory_interpretation.py"
       - ".github/workflows/ox-g8-live-soap.yml"
@@ -14,7 +18,7 @@ permissions:
   contents: read
 concurrency:
   group: g8-experiment
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 jobs:
   g8-six-real-clients:
     runs-on: ubuntu-latest
