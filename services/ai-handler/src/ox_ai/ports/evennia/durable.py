@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import json
 import re
 
 from ox_ai.ports.base import ActionOutcome, ActionRequest
@@ -194,6 +196,23 @@ class DurableEvenniaPort:
                     ):
                         raise ValueError("Invalid provisional hypothesis")
                     suffix = " " + case_id + " " + args["hypothesis"]
+            elif operation == "terminal_assess":
+                # One opaque command argument, validated again by the world.
+                # Plain-text claims may contain whitespace and are never
+                # interpolated directly into the Evennia command parser.
+                arguments = dict(request.arguments)
+                if not arguments or not all(
+                    isinstance(k, str) and isinstance(v, str)
+                    for k, v in arguments.items()
+                ):
+                    raise ValueError("An actor-authored typed assessment is required")
+                encoded = base64.urlsafe_b64encode(
+                    json.dumps(arguments, sort_keys=True, separators=(",", ":"))
+                    .encode("utf-8")
+                ).decode("ascii").rstrip("=")
+                if len(encoded) > 4096:
+                    raise ValueError("Assessment exceeds authenticated work command budget")
+                suffix = " " + encoded
             elif operation == "round_report":
                 arguments = dict(request.arguments)
                 station = arguments.get("station")

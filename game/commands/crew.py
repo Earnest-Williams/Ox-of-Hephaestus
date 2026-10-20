@@ -139,6 +139,7 @@ class CmdOxWork(Command):
         oxwork <32-hex-id> inquiry_predict learning <case-id> <supports|does_not_support>
         oxwork <32-hex-id> inquiry_review learning <case-id>
         oxwork <32-hex-id> inquiry_reflect learning <case-id> <interpretation> <independent-sources>
+        oxwork <32-hex-id> terminal_assess ship <base64url-json-assessment>
 
     Every command is checked again by the world. No client may grant its
     own work permission by offering a model-generated command.
@@ -207,7 +208,30 @@ class CmdOxWork(Command):
             else:
                 arguments = {"hail_id": parts[3], "mode": parts[4]}
         elif len(parts) == 4:
-            if target == "ship" and operation in (
+            if target == "ship" and operation == "terminal_assess":
+                import base64
+                import binascii
+                import json
+
+                token = parts[3]
+                if len(token) > 4096 or not re.fullmatch(r"[A-Za-z0-9_-]+", token):
+                    self.caller.msg(ox_receipt=([{
+                        "request_id": request_id, "actor_dbref": self.caller.dbref,
+                        "status": "failed", "reason": "invalid_or_colliding_request",
+                        "source_event_id": None,
+                    }], {}))
+                    return
+                try:
+                    decoded = base64.urlsafe_b64decode(token + "=" * (-len(token) % 4))
+                    arguments = json.loads(decoded.decode("utf-8"))
+                except (ValueError, UnicodeError, binascii.Error):
+                    self.caller.msg(ox_receipt=([{
+                        "request_id": request_id, "actor_dbref": self.caller.dbref,
+                        "status": "failed", "reason": "invalid_or_colliding_request",
+                        "source_event_id": None,
+                    }], {}))
+                    return
+            elif target == "ship" and operation in (
                 "captain_claim",
                 "captain_inspect",
                 "captain_review",

@@ -19,6 +19,10 @@ from evennia.objects.models import ObjectDB
 from world.bootstrap import build_ship, find_fixture
 from world.event_journal import emit
 from world.models import CrewEvent, WorkReceipt
+from world.terminal_assessments import (
+    DUPLICATE_REASON, finding_digest, genuinely_identical,
+    reading_proof, verify_actor_evidence,
+)
 from world.supply import total_local_spares
 
 ROLES = {
@@ -227,12 +231,19 @@ def observe_terminal(actor) -> dict:
     case = _state(pump)
     if case is None:
         raise RuntimeError("There is no terminal incident")
-    # Local sensor readings are evidence, not knowledge of the hidden cause.
+    # Sensor readings are actor-addressed data, not operator-world truth.
+    # Sign the observed sample so later belief revisions can cite it
+    # without pretending the world's *current* readings are unchanged.
     oxygen = _measured_oxygen(case, role)
+    co2 = round(_co2(case), 2)
+    proof = reading_proof(
+        case["id"], actor.dbref, case["minute"], f"{oxygen:.2f}", f"{co2:.2f}",
+    )
     return {
         "case_id": case["id"], "character_dbref": actor.dbref, "role": role,
         "location": actor.location.key, "minute": case["minute"],
-        "oxygen_kpa": oxygen, "co2_percent": round(_co2(case), 2),
+        "oxygen_kpa": oxygen, "co2_percent": co2,
+        "reading_proof": proof,
         "status": "dead" if actor.db.ox_terminal_dead else "alive",
         "own_finding": case["findings"].get(actor.dbref, ""),
         "nearby_living": [
@@ -283,7 +294,7 @@ def _seen_work(case, actor, verb, succeeded, message):
 
 
 @transaction.atomic
-def terminal_work(actor, verb: str) -> tuple[bool, str]:
+def terminal_work(actor, verb: str, *, arguments: dict | None = None) -> tuple[bool, str]:
     """Invoked ONLY by existing receipt-backed authenticated oxwork route."""
     if verb not in ACTIONS:
         raise ValueError("Not a terminal operation")
@@ -409,15 +420,23 @@ def terminal_work(actor, verb: str) -> tuple[bool, str]:
         else:
             message = "No living colleague was physically present here"
     elif verb == "terminal_assess":
-        basis = [str(case["findings"].get(actor.dbref, "")),
-                 _newest_addressed_evidence(actor)]
-        previous = dict(case.get("last_assessment_basis", {}))
-        if previous.get(actor.dbref) == basis:
-            status, message = False, "No new evidence supports revising this assessment."
+        # The assessment is the actor's conclusion, not a world verdict.
+        # Validate only identity/evidence provenance; comparing a *different*
+        # local oxygen reading, confidence or interpretation is legitimate.
+        submission = verify_actor_evidence(actor, case, arguments or {})
+        previously_filed = dict(case.get("last_assessment_submission", {}))
+        if genuinely_identical(previously_filed.get(actor.dbref), submission):
+            status, message = False, DUPLICATE_REASON
         else:
-            case["last_assessment_basis"] = {**previous, actor.dbref: basis}
-            case["assessments"].append({"actor": actor.dbref, "minute": case["minute"]})
-            message = "Provisional no-recovery assessment filed; still unverified"
+            case["last_assessment_submission"] = {
+                **previously_filed, actor.dbref: submission,
+            }
+            case["assessments"].append({
+                "actor": actor.dbref,
+                "minute": case["minute"],
+                "submission": submission,
+            })
+            message = "Character's provisional assessment recorded as a belief; not a verified world diagnosis."
     else:
         raise AssertionError("Unsupported world operation")
     _seen_work(case, actor, verb, status, message)
@@ -464,6 +483,13 @@ def audit_terminal(path: str) -> dict:
         "all_six_dead": all(ship[key].db.ox_terminal_dead for key, _, _ in ROLES.values()),
         "reserve_left": case["reserve_left"],
         "cartridges_at_a01": total_local_spares(ship["scrubber"]),
+        "actor_assessments": [
+            {"actor": roles.get(item["actor"], "unknown"),
+             "minute": item["minute"],
+             "submission": dict(item["submission"])}
+            for item in case["assessments"]
+            if "submission" in item
+        ],
         # Evennia wraps persisted lists and their entries in SaverList and
         # SaverDict; convert after the server stops before JSON serialization.
         "actual_physical_work": [dict(work) for work in case["work"]],
