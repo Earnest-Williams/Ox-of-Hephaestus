@@ -154,7 +154,7 @@ class TemporalMemoryTests(unittest.TestCase):
                         MockModel())
         self.assertEqual(len(ari.temporal_memories), 0)
         original = lin.temporal_memories.appraisal("mara", 40)
-        lin.temporal_memories.retrieve("mara", 40, rehearse=True)
+        lin.rehearse_memories("mara", 40)
         episode = TemporalMemory(
             "world-r1", "mara", "Mara declined my proposal.", "world_receipt",
             42, 42, 100, 95, trust_effect=-28, interest_effect=-12,
@@ -172,7 +172,7 @@ class TemporalMemoryTests(unittest.TestCase):
             self.assertEqual(len(restored.temporal_memories), 2)
             self.assertEqual(len(ari.temporal_memories), 0)
             fork = restored.fork_for_inference()
-            fork.temporal_memories.retrieve("mara", 55, rehearse=True)
+            fork.rehearse_memories("mara", 55)
             self.assertNotEqual(fork.temporal_memories.to_records(),
                                 restored.temporal_memories.to_records())
 
