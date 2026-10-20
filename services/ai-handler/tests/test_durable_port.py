@@ -12,15 +12,19 @@ class FakeClient:
     character_dbref = "#42"
 
     def __init__(self):
-        self.lines, self.packets = [], []
+        self.lines, self.packets, self.unmatched = [], [], []
 
     async def send_line(self, line):
         self.lines.append(line)
 
-    async def receive(self):
-        if self.packets:
-            return self.packets.pop(0)
+    async def receive_matching(self, predicate, *, frame_budget=256):
+        while self.packets:
+            packet = self.packets.pop(0)
+            if predicate(packet):
+                return packet
+            self.unmatched.append(packet)
         await asyncio.sleep(0.1)
+        raise RuntimeError("No fake receipt")
 
 
 class DurablePortTests(unittest.IsolatedAsyncioTestCase):
@@ -41,6 +45,7 @@ class DurablePortTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.status, "succeeded")
         self.assertEqual(result.source_event_id, "p01-0002")
         self.assertEqual(c.lines, ["oxaction " + request_id + " isolate"])
+        self.assertEqual([p.kind for p in c.unmatched], ["text"])
 
     async def test_evennia_legacy_keyword_form_is_world_receipt(self):
         c = FakeClient()

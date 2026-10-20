@@ -71,21 +71,32 @@ class InventoryPort:
             raise PermissionError("Physical inventory requires authenticated character")
         nonce = secrets.token_hex(16)
         await self.client.send_line("oxinventory " + nonce)
+        def response_for_challenge(packet):
+            if packet.kind != "ox_inventory":
+                return False
+            if len(packet.args) != 1 or not isinstance(packet.args[0], str):
+                return True  # Reject malformed response below.
+            raw = packet.args[0]
+            if len(raw) > 16384:
+                return True
+            payload = json.loads(raw)
+            return not (isinstance(payload, dict)
+                        and isinstance(payload.get("nonce"), str)
+                        and payload["nonce"] != nonce)
+
         try:
             async with asyncio.timeout(self.timeout):
-                for _ in range(256):
-                    packet = await self.client.receive()
-                    if packet.kind != "ox_inventory":
-                        continue
-                    if len(packet.args) != 1 or not isinstance(packet.args[0], str):
-                        raise ValueError("Malformed inventory OOB")
-                    raw = packet.args[0]
-                    if len(raw) > 16384:
-                        raise ValueError("Oversized inventory OOB")
-                    return InventoryObservation.parse(
-                        json.loads(raw),
-                        actor_dbref=self.client.character_dbref, nonce=nonce,
-                    )
+                packet = await self.client.receive_matching(
+                    response_for_challenge, frame_budget=256,
+                )
+                if len(packet.args) != 1 or not isinstance(packet.args[0], str):
+                    raise ValueError("Malformed inventory OOB")
+                raw = packet.args[0]
+                if len(raw) > 16384:
+                    raise ValueError("Oversized inventory OOB")
+                return InventoryObservation.parse(
+                    json.loads(raw),
+                    actor_dbref=self.client.character_dbref, nonce=nonce,
+                )
         except TimeoutError:
             raise TimeoutError("No authenticated inventory response") from None
-        raise RuntimeError("Inventory world response budget exhausted")

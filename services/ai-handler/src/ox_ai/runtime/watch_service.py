@@ -140,7 +140,13 @@ async def replay_inbox_pages(
         received = 0
         async with asyncio.timeout(20):
             for _frame_number in range(512):
-                packet = await client.receive()
+                packet = await client.receive_matching(
+                    lambda p: p.kind == "ox_inbox_done" or (
+                        p.kind == "ox_event"
+                        and p.options.get("ox_inbox_page") is True
+                    ),
+                    frame_budget=512,
+                )
                 if packet.kind == "ox_inbox_done":
                     if len(packet.args) != 1 or not isinstance(packet.args[0], dict):
                         raise ValueError("Invalid world inbox completion frame")
@@ -937,19 +943,24 @@ class CrewWatchSupervisor:
                 for role, client in self.clients.items()
             }
             try:
-                done, _ = await asyncio.wait(
+                await asyncio.wait(
                     pending, return_when=asyncio.FIRST_COMPLETED
                 )
-                for task in done:
-                    packet = task.result()
-                    event = decode_event(packet, self.ids[pending[task]])
-                    if event is not None:
-                        self.memories[pending[task]].append(event)
             finally:
                 for task in pending:
                     if not task.done():
                         task.cancel()
                 await asyncio.gather(*pending, return_exceptions=True)
+            # A second role can complete while the first completion is being
+            # handled. Process every completed receive, not only the initial
+            # FIRST_COMPLETED snapshot; canceled reads have no packet.
+            for task, role in pending.items():
+                if task.cancelled():
+                    continue
+                packet = task.result()
+                event = decode_event(packet, self.ids[role])
+                if event is not None:
+                    self.memories[role].append(event)
 
 
 async def main_async(mode: str) -> None:

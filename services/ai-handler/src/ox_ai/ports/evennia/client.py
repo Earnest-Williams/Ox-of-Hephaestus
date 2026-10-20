@@ -9,6 +9,7 @@ This layer does NOT pretend arbitrary command output is an action receipt.
 from __future__ import annotations
 
 import asyncio
+from collections import deque
 from dataclasses import dataclass
 import json
 import re
@@ -27,6 +28,13 @@ class WebPacket:
         if self.kind not in {"text", "prompt"}:
             return ""
         return str(self.args[0]) if self.args else ""
+
+
+# Ox inherits Evennia's MAX_CHAR_LIMIT=6000 (settings_default.py).
+# The transport's former 1024-character guard rejected world-valid 4096-token
+# terminal assessments before Evennia could receive them.
+MAX_COMMAND_CHARS = 6000
+MAX_BUFFERED_PACKETS = 512
 
 
 class IdentityMismatch(PermissionError):
@@ -67,6 +75,10 @@ class EvenniaWebSocketClient:
         self._connector = connector
         self._socket = None
         self._verified = False
+        # All reads on this character's socket are serialized. A response
+        # waiter preserves unrelated world observations for the next reader.
+        self._read_lock = asyncio.Lock()
+        self._pending: deque[WebPacket] = deque()
 
     @property
     def authenticated(self) -> bool:
@@ -175,11 +187,11 @@ class EvenniaWebSocketClient:
     async def send_line(self, line: str) -> None:
         if self._socket is None:
             raise ConnectionError("Client is disconnected")
-        if not line or len(line) > 1024 or any(ch in line for ch in "\r\n\x00"):
+        if not line or len(line) > MAX_COMMAND_CHARS or any(ch in line for ch in "\r\n\x00"):
             raise ValueError("Exactly one bounded MUD command is required")
         await self._socket.send(json.dumps(["text", [line], {}]))
 
-    async def receive(self) -> WebPacket:
+    async def _read_wire(self) -> WebPacket:
         if self._socket is None:
             raise ConnectionError("Client is disconnected")
         raw = await self._socket.recv()
@@ -191,29 +203,71 @@ class EvenniaWebSocketClient:
             raise ValueError("Unexpected Evennia WebSocket frame")
         return WebPacket(data[0], tuple(data[1]), data[2])
 
+    async def receive(self) -> WebPacket:
+        """Take the oldest unclaimed packet, never reading this socket in parallel."""
+        async with self._read_lock:
+            if self._pending:
+                return self._pending.popleft()
+            return await self._read_wire()
+
+    async def receive_matching(
+        self, predicate: Callable[[WebPacket], bool], *, frame_budget: int = 256,
+        include_buffered: bool = True,
+    ) -> WebPacket:
+        """Await one typed response without consuming unrelated observations.
+
+        A single socket has no independent response channels. Keep unmatched
+        packets in wire order for receive() or another typed waiter; never
+        accept one work receipt as proof of a different request. Limits are
+        explicit and fail closed rather than silently dropping messages.
+        Callers must still serialize independent commands on one character.
+        """
+        if not callable(predicate) or not 1 <= frame_budget <= 1024:
+            raise ValueError("A bounded packet matcher is required")
+        async with self._read_lock:
+            if include_buffered:
+                for index, packet in enumerate(self._pending):
+                    if predicate(packet):
+                        del self._pending[index]
+                        return packet
+            for _ in range(frame_budget):
+                packet = await self._read_wire()
+                if predicate(packet):
+                    return packet
+                if len(self._pending) >= MAX_BUFFERED_PACKETS:
+                    raise RuntimeError("Unmatched character packets exceeded bounded buffer")
+                self._pending.append(packet)
+        raise RuntimeError("World response frame budget exhausted")
+
     async def expect_text(self, expected: str, *, timeout: float | None = None) -> str:
         if not expected:
             raise ValueError("Expected marker must not be empty")
-        # Preserve the total deadline over an arbitrary number of frames.
         samples = []
+
+        def matching(packet: WebPacket) -> bool:
+            if expected in packet.text:
+                return True
+            if packet.text and len(samples) < 3:
+                from html import unescape
+                safe = re.sub(r"<[^>]*>", "", unescape(packet.text))
+                samples.append(re.sub(
+                    r"\s+", " ", safe.replace(self._password, "[REDACTED]")
+                )[:180])
+            return False
+
         try:
             async with asyncio.timeout(timeout if timeout is not None else self.timeout):
-                for _ in range(256):
-                    packet = await self.receive()
-                    if expected in packet.text:
-                        return packet.text
-                    if packet.text and len(samples) < 3:
-                        from html import unescape
-                        safe = re.sub(r"<[^>]*>", "", unescape(packet.text))
-                        samples.append(re.sub(r"\s+", " ", safe.replace(self._password, "[REDACTED]"))[:180])
+                return (await self.receive_matching(
+                    matching, frame_budget=256, include_buffered=False,
+                )).text
         except TimeoutError as exc:
             raise TimeoutError("Expected game observation missing: " + repr(samples)) from exc
-        raise RuntimeError("Expected character output not observed")
 
     async def close(self) -> None:
         socket = self._socket
         self._socket = None
         self._verified = False
+        self._pending.clear()
         if socket is not None:
             await socket.close()
 

@@ -39,7 +39,7 @@ class MockInboxClient:
         page = accessible[:128]
         cursor = page[-1]["sequence"] if page else after
         for e in page:
-            self.pending.append(WebPacket("ox_event", (e,), {}))
+            self.pending.append(WebPacket("ox_event", (e,), {"ox_inbox_page": True}))
         self.pending.append(WebPacket("ox_inbox_done", ({
             "version": 2, "count": len(page), "next_cursor": cursor,
             "has_more": len(accessible) > 128,
@@ -47,6 +47,13 @@ class MockInboxClient:
 
     async def receive(self):
         return self.pending.popleft()
+
+    async def receive_matching(self, predicate, *, frame_budget=256):
+        for _ in range(frame_budget):
+            packet = self.pending.popleft()
+            if predicate(packet):
+                return packet
+        raise RuntimeError("No matching replay packet")
 
 
 class Brain:
@@ -127,7 +134,7 @@ class InboxReplayTests(unittest.IsolatedAsyncioTestCase):
         class Leaking(MockInboxClient):
             async def send_line(self, command):
                 self.pending.append(WebPacket(
-                    "ox_event", (event(1, "#99"),), {},
+                    "ox_event", (event(1, "#99"),), {"ox_inbox_page": True},
                 ))
         with self.assertRaises(PermissionError):
             await replay_inbox_pages(Leaking("#10", []))

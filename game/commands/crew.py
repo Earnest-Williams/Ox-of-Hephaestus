@@ -37,8 +37,11 @@ class CmdOxInbox(Command):
             return
         page = inbox_page(self.caller, after=since)
         for message in page["events"]:
-            self.caller.msg(ox_event=([wire_event(message)], {}))
-        # Flat fields are mandatory for Evennia's v1 websocket protocol.
+            # Mark replay page members without changing the established
+            # ox_event shape. Live notifications remain unmarked, so an
+            # interleaved live event cannot masquerade as a page member.
+            self.caller.msg(ox_event=([wire_event(message)], {"ox_inbox_page": True}))
+        # Keep the page-completion protocol and actor-scoped cursor unchanged.
         self.caller.msg(
             ox_inbox_done=(
                 [
