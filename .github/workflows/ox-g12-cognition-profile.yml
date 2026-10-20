@@ -1,0 +1,45 @@
+# Targeted non-hosted scale profiler. No G8, world simulation, or paid API.
+name: Ox G12 native Concordia scale profile
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches: [main]
+    paths:
+      - "scenarios/profiling/concordia_scale.py"
+      - ".github/workflows/ox-g12-cognition-profile.yml"
+      - "!**/*.md"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: g12-native-profile-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  profile-native:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            services/ai-handler/pyproject.toml
+            uv.lock
+            .github/ci/cache-profiles/concordia.txt
+      - name: Install real Concordia native components
+        run: python -m pip install -e './services/ai-handler[concordia]'
+      - name: Profile all three populations
+        run: |
+          python scenarios/profiling/concordia_scale.py --rounds 2 \
+            --output .ox-state/g12/native-scale.json
+      - name: Archive reproducible profile
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-g12-native-scale
+          path: .ox-state/g12/native-scale.json
+          retention-days: 14
+          if-no-files-found: ignore
