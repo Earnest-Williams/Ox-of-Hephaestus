@@ -37,7 +37,7 @@ def build_apartment() -> dict:
         room.db.desc = (
             "A small, lived-in apartment with a sofa, lamp, coffee table "
             "and kitchenette. It is late evening; Clara and Ben have just "
-            "returned from a date they both enjoyed."
+            "returned from a date. Neither person's feelings are public facts."
         )
 
     specs = (
