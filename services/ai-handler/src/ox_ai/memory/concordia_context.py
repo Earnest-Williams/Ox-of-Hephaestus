@@ -60,6 +60,8 @@ class OxMemoryContext(entity_component.ContextComponent):
         self._max_interpretations = max_interpretations
 
     def pre_act(self, action_spec) -> str:
+        if not self._owner.memory_projection_enabled:
+            return ""  # Control arm: native Concordia evidence only.
         # The current Ox command menu includes verb, target and argument hints.
         # Calling entity.act() directly also works using action-spec labels.
         query = _terms(self._owner._memory_query_text or

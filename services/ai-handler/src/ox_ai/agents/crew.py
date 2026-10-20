@@ -71,6 +71,7 @@ class CrewAgent:
         journal_path: Path | None = None,
         blueprint: Any | None = None,
         initial_memories: Sequence[SeededMemory] = (),
+        memory_projection_enabled: bool = True,
     ) -> None:
         """Construct the Concordia component graph around a supplied model.
 
@@ -97,6 +98,9 @@ class CrewAgent:
             if identity.agent_id != f"ox.person.{blueprint.person_id}" or identity.name != blueprint.name:
                 raise PermissionError("Blueprint identity does not match this agent")
         self.blueprint = blueprint
+        if type(memory_projection_enabled) is not bool:
+            raise TypeError("Memory projection mode must be boolean")
+        self._memory_projection_enabled = memory_projection_enabled
         # Authored recollections are private cognitive data, never world events.
         # Restored agents supply none here: native memory is restored verbatim.
         seeded = validate_seed_memories(initial_memories)
@@ -171,6 +175,11 @@ class CrewAgent:
     def cognition_revision(self) -> int:
         """Revision for decision-relevant private cognition, not observations."""
         return self._cognition_revision
+
+    @property
+    def memory_projection_enabled(self) -> bool:
+        """Explicit experimental control; normal cognition includes Ox context."""
+        return self._memory_projection_enabled
 
     @property
     def memory_now_turn(self) -> int:
@@ -426,7 +435,10 @@ class CrewAgent:
         Construct the fork on the event loop before scheduling the expensive
         model invocation in a thread. Only the fork is mutated in the worker.
         """
-        fork = CrewAgent(self.identity, self._model, blueprint=self.blueprint)
+        fork = CrewAgent(
+            self.identity, self._model, blueprint=self.blueprint,
+            memory_projection_enabled=self._memory_projection_enabled,
+        )
         fork._entity.set_state(deepcopy(self._entity.get_state()))
         fork._temporal_memories = TemporalMemoryBank.from_records(
             self._temporal_memories.to_records())
@@ -452,7 +464,8 @@ class CrewAgent:
         pending request ledger or overwrite newer observations.
         """
         if (not isinstance(fork, CrewAgent) or fork is self
-                or fork.identity != self.identity or fork.blueprint != self.blueprint):
+                or fork.identity != self.identity or fork.blueprint != self.blueprint
+                or fork.memory_projection_enabled != self.memory_projection_enabled):
             raise PermissionError("Detached inference belongs to another person")
         if (self._revision != expected_revision
                 or fork.revision != expected_revision
@@ -603,6 +616,7 @@ class CrewAgent:
         """Return native Concordia state and Ox-owned pending action metadata."""
         return {
             "checkpoint_version": self.CHECKPOINT_VERSION,
+            "memory_projection_enabled": self._memory_projection_enabled,
             "identity": asdict(self.identity),
             **({"character_blueprint": self.blueprint.to_record()} if self.blueprint is not None else {}),
             "revision": self._revision,
@@ -667,6 +681,8 @@ class CrewAgent:
             model,
             journal_path=journal_path,
             blueprint=blueprint,
+            memory_projection_enabled=checkpoint.get(
+                "memory_projection_enabled", True),
         )
         crew._entity.set_state(checkpoint["concordia_state"])
         # Existing pre-G8 checkpoints contain only native Concordia memory.
