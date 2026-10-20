@@ -28,6 +28,31 @@ separations and reunions, and an initially unexpected pair started dating.
 Those findings are **not** results from Evennia, hosted language models, or
 the native Concordia seed interface; they motivate the next integration gate.
 
+## G8 live acceptance runner (draft PR #73)
+
+The separate six-client real-Evennia 500-decision experiment uses six ordinary
+password-authenticated accounts, one private native Concordia `CrewAgent`
+checkpoint per person, a shared symbolic GOAP operator catalogue and
+source-verified conversations. It targets five world-created equipment faults:
+three C-01 cargo shifts and two A-01 scrubber saturations. Repairs have actual
+world-owned WorkReceipts and local inspection requirements. The trusted
+CI operator injects each fault **between** handler process segments, while
+Evennia is stopped, then restarts the original server. This deliberately avoids
+out-of-process modification of cached live equipment state.
+
+Each of the six segments must preserve world-owned agreements, personally
+received journal evidence, private memory checkpoints and work receipts.
+The final gate requires exactly 500 decisions and five independently verified
+work sequences. No world-altering action is accepted merely because a local
+planning state predicts it. The simulation has **zero hosted model calls**;
+its typed GOAP and seeded private psychology are not freeform conversation.
+
+The first live CI attempt failed at the first C-01 restow after an operator
+injection while Evennia was already running. That demonstrated a test
+fixture/cache consistency failure, not a passing 500-turn result.
+The operator-stop/restart correction and explicit readout-state assertions
+require a new complete successful trial before any merge or result claim.
+
 ## Remaining integration work
 
 - Pass approved memory seeds into live supervisors' first-time role creation.

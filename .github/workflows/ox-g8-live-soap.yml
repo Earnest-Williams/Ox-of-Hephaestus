@@ -83,26 +83,49 @@ jobs:
           else:
               raise RuntimeError("Evennia never became ready")
           PY
-      - name: Perform 500 actual client decisions across five timed incidents
+      - name: Perform 500 client decisions with operator-only restart injections
         shell: bash
         run: |
           set -euo pipefail
           run="scenarios/g8_soap_opera/live_trial.py"
+          inject() {
+            fixture="$1"
+            label="$2"
+            # Never mutate Evennia's database from a different process while
+            # the running server may have cached the relevant Attributes.
+            (cd game && evennia stop)
+            (cd game && evennia shell --command="from world.bootstrap import build_ship; ok,msg=build_ship()['$fixture'].inject_fault(); assert ok,msg; print('$label')") > ".ox-state/g8/$label.log"
+            grep -Fq "$label" ".ox-state/g8/$label.log"
+            (cd game && evennia start)
+            python - <<'PY'
+          import socket, time
+          limit = time.monotonic() + 120
+          stable = None
+          while time.monotonic() < limit:
+              try:
+                  with socket.create_connection(("127.0.0.1", 4002), timeout=1):
+                      pass
+              except OSError:
+                  stable = None
+              else:
+                  stable = stable or time.monotonic()
+                  if time.monotonic() - stable >= 12:
+                      break
+              time.sleep(1)
+          else:
+              raise RuntimeError("Evennia did not restart after operator injection")
+          PY
+          }
           python "$run" --start 1 --end 34
-          (cd game && evennia shell --command="from world.bootstrap import build_ship; ok,msg=build_ship()['cradle'].inject_fault(); assert ok,msg; print('G8_FAULT1')") > .ox-state/g8/fault1.log
-          grep -Fq G8_FAULT1 .ox-state/g8/fault1.log
+          inject cradle G8_FAULT1
           python "$run" --start 35 --end 137
-          (cd game && evennia shell --command="from world.bootstrap import build_ship; ok,msg=build_ship()['scrubber'].inject_fault(); assert ok,msg; print('G8_FAULT2')") > .ox-state/g8/fault2.log
-          grep -Fq G8_FAULT2 .ox-state/g8/fault2.log
+          inject scrubber G8_FAULT2
           python "$run" --start 138 --end 255
-          (cd game && evennia shell --command="from world.bootstrap import build_ship; ok,msg=build_ship()['cradle'].inject_fault(); assert ok,msg; print('G8_FAULT3')") > .ox-state/g8/fault3.log
-          grep -Fq G8_FAULT3 .ox-state/g8/fault3.log
+          inject cradle G8_FAULT3
           python "$run" --start 256 --end 366
-          (cd game && evennia shell --command="from world.bootstrap import build_ship; ok,msg=build_ship()['scrubber'].inject_fault(); assert ok,msg; print('G8_FAULT4')") > .ox-state/g8/fault4.log
-          grep -Fq G8_FAULT4 .ox-state/g8/fault4.log
+          inject scrubber G8_FAULT4
           python "$run" --start 367 --end 443
-          (cd game && evennia shell --command="from world.bootstrap import build_ship; ok,msg=build_ship()['cradle'].inject_fault(); assert ok,msg; print('G8_FAULT5')") > .ox-state/g8/fault5.log
-          grep -Fq G8_FAULT5 .ox-state/g8/fault5.log
+          inject cradle G8_FAULT5
           python "$run" --start 444 --end 500 | tee .ox-state/g8/final-log.txt
           grep -Fq OX_G8_REAL_500_TURN_PASS .ox-state/g8/final-log.txt
       - name: Stop Evennia

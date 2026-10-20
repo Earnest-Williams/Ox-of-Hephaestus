@@ -142,7 +142,7 @@ async def work_action(client, operation, target):
     if data.get("status") != "succeeded" or not data.get("source_event_id"):
         raise AssertionError("World work denied: " + repr(data))
     return {"request_id": request, "source_event_id": data["source_event_id"],
-            "operation": operation, "target": target}
+            "operation": operation, "target": target, "state": data.get("state")}
 
 async def social_action(clients, ids, role, other, operation, payload):
     request = secrets.token_hex(16)
@@ -309,15 +309,24 @@ class Trial:
             self.locations[role] = kind
         elif op in ("inspect", "inspect_again"):
             await c.send_line("inspect " + kind)
-            await c.expect_text(
+            output = await c.expect_text(
                 "CARGO RESTRAINT GRID" if kind == "cargo"
                 else "ATMOSPHERE SCRUBBER A-01", timeout=15)
+            state = ({"cargo": ("UNSECURED", "RESTOWED"),
+                      "scrubber": ("SATURATED", "SERVICED")}[kind]
+                     [0 if op == "inspect" else 1])
+            if state not in output:
+                raise AssertionError("World inspection disagrees with GOAP: "
+                                     + repr((kind, op, output)))
         elif op == "return":
             await move(c, (("port" if kind == "cargo" else "starboard",
                             "Connecting Passage"), ("mess", "Crew Mess")))
             self.locations[role] = "mess"
         else:
             proof = await work_action(c, op, kind)
+            expected_end = {"certify": "secured", "restart": "nominal"}.get(op)
+            if expected_end and proof["state"] != expected_end:
+                raise AssertionError("World receipt reports incorrect final state")
             fault["receipts"].append(proof)
         fault["stage"] += 1
         fault["completed"] = fault["stage"] == len(steps)
