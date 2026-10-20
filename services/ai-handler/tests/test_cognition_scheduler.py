@@ -4,6 +4,7 @@ import threading
 import unittest
 
 from ox_ai.agents.crew import CommandOption, StaleAgentRevision
+from ox_ai.memory.temporal import TemporalMemory
 from ox_ai.runtime.cognition_scheduler import (
     CognitionBudgetExceeded, CognitionBusy, CognitionTimedOut,
     CognitionUnavailable, DecisionScheduler,
@@ -88,6 +89,35 @@ class NativeNonblockingTests(unittest.IsolatedAsyncioTestCase):
         finally:
             self.ari_model.release.set()
 
+    async def test_private_memory_during_inference_is_never_overwritten(self):
+        scheduler = DecisionScheduler(max_parallel=1, timeout_seconds=2)
+        slow = await self._running_ari(scheduler)
+        try:
+            self.assertEqual(self.ari.agent.revision, 0)
+            self.assertEqual(self.ari.agent.cognition_revision, 0)
+            admitted = self.ari.agent.remember_timed(TemporalMemory(
+                "memory.after.snapshot", "mara",
+                "Mara disagreed with my original interpretation.",
+                "witnessed_speech", 41, 41, 100, 95,
+                trust_effect=-5, source_event_id="world-heard-41",
+                claim_key="mara_disagreed", claim_subject="mara",
+                claim_stance=1, source_group="mara.firsthand",
+            ))
+            self.assertTrue(admitted)
+            self.assertEqual(self.ari.agent.revision, 0)
+            self.assertEqual(self.ari.agent.cognition_revision, 1)
+            self.ari_model.release.set()
+            with self.assertRaises(StaleAgentRevision):
+                await slow
+            self.assertFalse(self.ari.agent.pending_requests)
+            self.assertIsNotNone(self.ari.agent.temporal_memories.get(
+                "memory.after.snapshot"))
+            self.assertIsNotNone(self.ari.agent.interpretations.get(
+                "mara", "mara_disagreed"))
+            self.assertEqual(self.ari.agent.cognition_revision, 1)
+        finally:
+            self.ari_model.release.set()
+
     async def test_one_actor_cannot_double_schedule_and_timeout_quarantines(self):
         scheduler = DecisionScheduler(max_parallel=2, timeout_seconds=0.1)
         slow = await self._running_ari(scheduler)
@@ -138,6 +168,7 @@ class NativeNonblockingTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(PermissionError):
             self.ari.agent.adopt_inference(
                 source, draft, choices, expected_revision=self.ari.agent.revision,
+                expected_cognition_revision=self.ari.agent.cognition_revision,
             )
         self.assertFalse(self.ari.agent.pending_requests)
 
