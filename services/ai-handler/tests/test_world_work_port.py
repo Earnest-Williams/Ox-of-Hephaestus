@@ -147,6 +147,33 @@ class GlobalWorkPortTests(unittest.IsolatedAsyncioTestCase):
                 await port.submit_work(ActionRequest("e" * 32, "#44", verb, "learning", args))
         self.assertEqual(len(client.commands), 3)
 
+    async def test_world_valid_assessment_fits_transport_budget(self):
+        import base64
+        import json
+        from ox_ai.ports.evennia.client import MAX_COMMAND_CHARS
+        client = FakeClient()
+        port = DurableEvenniaPort(client)
+        request_id = "f" * 32
+        assessment = {
+            "claim": "C" * 180, "confidence": "moderate",
+            "rationale": "R" * 300, "reading_proof": "a" * 64,
+            "reading_minute": "1234567890", "oxygen_kpa": "30.00",
+            "co2_percent": "100.00", "evidence_sequence": "1234567890",
+            "finding_digest": "a" * 64,
+        }
+        client.receipt(request_id)
+        self.assertEqual((await port.submit_work(ActionRequest(
+            request_id, "#44", "terminal_assess", "ship", assessment,
+        ))).status, "succeeded")
+        line = client.commands[-1]
+        self.assertGreater(len(line), 1024)
+        self.assertLessEqual(len(line), MAX_COMMAND_CHARS)
+        token = line.split(" ")[-1]
+        original = json.loads(base64.urlsafe_b64decode(
+            token + "=" * (-len(token) % 4)
+        ))
+        self.assertEqual(original, assessment)
+
     async def test_global_equipment_request_and_recovery_uses_same_id(self):
         client = FakeClient()
         port = DurableEvenniaPort(client)

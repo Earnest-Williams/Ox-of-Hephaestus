@@ -36,13 +36,13 @@ def make_token(payload):
 
 async def matching_oob(client, kind, *, predicate=lambda data: True):
     async with asyncio.timeout(16):
-        for _ in range(100):
-            packet = await client.receive()
-            if packet.kind != kind or not packet.args or not isinstance(packet.args[0], dict):
-                continue
-            if predicate(packet.args[0]):
-                return packet.args[0]
-    raise AssertionError('No authenticated world ' + kind + ' packet received')
+        packet = await client.receive_matching(
+            lambda p: (p.kind == kind and bool(p.args)
+                       and isinstance(p.args[0], dict)
+                       and predicate(p.args[0])),
+            frame_budget=100,
+        )
+        return packet.args[0]
 
 
 async def social_command(client, other, operation, payload):

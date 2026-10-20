@@ -117,6 +117,27 @@ class ClientTests(unittest.IsolatedAsyncioTestCase):
         finally:
             await client.close()
 
+    async def test_receive_buffer_overflow_fails_loudly_and_close_clears_it(self):
+        from ox_ai.ports.evennia.client import MAX_BUFFERED_PACKETS
+        socket = FakeSocket()
+        async def connector(*args, **kwargs):
+            return socket
+        client = EvenniaWebSocketClient("ws://localhost:4002", "OxBotAri",
+            "AnEphemeralPass_123456", "#42", connector=connector)
+        await client.open()
+        try:
+            socket.frames.extend(
+                json.dumps(["text", ["unrelated"], {}])
+                for _ in range(MAX_BUFFERED_PACKETS + 1)
+            )
+            with self.assertRaisesRegex(RuntimeError, "bounded buffer"):
+                await client.receive_matching(lambda p: p.kind == "ox_receipt",
+                                              frame_budget=MAX_BUFFERED_PACKETS + 1)
+            self.assertEqual(len(client._pending), MAX_BUFFERED_PACKETS)
+        finally:
+            await client.close()
+        self.assertEqual(len(client._pending), 0)
+
     async def test_interleaved_observations_and_out_of_order_receipts_survive(self):
         socket = FakeSocket()
         async def connector(*args, **kwargs):
