@@ -21,6 +21,7 @@ import uuid
 
 from ox_ai.inference.usage import MeteredModel
 from ox_ai.memory.seeds import SeededMemory, validate_seed_memories
+from ox_ai.memory.temporal import TemporalMemory, TemporalMemoryBank
 from ox_ai.ports.base import ActionOutcome, ActionRequest, WorldObservation
 
 
@@ -94,6 +95,7 @@ class CrewAgent:
         # Authored recollections are private cognitive data, never world events.
         # Restored agents supply none here: native memory is restored verbatim.
         seeded = validate_seed_memories(initial_memories)
+        self.temporal_memories = TemporalMemoryBank.from_seeds(seeded)
         self.usage = MeteredModel(model)
         self._journal_path = Path(journal_path) if journal_path else None
         self._revision = 0
@@ -161,6 +163,22 @@ class CrewAgent:
         bank = self._entity.get_component(memory.DEFAULT_MEMORY_COMPONENT_KEY)
         return tuple(bank.get_all_memories_as_text())
 
+    def remember_timed(self, entry: TemporalMemory) -> bool:
+        """Store private cognition only after an addressed, verified encounter.
+
+        The subjective record never grants authority or proves a claim.
+        """
+        if entry.kind not in ("witnessed_speech", "world_receipt"):
+            raise ValueError("Only observed new events may enter this route")
+        if not entry.source_event_id:
+            raise ValueError("New episode needs its source identity")
+        accepted = self.temporal_memories.add(entry)
+        if accepted:
+            self._record("subjective_episode", memory_id=entry.memory_id,
+                         source_event_id=entry.source_event_id,
+                         occurred_turn=entry.occurred_turn)
+        return accepted
+
     def _record(self, kind: str, **details: Any) -> None:
         """Append a trace with separate world-time and wall-time provenance."""
         if self._journal_path is None:
@@ -216,6 +234,8 @@ class CrewAgent:
         """
         fork = CrewAgent(self.identity, self._model, blueprint=self.blueprint)
         fork._entity.set_state(deepcopy(self._entity.get_state()))
+        fork.temporal_memories = TemporalMemoryBank.from_records(
+            self.temporal_memories.to_records())
         fork._revision = self._revision
         fork._seen_observations = set(self._seen_observations)
         fork._last_game_time = self._last_game_time
@@ -253,6 +273,8 @@ class CrewAgent:
         # No suspension between the revision gate and state/proposal adoption.
         # Preserve any native Concordia act-state evolution on successful work.
         self._entity.set_state(fork._entity.get_state())
+        self.temporal_memories = TemporalMemoryBank.from_records(
+            fork.temporal_memories.to_records())
         self.usage.choice_calls += fork.usage.choice_calls
         self.usage.text_calls += fork.usage.text_calls
         self._pending[draft.request_id] = draft
@@ -358,6 +380,7 @@ class CrewAgent:
             "last_game_time": self._last_game_time,
             "pending_requests": [asdict(item) for item in self.pending_requests],
             "concordia_state": self._entity.get_state(),
+            "temporal_memories": self.temporal_memories.to_records(),
         }
 
     def save_checkpoint(self, path: Path) -> None:
@@ -407,6 +430,9 @@ class CrewAgent:
             blueprint=blueprint,
         )
         crew._entity.set_state(checkpoint["concordia_state"])
+        # Existing pre-G8 checkpoints contain only native Concordia memory.
+        crew.temporal_memories = TemporalMemoryBank.from_records(
+            checkpoint.get("temporal_memories", []))
         crew._revision = checkpoint["revision"]
         crew._seen_observations = set(checkpoint["seen_observations"])
         crew._last_game_time = checkpoint["last_game_time"]

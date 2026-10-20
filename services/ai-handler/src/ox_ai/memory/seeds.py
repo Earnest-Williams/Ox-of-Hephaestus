@@ -21,6 +21,11 @@ class SeededMemory:
     kind: str = "recollection"
     confidence: int = 70
     salience: int = 50
+    # All times share the supplied monotonic simulation-turn clock.
+    occurred_turn: int = -100
+    learned_turn: int = 0
+    trust_effect: int = 0
+    interest_effect: int = 0
 
     def __post_init__(self) -> None:
         if not isinstance(self.memory_id, str) or not _SEED_ID.fullmatch(self.memory_id):
@@ -36,12 +41,20 @@ class SeededMemory:
         for label, score in (("confidence", self.confidence), ("salience", self.salience)):
             if type(score) is not int or not 0 <= score <= 100:
                 raise ValueError(f"Memory {label} must be an integer 0-100")
+        if type(self.occurred_turn) is not int or type(self.learned_turn) is not int:
+            raise ValueError("Temporal memory dates must be integer scenario turns")
+        if self.learned_turn < self.occurred_turn:
+            raise ValueError("A recollection cannot be learned before its event")
+        for label, effect in (("trust", self.trust_effect), ("interest", self.interest_effect)):
+            if type(effect) is not int or not -40 <= effect <= 40:
+                raise ValueError(f"Subjective {label} effect must be an integer -40..40")
 
     def render(self) -> str:
         """Mark authored information as uncertain recollection, not observation."""
         return (f"[authored-memory id={self.memory_id}; kind={self.kind}; "
                 f"about={self.about}; confidence={self.confidence}; "
-                f"salience={self.salience}; NOT world-verified] {self.text}")
+                f"salience={self.salience}; occurred_turn={self.occurred_turn}; "
+                f"learned_turn={self.learned_turn}; NOT world-verified] {self.text}")
 
 
 def validate_seed_memories(memories: Sequence[SeededMemory]) -> tuple[SeededMemory, ...]:
