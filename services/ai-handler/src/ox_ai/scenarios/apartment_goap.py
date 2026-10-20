@@ -149,7 +149,7 @@ class SocialGoapActor:
             offer("communicate_pace", "pace_shared", 92)
         if "partner_appreciated" in f:
             offer("reciprocate_enjoyment", "reciprocated", 72)
-        if (self.interest >= 65 and "partner_positive" in f
+        if ("open_to_more" in f and "partner_positive" in f
                 and "partner_pace" not in f and "partner_declined" not in f
                 and "partner_invited" not in f):
             offer("consider_another_date", "invited", 86)
