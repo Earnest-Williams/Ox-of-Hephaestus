@@ -61,7 +61,6 @@ jobs:
         run: python -m world.test_runner world.tests.test_terminal_failure --verbosity=2
 
   six-characters:
-    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
     name: "${{ matrix.provider }} seed ${{ matrix.seed }} (six actual clients)"
     needs: world-tests
     if: ${{ (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
