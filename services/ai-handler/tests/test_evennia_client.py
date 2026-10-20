@@ -117,6 +117,28 @@ class ClientTests(unittest.IsolatedAsyncioTestCase):
         finally:
             await client.close()
 
+    async def test_new_text_response_does_not_match_stale_buffered_description(self):
+        socket = FakeSocket()
+        async def connector(*args, **kwargs):
+            return socket
+        client = EvenniaWebSocketClient("ws://localhost:4002", "OxBotAri",
+            "AnEphemeralPass_123456", "#42", connector=connector)
+        await client.open()
+        try:
+            socket.frames.extend([
+                json.dumps(["text", ["Cooling Pump P-01 - normal"], {}]),
+                json.dumps(["ox_receipt", [{"request_id": "a" * 32}], {}]),
+            ])
+            await client.receive_matching(lambda p: p.kind == "ox_receipt")
+            socket.frames.append(json.dumps([
+                "text", ["Cooling Pump P-01 - LOW PRESSURE"], {},
+            ]))
+            current = await client.expect_text("Cooling Pump P-01")
+            self.assertIn("LOW PRESSURE", current)
+            self.assertIn("normal", (await client.receive()).text)
+        finally:
+            await client.close()
+
     async def test_receive_buffer_overflow_fails_loudly_and_close_clears_it(self):
         from ox_ai.ports.evennia.client import MAX_BUFFERED_PACKETS
         socket = FakeSocket()

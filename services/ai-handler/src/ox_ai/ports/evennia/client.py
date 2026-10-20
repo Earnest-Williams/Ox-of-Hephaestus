@@ -212,6 +212,7 @@ class EvenniaWebSocketClient:
 
     async def receive_matching(
         self, predicate: Callable[[WebPacket], bool], *, frame_budget: int = 256,
+        include_buffered: bool = True,
     ) -> WebPacket:
         """Await one typed response without consuming unrelated observations.
 
@@ -224,10 +225,11 @@ class EvenniaWebSocketClient:
         if not callable(predicate) or not 1 <= frame_budget <= 1024:
             raise ValueError("A bounded packet matcher is required")
         async with self._read_lock:
-            for index, packet in enumerate(self._pending):
-                if predicate(packet):
-                    del self._pending[index]
-                    return packet
+            if include_buffered:
+                for index, packet in enumerate(self._pending):
+                    if predicate(packet):
+                        del self._pending[index]
+                        return packet
             for _ in range(frame_budget):
                 packet = await self._read_wire()
                 if predicate(packet):
@@ -255,7 +257,9 @@ class EvenniaWebSocketClient:
 
         try:
             async with asyncio.timeout(timeout if timeout is not None else self.timeout):
-                return (await self.receive_matching(matching, frame_budget=256)).text
+                return (await self.receive_matching(
+                    matching, frame_budget=256, include_buffered=False,
+                )).text
         except TimeoutError as exc:
             raise TimeoutError("Expected game observation missing: " + repr(samples)) from exc
 
