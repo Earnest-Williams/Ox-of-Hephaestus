@@ -1,13 +1,18 @@
 name: Ox G8 six-crew soap opera 500-turn live trial
 on:
-  push:
-    branches: [experiment/g8-authored-memories]
+  pull_request:
+    branches: [main]
     paths:
       - "scenarios/g8_soap_opera/live_trial.py"
       - "services/ai-handler/src/ox_ai/memory/seeds.py"
       - "services/ai-handler/src/ox_ai/memory/temporal.py"
       - "services/ai-handler/src/ox_ai/memory/interpretation.py"
       - "services/ai-handler/src/ox_ai/agents/crew.py"
+      - "services/ai-handler/src/ox_ai/agents/live_concordia.py"
+      - "services/ai-handler/src/ox_ai/runtime/cognition_scheduler.py"
+      - "services/ai-handler/src/ox_ai/agents/memory_context.py"
+      - "services/ai-handler/tests/test_cognition_scheduler.py"
+      - "services/ai-handler/tests/test_concordia_crew.py"
       - "services/ai-handler/tests/test_memory_seeding.py"
       - "services/ai-handler/tests/test_g8_longrun.py"
       - "services/ai-handler/tests/test_memory_interpretation.py"
