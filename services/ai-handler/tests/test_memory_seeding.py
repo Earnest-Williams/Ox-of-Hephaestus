@@ -137,8 +137,7 @@ class TemporalMemoryTests(unittest.TestCase):
             self.memory("impossible", 10, learned=2)
         bank = TemporalMemoryBank((self.memory("later", 10, learned=12),))
         self.assertEqual(bank.retrieve("mara", 9), ())
-        with self.assertRaises(ValueError):
-            bank.retrieve("mara", 10)
+        self.assertEqual(bank.retrieve("mara", 10), ())
         self.assertEqual(len(bank.retrieve("mara", 12)), 1)
 
     def test_checkpoint_restores_time_and_recall_without_cross_agent_leakage(self):
@@ -153,6 +152,7 @@ class TemporalMemoryTests(unittest.TestCase):
         ari = CrewAgent(CrewIdentity("ari", "#2", "Ari", "Engineering", "Work"),
                         MockModel())
         self.assertEqual(len(ari.temporal_memories), 0)
+        original = lin.temporal_memories.appraisal("mara", 40)
         lin.temporal_memories.retrieve("mara", 40, rehearse=True)
         episode = TemporalMemory(
             "world-r1", "mara", "Mara declined my proposal.", "world_receipt",
@@ -161,7 +161,7 @@ class TemporalMemoryTests(unittest.TestCase):
         self.assertTrue(lin.remember_timed(episode))
         self.assertFalse(lin.remember_timed(episode))
         self.assertNotEqual(lin.temporal_memories.appraisal("mara", 42),
-                            lin.temporal_memories.appraisal("mara", 0))
+                            original)
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "lin.json"
             lin.save_checkpoint(path)

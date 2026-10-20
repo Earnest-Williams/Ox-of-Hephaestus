@@ -81,6 +81,8 @@ class TemporalMemory:
         """Independent event-age and rehearsal-age components, no future leakage."""
         _integer(now_turn, "current turn", minimum=self.learned_turn)
         age = max(0, now_turn - self.occurred_turn)
+        if self.last_recalled_turn is not None and now_turn < self.last_recalled_turn:
+            raise ValueError("Cannot appraise a memory before its latest recall")
         recall_age = now_turn - (
             self.last_recalled_turn if self.last_recalled_turn is not None
             else self.learned_turn
