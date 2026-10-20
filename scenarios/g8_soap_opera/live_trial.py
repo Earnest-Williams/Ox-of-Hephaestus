@@ -474,6 +474,31 @@ class Trial:
             options.append((value, other))
         return max(options)[1] if options else None
 
+    def remember_episode(self, observer, episode):
+        """Append only an actor-heard event; audit revisions separately.
+
+        The experiment's aggregate trace can inspect many minds; agents never
+        read each other's private interpretations when planning their moves.
+        """
+        brain = self.brains[observer]
+        if not brain.remember_timed(episode) or episode.claim_key is None:
+            return
+        view = brain.interpretations.get(
+            episode.claim_subject or episode.subject, episode.claim_key)
+        if view is None or not view.revisions:
+            return
+        last = view.revisions[-1]
+        if last.evidence_id != episode.memory_id:
+            return
+        self.reinterpretations.append({
+            "turn": self.turn, "actor": observer,
+            "subject": view.subject, "claim": view.claim_key,
+            "before": last.previous_confidence, "after": last.new_confidence,
+            "old_view": last.previous_view, "new_view": last.new_view,
+            "reason": last.reason, "opposing_sources": last.opposing_sources,
+            "memory_id": last.evidence_id, "source_id": episode.source_event_id,
+        })
+
     def remember_contract(self, role, other, receipt, kind):
         # Only a successful world operation + witnessed counterpart delivery
         # reaches this method. Neither agent gets to manufacture assent.
@@ -485,13 +510,23 @@ class Trial:
         trust_bias, interest_bias = effects[kind]
         event_id = str(receipt["source_event_id"])
         for observer, subject in ((role, other), (other, role)):
-            self.brains[observer].remember_timed(TemporalMemory(
+            # Only the counterpart can infer something about the ACTOR's
+            # willingness to negotiate. Neither actor infers romantic desire.
+            typed = observer == other and kind in (
+                "proposed", "accepted", "declined", "withdrawn")
+            self.remember_episode(observer, TemporalMemory(
                 memory_id=f"g8.world.{receipt['request_id']}.{observer}",
                 source_event_id=event_id, subject=subject,
                 text=f"{ROLES[role][0]} {kind} a commitment involving {ROLES[other][0]}.",
                 kind="world_receipt", occurred_turn=self.turn,
                 learned_turn=self.turn, confidence=100, salience=88,
                 trust_effect=trust_bias, interest_effect=interest_bias,
+                claim_key="willing_to_negotiate" if typed else None,
+                claim_subject=role if typed else None,
+                claim_stance=(1 if kind in ("proposed", "accepted") else -1)
+                             if typed else 0,
+                source_group=f"world.negotiation.{role}.{other}" if typed else None,
+                claim_credibility=100,
             ))
 
     def current_offer(self, role, other):
@@ -499,7 +534,8 @@ class Trial:
                      if {role, other} == {entry["proposer"], entry["recipient"]}
                      and entry["state"] in ("pending", "accepted")), (None, None))
 
-    async def speak(self, clients, ids, role, other, line, intent):
+    async def speak(self, clients, ids, role, other, line, intent, *,
+                    statement=None):
         visible = await spoken(clients, self.locations, role, line)
         attitude = {
             "reassure": (7, 2), "confront": (-10, -5),
@@ -516,13 +552,29 @@ class Trial:
             ))
             trust_bias, interest_bias = (attitude[intent] if observer == other
                                          else (0, 0))
-            self.brains[observer].remember_timed(TemporalMemory(
+            # A real observer knows the speaker SAID the words. The optional
+            # assertion inside those words is evaluated as defeasible
+            # testimony, with the observer's own credibility assessment.
+            attributed = statement is not None and statement.claim_key is not None
+            credibility = min(
+                statement.claim_credibility if attributed else 70,
+                max(10, self.perspective(observer, role)[0]),
+            )
+            self.remember_episode(observer, TemporalMemory(
                 memory_id=f"g8.speech.{self.turn}.{role}.{observer}",
                 subject=role, text=f"{ROLES[role][0]} said: {line}",
                 source_event_id=msg_id, kind="witnessed_speech",
                 occurred_turn=self.turn, learned_turn=self.turn,
-                confidence=100, salience=52 if observer == other else 30,
+                confidence=100, salience=78 if attributed else (
+                    52 if observer == other else 30),
                 trust_effect=trust_bias, interest_effect=interest_bias,
+                claim_key=statement.claim_key if attributed else None,
+                claim_subject=statement.claim_subject if attributed else None,
+                claim_stance=statement.claim_stance if attributed else 0,
+                source_group=(statement.source_group or
+                              f"speech.{role}.{statement.claim_key}")
+                             if attributed else None,
+                claim_credibility=credibility,
             ))
         self.record(role, "spoken_" + intent, target=other, heard_by=visible)
 
@@ -534,7 +586,9 @@ class Trial:
             m = self.private[role]
             rng = random.Random(self.seed + self.turn * 29)
             trust, affection, sources = self.perspective(role, other, rehearse=True)
-            score = affection + trust * .25 + rng.randint(-25, 20)
+            _belief_trust, approach, _doubt, _views = self.interpreted_influence(
+                role, other)
+            score = affection + trust * .25 + approach * .4 + rng.randint(-25, 20)
             answer = "accept" if score >= 88 else ("defer" if score >= 71 else "decline")
             receipt, heard = await social_action(
                 clients, ids, role, other, "social_reply",
@@ -556,6 +610,8 @@ class Trial:
         mind["last"][other] = self.turn
         rng = random.Random(self.seed + self.turn * 127 + ROSTER.index(role))
         trust, score, sources = self.perspective(role, other, rehearse=True)
+        _belief_trust, approach, uncertain, active_views = (
+            self.interpreted_influence(role, other))
         key, agreement = self.current_offer(role, other)
         # The acceptance record belongs to Evennia. The handler may ask to
         # withdraw but cannot edit a durable agreement locally.
@@ -572,7 +628,7 @@ class Trial:
             return
         earlier = [k for k, v in self.agreements.items()
                    if {role, other} == {v["proposer"], v["recipient"]}]
-        if (not agreement and score > 69 and trust > 48
+        if (not agreement and score > 69 and score + approach > 70 and trust > 48
                 and (not earlier or self.turn - self.agreements[earlier[-1]]["turn"] > 100)
                 and rng.random() < .19):
             receipt, heard = await social_action(clients, ids, role, other, "social_propose", {
@@ -596,12 +652,12 @@ class Trial:
         options = ("confront", "question", "reassure", "disclose",
                    "boundary", "connect", "reflect")
         weights = (
-            max(1, 28 - trust * .32),
-            12,
+            max(1, 28 - trust * .32) + (8 if uncertain else 0),
+            12 + (18 if uncertain else 0),
             max(2, trust * .19),
-            12 if sources else 6,
+            (13 if sources else 6) + (6 if uncertain else 0),
             max(1, 35 - score) * .35,
-            max(2, score * .31),
+            max(2, score * .31) + max(-5, min(6, approach * .4)),
             8,
         )
         intent = rng.choices(options, weights=weights)[0]
@@ -610,22 +666,47 @@ class Trial:
         if not plan.actions:
             raise AssertionError("Social goal has no GOAP operator")
         selected = plan.actions[0].name
+        disclosed_statement = None
         if intent == "disclose":
-            remembered = [
-                entry for entry in self.brains[role].temporal_memories.retrieve(
-                    other, self.turn, limit=12)
-                if entry.kind in ("recollection", "testimony", "interpretation")
-                and entry.memory_id not in mind["disclosed"]
+            # A person may disclose their *own* recollection of a third party,
+            # especially in a tangled relationship. Do not peek into the
+            # listener's private memories or require a predetermined outcome.
+            bank = self.brains[role].temporal_memories
+            authored = [bank.get(seed.memory_id) for seed in seeds_for(role)]
+            available = [
+                entry for entry in authored
+                if entry is not None and entry.memory_id not in mind["disclosed"]
             ]
-            if remembered:
-                episode = remembered[0]
+            available.sort(key=lambda entry: (
+                -(entry.importance(self.turn)
+                  + (.20 if entry.subject == other else 0)
+                  + (.12 if entry.claim_subject == other else 0)),
+                entry.memory_id,
+            ))
+            if available:
+                disclosed_statement = available[0]
+                episode = disclosed_statement
                 intro = ("Someone told me: " if episode.kind == "testimony"
                          else "I believe: " if episode.kind == "interpretation"
                          else "I remember: ")
                 line = intro + episode.text[:140]
                 mind["disclosed"].append(episode.memory_id)
             else:
-                line = "I have been rethinking how I remember our history."
+                line = "I've been reconsidering what I remember about us."
+        elif intent in ("confront", "question", "reflect") and uncertain and active_views:
+            unsettled = next(
+                (view for view in active_views
+                 if view["contradictory"] or view["view"] == "unsettled"),
+                active_views[0],
+            )
+            description = CLAIM_DESCRIPTIONS.get(
+                unsettled["claim"], "that story")
+            if intent == "question":
+                line = f"Can we talk about whether {description}?"
+            elif intent == "confront":
+                line = f"I've heard conflicting accounts about whether {description}."
+            else:
+                line = f"I'm rethinking what I believe about whether {description}."
         elif intent == "confront":
             old = self.brains[role].temporal_memories.retrieve(
                 other, self.turn, limit=1, affective_only=True)
@@ -634,11 +715,13 @@ class Trial:
         else:
             line = next((op.line for op in SOCIAL_OPERATORS if op.name == selected),
                         "We should talk.")
-        await self.speak(clients, ids, role, other, line, intent)
+        await self.speak(clients, ids, role, other, line, intent,
+                         statement=disclosed_statement)
         # Explain the subjective sources of a decision without declaring
         # those memories accurate or publishing the whole private bank.
         self.trace[-1]["remembered"] = sources
         self.trace[-1]["appraisal"] = [trust, score]
+        self.trace[-1]["interpretation_views"] = active_views
 
     async def run_phase(self, ids, start, end):
         if self.turn != start - 1:
@@ -688,6 +771,13 @@ class Trial:
                   "world": "real_evennia", "model_calls": 0,
                   "faults": self.faults, "counts": counts,
                   "agreements": self.agreements, "trace": self.trace,
+                  "reinterpretations": self.reinterpretations,
+                  "interpretation_change_count": sum(
+                      1 for revision in self.reinterpretations
+                      if revision["old_view"] != revision["new_view"]),
+                  "interpretation_counts": {
+                      role: len(self.brains[role].interpretations.to_records()["states"])
+                      for role in ROSTER},
                   "temporal_memory_counts": {role: len(self.brains[role].temporal_memories)
                                              for role in ROSTER}}
         (self.root / "final.json").write_text(json.dumps(report, indent=2))
