@@ -2,7 +2,6 @@ name: Ox G3 actor-relative unknown unknowns and operator secrecy
 
 on:
   pull_request:
-    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
     types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - "game/world/epistemic_audit.py"
@@ -12,7 +11,6 @@ on:
       - ".github/workflows/ox-g3-unknown-unknowns.yml"
       - "!**/*.md"
   push:
-    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
     branches: [main]
     paths:
       - "game/world/epistemic_audit.py"
@@ -22,7 +20,6 @@ on:
       - ".github/workflows/ox-g3-unknown-unknowns.yml"
       - "!**/*.md"
   workflow_dispatch:
-    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
