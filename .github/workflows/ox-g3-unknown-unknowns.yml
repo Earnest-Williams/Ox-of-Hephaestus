@@ -2,6 +2,7 @@ name: Ox G3 actor-relative unknown unknowns and operator secrecy
 
 on:
   pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - "game/world/epistemic_audit.py"
       - "game/world/tests/test_epistemic_audit.py"
@@ -29,6 +30,7 @@ permissions:
 
 jobs:
   operator-world-audit:
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
     runs-on: ubuntu-latest
     timeout-minutes: 6
     steps:
@@ -36,6 +38,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            services/ai-handler/pyproject.toml
+            uv.lock
+            .github/ci/cache-profiles/concordia.txt
       - name: Classify preexisting hidden pirate without disclosing it to actor
         env:
           PYTHONPATH: game
@@ -44,6 +52,7 @@ jobs:
           python -m unittest discover -s game/world/tests -p 'test_epistemic_audit.py' -v
 
   private-agent-compatibility:
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
@@ -51,6 +60,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            services/ai-handler/pyproject.toml
+            uv.lock
+            .github/ci/cache-profiles/concordia.txt
       - name: Check existing character-private beliefs, questions and surprise history
         run: |
           python -m pip install -e ./services/ai-handler

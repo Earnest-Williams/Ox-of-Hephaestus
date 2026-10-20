@@ -3,6 +3,7 @@ name: Ox AI pump repair integration
 
 on:
   pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - "game/**"
       - "services/ai-handler/**"
@@ -27,6 +28,7 @@ permissions:
 
 jobs:
   manual-repair:
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
     name: Native entity drives real ship commands (Python 3.12)
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -35,6 +37,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            services/ai-handler/pyproject.toml
+            uv.lock
+            .github/ci/cache-profiles/concordia.txt
       - name: Install Evennia and pinned Concordia
         run: |
           python -m pip install .

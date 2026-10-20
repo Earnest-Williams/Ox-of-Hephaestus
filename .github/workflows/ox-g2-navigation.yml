@@ -2,6 +2,7 @@ name: Ox G2 learned-capability GOAP navigation
 
 on:
   pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - "game/**"
       - "services/ai-handler/**"
@@ -25,6 +26,7 @@ permissions:
 
 jobs:
   offline-navigation:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
     timeout-minutes: 7
     steps:
@@ -32,12 +34,19 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            services/ai-handler/pyproject.toml
+            uv.lock
+            .github/ci/cache-profiles/transport.txt
       - run: python -m pip install -e ./services/ai-handler
       - run: |
           python -m compileall -q services/ai-handler/src services/ai-handler/tests
           python -m unittest discover -s services/ai-handler/tests -p 'test_navigation.py' -v
 
   authenticated-ship-travel:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
     timeout-minutes: 22
     strategy:
@@ -51,6 +60,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            services/ai-handler/pyproject.toml
+            uv.lock
+            .github/ci/cache-profiles/concordia.txt
       - name: Install real Evennia, Concordia and authenticated character transport
         run: |
           python -m pip install .
@@ -124,6 +139,7 @@ jobs:
           evennia shell --command="import os; from world.bootstrap import build_ship; s=build_ship(); mode=os.environ['OX_NAVIGATION_SCENARIO']; print('OX_G2_ARI_LOCATION',s['watch'].location.key); assert (s['watch'].location!=s['engineering']) if mode=='blocked' else (s['watch'].location==s['engineering']); assert s['pump'].state=='normal' and not s['pump'].db.event_history; assert s['cradle'].state=='secured' and s['scrubber'].state=='nominal'; print('OX_G2_WORLD_TRAVERSAL_NO_REMOTE_WORK_PASS')"
 
   displaced-specialist-real-world:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
     timeout-minutes: 22
     steps:
@@ -131,6 +147,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            services/ai-handler/pyproject.toml
+            uv.lock
+            .github/ci/cache-profiles/concordia.txt
       - name: Install real Evennia, Concordia and crew sockets
         run: |
           python -m pip install .
@@ -192,6 +214,7 @@ jobs:
           evennia shell --command="from world.bootstrap import build_ship; from world.models import WorkReceipt; s=build_ship(); a=s['scrubber']; assert s['environment'].location==s['environmental']; assert a.state=='nominal' and a.db.spare_cartridges==1; assert [e['operation'] for e in a.db.event_history]==['saturate','isolate','replace','restart']; assert WorkReceipt.objects.filter(target='scrubber').count()==3; assert s['pump'].state=='low_pressure' and [e['operation'] for e in s['pump'].db.event_history]==['fault'] and s['cradle'].state=='secured'; print('OX_G2_SPECIALIST_NAVIGATION_PHYSICAL_RECEIPTS_PASS')"
 
   physical-crew-presence:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
     timeout-minutes: 18
     steps:
@@ -199,6 +222,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            services/ai-handler/pyproject.toml
+            uv.lock
+            .github/ci/cache-profiles/core.txt
       - name: Install the real game and test persistent character location on logout
         run: |
           python -m pip install .
