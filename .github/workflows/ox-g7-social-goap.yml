@@ -1,0 +1,113 @@
+# G7: isolated social GOAP experiment. ONE bounded, zero-model dialogue trial.
+name: Ox G7 apartment social GOAP
+
+on:
+  pull_request:
+    paths:
+      - "game/typeclasses/social.py"
+      - "game/world/social_apartment.py"
+      - "game/world/tests/test_social_apartment.py"
+      - "services/ai-handler/src/ox_ai/scenarios/apartment_goap.py"
+      - "services/ai-handler/tests/test_social_apartment_goap.py"
+      - "scenarios/apartment_goap/**"
+      - ".github/workflows/ox-g7-social-goap.yml"
+      - "!**/*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: social-goap-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  two-person-goap:
+    name: Focused planner tests + one real apartment conversation
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    env:
+      OX_SOCIAL_GOAP_LIVE_CI: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Evennia, handler and transport only (no model packages)
+        run: |
+          python -m pip install .
+          python -m pip install -e './services/ai-handler[transport]'
+      - name: Model-free GOAP social tests
+        run: |
+          python -m unittest discover -s services/ai-handler/tests -p test_social_apartment_goap.py -v
+      - name: Targeted apartment world fixture tests
+        working-directory: game
+        run: python -m world.test_runner world.tests.test_social_apartment --verbosity=2
+      - name: Create disposable non-privileged credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          PASSWORD="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          OWNER="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          echo "::add-mask::$PASSWORD"
+          echo "::add-mask::$OWNER"
+          echo "OX_PROBE_PASSWORD=$PASSWORD" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_PASSWORD=$OWNER" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_USERNAME=OxSocialOperator" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_EMAIL=social@example.invalid" >> "$GITHUB_ENV"
+      - name: Provision the isolated apartment with two ordinary accounts
+        working-directory: game
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ../.ox-state
+          evennia migrate --noinput
+          evennia shell --command="from world.bootstrap import build_ship; from world.social_apartment import provision_apartment; build_ship(); assert len(provision_apartment()) == 2; print('OX_SOCIAL_APARTMENT_PROVISIONED')" > ../.ox-state/arm.log
+          grep -Fq 'OX_SOCIAL_APARTMENT_PROVISIONED' ../.ox-state/arm.log
+      - name: Start actual Evennia portal/server
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd game && evennia start)
+          python - <<'PY'
+          import socket
+          import time
+          deadline = time.monotonic() + 120
+          stable_since = None
+          while time.monotonic() < deadline:
+              try:
+                  with socket.create_connection(("127.0.0.1", 4002), timeout=1):
+                      pass
+              except OSError:
+                  stable_since = None
+              else:
+                  stable_since = stable_since or time.monotonic()
+                  # Cold Evennia first-run initialization can reset the
+                  # Portal/Server after a brief period of accepting sockets.
+                  if time.monotonic() - stable_since >= 12:
+                      break
+              time.sleep(1)
+          else:
+              raise RuntimeError("Evennia did not reach 12 seconds of stable WebSocket readiness")
+          PY
+      - name: One actual two-client GOAP conversation (zero model calls)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scenarios/apartment_goap/live_trial.py --variant cautious --turn-cap 24 --out .ox-state/g7-social-trial.json | tee .ox-state/conversation.log
+          grep -Fq "OX_G7_SOCIAL_GOAP_PASS" .ox-state/conversation.log
+      - name: Stop game
+        if: always()
+        working-directory: game
+        run: evennia stop || true
+      - name: Preserve independently planned dialogue and private operator trace
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: social-goap-apartment
+          path: |
+            .ox-state/g7-social-trial.json
+            .ox-state/conversation.log
+            .ox-state/arm.log
+          retention-days: 14
+          if-no-files-found: ignore
