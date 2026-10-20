@@ -1,6 +1,10 @@
 # Bounded, manual-only hosted model quality pilot. No automatic paid calls.
 name: Ox G11 matched-evidence memory A/B
 on:
+  # One-time, owner-approved G11 run on this isolated experiment branch only.
+  push:
+    branches: [experiment/g11-ab-20261021]
+    paths: [".github/workflows/ox-g11-model-memory-ab.yml"]
   workflow_dispatch:
     inputs:
       repetitions:
@@ -37,7 +41,7 @@ jobs:
       - name: Run hosted matched-evidence A/B
         run: |
           python scenarios/g11_memory_ab_trial.py --provider gemini \
-            --repetitions "${{ inputs.repetitions }}" \
+            --repetitions "${{ inputs.repetitions || '3' }}" \
             --output .ox-state/g11/memory-ab-results.json
       - name: Preserve bounded aggregate evidence
         if: always()
