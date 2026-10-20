@@ -4,11 +4,14 @@ name: Ox terminal atmosphere six-run experiment
 
 on:
   pull_request:
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+    types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - "scenarios/terminal_loss/trial.py"
       - ".github/workflows/ox-terminal-atmosphere.yml"
       - "!**/*.md"
   workflow_dispatch:
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
 
 permissions:
   contents: read
@@ -19,7 +22,7 @@ concurrency:
 
 jobs:
   terminal:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    if: ${{ (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
     name: "${{ matrix.provider }} seed ${{ matrix.seed }}"
     runs-on: ubuntu-latest
     timeout-minutes: 22
@@ -37,6 +40,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            services/ai-handler/pyproject.toml
+            uv.lock
+            .github/ci/cache-profiles/concordia.txt
       - name: Install pinned Concordia and GOAP
         run: python -m pip install -e './services/ai-handler[concordia]'
       - name: Validate live-model key without printing it

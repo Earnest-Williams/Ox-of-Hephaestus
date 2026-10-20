@@ -3,11 +3,14 @@ name: Ox spaceship game tests
 
 on:
   pull_request:
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+    types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - "game/**"
       - ".github/workflows/ox-ship-world.yml"
       - "!**/*.md"
   push:
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
     branches:
       - main
     paths:
@@ -15,6 +18,7 @@ on:
       - ".github/workflows/ox-ship-world.yml"
       - "!**/*.md"
   workflow_dispatch:
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -25,6 +29,7 @@ permissions:
 
 jobs:
   ship-world:
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
     name: Ship topology, pump and local game commands (Python 3.12)
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -33,6 +38,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            services/ai-handler/pyproject.toml
+            uv.lock
+            .github/ci/cache-profiles/concordia.txt
       - name: Install forked Evennia engine
         run: python -m pip install .
       - name: Compile Ox game sources
