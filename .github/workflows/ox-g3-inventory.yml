@@ -2,12 +2,15 @@ name: Ox G3 real physical supply and typed world receipts
 
 on:
   pull_request:
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+    types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - "game/**"
       - "services/ai-handler/**"
       - ".github/workflows/ox-g3-inventory.yml"
       - "!**/*.md"
   push:
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
     branches: [main]
     paths:
       - "game/**"
@@ -15,6 +18,7 @@ on:
       - ".github/workflows/ox-g3-inventory.yml"
       - "!**/*.md"
   workflow_dispatch:
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -25,6 +29,7 @@ permissions:
 
 jobs:
   real-scarcity:
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
     runs-on: ubuntu-latest
     timeout-minutes: 22
     steps:
@@ -32,6 +37,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            services/ai-handler/pyproject.toml
+            uv.lock
+            .github/ci/cache-profiles/concordia.txt
       - name: Install real Evennia, compile schema and test physical inventory
         run: |
           python -m pip install .
@@ -40,6 +51,7 @@ jobs:
           python -m world.test_runner world.tests.test_supply --verbosity=2
 
   typed-actor-inventory:
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
@@ -47,6 +59,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            services/ai-handler/pyproject.toml
+            uv.lock
+            .github/ci/cache-profiles/concordia.txt
       - name: Run private, nonce-scoped stock observation contract
         run: |
           python -m pip install -e ./services/ai-handler
