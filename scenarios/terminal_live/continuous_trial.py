@@ -125,6 +125,9 @@ class AdaptiveGoap:
         self.last_assessed_finding = None
         self.last_assessment_content = None
         self.last_refused_assessment_content = None
+        self.last_refusal_reason = ""
+        self.last_assessed_oxygen = None
+        self.last_assessed_co2 = None
         self.last_reported_stage = -1
         self.awaiting_post_exchange_survey = False
         self.post_exchange_surveys = 0
@@ -142,11 +145,17 @@ class AdaptiveGoap:
             if status == "succeeded":
                 self.last_assessment_content = dict(assessment)
                 self.last_refused_assessment_content = None
+                self.last_refusal_reason = ""
+                self.last_assessed_oxygen = float(assessment["oxygen_kpa"])
+                self.last_assessed_co2 = float(assessment["co2_percent"])
                 self.last_assessed_stage = urgency(view)
                 self.last_assessed_evidence_seq = int(assessment["evidence_sequence"])
                 self.last_assessed_finding = assessment["finding_digest"]
             elif status == "failed":
                 self.last_refused_assessment_content = dict(assessment)
+                self.last_refusal_reason = refusal_reason
+                self.last_assessed_oxygen = float(assessment["oxygen_kpa"])
+                self.last_assessed_co2 = float(assessment["co2_percent"])
                 # The actor did attempt a revision for this risk band; another
                 # unchanged opinion should wait, but a new report/reading,
                 # proposition or confidence may justify a new attempt.
@@ -254,15 +263,30 @@ class AdaptiveGoap:
         # Risk transitions and newly addressed evidence legitimately change
         # a prognosis. Compare the complete assessment, never merely a verb
         # or a local inspection/message cursor.
+        # A new reading can warrant an assessment *within* the same risk
+        # band, but minor noise need not produce a new report every few
+        # seconds. This is a planner relevance threshold; the world NEVER
+        # labels two actually different readings "identical".
+        material_sensor_change = (
+            self.last_assessed_oxygen is not None and (
+                abs(view["oxygen_kpa"] - self.last_assessed_oxygen) >= 0.5
+                or abs(view["co2_percent"] - self.last_assessed_co2) >= 0.3
+            )
+        )
+        reinterpreted = any(
+            previous is not None
+            and any(proposal[k] != previous[k]
+                    for k in ("claim", "confidence", "rationale"))
+            for previous in (
+                self.last_assessment_content,
+                self.last_refused_assessment_content,
+            )
+        )
         substantive_trigger = (
             stage != self.last_assessed_stage
             or last_event > self.last_assessed_evidence_seq
             or proposal["finding_digest"] != self.last_assessed_finding
-            or (
-                self.last_assessment_content is not None
-                and any(proposal[k] != self.last_assessment_content[k]
-                        for k in ("claim", "confidence", "rationale"))
-            )
+            or material_sensor_change or reinterpreted
         )
         not_same_payload = (
             proposal != self.last_assessment_content
