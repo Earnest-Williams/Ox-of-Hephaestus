@@ -292,7 +292,11 @@ class AdaptiveGoap:
             proposal != self.last_assessment_content
             and proposal != self.last_refused_assessment_content
         )
-        if ((received_diagnostic or stage >= 2)
+        revisiting_lower_risk = (
+            self.last_assessed_stage >= 0
+            and stage != self.last_assessed_stage
+        )
+        if ((received_diagnostic or stage >= 2 or revisiting_lower_risk)
                 and substantive_trigger and not_same_payload):
             goal(115 if critical else 75, "update_provisional_assessment",
                  "terminal_assess")
