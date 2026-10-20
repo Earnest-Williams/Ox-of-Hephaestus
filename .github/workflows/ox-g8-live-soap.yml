@@ -1,18 +1,19 @@
 name: Ox G8 six-crew soap opera 500-turn live trial
 on:
-  pull_request:
-    types: [opened, reopened, synchronize, ready_for_review]
+  push:
+    branches: [experiment/g8-authored-memories]
     paths:
       - "scenarios/g8_soap_opera/**"
       - "services/ai-handler/src/ox_ai/memory/**"
       - "services/ai-handler/tests/test_g8_longrun.py"
       - ".github/workflows/ox-g8-live-soap.yml"
+      - "!**/*.md"
   workflow_dispatch:
 permissions:
   contents: read
 concurrency:
-  group: g8-500
-  cancel-in-progress: true
+  group: g8-experiment
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   g8-six-real-clients:
     runs-on: ubuntu-latest
