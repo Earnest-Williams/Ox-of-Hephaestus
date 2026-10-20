@@ -12,8 +12,9 @@ dependencies = []
 [project.optional-dependencies]
 # The upstream 2.4.0 release does not contain the interrupt-driven scheduler.
 # Deliberately pin a reviewed upstream commit, not a floating main branch.
+# The native entities use no OpenAI provider: do not install upstream [openai].
 concordia = [
-  "gdm-concordia[openai] @ git+https://github.com/google-deepmind/concordia.git@4b7e02a94b719e56f10989046af32d79bbbc3b9c",
+  "gdm-concordia @ git+https://github.com/google-deepmind/concordia.git@4b7e02a94b719e56f10989046af32d79bbbc3b9c",
 ]
 transport = ["websockets>=14,<16"]
 dev = ["pytest>=8,<10"]
