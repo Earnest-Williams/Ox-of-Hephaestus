@@ -1,0 +1,46 @@
+# Reproducible local SQLite/hash-chain microprofile. No Evennia server, API
+# tokens, paid model calls, or full ship acceptance matrix.
+name: Ox P4f attested evidence restart profile
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - "scenarios/profiling/evidence_restart.py"
+      - ".github/workflows/ox-p4f-evidence-profile.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p4f-evidence-profile-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  local-evidence:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: services/ai-handler/pyproject.toml
+      - name: Install exact production index and protocol dependencies
+        run: python -m pip install -e './services/ai-handler[transport]'
+      - name: Profile 1k, 10k and 40k complete actor histories
+        run: |
+          python scenarios/profiling/evidence_restart.py \
+            --sizes 1000,10000,40000 --payloads 160,1200 \
+            --trials 3 --hotspot \
+            --output .ox-state/profiles/p4f-evidence-restart.json
+      - name: Preserve machine-readable evidence for analysis
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-p4f-attested-evidence-profile
+          path: .ox-state/profiles/p4f-evidence-restart.json
+          retention-days: 30
+          if-no-files-found: ignore
