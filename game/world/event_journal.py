@@ -23,6 +23,9 @@ from world.models import CrewEvent
 PAGE_SIZE = 128
 SCHEMA_VERSION = 2
 _EVENT_ID = re.compile(r"oxevt-[0-9]+")
+# A public character may name a historical ID, but never a recipient.
+# Keep legacy oxevt-0010 as well as sequence-derived oxevt-v2-0010.
+_LOOKUP_EVENT_ID = re.compile(r"oxevt-(?:v2-)?[0-9]+")
 # Fixed transaction-scoped namespace: all journal writers must use this lock.
 # PostgreSQL sequences are allocated at INSERT, not in commit order.
 _PG_JOURNAL_ADVISORY_LOCK = 0x4F584A4F55524E4C
@@ -196,6 +199,29 @@ def inbox_page(actor, *, after: int = 0, limit: int = PAGE_SIZE) -> dict:
         "next_cursor": messages[-1]["sequence"] if messages else after,
         "has_more": has_more,
     }
+
+
+def addressed_event(actor, event_id: str) -> dict | None:
+    """Retrieve one *addressed* historical event by its exact world identity.
+
+    This is a read of the same canonical journal as oxinbox, not a world
+    snapshot or a grant of permission to act. Missing and foreign-recipient
+    IDs deliberately have identical results. Do not accept a recipient from
+    the requester; the caller's authenticated puppet supplies the scope.
+    """
+    if (actor is None or not isinstance(getattr(actor, "dbref", None), str)
+            or re.fullmatch(r"#[1-9][0-9]*", actor.dbref) is None):
+        raise ValueError("Authenticated character required")
+    if (not isinstance(event_id, str) or len(event_id) > 64
+            or _LOOKUP_EVENT_ID.fullmatch(event_id) is None):
+        raise ValueError("Invalid historical event identity")
+    # Keep the original P4e migration semantics: a legacy event remains
+    # queryable even when the first action after upgrade is exact retrieval.
+    migrate_legacy_events()
+    record = CrewEvent.objects.filter(
+        recipient_dbref=actor.dbref, event_id=event_id,
+    ).first()
+    return _as_dict(record) if record is not None else None
 
 
 def inbox(actor, *, after: int = 0) -> list[dict]:
