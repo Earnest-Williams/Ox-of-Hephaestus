@@ -13,6 +13,18 @@
 - No LLM server, hosted API key or GPU is required for the **deterministic**
   P4 integration tests.
 
+## Current scope versus optional trials
+
+The instructions below bring up the **seven-room primary ship** and the
+normal authenticated external handler. The G6 terminal-loss scenario,
+G7 social GOAP apartment, G8 six-client 500-decision memory experiment,
+G11 manually dispatched hosted-model A/B trial, and G12 6/20/40
+local-brain profiler are **separate, bounded research/test entry points**.
+They are not automatically enabled by installing Ox and do not constitute
+a deployed simulation with 40 active ship crew. See the
+[verified milestone index](design/STATUS.md) and
+[AI handler experiments](services/ai-handler/README.md).
+
 ## 1. Install the game and service
 
 From the root of this checkout:
