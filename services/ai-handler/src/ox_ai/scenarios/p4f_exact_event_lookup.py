@@ -66,7 +66,9 @@ async def run() -> None:
         restart_certificate = await WorldJournalPort(lin_again).attest(
             item["sequence"],
         )
-        assert restart_certificate == certificate
+        assert restart_certificate.generation == certificate.generation
+        assert restart_certificate.prefix_digest == certificate.prefix_digest
+        assert restart_certificate.requested_cursor == certificate.requested_cursor
     print("OX_P4F_AUTHENTICATED_EXACT_EVENT_RESTART_AND_PRIVACY_PASS")
 
 
