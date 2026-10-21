@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 import unittest
 
-from ox_ai.runtime.evidence_index import ActorEvidenceIndex
+from ox_ai.runtime.evidence_index import ActorEvidenceIndex, checkpoint_evidence_pins
 
 
 def evidence(n, recipient="#42", *, kind="ship_notice", **data):
@@ -183,6 +183,146 @@ class IndexedEvidenceTests(unittest.TestCase):
                     evidence(3, kind="captain_problem_open"),
                 ])
         self.assertEqual(self.archive.cursor, 2)
+
+    def test_lossless_hot_cold_selection_exact_proofs_and_snapshots(self):
+        records = [
+            evidence(i, kind=("anomaly_crew_report" if i % 11 == 0
+                              else "ship_notice"),
+                     case_id="old-case" if i % 11 == 0 else "other")
+            for i in range(1, 1001)
+        ]
+        with self.archive.transaction():
+            for start in range(0, len(records), 128):
+                self.archive.append_page(records[start:start + 128])
+            self.archive.replace_pins(["oxevt-v2-0003", "oxevt-v2-0044"])
+        earlier = self.archive.view()
+        self.assertEqual(self.archive.hot_count, 1000)
+        with self.archive.transaction():
+            moved = self.archive.compact_hot(recent=31, batch_size=17)
+        self.assertEqual(moved, 967)
+        self.assertEqual(self.archive.hot_count, 33)
+        self.assertEqual(self.archive.cold_count, 967)
+        self.assertEqual(len(earlier), len(records))
+        self.assertEqual(list(earlier), records)
+        self.assertEqual(
+            earlier.get("oxevt-v2-0001"), records[0],
+        )
+        self.assertEqual(
+            earlier.get("oxevt-v2-0003"), records[2],
+        )
+        self.assertEqual(
+            [x["event_id"] for x in earlier.select(
+                kind="anomaly_crew_report", data={"case_id": "old-case"},
+            )],
+            [e["event_id"] for e in records if e["kind"] == "anomaly_crew_report"],
+        )
+        self.assertEqual(
+            earlier.latest("anomaly_crew_report")["sequence"], 990,
+        )
+        self.assertEqual(earlier[:3], records[:3])
+        self.assertEqual(earlier[-2:], records[-2:])
+        self.assertEqual(list(reversed(earlier))[:2], records[-2:][::-1])
+        self.assertEqual(
+            self.archive._db.execute(
+                "SELECT payload FROM events WHERE sequence=1"
+            ).fetchone()[0], None,
+        )
+        self.assertIsNotNone(self.archive._db.execute(
+            "SELECT body FROM cold_events WHERE sequence=1"
+        ).fetchone()[0])
+
+    def test_open_obligations_outlive_hot_window_and_historic_snapshots(self):
+        with self.archive.transaction():
+            self.archive.append_page([
+                evidence(1, kind="crew_hail", hail_id="open-hail"),
+                evidence(2, kind="captain_problem_open", ticket_id="open-case"),
+                evidence(3, kind="crew_hail", hail_id="finished-hail"),
+                evidence(4, kind="hail_answered", hail_id="finished-hail"),
+                *[evidence(i) for i in range(5, 301)],
+            ])
+        previous = self.archive.view(through=3)
+        self.assertEqual(
+            [e["sequence"] for e in previous.pending("hail")], [1, 3],
+        )
+        moved = self.archive.compact_hot(recent=12, batch_size=19)
+        self.assertEqual(moved, 286)
+        self.assertEqual(self.archive.hot_count, 14)
+        self.assertEqual(
+            [e["sequence"] for e in self.archive.view().pending("hail")], [1],
+        )
+        self.assertEqual(
+            [e["sequence"] for e in self.archive.view().pending("captain")], [2],
+        )
+        self.assertEqual(
+            [e["sequence"] for e in previous.pending("hail")], [1, 3],
+        )
+        self.assertEqual(self.archive.view().get("oxevt-v2-0003")["sequence"], 3)
+        self.assertIsNotNone(self.archive._db.execute(
+            "SELECT payload FROM events WHERE sequence=1"
+        ).fetchone()[0])
+        self.assertIsNone(self.archive._db.execute(
+            "SELECT payload FROM events WHERE sequence=3"
+        ).fetchone()[0])
+
+    def test_repin_promotes_exact_cold_evidence_without_world_change(self):
+        with self.archive.transaction():
+            self.archive.append_page([evidence(i) for i in range(1, 81)])
+        self.archive.compact_hot(recent=8)
+        self.assertEqual((self.archive.hot_count, self.archive.cold_count), (8, 72))
+        self.archive.replace_pins({"oxevt-v2-0005"})
+        self.assertEqual((self.archive.hot_count, self.archive.cold_count), (9, 71))
+        self.assertEqual(self.archive.view().get("oxevt-v2-0005"), evidence(5))
+        self.archive.replace_pins(set())
+        self.archive.compact_hot(recent=8)
+        self.assertEqual((self.archive.hot_count, self.archive.cold_count), (8, 72))
+        self.assertEqual(self.archive.view().get("oxevt-v2-0005"), evidence(5))
+
+    def test_cold_checksum_corruption_fails_closed_and_transaction_rolls_back(self):
+        with self.archive.transaction():
+            self.archive.append_page([evidence(i) for i in range(1, 40)])
+        with self.assertRaisesRegex(RuntimeError, "simulated"):
+            with self.archive.transaction():
+                self.archive.compact_hot(recent=2, batch_size=5)
+                raise RuntimeError("simulated disk crash")
+        self.assertEqual(self.archive.cold_count, 0)
+        self.assertEqual(self.archive.hot_count, 39)
+        self.archive.compact_hot(recent=2)
+        with self.assertRaises(ValueError):
+            self.archive.compact_hot(recent=0)
+        with self.assertRaises(ValueError):
+            self.archive.replace_pins({"not-a-world-id"})
+        self.archive._db.execute(
+            "UPDATE cold_events SET body=? WHERE sequence=1", (b"tampered",),
+        )
+        with self.assertRaises(RuntimeError):
+            self.archive.view().get("oxevt-v2-0001")
+        self.assertEqual(self.archive.view().get("oxevt-v2-0039"), evidence(39))
+
+    def test_checkpoint_hot_pins_ignore_terminal_and_cross_role_work(self):
+        state = {
+            "current": {"radio_event": "oxevt-v2-0007"},
+            "hail_work": {
+                "hail-a": {"role": "lin", "hail_event_id": "oxevt-v2-0003"},
+                "hail-b": {"role": "ari", "hail_event_id": "oxevt-v2-0004"},
+            },
+            "specialist_jobs": {
+                "lin": {"event_id": "oxevt-v2-0008"},
+                "ari": {"event_id": "oxevt-v2-0009"},
+            },
+            "agendas": {
+                "lin": {"tasks": {
+                    "a": {"task_id": "oxevt-v2-0010", "status": "deferred"},
+                    "b": {"task_id": "oxevt-v2-0011", "status": "completed"},
+                }},
+            },
+            "completed": [{"resolution_event": "oxevt-v2-0001"}],
+            "specialist_handled": {"lin": ["oxevt-v2-0002"]},
+        }
+        self.assertEqual(
+            checkpoint_evidence_pins(state, "lin"),
+            {"oxevt-v2-0003", "oxevt-v2-0007",
+             "oxevt-v2-0008", "oxevt-v2-0010"},
+        )
 
     def test_actor_ids_are_restricted_and_view_slices_are_scoped(self):
         with self.assertRaises(PermissionError):

@@ -110,17 +110,23 @@ private belief or self-description. See [G4f](../design/prototypes/g4f-world-rec
   transaction-held lock. `oxinbox` cursors are recipient-scoped and
   replayable; work receipts use events causally emitted by the operation.
   A-01 alarms and captain reminders follow P-01 → ticket → journal locks.
-- PRs #85–86: the handler authenticates each recipient's complete world
-  inbox once per process (streamed to a new disposable SQLite index), then
-  requests only deltas after its indexed cursor. Immutable actor-scoped
-  evidence views retain exact past event identity, and indexed kind/case/
-  ticket queries serve legacy historical checks. The five-crew agenda
-  and epistemic checkpoints retain independent private cursors; missed
-  events may be reread from the index without synthesizing provenance.
-  Incomplete pages, divergent counts/sequences, foreign recipients and
-  interrupted multi-page transactions cannot advance the authoritative
-  reader cursor. The cache is **not** portable world proof between process
-  lifetimes; disk/history rehydration remains unbounded by this change.
+- PRs #85–88: the handler authenticates each recipient's complete world
+  inbox once per process (streamed to a disposable actor-scoped SQLite
+  index), then requests only deltas after its indexed cursor. Immutable
+  indexed views retain exact event identity and legacy kind/case/ticket
+  selections. Actor-scoped unresolved work has indexed source references;
+  the ordinary authenticated `oxevent` command can retrieve an old exact
+  event without a full inbox query. Independent native brain, agenda and
+  epistemic cursors still govern cognition recovery. Incomplete pages,
+  divergent sequences, foreign recipients and interrupted multi-page
+  transactions cannot advance the handler cursor.
+- Local hot/cold optimization keeps the most recent 256 addressed event
+  bodies **plus mandatory live proof pins** available uncompressed. Every
+  other original event remains retrievable, with case/kind metadata indexed
+  and its complete body stored losslessly in compressed local SQLite cold
+  storage. This does **not** delete world evidence, bound total disk usage,
+  validate portable caches or eliminate cold-start replay. No source-event
+  lookup grants independent world action authority.
 - `receive_matching()` preserves unrelated WebSocket frames in order
   under a 512-packet bound. On saturation it raises **before** reading
   another wire frame. Malformed unattributable `ox_receipt` frames remain

@@ -79,6 +79,20 @@ disk use, but Python does not retain all historical event dicts.
 The unrelated OOB wake-frame staging deque is capped at 256 per actor.
 This does not cap a character's private Concordia memories or snapshots.
 
+**Hot/cold follow-up:** once fully authenticated pages have been indexed,
+the handler keeps the newest 256 addressed event bodies plus exact sources
+needed for unresolved world hails/captain tickets and unfinished character
+checkpoint work/agenda immediately hot. Other full original events are
+losslessly compressed into a separate SQLite cold tier; all old typed
+selectors, exact IDs, indexed case/ticket evidence, historical snapshots
+and completed-work references still return the original records on demand.
+The effective hot cap is 256 **plus actual live pins**; genuine unresolved
+obligations cannot be removed to enforce an arbitrary fixed number. Local
+cold bodies are integrity-checked, not authoritative. This reduces active
+uncompressed evidence, **not** the total number of on-disk records or the
+full world-authenticated startup replay.
+[Retention and pinning contract](../../design/prototypes/p4f-hot-cold-evidence.md).
+
 The entire inbox read is indexed in one transaction; a broken later page
 rolls back all new local rows. Native brain checkpoints are saved before
 the supervisor cursor; private agenda and epistemic cursors can backfill

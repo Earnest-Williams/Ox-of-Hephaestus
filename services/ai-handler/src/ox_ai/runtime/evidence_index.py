@@ -12,17 +12,89 @@ lookups by event identity, kind, case, or ticket avoid that scan.
 """
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
+import hashlib
 import json
 from pathlib import Path
 import re
 import sqlite3
+import zlib
 
 
 _ACTOR = re.compile(r"^#[0-9]+$")
 _DATA_KEY = re.compile(r"^[A-Za-z_][A-Za-z_0-9]*$")
+_EVENT_ID = re.compile(r"^oxevt-(?:v2-)?[0-9]+$")
+
+# The hot bound does not cap genuine open world obligations or source proofs
+# referenced by still-persisted handler work. Those must win over eviction.
+DEFAULT_HOT_EVENTS = 256
+COLD_BATCH = 128
+
+
+_ARCHIVED_STATE_ROOTS = frozenset({
+    "completed", "specialist_completed", "specialist_handled",
+    "handled_alarms", "navigation_knowledge", "epistemic_event_cursors",
+    "inbox_cursors",
+})
+_TERMINAL_AGENDA_STATES = frozenset({
+    "completed", "declined", "delegated", "escalated",
+})
+
+
+def checkpoint_evidence_pins(state: Mapping, role: str) -> set[str]:
+    """Find original source IDs in *unfinished* actor-owned work records.
+
+    Durable finished work and character memory are not deleted; their source
+    evidence remains readable from cold storage. This is a hot-priority hint
+    only and cannot authorize an unaddressed event or physical action.
+    """
+    if not isinstance(state, Mapping) or not isinstance(role, str):
+        raise TypeError("Private checkpoint scope required")
+    pins: set[str] = set()
+
+    def collect(node: object) -> None:
+        if isinstance(node, str):
+            if len(node) <= 64 and _EVENT_ID.fullmatch(node):
+                pins.add(node)
+        elif isinstance(node, Mapping):
+            for key, value in node.items():
+                if key not in _ARCHIVED_STATE_ROOTS:
+                    collect(value)
+        elif isinstance(node, (list, tuple)):
+            for value in node:
+                collect(value)
+
+    # Most live work is role-local. A shared watch incident can contain
+    # source IDs addressed to several workers; the index will pin only
+    # those that actually occur in its recipient-owned rows.
+    for key in ("current", "handover_work", "hail_work"):
+        records = state.get(key)
+        if key == "hail_work" and isinstance(records, Mapping):
+            for work in records.values():
+                if isinstance(work, Mapping) and work.get("role") == role:
+                    collect(work)
+        else:
+            collect(records)
+    for key in (
+        "specialist_jobs", "independent_rounds", "g3e_investigations",
+        "g3e_followup", "g3e_questions",
+    ):
+        records = state.get(key)
+        if isinstance(records, Mapping):
+            record = records.get(role)
+            if not (isinstance(record, Mapping) and record.get("done") is True):
+                collect(record)
+    agendas = state.get("agendas")
+    if isinstance(agendas, Mapping):
+        owner = agendas.get(role)
+        if isinstance(owner, Mapping) and isinstance(owner.get("tasks"), Mapping):
+            for task in owner["tasks"].values():
+                if (isinstance(task, Mapping)
+                        and task.get("status") not in _TERMINAL_AGENDA_STATES):
+                    collect(task)
+    return pins
 
 
 class ActorEvidenceIndex:
@@ -53,7 +125,25 @@ class ActorEvidenceIndex:
             "sequence INTEGER PRIMARY KEY CHECK(sequence > 0), "
             "event_id TEXT UNIQUE NOT NULL, "
             "kind TEXT NOT NULL, "
-            "payload TEXT NOT NULL)"
+            "data_index TEXT NOT NULL, "
+            "payload TEXT)"
+        )
+        # Old full event bodies leave the active table but are NEVER dropped:
+        # the cold tier is lossless, content-hashed and addressed by sequence.
+        # Both tables are in the same disposable, actor-scoped SQLite file.
+        self._db.execute(
+            "CREATE TABLE IF NOT EXISTS cold_events ("
+            "sequence INTEGER PRIMARY KEY CHECK(sequence > 0), "
+            "body BLOB NOT NULL, codec TEXT NOT NULL, digest TEXT NOT NULL, "
+            "CHECK(codec IN ('plain', 'zlib')))"
+        )
+        self._db.execute(
+            "CREATE TABLE IF NOT EXISTS pinned ("
+            "event_id TEXT PRIMARY KEY NOT NULL)"
+        )
+        self._db.execute(
+            "CREATE INDEX IF NOT EXISTS event_hot_sequence "
+            "ON events(sequence) WHERE payload IS NOT NULL"
         )
         self._db.execute(
             "CREATE INDEX IF NOT EXISTS event_kind_seq "
@@ -62,7 +152,7 @@ class ActorEvidenceIndex:
         for key in ("ticket_id", "case_id", "order_id", "alarm_id", "hail_id"):
             self._db.execute(
                 f"CREATE INDEX IF NOT EXISTS event_{key}_seq "
-                f"ON events(kind, json_extract(payload, '$.data.{key}'), sequence)"
+                f"ON events(kind, json_extract(data_index, '$.{key}'), sequence)"
             )
         # Materialised *addressed* obligation transitions, not a second
         # authority. Closed rows remain for pinned historical snapshots.
@@ -82,6 +172,143 @@ class ActorEvidenceIndex:
 
     def close(self) -> None:
         self._db.close()
+
+    def _read_row(self, row: tuple) -> dict:
+        """Decode one indexed hot/cold record and verify its local integrity."""
+        sequence, event_id, payload, body, codec, digest = row
+        if payload is None:
+            if body is None or codec not in ("plain", "zlib"):
+                raise RuntimeError("Missing local cold event body")
+            try:
+                raw = zlib.decompress(body) if codec == "zlib" else bytes(body)
+                if hashlib.sha256(raw).hexdigest() != digest:
+                    raise RuntimeError("Corrupt local cold event checksum")
+                payload = raw.decode("utf-8")
+            except (zlib.error, UnicodeError) as exc:
+                raise RuntimeError("Corrupt local cold event encoding") from exc
+        elif body is not None:
+            raise RuntimeError("Contradictory hot and cold event bodies")
+        event = json.loads(payload)
+        if (event.get("recipient_dbref") != self.actor_dbref
+                or event.get("event_id") != event_id
+                or type(event.get("sequence")) is not int
+                or event["sequence"] != sequence):
+            raise PermissionError("Local evidence does not match its actor or identity")
+        return event
+
+    def _materialize(self, sequence: int) -> dict:
+        record = self._db.execute(
+            "SELECT e.sequence,e.event_id,e.payload,"
+            "c.body,c.codec,c.digest FROM events AS e "
+            "LEFT JOIN cold_events AS c ON e.sequence=c.sequence "
+            "WHERE e.sequence=?", (sequence,),
+        ).fetchone()
+        if record is None:
+            raise LookupError("Indexed world event was not found")
+        return self._read_row(record)
+
+    @property
+    def hot_count(self) -> int:
+        return int(self._db.execute(
+            "SELECT COUNT(*) FROM events WHERE payload IS NOT NULL"
+        ).fetchone()[0])
+
+    @property
+    def cold_count(self) -> int:
+        return int(self._db.execute(
+            "SELECT COUNT(*) FROM cold_events"
+        ).fetchone()[0])
+
+    def replace_pins(self, event_ids: Iterable[str]) -> None:
+        """Set references held by live handler checkpoints for this actor.
+
+        This does not assert a world right or authorize a work request.
+        Unknown IDs remain harmless references until an addressed page
+        supplies them; foreign actors' rows cannot enter this index.
+        """
+        refs = set(event_ids)
+        if any(not isinstance(eid, str) or not _EVENT_ID.fullmatch(eid)
+               or len(eid) > 64 for eid in refs):
+            raise ValueError("Invalid private evidence pin")
+        self._db.execute("DELETE FROM pinned")
+        self._db.executemany(
+            "INSERT INTO pinned(event_id) VALUES (?)",
+            ((eid,) for eid in sorted(refs)),
+        )
+        # A reactivated checkpoint reference must be hot again, even if
+        # compaction previously relegated it to compressed local cold proof.
+        rows = list(self._db.execute(
+            "SELECT e.sequence FROM events AS e "
+            "JOIN pinned AS p ON p.event_id=e.event_id "
+            "WHERE e.payload IS NULL"
+        ))
+        for (sequence,) in rows:
+            event = self._materialize(sequence)
+            encoded = json.dumps(
+                event, sort_keys=True, separators=(",", ":"),
+                ensure_ascii=False, allow_nan=False,
+            )
+            self._db.execute(
+                "UPDATE events SET payload=? WHERE sequence=?",
+                (encoded, sequence),
+            )
+            self._db.execute(
+                "DELETE FROM cold_events WHERE sequence=?", (sequence,),
+            )
+
+    def compact_hot(
+        self, *, recent: int = DEFAULT_HOT_EVENTS,
+        batch_size: int = COLD_BATCH,
+    ) -> int:
+        """Losslessly demote unpinned older bodies; all queries still work.
+
+        The newest N *recipient* events, all open hail/captain source
+        obligations, and all checkpoint-pinned source proofs remain hot.
+        Every other original event remains in a compressed local cold tier.
+        This is not world retention or an authorization to skip hydration.
+        """
+        if (type(recent) is not int or recent < 1
+                or type(batch_size) is not int or not 1 <= batch_size <= 1024):
+            raise ValueError("Invalid hot evidence retention budget")
+        if not self._db.in_transaction:
+            with self.transaction():
+                return self.compact_hot(recent=recent, batch_size=batch_size)
+        boundary = self._db.execute(
+            "SELECT sequence FROM events ORDER BY sequence DESC "
+            "LIMIT 1 OFFSET ?", (recent - 1,),
+        ).fetchone()
+        if boundary is None:
+            return 0
+        demoted = 0
+        while True:
+            records = list(self._db.execute(
+                "SELECT e.sequence,e.payload FROM events AS e "
+                "WHERE e.sequence < ? AND e.payload IS NOT NULL "
+                "AND NOT EXISTS (SELECT 1 FROM pinned AS p "
+                "WHERE p.event_id=e.event_id) "
+                "AND NOT EXISTS (SELECT 1 FROM obligations AS o "
+                "WHERE o.source_sequence=e.sequence "
+                "AND o.resolved_sequence IS NULL) "
+                "ORDER BY e.sequence LIMIT ?",
+                (boundary[0], batch_size),
+            ))
+            if not records:
+                return demoted
+            for sequence, payload in records:
+                raw = payload.encode("utf-8")
+                packed = zlib.compress(raw, level=6)
+                body, codec = ((packed, "zlib") if len(packed) < len(raw)
+                               else (raw, "plain"))
+                self._db.execute(
+                    "INSERT INTO cold_events(sequence,body,codec,digest) "
+                    "VALUES(?,?,?,?)",
+                    (sequence, body, codec, hashlib.sha256(raw).hexdigest()),
+                )
+                self._db.execute(
+                    "UPDATE events SET payload=NULL WHERE sequence=?",
+                    (sequence,),
+                )
+                demoted += 1
 
     @contextmanager
     def transaction(self) -> Iterator[None]:
@@ -119,14 +346,16 @@ class ActorEvidenceIndex:
                 raise ValueError("Invalid or unordered world evidence")
             rows.append((
                 sequence, event_id, kind,
+                json.dumps(event["data"], sort_keys=True, separators=(",", ":"),
+                           ensure_ascii=False, allow_nan=False),
                 json.dumps(event, sort_keys=True, separators=(",", ":"),
                            ensure_ascii=False, allow_nan=False),
             ))
             previous = sequence
         if rows:
             self._db.executemany(
-                "INSERT INTO events(sequence,event_id,kind,payload)"
-                " VALUES (?,?,?,?)", rows,
+                "INSERT INTO events(sequence,event_id,kind,data_index,payload)"
+                " VALUES (?,?,?,?,?)", rows,
             )
         # Derived obligation state advances in the *same* transaction as
         # the event pages. A truncated replay cannot partially close work.
@@ -181,32 +410,34 @@ class ActorEvidenceIndex:
         newest_first: bool = False, limit: int | None = None,
         offset: int = 0,
     ) -> Iterator[dict]:
-        clauses = ["sequence > ?", "sequence <= ?"]
+        clauses = ["e.sequence > ?", "e.sequence <= ?"]
         values: list[object] = [after, through]
         if kind is not None:
             if not isinstance(kind, str) or not kind:
                 raise ValueError("Invalid event kind selector")
-            clauses.append("kind = ?")
+            clauses.append("e.kind = ?")
             values.append(kind)
         if event_id is not None:
             if not isinstance(event_id, str) or not event_id:
                 raise ValueError("Invalid event identity selector")
-            clauses.append("event_id = ?")
+            clauses.append("e.event_id = ?")
             values.append(event_id)
         for key, value in (data or {}).items():
             if not isinstance(key, str) or not _DATA_KEY.fullmatch(key):
                 raise ValueError("Invalid indexed event field")
             if value is None:
-                clauses.append(f"json_extract(payload, '$.data.{key}') IS NULL")
+                clauses.append(f"json_extract(e.data_index, '$.{key}') IS NULL")
             elif type(value) in (str, int, float, bool):
-                clauses.append(f"json_extract(payload, '$.data.{key}') = ?")
+                clauses.append(f"json_extract(e.data_index, '$.{key}') = ?")
                 values.append(value)
             else:
                 raise ValueError("Invalid indexed event selector value")
         query = (
-            "SELECT payload FROM events WHERE " + " AND ".join(clauses)
-            + (" ORDER BY sequence DESC" if newest_first
-               else " ORDER BY sequence ASC")
+            "SELECT e.sequence,e.event_id,e.payload,c.body,c.codec,c.digest "
+            "FROM events AS e LEFT JOIN cold_events AS c "
+            "ON c.sequence=e.sequence WHERE " + " AND ".join(clauses)
+            + (" ORDER BY e.sequence DESC" if newest_first
+               else " ORDER BY e.sequence ASC")
         )
         if limit is not None:
             if type(limit) is not int or limit < 0:
@@ -216,11 +447,8 @@ class ActorEvidenceIndex:
         elif offset:
             query += " LIMIT -1 OFFSET ?"
             values.append(offset)
-        for (payload,) in self._db.execute(query, values):
-            event = json.loads(payload)
-            if event.get("recipient_dbref") != self.actor_dbref:
-                raise PermissionError("Cached evidence belongs to a foreign actor")
-            yield event
+        for row in self._db.execute(query, values):
+            yield self._read_row(row)
 
     def _pending(
         self, category: str, after: int, through: int,
@@ -229,20 +457,19 @@ class ActorEvidenceIndex:
         if category not in ("hail", "captain"):
             raise ValueError("Unknown addressed obligation category")
         query = (
-            "SELECT e.payload FROM obligations AS o "
+            "SELECT e.sequence,e.event_id,e.payload,c.body,c.codec,c.digest "
+            "FROM obligations AS o "
             "JOIN events AS e ON e.sequence = o.source_sequence "
+            "LEFT JOIN cold_events AS c ON c.sequence=e.sequence "
             "WHERE o.category = ? AND o.source_sequence > ? "
             "AND o.source_sequence <= ? "
             "AND (o.resolved_sequence IS NULL OR o.resolved_sequence > ?) "
             "ORDER BY o.source_sequence"
         )
-        for (payload,) in self._db.execute(
+        for row in self._db.execute(
             query, (category, after, through, through),
         ):
-            event = json.loads(payload)
-            if event.get("recipient_dbref") != self.actor_dbref:
-                raise PermissionError("Foreign actor in obligation index")
-            yield event
+            yield self._read_row(row)
 
     def _count(self, after: int, through: int) -> int:
         return int(self._db.execute(
