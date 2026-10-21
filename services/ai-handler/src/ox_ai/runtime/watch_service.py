@@ -23,7 +23,9 @@ import uuid
 
 from ox_ai.agents.crew import CommandOption
 from ox_ai.runtime.cognition_scheduler import DecisionScheduler
-from ox_ai.runtime.evidence_index import ActorEvidenceIndex, EvidenceView
+from ox_ai.runtime.evidence_index import (
+    ActorEvidenceIndex, EvidenceView, checkpoint_evidence_pins,
+)
 from ox_ai.runtime.supervisor_lease import SupervisorLease
 from ox_ai.agents.live_concordia import (
     LiveCrewBrain, build_live_brains, make_model,
@@ -407,6 +409,14 @@ class CrewWatchSupervisor:
                 )
                 if cursor != index.cursor or cursor < previous:
                     raise RuntimeError("World inbox behind local actor checkpoint")
+                # Hot/cold is a lossless view of this *verified* history.
+                # Keep outstanding-world source events and original references
+                # from this actor's unfinished private work in the hot tier.
+                # Every other event, including historic character evidence,
+                # remains available through cold decompression and exact
+                # world lookup. Do not skip world replay on fresh processes.
+                index.replace_pins(checkpoint_evidence_pins(self.state, role))
+                index.compact_hot()
             if cursor > previous:
                 for event in index.view(after=previous, through=cursor):
                     self.brains[role].observe_event(event)
