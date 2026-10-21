@@ -218,6 +218,60 @@ class InboxReplayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(worker._inbox_history, {})
         self.assertEqual(worker.checkpoints, 0)
 
+    async def test_private_agenda_and_proof_cursor_backfill_after_parent_checkpoint(self):
+        from ox_ai.runtime.five_crew_service import FiveCrewSupervisor
+
+        class PrivateProof:
+            def __init__(self):
+                self.seen = []
+            def receive_event(self, event):
+                self.seen.append(event["event_id"])
+
+        class PrivateAgenda:
+            def __init__(self, record):
+                self.record = record
+                self.seen = []
+            def observe(self, event):
+                self.seen.append(event["event_id"])
+                self.record["last_sequence"] = event["sequence"]
+            def task(self, _event_id):
+                return None
+
+        class FiveFixture(SupervisorFixture):
+            read_inbox = FiveCrewSupervisor.read_inbox
+
+            def __init__(self, client, saved):
+                super().__init__(client, saved)
+                agenda_record = self.state.setdefault(
+                    "agendas", {},
+                ).setdefault("lin", {"last_sequence": 160})
+                self.agendas = {"lin": PrivateAgenda(agenda_record)}
+                self.epistemics = {"lin": PrivateProof()}
+                self.state.setdefault("specialist_completed", [])
+
+        events = [event(n, "#10") for n in range(1, 351)]
+        # Simulate an interrupted earlier process: parent cursor and native
+        # brain checkpoint reached 350, but its two private consumers only
+        # committed through 150 and 160. A new process must not lose 151+.
+        saved = {
+            "inbox_cursors": {"lin": 350},
+            "epistemic_event_cursors": {"lin": 150},
+            "agendas": {"lin": {"last_sequence": 160}},
+            "specialist_completed": [],
+            "_seen": [f"oxevt-v2-{n:04d}" for n in range(1, 351)],
+        }
+        worker = FiveFixture(MockInboxClient("#10", events), saved)
+        self.assertEqual(len(await worker.read_inbox("lin")), 350)
+        self.assertEqual(len(worker.epistemics["lin"].seen), 200)
+        self.assertEqual(len(worker.agendas["lin"].seen), 190)
+        self.assertEqual(worker.state["epistemic_event_cursors"]["lin"], 350)
+        self.assertEqual(worker.agendas["lin"].record["last_sequence"], 350)
+        self.assertEqual(worker.checkpoints, 1)
+        self.assertEqual(len(await worker.read_inbox("lin")), 350)
+        self.assertEqual(worker.clients["lin"].commands[-1], "oxinbox 350")
+        self.assertEqual(worker.checkpoints, 1)
+        self.assertEqual(len(worker.epistemics["lin"].seen), 200)
+
     async def test_private_scope_and_stalled_cursor_fail_closed(self):
         class Stalled(MockInboxClient):
             async def send_line(self, command):
