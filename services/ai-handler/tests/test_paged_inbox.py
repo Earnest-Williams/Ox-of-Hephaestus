@@ -237,17 +237,21 @@ class InboxReplayTests(unittest.IsolatedAsyncioTestCase):
             def task(self, _event_id):
                 return None
 
-        class FiveFixture(SupervisorFixture):
-            read_inbox = FiveCrewSupervisor.read_inbox
-
+        class FiveFixture(FiveCrewSupervisor):
             def __init__(self, client, saved):
-                super().__init__(client, saved)
+                # Real inheritance is needed: FiveCrewSupervisor.read_inbox
+                # uses super() to reach the parent world inbox reader.
+                # Supply an isolated test state without opening sockets.
+                SupervisorFixture.__init__(self, client, saved)
                 agenda_record = self.state.setdefault(
                     "agendas", {},
                 ).setdefault("lin", {"last_sequence": 160})
                 self.agendas = {"lin": PrivateAgenda(agenda_record)}
                 self.epistemics = {"lin": PrivateProof()}
                 self.state.setdefault("specialist_completed", [])
+
+            def checkpoint(self):
+                SupervisorFixture.checkpoint(self)
 
         events = [event(n, "#10") for n in range(1, 351)]
         # Simulate an interrupted earlier process: parent cursor and native
