@@ -1,7 +1,7 @@
 # P4f — forty-character historical-evidence restart comparison
 
-**Status:** Instrumentation proposed for review. Do not treat the original
-single-actor measurements as observed fleet startup latency.
+**Status:** The initial 40-character, two-width profile passed on 21 October
+2026 in [GitHub Actions run 39676403054](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/39676403054). A follow-up six-width experiment extends the measurements, without changing actor counts, evidence rules or live supervisor concurrency. These local archive timings are not end-to-end fleet startup latency.
 
 ## What is compared
 
@@ -25,12 +25,16 @@ attestation, replays **every original record** through the hash chain and
 independently verifies outstanding obligations, then retrieves old proofs.
 Disagreement or cross-actor access fails the operation.
 
-Two *hypothetical* startup schedules are measured, alternating AB/BA across
-two trials to reduce page-cache ordering bias:
+The first experiment compared **four concurrently active verifiers** with
+**forty concurrently active verifiers**, processing the same forty distinct
+characters. The follow-up profiles worker widths **1, 2, 4, 8, 16, 40**,
+again keeping the same 40 historical archives. Two trials run candidate
+widths in forward/reverse order to reduce page-cache and runner-order bias.
 
-1. **Staggered:** up to four separate actor-local verifications executing at a
-   time, with the next queued actor beginning on completion.
-2. **Simultaneous:** all 40 actor-local verifications eligible immediately.
+Each width controls the number of simultaneous *archive verification tasks*,
+never the number of characters represented. The 1-worker case verifies all
+forty characters, one after another. The 40-worker case also verifies all
+forty, but all tasks compete immediately.
 
 These are thread-based local probes for possible service scheduling, **not** a
 claim that the current production supervisor starts verification this way.
@@ -66,7 +70,7 @@ python -m unittest discover -s services/ai-handler/tests \
   -p test_fleet_evidence_restart.py -v
 python scenarios/profiling/fleet_evidence_restart.py \
   --actors 4 --events-per-actor 800 --payload-chars 160 \
-  --stagger-width 2 --trials 2 \
+  --stagger-width 2 --widths 1,2,4 --trials 2 \
   --output .ox-state/profiles/p4f-fleet-smoke.json
 ```
 
@@ -77,7 +81,7 @@ The heavier experiment, by manually dispatching the dedicated
 ```sh
 python scenarios/profiling/fleet_evidence_restart.py \
   --actors 40 --events-per-actor 40000 --payload-chars 1200 \
-  --stagger-width 4 --trials 2 \
+  --stagger-width 4 --widths 1,2,4,8,16,40 --trials 2 \
   --output .ox-state/profiles/p4f-fleet-forty.json
 ```
 
@@ -86,6 +90,42 @@ creates 1.6 million complete synthetic records; its cost and disk requirements
 must be allowed for. A GitHub shared runner cannot guarantee cold OS page
 cache or dedicated disk bandwidth. Repeated trial results measure warm-cache
 behaviour; do not label them cold-disk measurements.
+
+## Completed initial 40-actor two-width measurement
+
+The [first full Actions benchmark](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/39676403054)
+completed successfully on an Ubuntu runner with four logical CPUs, Python
+3.12.15, SQLite 3.46.1 and 1,267,527,680 bytes (~1.18 GiB) of retained
+local actor archives. All 1.6 million original records and private obligations
+were reverified in each test. Fixture creation took 222.416 seconds and is
+**excluded** from the following figures.
+
+| Metric (median, 2 trials) | 4 verifier threads | 40 verifier threads |
+| --- | ---: | ---: |
+| Cohort wall time | 142.35 s | 237.24 s |
+| First character evidence ready | 7.22 s | 117.94 s |
+| 95th-percentile character ready | 137.93 s | 237.23 s |
+| Process CPU time | 229.69 CPU-s | 467.22 CPU-s |
+
+All rounds reported zero physical disk-read bytes and zero major page faults.
+The 40-thread penalty in this environment is therefore not demonstrated
+physical disk contention. The measurements do **not** distinguish the GIL,
+Python scheduling and internal SQLite thread competition individually.
+Four-way startup is significantly better than forty-way startup on that
+runner, but the optimal width is **not yet known**.
+
+## Follow-up width sweep
+
+The expanded profiler preserves the initial two-width CLI by default.
+The opt-in full 40-character suite now runs worker widths
+`1,2,4,8,16,40` with the exact same generated actor-private archives.
+The dedicated PR smoke uses four actors and widths `1,2,4`, solely for
+regression testing of measurement and identity invariants; the actual
+full-scale benchmark always specifies `--actors 40`.
+
+The sweep must report whether concurrency pays for itself on the four-vCPU
+runner. It must **not** silently introduce a production scheduler or change
+which events can be known, remembered or authenticated by an actor.
 
 ## What it deliberately does not measure
 
