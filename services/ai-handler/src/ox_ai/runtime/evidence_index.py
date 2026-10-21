@@ -31,6 +31,9 @@ _EVENT_ID = re.compile(r"^oxevt-(?:v2-)?[0-9]+$")
 # referenced by still-persisted handler work. Those must win over eviction.
 DEFAULT_HOT_EVENTS = 256
 COLD_BATCH = 128
+# Physical SQLite B-tree maintenance cadence; NOT a limit on evidence age
+# or number of retained events. Every original record survives repacking.
+REPACK_AFTER_DEMOTIONS = 2048
 
 
 _ARCHIVED_STATE_ROOTS = frozenset({
@@ -149,6 +152,16 @@ class ActorEvidenceIndex:
             "singleton INTEGER PRIMARY KEY CHECK(singleton = 1), "
             "generation TEXT NOT NULL, cursor INTEGER NOT NULL, "
             "digest TEXT NOT NULL)"
+        )
+        self._db.execute(
+            "CREATE TABLE IF NOT EXISTS local_maintenance ("
+            "singleton INTEGER PRIMARY KEY CHECK(singleton = 1), "
+            "demoted_since_repack INTEGER NOT NULL DEFAULT 0 "
+            "CHECK(demoted_since_repack >= 0))"
+        )
+        self._db.execute(
+            "INSERT OR IGNORE INTO local_maintenance(singleton,demoted_since_repack) "
+            "VALUES (1,0)"
         )
         self._db.execute(
             "CREATE INDEX IF NOT EXISTS event_hot_sequence "
@@ -413,6 +426,12 @@ class ActorEvidenceIndex:
                 (boundary[0], batch_size),
             ))
             if not records:
+                if demoted:
+                    self._db.execute(
+                        "UPDATE local_maintenance SET demoted_since_repack="
+                        "demoted_since_repack+? WHERE singleton=1",
+                        (demoted,),
+                    )
                 return demoted
             for sequence, payload in records:
                 raw = payload.encode("utf-8")
@@ -429,6 +448,45 @@ class ActorEvidenceIndex:
                     (sequence,),
                 )
                 demoted += 1
+
+    def repack_if_worthwhile(
+        self, *, after_demotions: int = REPACK_AFTER_DEMOTIONS,
+    ) -> bool:
+        """Periodically reclaim SQLite allocation slack, retaining all evidence.
+
+        A VACUUM is a transactional SQLite file rebuild, NOT a world event
+        deletion. It may run only after page + prefix-seal commit and outside
+        all actor index transactions. Failure leaves the prior archive
+        protected by SQLite crash recovery; do not advance a cognition
+        checkpoint after an unsuccessful repack.
+        """
+        if type(after_demotions) is not int or after_demotions < 1:
+            raise ValueError("Invalid lossless-repack maintenance interval")
+        if self._db.in_transaction:
+            raise RuntimeError("Cannot repack during an evidence transaction")
+        count = self._db.execute(
+            "SELECT demoted_since_repack FROM local_maintenance "
+            "WHERE singleton=1"
+        ).fetchone()
+        if count is None:
+            raise RuntimeError("Missing local evidence maintenance state")
+        if count[0] < after_demotions:
+            return False
+
+        attested = self.stored_attestation()
+        # SQLite VACUUM itself is atomic and fail-safe on interruption.
+        # No temp copy is promoted and no actor-scoped row is discarded.
+        self._db.execute("VACUUM")
+        if self.stored_attestation() != attested:
+            raise RuntimeError("Journal evidence seal changed after SQLite repack")
+        # If interrupted between VACUUM and this administrative update, a
+        # later pass can safely repeat VACUUM. Never reset the counter first.
+        with self.transaction():
+            self._db.execute(
+                "UPDATE local_maintenance SET demoted_since_repack=0 "
+                "WHERE singleton=1"
+            )
+        return True
 
     @contextmanager
     def transaction(self) -> Iterator[None]:
