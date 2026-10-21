@@ -18,6 +18,9 @@ class CrewEvent(models.Model):
     details = models.JSONField(default=dict)
     text = models.TextField(default="")
     game_time = models.FloatField()
+    # Immutable recipient-prefix digest of this exact journal entry.
+    # Populated by the one-time migration and every normal world writer.
+    chain_hash = models.CharField(max_length=64, null=True)
 
     class Meta:
         indexes = [
@@ -26,6 +29,13 @@ class CrewEvent(models.Model):
                 name="ox_event_recipient_seq",
             ),
         ]
+
+
+class JournalEpoch(models.Model):
+    """One durable world generation; rotated only by operator-only resets."""
+
+    id = models.PositiveSmallIntegerField(primary_key=True, default=1)
+    generation = models.CharField(max_length=32)
 
 
 class WorkReceipt(models.Model):
