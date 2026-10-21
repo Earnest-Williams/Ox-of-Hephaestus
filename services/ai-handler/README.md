@@ -97,9 +97,11 @@ and completed-work references still return the original records on demand.
 The effective hot cap is 256 **plus actual live pins**; genuine unresolved
 obligations cannot be removed to enforce an arbitrary fixed number. Local
 cold bodies are integrity-checked, not authoritative. This reduces
-uncompressed evidence, **not** total disk records. Every 2,048 actual
-hot-to-cold demotions, the handler can transactionally repack the SQLite
-file **after** the authenticated page/prefix-seal commit and before
+uncompressed evidence, **not** total disk records. A repack is eligible
+only after at least 2,048 accumulated hot-to-cold demotions **and**
+demotions amounting to 25% of the current cold history. This amortizes
+whole-archive rewriting as the voyage grows. SQLite's transactional
+repack runs **after** the authenticated page/prefix-seal commit and before
 advancing a native brain checkpoint. This reclaims allocated B-tree
 space without dropping a single old event, receipt or unfinished task.
 The durable maintenance counter resets only after successful repack, so
