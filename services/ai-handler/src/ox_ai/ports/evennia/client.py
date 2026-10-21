@@ -231,11 +231,14 @@ class EvenniaWebSocketClient:
                         del self._pending[index]
                         return packet
             for _ in range(frame_budget):
+                # Never take a frame off the wire unless there is room to
+                # preserve it if unrelated. A post-read capacity check drops
+                # that freshly received frame on overflow.
+                if len(self._pending) >= MAX_BUFFERED_PACKETS:
+                    raise RuntimeError("Unmatched character packets exceeded bounded buffer")
                 packet = await self._read_wire()
                 if predicate(packet):
                     return packet
-                if len(self._pending) >= MAX_BUFFERED_PACKETS:
-                    raise RuntimeError("Unmatched character packets exceeded bounded buffer")
                 self._pending.append(packet)
         raise RuntimeError("World response frame budget exhausted")
 

@@ -46,7 +46,12 @@ class DurableEvenniaPort:
                 return False
             # A delayed receipt for a previous request belongs to that
             # request; preserve it rather than misattributing or discarding it.
-            return entry(packet).get("request_id") == request_id
+            # A malformed unrelated receipt cannot be attributed to this ID:
+            # keep it buffered without aborting a valid receipt in flight.
+            try:
+                return entry(packet).get("request_id") == request_id
+            except ValueError:
+                return False
 
         try:
             async with asyncio.timeout(self.timeout):

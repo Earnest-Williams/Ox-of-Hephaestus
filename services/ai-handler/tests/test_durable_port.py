@@ -59,6 +59,38 @@ class DurablePortTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.status, "succeeded")
         self.assertEqual(result.source_event_id, "p01-0007")
 
+    async def test_malformed_foreign_receipts_do_not_abort_our_valid_receipt(self):
+        c = FakeClient()
+        request_id = "d" * 32
+        foreign = "e" * 32
+        c.packets = [
+            WebPacket("ox_receipt", ("invalid positional content",), {}),
+            WebPacket("ox_receipt", (), {"unrelated": True}),
+            WebPacket("ox_receipt", ({
+                "request_id": foreign, "actor_dbref": "#42",
+                "status": "succeeded",
+            },), {}),
+            WebPacket("ox_receipt", ({
+                "request_id": request_id, "actor_dbref": "#42",
+                "status": "succeeded", "source_event_id": "p01-0011",
+            },), {}),
+        ]
+        outcome = await DurableEvenniaPort(c).reconcile(request_id)
+        self.assertEqual(outcome.status, "succeeded")
+        self.assertEqual(outcome.source_event_id, "p01-0011")
+        self.assertEqual(c.lines, ["oxreceipt " + request_id])
+        self.assertEqual(len(c.unmatched), 3)
+        self.assertEqual(c.unmatched[2].args[0]["request_id"], foreign)
+
+    async def test_malformed_matching_receipt_remains_invalid(self):
+        c = FakeClient()
+        request_id = "f" * 32
+        c.packets = [WebPacket("ox_receipt", ({
+            "request_id": request_id, "actor_dbref": "#42", "status": "invalid",
+        },), {})]
+        with self.assertRaisesRegex(ValueError, "receipt status"):
+            await DurableEvenniaPort(c).reconcile(request_id)
+
     async def test_timeout_stays_unknown_and_does_not_replay(self):
         c = FakeClient()
         request_id = "b" * 32
