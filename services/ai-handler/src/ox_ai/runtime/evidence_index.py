@@ -263,9 +263,69 @@ class ActorEvidenceIndex:
         from ox_ai.ports.evennia.journal import continue_digest, journal_seed
 
         digest = journal_seed(generation, self.actor_dbref)
-        for event in self.view():
-            digest = continue_digest(digest, event)
-        return digest
+        # The obligations table is a derived but consequential index: a
+        # corrupted closed/open flag could silently skip pending world work
+        # even when every event body and its prefix hash are still valid.
+        # Rebuild it as a TEMP projection while already scanning all records.
+        self._db.execute("DROP TABLE IF EXISTS temp.verified_obligations")
+        self._db.execute(
+            "CREATE TEMP TABLE verified_obligations ("
+            "category TEXT NOT NULL, reference TEXT NOT NULL, "
+            "source_sequence INTEGER NOT NULL, resolved_sequence INTEGER, "
+            "PRIMARY KEY(category,reference))"
+        )
+        openings = {"crew_hail": ("hail", "hail_id"),
+                    "captain_problem_open": ("captain", "ticket_id")}
+        endings = {"hail_answered": ("hail", "hail_id"),
+                   "captain_world_resolved": ("captain", "ticket_id")}
+        try:
+            for event in self.view():
+                digest = continue_digest(digest, event)
+                kind = event["kind"]
+                opening = openings.get(kind)
+                ending = endings.get(kind)
+                entry = opening or ending
+                if entry is None:
+                    continue
+                category, key = entry
+                ref = event["data"].get(key)
+                if not isinstance(ref, str) or not ref:
+                    raise RuntimeError("Invalid restored world obligation identity")
+                if opening is not None:
+                    try:
+                        self._db.execute(
+                            "INSERT INTO verified_obligations "
+                            "(category,reference,source_sequence) VALUES (?,?,?)",
+                            (category, ref, event["sequence"]),
+                        )
+                    except sqlite3.IntegrityError as exc:
+                        raise RuntimeError(
+                            "Duplicate opening in restored world obligations"
+                        ) from exc
+                else:
+                    self._db.execute(
+                        "UPDATE verified_obligations SET resolved_sequence=? "
+                        "WHERE category=? AND reference=? "
+                        "AND resolved_sequence IS NULL",
+                        (event["sequence"], category, ref),
+                    )
+            fields = "category,reference,source_sequence,resolved_sequence"
+            forward = (
+                f"SELECT {fields} FROM obligations EXCEPT "
+                f"SELECT {fields} FROM verified_obligations"
+            )
+            backward = (
+                f"SELECT {fields} FROM verified_obligations EXCEPT "
+                f"SELECT {fields} FROM obligations"
+            )
+            if (self._db.execute(forward + " LIMIT 1").fetchone() is not None
+                    or self._db.execute(backward + " LIMIT 1").fetchone() is not None):
+                raise RuntimeError(
+                    "Cached open obligations differ from authenticated history"
+                )
+            return digest
+        finally:
+            self._db.execute("DROP TABLE IF EXISTS temp.verified_obligations")
 
     @property
     def hot_count(self) -> int:
