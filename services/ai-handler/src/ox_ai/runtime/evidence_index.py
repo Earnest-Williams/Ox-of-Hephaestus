@@ -33,6 +33,70 @@ DEFAULT_HOT_EVENTS = 256
 COLD_BATCH = 128
 
 
+_ARCHIVED_STATE_ROOTS = frozenset({
+    "completed", "specialist_completed", "specialist_handled",
+    "handled_alarms", "navigation_knowledge", "epistemic_event_cursors",
+    "inbox_cursors",
+})
+_TERMINAL_AGENDA_STATES = frozenset({
+    "completed", "declined", "delegated", "escalated",
+})
+
+
+def checkpoint_evidence_pins(state: Mapping, role: str) -> set[str]:
+    """Find original source IDs in *unfinished* actor-owned work records.
+
+    Durable finished work and character memory are not deleted; their source
+    evidence remains readable from cold storage. This is a hot-priority hint
+    only and cannot authorize an unaddressed event or physical action.
+    """
+    if not isinstance(state, Mapping) or not isinstance(role, str):
+        raise TypeError("Private checkpoint scope required")
+    pins: set[str] = set()
+
+    def collect(node: object) -> None:
+        if isinstance(node, str):
+            if len(node) <= 64 and _EVENT_ID.fullmatch(node):
+                pins.add(node)
+        elif isinstance(node, Mapping):
+            for key, value in node.items():
+                if key not in _ARCHIVED_STATE_ROOTS:
+                    collect(value)
+        elif isinstance(node, (list, tuple)):
+            for value in node:
+                collect(value)
+
+    # Most live work is role-local. A shared watch incident can contain
+    # source IDs addressed to several workers; the index will pin only
+    # those that actually occur in its recipient-owned rows.
+    for key in ("current", "handover_work", "hail_work"):
+        records = state.get(key)
+        if key == "hail_work" and isinstance(records, Mapping):
+            for work in records.values():
+                if isinstance(work, Mapping) and work.get("role") == role:
+                    collect(work)
+        else:
+            collect(records)
+    for key in (
+        "specialist_jobs", "independent_rounds", "g3e_investigations",
+        "g3e_followup", "g3e_questions",
+    ):
+        records = state.get(key)
+        if isinstance(records, Mapping):
+            record = records.get(role)
+            if not (isinstance(record, Mapping) and record.get("done") is True):
+                collect(record)
+    agendas = state.get("agendas")
+    if isinstance(agendas, Mapping):
+        owner = agendas.get(role)
+        if isinstance(owner, Mapping) and isinstance(owner.get("tasks"), Mapping):
+            for task in owner["tasks"].values():
+                if (isinstance(task, Mapping)
+                        and task.get("status") not in _TERMINAL_AGENDA_STATES):
+                    collect(task)
+    return pins
+
+
 class ActorEvidenceIndex:
     """One actor, one fresh process-local SQLite database, no world writes."""
 
