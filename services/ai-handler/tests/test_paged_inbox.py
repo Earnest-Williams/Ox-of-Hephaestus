@@ -216,6 +216,53 @@ class InboxReplayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(worker.brains["lin"].seen), 430)
         self.assertEqual(worker.state["inbox_cursors"]["lin"], 430)
 
+    async def test_checkpoint_failure_replays_indexed_but_unsaved_delta(self):
+        class FailOnce(SupervisorFixture):
+            def __init__(self, client):
+                super().__init__(client)
+                self.fail_next_save = True
+
+            def checkpoint(self):
+                if self.fail_next_save:
+                    self.fail_next_save = False
+                    raise OSError("synthetic checkpoint disk failure")
+                super().checkpoint()
+
+        events = [event(i, "#10") for i in range(1, 181)]
+        client = MockInboxClient("#10", events)
+        worker = FailOnce(client)
+        with self.assertRaisesRegex(OSError, "checkpoint disk failure"):
+            await worker.read_inbox("lin")
+        self.assertEqual(worker.state.get("inbox_cursors", {}), {})
+        self.assertEqual(worker._evidence_indexes["lin"].cursor, 180)
+        self.assertEqual(worker._inbox_hydrated, set())
+        self.assertEqual(len(worker.brains["lin"].seen), 180)
+        self.assertEqual(worker.checkpoints, 0)
+
+        # The failed save did not fabricate or drop an event. The same
+        # process can reuse validated archived rows and save its cursor.
+        self.assertEqual(len(await worker.read_inbox("lin")), 180)
+        self.assertEqual(client.commands[-1], "oxinbox 180")
+        self.assertEqual(worker.state["inbox_cursors"]["lin"], 180)
+        self.assertEqual(len(worker.brains["lin"].seen), 180)
+        self.assertEqual(worker.checkpoints, 1)
+
+    async def test_world_rewind_does_not_trust_saved_handler_cursor(self):
+        old = {
+            "inbox_cursors": {"lin": 300},
+            "_seen": [f"oxevt-v2-{i:04d}" for i in range(1, 301)],
+        }
+        worker = SupervisorFixture(
+            MockInboxClient("#10", [event(i, "#10") for i in range(1, 201)]),
+            old,
+        )
+        with self.assertRaisesRegex(RuntimeError, "behind local actor checkpoint"):
+            await worker.read_inbox("lin")
+        self.assertEqual(worker.state["inbox_cursors"]["lin"], 300)
+        self.assertEqual(worker._evidence_indexes["lin"].cursor, 0)
+        self.assertEqual(worker._inbox_hydrated, set())
+        self.assertEqual(worker.checkpoints, 0)
+
     async def test_same_role_concurrent_reads_serialize_on_one_socket(self):
         import asyncio
         client = MockInboxClient("#10", [
