@@ -179,10 +179,10 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
     async def read_inbox(self, role: str) -> list[dict]:
         """Ingest ONLY this actor's real events into their private agenda.
 
-        Old P4e histories are fully paginated by the parent reader. Replays
-        do not reawaken deferred work or recreate completed obligations.
+        The parent's lazy indexed history preserves genuine older proofs.
+        Replays do not reawaken deferred work or completed obligations.
         """
-        cold_hydration = role not in self._inbox_history
+        cold_hydration = role not in self._inbox_hydrated
         events = await super().read_inbox(role)
         agenda = self.agendas[role]
         changed = False
@@ -212,7 +212,9 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
         # upgrade rule: even a historic alarm below agenda.last_sequence
         # may lack a task entry and must be offered before reconciling it.
         alarm_candidates = (
-            events if cold_hydration else proof_delta
+            events.select(kind=ALARMS[role]) if cold_hydration and role in EXTRA_ACCOUNTS
+            else proof_delta.select(kind=ALARMS[role]) if role in EXTRA_ACCOUNTS
+            else ()
         )
         if role in EXTRA_ACCOUNTS:
             for event in alarm_candidates:

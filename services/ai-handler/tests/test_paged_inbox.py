@@ -1,6 +1,7 @@
 """Non-network inbox replay and crash-safe agent cursor tests."""
 from collections import deque
 import copy
+import tempfile
 import unittest
 
 from ox_ai.ports.evennia.client import WebPacket
@@ -74,10 +75,12 @@ class SupervisorFixture:
         self.clients = {"lin": client}
         self.brains = {"lin": Brain(observations)}
         self.state = snapshot
+        self.ids = {"lin": client.character_dbref}
         self.saved = None
         self.checkpoints = 0
-        self._inbox_history = {}
-        self._inbox_sequences = {}
+        self._evidence_temporary = tempfile.TemporaryDirectory(prefix="ox-index-test-")
+        self._evidence_indexes = {}
+        self._inbox_hydrated = set()
         self._inbox_role_locks = {}
 
     def checkpoint(self):
@@ -154,9 +157,9 @@ class InboxReplayTests(unittest.IsolatedAsyncioTestCase):
             "oxinbox " + str(initial[-1]["sequence"]),
         ])
         self.assertEqual(worker.checkpoints, 1)
-        self.assertEqual(worker.inbox_events_since(
+        self.assertEqual(len(worker.inbox_events_since(
             "lin", initial[-1]["sequence"],
-        ), [])
+        )), 0)
         events.extend([event(n, "#10") for n in range(2402, 2572)])
         appended = await worker.read_inbox("lin")
         self.assertEqual(len(appended), len(initial) + 170)
@@ -181,7 +184,7 @@ class InboxReplayTests(unittest.IsolatedAsyncioTestCase):
             await worker.read_inbox("lin")
         self.assertEqual(worker.state["inbox_cursors"]["lin"], old_cursor)
         self.assertEqual(len(worker.brains["lin"].seen), old_cursor)
-        self.assertEqual(len(worker._inbox_history["lin"]), old_cursor)
+        self.assertEqual(len(worker._evidence_indexes["lin"].view()), old_cursor)
         client.disconnect_page = None
         retried = await worker.read_inbox("lin")
         self.assertEqual(len(retried), 430)
@@ -215,7 +218,8 @@ class InboxReplayTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(RuntimeError, "count disagrees"):
             await worker.read_inbox("lin")
         self.assertEqual(worker.state.get("inbox_cursors", {}), {})
-        self.assertEqual(worker._inbox_history, {})
+        self.assertEqual(worker._evidence_indexes["lin"].cursor, 0)
+        self.assertEqual(worker._inbox_hydrated, set())
         self.assertEqual(worker.checkpoints, 0)
 
     async def test_private_agenda_and_proof_cursor_backfill_after_parent_checkpoint(self):
