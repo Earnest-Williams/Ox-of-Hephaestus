@@ -905,10 +905,19 @@ class CrewWatchSupervisor:
         count = 0
         pending = self.state.setdefault("hail_work", {})
         events = await self.read_inbox(role)
-        # The local index tracks addressed opens/closes transactionally.
-        # Do not revisit every answered hail on each ordinary wake-up.
-        for event in events.pending("hail"):
-            hail_id = event["data"]["hail_id"]
+        # Resolved hails normally disappear from the pending index. An
+        # interrupted work ledger must still reconcile its original source.
+        # Never silently discard a previously persisted operation.
+        candidates = {e["data"]["hail_id"]: e for e in events.pending("hail")}
+        for hail_id, work in pending.items():
+            if work.get("role") == role and hail_id not in candidates:
+                source = events.get(work.get("hail_event_id"), kind="crew_hail")
+                if source is None or source["data"].get("hail_id") != hail_id:
+                    raise PermissionError("Persisted hail has no addressed source")
+                candidates[hail_id] = source
+        for hail_id, event in sorted(
+            candidates.items(), key=lambda pair: pair[1]["sequence"],
+        ):
             work = pending.get(hail_id)
             brain = self.brains[role]
             brain.observe_event(event)
