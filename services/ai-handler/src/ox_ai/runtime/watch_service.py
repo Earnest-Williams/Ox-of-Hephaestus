@@ -905,14 +905,11 @@ class CrewWatchSupervisor:
         count = 0
         pending = self.state.setdefault("hail_work", {})
         events = await self.read_inbox(role)
-        answered = {
-            e["data"]["hail_id"] for e in events.select(kind="hail_answered")
-        }
-        for event in events.select(kind="crew_hail"):
+        # The local index tracks addressed opens/closes transactionally.
+        # Do not revisit every answered hail on each ordinary wake-up.
+        for event in events.pending("hail"):
             hail_id = event["data"]["hail_id"]
             work = pending.get(hail_id)
-            if hail_id in answered and work is None:
-                continue
             brain = self.brains[role]
             brain.observe_event(event)
             if work is None:
@@ -950,7 +947,6 @@ class CrewWatchSupervisor:
             if verified is None:
                 raise RuntimeError("Hail answer unconfirmed by world journal")
             brain.observe_event(verified)
-            answered.add(hail_id)
             del pending[hail_id]
             count += 1
             self.checkpoint()
