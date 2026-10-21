@@ -325,6 +325,35 @@ class InboxReplayTests(unittest.IsolatedAsyncioTestCase):
             )
             second._evidence_indexes["lin"].close()
 
+    async def test_interrupted_attested_delta_is_not_partially_sealed(self):
+        history = [event(n, "#10") for n in range(1, 301)]
+        with tempfile.TemporaryDirectory() as folder:
+            client = MockCertifiedClient("#10", history)
+            worker = SupervisorFixture(client)
+            worker._journal_continuity = True
+            worker._evidence_root = Path(folder)
+            await worker.read_inbox("lin")
+            base_digest = worker._evidence_indexes["lin"].stored_attestation()
+            self.assertEqual(base_digest[1], 300)
+            history.extend(event(n, "#10") for n in range(301, 601))
+            # One later page has been indexed inside the transaction when the
+            # next world page disappears; neither events nor digest commit.
+            client.disconnect_page = len(client.commands) + 2
+            with self.assertRaises(ConnectionError):
+                await worker.read_inbox("lin")
+            self.assertEqual(worker._evidence_indexes["lin"].cursor, 300)
+            self.assertEqual(
+                worker._evidence_indexes["lin"].stored_attestation(), base_digest,
+            )
+            self.assertEqual(worker.state["inbox_cursors"]["lin"], 300)
+            client.disconnect_page = None
+            replayed = await worker.read_inbox("lin")
+            self.assertEqual(len(replayed), 600)
+            self.assertEqual(
+                worker._evidence_indexes["lin"].stored_attestation()[1], 600,
+            )
+            worker._evidence_indexes["lin"].close()
+
     async def test_cached_prefix_change_rewind_and_epoch_reset_fail_closed(self):
         original = [event(n, "#10") for n in range(1, 551)]
         with tempfile.TemporaryDirectory() as folder:
