@@ -5,6 +5,7 @@ from pathlib import Path
 import unittest
 
 from ox_ai.runtime.evidence_index import ActorEvidenceIndex, checkpoint_evidence_pins
+from ox_ai.ports.evennia.journal import continue_digest, journal_seed
 
 
 def evidence(n, recipient="#42", *, kind="ship_notice", **data):
@@ -297,6 +298,93 @@ class IndexedEvidenceTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             self.archive.view().get("oxevt-v2-0001")
         self.assertEqual(self.archive.view().get("oxevt-v2-0039"), evidence(39))
+
+    def test_lossless_sqlite_repack_preserves_archive_and_world_seal(self):
+        generation = "b" * 32
+        digest = journal_seed(generation, "#42")
+        messages = []
+        for n in range(1, 3073):
+            kind = ("crew_hail" if n == 1
+                    else "captain_problem_open" if n == 2
+                    else "ship_notice")
+            details = ({"hail_id": "still-open"} if n == 1
+                       else {"ticket_id": "still-open-ticket"} if n == 2
+                       else {"case_id": f"case-{n % 25}"})
+            item = evidence(n, kind=kind, **details)
+            item["text"] = ("Archived reactor pressure log with detailed "
+                            "readings and signed observations. " * 19)
+            messages.append(item)
+        with self.archive.transaction():
+            for offset in range(0, len(messages), 128):
+                page = messages[offset:offset + 128]
+                self.archive.append_page(page)
+                for item in page:
+                    digest = continue_digest(digest, item)
+            self.archive.replace_pins({"oxevt-v2-0003"})
+            self.assertGreater(self.archive.compact_hot(), 2048)
+            self.archive.seal_attestation(generation, digest)
+        before_bytes = self.archive.path.stat().st_size
+        with self.assertRaisesRegex(RuntimeError, "during an evidence transaction"):
+            with self.archive.transaction():
+                self.archive.repack_if_worthwhile()
+        self.assertTrue(self.archive.repack_if_worthwhile())
+        after_bytes = self.archive.path.stat().st_size
+        self.assertLess(after_bytes, before_bytes)
+        self.assertFalse(self.archive.repack_if_worthwhile())
+        self.assertEqual(
+            self.archive.stored_attestation(), (generation, 3072, digest),
+        )
+        self.assertEqual(self.archive.recompute_prefix(generation), digest)
+        self.assertEqual(self.archive.view().get("oxevt-v2-0001"), messages[0])
+        self.assertEqual(self.archive.view().get("oxevt-v2-3072"), messages[-1])
+        self.assertEqual(
+            [e["sequence"] for e in self.archive.view().pending("hail")], [1],
+        )
+        self.assertEqual(
+            [e["sequence"] for e in self.archive.view().pending("captain")], [2],
+        )
+        with self.assertRaises(ValueError):
+            self.archive.repack_if_worthwhile(after_demotions=0)
+        reopened = ActorEvidenceIndex(self.archive.path, "#42")
+        try:
+            self.assertEqual(reopened.recompute_prefix(generation), digest)
+            self.assertEqual(reopened.view().get("oxevt-v2-0017"), messages[16])
+            self.assertFalse(reopened.repack_if_worthwhile())
+        finally:
+            reopened.close()
+
+    def test_repack_batched_demotion_counter_is_durable_and_rollback_safe(self):
+        with self.archive.transaction():
+            self.archive.append_page([
+                evidence(n) for n in range(1, 62)
+            ])
+            moved = self.archive.compact_hot(recent=8)
+            self.assertEqual(moved, 53)
+        self.assertFalse(self.archive.repack_if_worthwhile(after_demotions=75))
+        before_count = self.archive._db.execute(
+            "SELECT demoted_since_repack FROM local_maintenance"
+        ).fetchone()[0]
+        with self.assertRaisesRegex(RuntimeError, "interrupted"):
+            with self.archive.transaction():
+                self.archive.append_page([
+                    evidence(n) for n in range(62, 103)
+                ])
+                self.archive.compact_hot(recent=8)
+                raise RuntimeError("interrupted")
+        self.assertEqual(self.archive.cursor, 61)
+        self.assertEqual(self.archive._db.execute(
+            "SELECT demoted_since_repack FROM local_maintenance"
+        ).fetchone()[0], before_count)
+        with self.archive.transaction():
+            self.archive.append_page([
+                evidence(n) for n in range(62, 103)
+            ])
+            self.archive.compact_hot(recent=8)
+        self.assertTrue(self.archive.repack_if_worthwhile(after_demotions=75))
+        self.assertEqual(len(self.archive.view()), 102)
+        self.assertEqual(self.archive._db.execute(
+            "SELECT demoted_since_repack FROM local_maintenance"
+        ).fetchone()[0], 0)
 
     def test_checkpoint_hot_pins_ignore_terminal_and_cross_role_work(self):
         state = {
