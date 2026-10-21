@@ -36,6 +36,16 @@ See [implementation status](../design/STATUS.md).
   own persisted events, followed by `ox_inbox_done`. The handler
   verifies recipient, stable ID and framing before placing an event
   in that character's memory.
+- `oxevent <nonce> <event-id>` is a read-only indexed exact historical
+  lookup over the **same** journal. One `ox_event_lookup` OOB frame
+  returns `version=1`, the original nonce, the authenticated actor, the
+  requested ID, `found|missing|oversized` and the complete original event
+  only on `found`. Foreign-recipient and unknown IDs return identically
+  `missing`; an oversized event is never silently truncated. The typed
+  handler `WorldEventPort` checks nonce, actor, source identity, event
+  kind, scalar data and replay provenance. A recovered event is evidence
+  of a past observation, **not** current work authority or proof of
+  obligation resolution. [Exact lookup contract](../design/prototypes/p4f-world-exact-evidence.md).
 - `oxaction <32-lowercase-hex-request-id> <isolate|repair|commission>`
   applies normal Evennia role, locality and pump-state checks, writing
   an actor-bound record in the world. The reply is typed `ox_receipt`,
