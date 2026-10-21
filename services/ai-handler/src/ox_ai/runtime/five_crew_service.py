@@ -301,11 +301,7 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
             if task is None:
                 # Recovery of a pre-G2 P4e snapshot: recover its actual
                 # originally addressed event, never fabricate task authority.
-                previous = next(
-                    (e for e in events
-                     if e["event_id"] == job["event_id"]
-                     and e["kind"] == ALARMS[role]), None,
-                )
+                previous = events.get(job["event_id"], kind=ALARMS[role])
                 if previous is None:
                     raise PermissionError("Persisted job lacks source observation")
                 task = self.agendas[role].offer(
@@ -336,8 +332,8 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
             return True
         handled = set(self.state["specialist_handled"][role])
         new = [
-            e for e in events if e["kind"] == ALARMS[role]
-            and e["event_id"] not in handled
+            e for e in events.select(kind=ALARMS[role])
+            if e["event_id"] not in handled
         ]
         if not new:
             return False
@@ -650,6 +646,8 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
             raise PermissionError("Invalid character-scoped independent round state")
         for role in self.ids:
             events = await self.read_inbox(role)
+            # Cycle is the world-assigned round ordinal; scan only the
+            # indexed kind instead of the entire addressed voyage.
             latest = max(
                 events.select(kind="crew_round_window"),
                 key=lambda e: int(e["data"]["cycle"]), default=None,
