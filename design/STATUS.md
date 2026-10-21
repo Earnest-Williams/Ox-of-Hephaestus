@@ -57,7 +57,8 @@ feature inventories.
 | G12 — native Concordia 6/20/40 profiling | Tested and merged | [PR #78](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/78): local, deterministic native-component timing, memory/checkpoint and prompt-size measurements for *instantiated brains*. Not 20/40 authenticated ship crew or hosted inference latency. [PR #79](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/79) removed only an unused Concordia OpenAI provider extra. |
 | Transport — authentication, framing, buffering | Implemented, focused checks | [PR #71](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/71) and [PR #84](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/84): world-aligned command budget, interleaved private events/receipts, bounded unmatched packets and lossless overflow handling; malformed unattributable receipts cannot masquerade as the requested result. |
 | PostgreSQL journal and captain locking | Tested and merged | [PR #82](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/82): commit-ordered global journal sequence and exact work-receipt source identity. [PR #83](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/83): P-01 → captain obligation → journal lock ordering and unique concurrent obligation creation; actual two-connection PostgreSQL regressions. |
-| Handler inbox — incremental warm replay | Implemented in PR #85 | [PR #85](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/85): one full world-history hydration **per process**, then recipient-scoped `oxinbox <saved-cursor>` delta reads; independent five-crew private proof/agenda cursor recovery, page validation and no new model/world authority. Legacy full history remains in-process and is replayed once again on restart; bounded retention remains future work. |
+| Handler inbox — incremental warm replay | Implemented in PR #85 | [PR #85](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/85): one full world-history hydration **per process**, then recipient-scoped `oxinbox <saved-cursor>` delta reads; independent five-crew private proof/agenda cursor recovery and strict page validation. The original implementation retained a complete Python history; see PR #86 for its indexed replacement. |
+| Handler indexed historical evidence | Implementation in PR #86 | [PR #86](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/86): streamed authenticated <=128-event pages into actor-isolated, disposable SQLite evidence indexes; lazy stable history views and exact/typed indexed lookups; rollback on incomplete reads and independently durable brain/agenda/epistemic cursors. Bounds permanent Python historical lists and the transient wake-event buffer, **not** disk growth or full world-authenticated rehydration at process start. [Design and risk boundaries](prototypes/p4f-indexed-evidence-v2.md). |
 | P5 — browser observatory | **Deferred / not built** | No browser UI, joined handler/world API, or operator dashboard |
 
 **Naming note:** the original Prototype 1 plan used “P4” for the first
@@ -95,11 +96,12 @@ sequence assignment through transaction commit and attributes receipts to
 actual causal emissions; [PR #83](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/83) repairs the captain alarm/ticket/journal
 lock inversion and retains exactly one active obligation under contention.
 Neither gate eliminates the need for future adversarial transaction reviews.
-The handler now stops repeating *network* full-history scans within one
-process (PR #85), while retaining a complete in-process compatibility
-history for legacy work/captain/hail evidence and rehydrating it after
-each process restart. A bounded on-disk event index and selective
-checkpoint writing remain future optimizations.
+PR #85 removed repeated full-history *network* scans. PR #86 also removes
+the unbounded Python history list: historical proof is streamed to a
+disposable per-actor SQLite index and accessed through lazy snapshots or
+indexed case/ticket/receipt queries. The first read on every process start
+still authenticates the full world history; local disk usage grows with
+voyage length and individual Concordia checkpoint rewrites remain costly.
 
 ## G3d independent-initiative pilot (merged)
 
@@ -137,11 +139,14 @@ PR #85 retrieves the complete actor-private history **once per handler
 process**, then requests only events after its durable recipient cursor.
 Independently checkpointed five-crew agenda and epistemic cursors use
 delta slices and can recover from a parent/child checkpoint interruption.
-This is not yet bounded in-memory history or incremental *cold-start*
-rehydration. PR #82 ensures journal sequence assignment cannot overtake
+PR #86 replaces the per-process unbounded Python compatibility history
+with a stream-populated, actor-scoped disposable SQLite index; historical
+event identities remain queryable and rollback rules are unchanged.
+It is **not** persisted trusted evidence between processes, and it does not
+truncate the world journal. PR #82 ensures sequence allocation follows
 PostgreSQL commit; PR #83 standardizes captain alarm lock ordering.
-A bounded per-agent historical index, retention/compaction and broader
-crash-safe physical/social actions remain future work. P4f does **not** establish arbitrary mid-scene transaction
+A durable verified cold-start index, selective checkpoint writes and
+broader crash-safe physical/social actions remain future work. P4f does **not** establish arbitrary mid-scene transaction
 recovery or general LLM-driven planning.
 
 ## What the prototype does today

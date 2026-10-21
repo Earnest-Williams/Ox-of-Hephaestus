@@ -44,7 +44,8 @@ is not a description of today's `main`. P5 is postponed.
   [G4f practical learning](prototypes/g4f-world-receipt-learning.md)
 - [G4g taught conceptual assessment](prototypes/g4g-verified-conceptual-learning.md) ·
   [G4h firsthand investigative method](prototypes/g4h-investigative-learning.md)
-- [G5 adversarial/restart tests](prototypes/g5-adversarial-voyage.md)
+- [G5 adversarial/restart tests](prototypes/g5-adversarial-voyage.md) ·
+  [P4f actor-indexed evidence follow-up](prototypes/p4f-indexed-evidence-v2.md)
 - [G6 terminal loss](prototypes/g6-terminal-full-world.md) ·
   [G6b continuous crisis](prototypes/g6b-continuous-crisis.md)
 - [G7 apartment GOAP](prototypes/g7-social-goap-apartment.md) ·

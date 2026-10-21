@@ -51,16 +51,23 @@ competence or a 40-character live simulation.
   wire order under a finite buffer. It refuses to read when that buffer is
   already full; malformed unattributable receipts remain unmatched, and
   actor/receipt status checks on the matching request still fail closed.
-- **PR #85 incremental addressed inbox:** each authenticated recipient's
-  first handler read hydrates historical context once per *process*.
-  Following reads request `oxinbox` strictly after the saved actor cursor.
-  The live per-actor compatibility history remains complete, not truncated,
-  because pump, social, captain and investigation recovery still verify old
-  world event IDs. Five-crew epistemics/agenda use binary-searched deltas
-  against their own independently durable cursors. A cold process still
-  rehydrates full history; in-memory retention is still unbounded. No
-  additional server authority or journal mutation is introduced.
-  These are transport/handler optimizations, not independent world authority.
+- **PRs #85–86 indexed actor inbox:** each authenticated recipient still
+  fetches its world history from cursor zero on process start; PR #86 now
+  streams validated pages in <=128-event batches into a separate *disposable*
+  per-actor SQLite index rather than retaining every event in Python memory.
+  Later requests use the indexed high-water mark. Historical pump, social,
+  captain and investigation evidence is accessible through lazy immutable
+  snapshots, exact event-ID proofs, indexed event kinds and indexed case/
+  ticket keys. Five-crew private agenda/epistemic cursors backfill through
+  the index without admitting unauthenticated or foreign events.
+  The entire multi-page insertion is transactional; incomplete pages cannot
+  advance a supervisor cursor, and native checkpoint saves precede its
+  durable high-water mark. Transient WebSocket wake-frame staging is limited
+  to 256 events per actor. The world owns the authoritative journal; cache
+  corruption must fail closed rather than grant authority.
+  **Limits:** cold-start world rehydration and local indexed disk size
+  remain O(history), and unrelated per-character cognition checkpoints
+  still have their own memory/IO growth. No cross-process cache is trusted.
 
 The older milestone-specific sections below describe the implementation at
 those milestones. Their former "next step" statements are historical; for the
@@ -410,11 +417,13 @@ marks **after** the corresponding native Concordia snapshots.
 **Follow-up PR #85:** one full authenticated hydration per actor per handler
 process preserves those older event proofs. Subsequent reads use
 `oxinbox <persisted-cursor>` and append new recipient-only events.
-The per-process compatibility history and cold-start replay remain
-unbounded; only the repeated per-turn **world** pagination is removed.
-Unread page counts/sequence continuations are validated before accepting
-a cursor. Future bounded historical indexes and retention compaction require
-migrating the remaining legacy lookup sites explicitly.
+PR #85 retained the complete per-process Python compatibility history;
+PR #86 replaces it with a stream-populated, disposable per-character
+SQLite index and lazy read-only evidence views. Historical proof remains
+queryable without permanent voyage-length Python lists, and hot receipt,
+ticket, hail and case checks use indexed selection. Cold-start world replay
+and disk use still grow with voyage length; checkpoint write amplification
+and durable across-restart indexing require separate work.
 
 ## P4e verified five-agent extension
 
