@@ -68,6 +68,7 @@ class Brain:
 class SupervisorFixture:
     read_inbox = CrewWatchSupervisor.read_inbox
     inbox_events_since = CrewWatchSupervisor.inbox_events_since
+    prove_world_event = CrewWatchSupervisor.prove_world_event
 
     def __init__(self, client, saved=None):
         snapshot = copy.deepcopy(saved or {})
@@ -351,6 +352,48 @@ class InboxReplayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(worker.clients["lin"].commands[-1], "oxinbox 350")
         self.assertEqual(worker.checkpoints, 1)
         self.assertEqual(len(worker.epistemics["lin"].seen), 200)
+
+    async def test_exact_world_proof_is_serialized_and_does_not_advance_history(self):
+        from unittest.mock import AsyncMock, patch
+        from ox_ai.ports.evennia.evidence import EventProof
+
+        class HeldLease:
+            def assert_held(self):
+                return None
+
+        client = MockInboxClient("#10", [])
+        worker = SupervisorFixture(client)
+        worker.lease = HeldLease()
+        address = "oxevt-v2-0015"
+        source = {
+            "event_id": address, "sequence": 15,
+            "recipient_dbref": "#10", "sender_dbref": "#21",
+            "kind": "radio_alert", "data": {"alarm_id": "test"},
+            "text": "World evidence", "game_time": 42.0,
+        }
+
+        async def verified(event_id):
+            self.assertEqual(event_id, address)
+            self.assertTrue(worker._inbox_role_locks["lin"].locked())
+            return EventProof("#10", address, "found", source)
+
+        with patch("ox_ai.runtime.watch_service.WorldEventPort") as port:
+            port.return_value.lookup = AsyncMock(side_effect=verified)
+            received = await worker.prove_world_event(
+                "lin", address, kind="radio_alert", sender_dbref="#21",
+            )
+            self.assertEqual(received, source)
+            port.assert_called_with(client)
+            with self.assertRaises(PermissionError):
+                await worker.prove_world_event(
+                    "lin", address, kind="release_granted",
+                )
+        with self.assertRaises(PermissionError):
+            await worker.prove_world_event("another", address, kind="radio_alert")
+        self.assertEqual(worker.state, {})
+        self.assertEqual(worker._inbox_hydrated, set())
+        self.assertEqual(worker._evidence_indexes, {})
+        self.assertEqual(worker.checkpoints, 0)
 
     async def test_private_scope_and_stalled_cursor_fail_closed(self):
         class Stalled(MockInboxClient):
