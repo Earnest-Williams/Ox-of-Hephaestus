@@ -64,12 +64,13 @@ jobs:
       - name: Real game journal, migration, and existing crew tests
         working-directory: game
         run: |
-          python -m world.test_runner world.tests.test_event_journal world.tests.test_world_event_lookup world.tests.test_live_cooperation world.tests.test_crew_interaction --verbosity=2
+          python -m world.test_runner world.tests.test_event_journal world.tests.test_world_event_lookup world.tests.test_journal_continuity world.tests.test_live_cooperation world.tests.test_crew_interaction --verbosity=2
       - name: Independent handler paging, exact-event and restart contract tests
         run: |
           python -m unittest discover -s services/ai-handler/tests -p 'test_paged_inbox.py' -v
           python -m unittest discover -s services/ai-handler/tests -p 'test_evidence_index.py' -v
           python -m unittest discover -s services/ai-handler/tests -p 'test_world_event_port.py' -v
+          python -m unittest discover -s services/ai-handler/tests -p 'test_world_journal_port.py' -v
       - name: Provision independently authenticated exact-event proof owners
         working-directory: game
         run: |
