@@ -18,9 +18,14 @@ The counter advances transactionally with those demotions. Small, frequent
 world deltas accumulate toward the same maintenance threshold as a large
 initial inbox rehydration; they do not force a repack per read.
 
-After **2,048 actual demotions**, the supervisor may invoke
-`ActorEvidenceIndex.repack_if_worthwhile()` once, only **outside** the
-authenticated page/obligation/prefix-seal SQLite transaction and while
+A repack requires **both** at least **2,048 accumulated demotions**
+and demotions numbering at least **25% of the current cold-row total**.
+The second condition is important: rewriting an ever-growing archive
+every fixed number of new events would have quadratic lifetime cost.
+Requiring proportional growth makes full-file maintenance progressively
+less frequent as the voyage grows. The supervisor invokes
+`ActorEvidenceIndex.repack_if_worthwhile()` only **outside** the
+authenticated page/obligation/prefix-seal SQLite transaction while
 owning the normal per-role inbox lock.
 
 The threshold is a filesystem maintenance interval, **not** a count or
