@@ -62,15 +62,28 @@ fetch **only** records whose world sequence exceeds the saved
 `inbox_cursors[role]`. Empty warm reads use one completion page rather
 than repeatedly traversing all historical world pages.
 
-The supervisor retains a complete per-role **in-memory** history to support
-existing pump, radio, hail, captain, investigation and work-recovery proof
-lookups. It intentionally does not trim old observations or substitute
-a guessed receipt. On process restart it rehydrates the complete history
-again; this is **not** a constant-memory solution or a persisted bounded
-event index. Five-crew `AgentEpistemics` and `AgentAgenda` ingest a
-binary-searched delta based on each independent cursor; a checkpoint crash
-between parent and private-consumer commits can replay from history
-without admitting fabricated evidence.
+**PR #86 follow-up:** the handler no longer retains a voyage-length Python
+list of old addressed events. A fresh, actor-specific SQLite index is created
+in a private disposable process directory, then filled with **validated
+128-event pages** from world truth. Legacy callers see a stable, lazy
+`EvidenceView` that preserves chronological iteration and exact event IDs;
+hot receipt, ticket, case and hail checks select through indexes instead of
+scanning unrelated events. Each actor's index is isolated by the verified
+dbref. Warm inbox reads request only events after the index high-water mark.
+
+The archive is **not** a durable authoritative backup. It is deleted at
+normal shutdown and never reused by a new process; each restart rehydrates
+the complete addressed world journal and rebuilds the SQLite index.
+Long voyages therefore still incur O(history) cold-start time and local
+disk use, but Python does not retain all historical event dicts.
+The unrelated OOB wake-frame staging deque is capped at 256 per actor.
+This does not cap a character's private Concordia memories or snapshots.
+
+The entire inbox read is indexed in one transaction; a broken later page
+rolls back all new local rows. Native brain checkpoints are saved before
+the supervisor cursor; private agenda and epistemic cursors can backfill
+from indexed history after a partial checkpoint. No local cache entry
+grants independent world authority. [Full invariants](../../design/prototypes/p4f-indexed-evidence-v2.md).
 
 A partial inbox page, inconsistent event sequence or cursor,
 cross-recipient packet, or interrupted WebSocket replay fails closed.
@@ -78,10 +91,12 @@ The handler checkpoints each native character *before* advancing the
 durable supervisor cursor. No world timestamp, action permission or
 ownership boundary changed.
 
-The regression fixture includes over 2,400 mixed-recipient events and
-asserts that a warm empty poll issues one `oxinbox` request rather than
-re-requesting the complete history. This is a **request-count**
-comparison, not a measured production latency or memory benchmark.
+The PR #85 fixture covers 2,401 mixed-recipient events and asserts one
+world request on a warm empty read. PR #86 additionally tests 8,001
+mixed-recipient streamed frames, 12,800 indexed records, exact old-receipt
+selection, cross-character rejection and transaction rollback. These are
+bounded **request/structure** assertions, not measured provider-model
+latency or a proven disk-usage ceiling.
 
 ## G3d optional independently elected crew rounds (PR #46, merged)
 

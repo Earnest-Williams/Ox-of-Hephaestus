@@ -1,6 +1,7 @@
 """Non-network inbox replay and crash-safe agent cursor tests."""
 from collections import deque
 import copy
+import tempfile
 import unittest
 
 from ox_ai.ports.evennia.client import WebPacket
@@ -74,10 +75,12 @@ class SupervisorFixture:
         self.clients = {"lin": client}
         self.brains = {"lin": Brain(observations)}
         self.state = snapshot
+        self.ids = {"lin": client.character_dbref}
         self.saved = None
         self.checkpoints = 0
-        self._inbox_history = {}
-        self._inbox_sequences = {}
+        self._evidence_temporary = tempfile.TemporaryDirectory(prefix="ox-index-test-")
+        self._evidence_indexes = {}
+        self._inbox_hydrated = set()
         self._inbox_role_locks = {}
 
     def checkpoint(self):
@@ -99,6 +102,31 @@ class InboxReplayTests(unittest.IsolatedAsyncioTestCase):
         self.assertGreater(len(client.commands), 10)
         self.assertEqual(client.commands[0], "oxinbox 0")
         self.assertNotEqual(client.commands[1], "oxinbox 0")
+
+    async def test_streaming_hydration_keeps_only_one_page_in_python(self):
+        events = [event(n, "#10" if n % 4 else "#11")
+                  for n in range(1, 8002)]
+        client = MockInboxClient("#10", events)
+        page_sizes = []
+        received_ids = set()
+
+        def append_validated_page(page):
+            page_sizes.append(len(page))
+            self.assertLessEqual(len(page), 128)
+            for event_record in page:
+                self.assertEqual(event_record["recipient_dbref"], "#10")
+                received_ids.add(event_record["event_id"])
+
+        collected, cursor = await replay_inbox_pages(
+            client, page_sink=append_validated_page,
+        )
+        self.assertEqual(collected, [])  # not the full voyage in a Python list
+        self.assertEqual(len(received_ids), 6001)
+        self.assertEqual(cursor, 8001)
+        self.assertEqual(len(page_sizes), 47)
+        self.assertGreater(max(page_sizes), 120)
+        self.assertEqual(client.commands[0], "oxinbox 0")
+        self.assertNotEqual(client.commands[-1], "oxinbox 0")
 
     async def test_mid_page_restart_without_losing_event(self):
         events = [event(n, "#10") for n in range(1, 321)]
@@ -154,9 +182,9 @@ class InboxReplayTests(unittest.IsolatedAsyncioTestCase):
             "oxinbox " + str(initial[-1]["sequence"]),
         ])
         self.assertEqual(worker.checkpoints, 1)
-        self.assertEqual(worker.inbox_events_since(
+        self.assertEqual(len(worker.inbox_events_since(
             "lin", initial[-1]["sequence"],
-        ), [])
+        )), 0)
         events.extend([event(n, "#10") for n in range(2402, 2572)])
         appended = await worker.read_inbox("lin")
         self.assertEqual(len(appended), len(initial) + 170)
@@ -181,12 +209,59 @@ class InboxReplayTests(unittest.IsolatedAsyncioTestCase):
             await worker.read_inbox("lin")
         self.assertEqual(worker.state["inbox_cursors"]["lin"], old_cursor)
         self.assertEqual(len(worker.brains["lin"].seen), old_cursor)
-        self.assertEqual(len(worker._inbox_history["lin"]), old_cursor)
+        self.assertEqual(len(worker._evidence_indexes["lin"].view()), old_cursor)
         client.disconnect_page = None
         retried = await worker.read_inbox("lin")
         self.assertEqual(len(retried), 430)
         self.assertEqual(len(worker.brains["lin"].seen), 430)
         self.assertEqual(worker.state["inbox_cursors"]["lin"], 430)
+
+    async def test_checkpoint_failure_replays_indexed_but_unsaved_delta(self):
+        class FailOnce(SupervisorFixture):
+            def __init__(self, client):
+                super().__init__(client)
+                self.fail_next_save = True
+
+            def checkpoint(self):
+                if self.fail_next_save:
+                    self.fail_next_save = False
+                    raise OSError("synthetic checkpoint disk failure")
+                super().checkpoint()
+
+        events = [event(i, "#10") for i in range(1, 181)]
+        client = MockInboxClient("#10", events)
+        worker = FailOnce(client)
+        with self.assertRaisesRegex(OSError, "checkpoint disk failure"):
+            await worker.read_inbox("lin")
+        self.assertEqual(worker.state.get("inbox_cursors", {}), {})
+        self.assertEqual(worker._evidence_indexes["lin"].cursor, 180)
+        self.assertEqual(worker._inbox_hydrated, set())
+        self.assertEqual(len(worker.brains["lin"].seen), 180)
+        self.assertEqual(worker.checkpoints, 0)
+
+        # The failed save did not fabricate or drop an event. The same
+        # process can reuse validated archived rows and save its cursor.
+        self.assertEqual(len(await worker.read_inbox("lin")), 180)
+        self.assertEqual(client.commands[-1], "oxinbox 180")
+        self.assertEqual(worker.state["inbox_cursors"]["lin"], 180)
+        self.assertEqual(len(worker.brains["lin"].seen), 180)
+        self.assertEqual(worker.checkpoints, 1)
+
+    async def test_world_rewind_does_not_trust_saved_handler_cursor(self):
+        old = {
+            "inbox_cursors": {"lin": 300},
+            "_seen": [f"oxevt-v2-{i:04d}" for i in range(1, 301)],
+        }
+        worker = SupervisorFixture(
+            MockInboxClient("#10", [event(i, "#10") for i in range(1, 201)]),
+            old,
+        )
+        with self.assertRaisesRegex(RuntimeError, "behind local actor checkpoint"):
+            await worker.read_inbox("lin")
+        self.assertEqual(worker.state["inbox_cursors"]["lin"], 300)
+        self.assertEqual(worker._evidence_indexes["lin"].cursor, 0)
+        self.assertEqual(worker._inbox_hydrated, set())
+        self.assertEqual(worker.checkpoints, 0)
 
     async def test_same_role_concurrent_reads_serialize_on_one_socket(self):
         import asyncio
@@ -215,7 +290,8 @@ class InboxReplayTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(RuntimeError, "count disagrees"):
             await worker.read_inbox("lin")
         self.assertEqual(worker.state.get("inbox_cursors", {}), {})
-        self.assertEqual(worker._inbox_history, {})
+        self.assertEqual(worker._evidence_indexes["lin"].cursor, 0)
+        self.assertEqual(worker._inbox_hydrated, set())
         self.assertEqual(worker.checkpoints, 0)
 
     async def test_private_agenda_and_proof_cursor_backfill_after_parent_checkpoint(self):

@@ -14,6 +14,7 @@ simultaneously with the three-character watch_service for the same ship.
 from __future__ import annotations
 
 import asyncio
+from collections import deque
 import json
 import os
 import uuid
@@ -118,7 +119,7 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
                 ) if path.is_file()
                 else LiveCrewBrain(role, self.ids[role], make_model())
             )
-            self.memories[role] = []
+            self.memories[role] = deque(maxlen=256)
         if os.getenv("OX_CAPTAIN_OVERSIGHT", "0") == "1":
             captain_ids = ROOT / "p4f-captain-id.json"
             if not captain_ids.is_file():
@@ -141,7 +142,7 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
                 ) if captain_path.is_file()
                 else LiveCrewBrain("captain", captain_id, make_model())
             )
-            self.memories["captain"] = []
+            self.memories["captain"] = deque(maxlen=256)
         self.state.setdefault("specialist_jobs", {"mara": None, "teo": None})
         self.state.setdefault("specialist_handled", {"mara": [], "teo": []})
         self.state.setdefault("specialist_completed", [])
@@ -179,10 +180,10 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
     async def read_inbox(self, role: str) -> list[dict]:
         """Ingest ONLY this actor's real events into their private agenda.
 
-        Old P4e histories are fully paginated by the parent reader. Replays
-        do not reawaken deferred work or recreate completed obligations.
+        The parent's lazy indexed history preserves genuine older proofs.
+        Replays do not reawaken deferred work or completed obligations.
         """
-        cold_hydration = role not in self._inbox_history
+        cold_hydration = role not in self._inbox_hydrated
         events = await super().read_inbox(role)
         agenda = self.agendas[role]
         changed = False
@@ -212,7 +213,9 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
         # upgrade rule: even a historic alarm below agenda.last_sequence
         # may lack a task entry and must be offered before reconciling it.
         alarm_candidates = (
-            events if cold_hydration else proof_delta
+            events.select(kind=ALARMS[role]) if cold_hydration and role in EXTRA_ACCOUNTS
+            else proof_delta.select(kind=ALARMS[role]) if role in EXTRA_ACCOUNTS
+            else ()
         )
         if role in EXTRA_ACCOUNTS:
             for event in alarm_candidates:
@@ -647,10 +650,12 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
             raise PermissionError("Invalid character-scoped independent round state")
         for role in self.ids:
             events = await self.read_inbox(role)
-            windows = [e for e in events if e["kind"] == "crew_round_window"]
-            if not windows:
+            latest = max(
+                events.select(kind="crew_round_window"),
+                key=lambda e: int(e["data"]["cycle"]), default=None,
+            )
+            if latest is None:
                 continue
-            latest = max(windows, key=lambda e: int(e["data"]["cycle"]))
             cycle = int(latest["data"]["cycle"])
             record = rounds.get(role)
             if record is not None:
@@ -713,15 +718,10 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
             # Re-read this actor's addressed report for its wear finding;
             # do not consult world Attributes or the bridge's private mail.
             own = await self.read_inbox(role)
-            reports = [
-                e for e in own if e["kind"] == "round_recorded"
-                and e["event_id"] == outcome.source_event_id
-                and e["data"].get("cycle") == record["cycle"]
-                and e["data"].get("station") == station
-            ]
-            if not reports:
+            report = own.get(outcome.source_event_id, kind="round_recorded")
+            if (report is None or report["data"].get("cycle") != record["cycle"]
+                    or report["data"].get("station") != station):
                 raise RuntimeError("Authenticated local round proof not delivered")
-            report = reports[-1]
             if (role in ("mara", "teo")
                     and report["data"].get("finding") == "maintenance_due"):
                 operation = "retension" if role == "mara" else "purge"
@@ -768,10 +768,9 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
             raise PermissionError("Foreign investigation checkpoint")
         for role in self.ids:
             messages = await self.read_inbox(role)
-            notices = [e for e in messages if e["kind"] == "anomaly_notice"]
-            if not notices:
+            notice = messages.latest("anomaly_notice")
+            if notice is None:
                 continue
-            notice = notices[-1]
             case_id = notice["data"].get("case_id")
             if not isinstance(case_id, str) or len(case_id) != 32:
                 raise RuntimeError("Malformed world investigation identity")
@@ -806,8 +805,9 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
             if not result.source_event_id:
                 raise RuntimeError("No world-proven anomaly report")
             events = await self.read_inbox(role)
-            if not any(e["event_id"] == result.source_event_id
-                       and e["kind"] == "anomaly_report_recorded" for e in events):
+            if events.get(
+                result.source_event_id, kind="anomaly_report_recorded",
+            ) is None:
                 raise RuntimeError("Report not visible to its own author")
             record["done"] = True
             self.checkpoint()
@@ -819,8 +819,9 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
             return False
         case_id = lin["case_id"]
         events = await self.read_inbox("lin")
-        reports = [e for e in events if e["kind"] == "anomaly_crew_report"
-                   and e["data"].get("case_id") == case_id]
+        reports = list(events.select(
+            kind="anomaly_crew_report", data={"case_id": case_id},
+        ))
         senders = {e["sender_dbref"] for e in reports}
         if not (any(self.ids[r] in senders for r in ("ari", "iona"))
                 and any(self.ids[r] in senders for r in ("mara", "teo"))):

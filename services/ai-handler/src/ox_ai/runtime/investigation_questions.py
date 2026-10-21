@@ -23,10 +23,10 @@ class IndependentInquiry(FollowupInvestigation):
 
     async def _specialist_question(self, role: str) -> bool:
         events = await self.s.read_inbox(role)
-        notices = [e for e in events if e["kind"] == "anomaly_notice"]
-        if not notices:
+        notice = events.latest("anomaly_notice")
+        if notice is None:
             return False
-        case_id = _case_id(notices[-1])
+        case_id = _case_id(notice)
         first = self.s.state.get("g3e_investigations", {}).get(role)
         if (not isinstance(first, dict)
                 or first.get("actor") != self.s.ids[role]
