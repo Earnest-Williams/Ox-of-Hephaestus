@@ -51,34 +51,29 @@ class CaptainFollowthrough:
         return choice.verb
 
     async def _assigned(self, ticket_id, record, messages) -> bool:
-        order_events = [
-            e for e in messages.select(
-                kind="captain_assignment_recorded", data={"ticket_id": ticket_id},
-            )
-        ]
-        if not order_events:
+        assigned = messages.latest(
+            "captain_assignment_recorded", data={"ticket_id": ticket_id},
+        )
+        if assigned is None:
             return False
-        order = order_events[-1]["data"]
+        order = assigned["data"]
         role = order.get("role")
         if role not in ROLES or order.get("kind") not in ("analyzer_anomaly", "atmosphere_alarm"):
             raise PermissionError("Invalid assignment addressed to captain")
         assigned_id = order.get("order_id")
         if not isinstance(assigned_id, str) or len(assigned_id) != 32:
             raise PermissionError("Malformed world-owned assignment")
-        responses = [
-            e for e in messages.select(
-                kind="captain_order_response", data={"order_id": assigned_id},
-            )
-        ]
-        if not responses:
+        response = messages.latest(
+            "captain_order_response", data={"order_id": assigned_id},
+        )
+        if response is None:
             worker_events = await self.s.read_inbox(role)
-            order_notices = [
-                e for e in worker_events if e["kind"] == "captain_order_received"
-                and e["data"].get("ticket_id") == ticket_id
-                and e["data"].get("order_id") == assigned_id
-                and e["sender_dbref"] == self.s.ids["captain"]
-            ]
-            if not order_notices:
+            order_notice = worker_events.latest(
+                "captain_order_received",
+                data={"ticket_id": ticket_id, "order_id": assigned_id},
+            )
+            if (order_notice is None
+                    or order_notice["sender_dbref"] != self.s.ids["captain"]):
                 raise PermissionError("No authenticated captain assignment reached worker")
             answer_key = "answer:" + assigned_id
             if answer_key not in record.get("decisions", {}):
@@ -97,7 +92,7 @@ class CaptainFollowthrough:
                 {"ticket_id": ticket_id, "mode": mode},
             )
             return True
-        answer = responses[-1]["data"]
+        answer = response["data"]
         if answer.get("role") != role:
             raise PermissionError("Foreign worker response")
         status = answer.get("status")
@@ -119,17 +114,15 @@ class CaptainFollowthrough:
             if record.get("last_reviewed_order") == assigned_id:
                 return False
             # Wait for an actual world event / clock review before inspecting.
-            due = [
-                e for e in messages if e["kind"] == "captain_review_due"
-                and e["data"].get("ticket_id") == ticket_id
-                and e["sequence"] > responses[-1]["sequence"]
-            ]
-            physically_changed = [
-                e for e in messages if e["kind"] == "captain_equipment_change"
-                and e["data"].get("ticket_id") == ticket_id
-                and e["sequence"] > responses[-1]["sequence"]
-            ]
-            if not due and not physically_changed:
+            due = messages.latest(
+                "captain_review_due", data={"ticket_id": ticket_id},
+                after=response["sequence"],
+            )
+            physically_changed = messages.latest(
+                "captain_equipment_change", data={"ticket_id": ticket_id},
+                after=response["sequence"],
+            )
+            if due is None and physically_changed is None:
                 return False
             await self._work(
                 record, "review:" + assigned_id, "captain", "captain_review",
@@ -141,18 +134,15 @@ class CaptainFollowthrough:
         # The same specialist has a real captain order but may never have
         # joined the initial voluntary investigation. They can now gather
         # evidence under their own ordinary local inspection permissions.
-        reported = [
-            e for e in messages if e["kind"] == "captain_followup_evidence"
-            and e["data"].get("order_id") == assigned_id
-        ]
-        if not reported:
+        reported = messages.latest(
+            "captain_followup_evidence", data={"order_id": assigned_id},
+        )
+        if reported is None:
             await self.s.ensure_station(role, STATIONS[role])
             own = await self.s.read_inbox(role)
-            if not any(
-                e["kind"] == "anomaly_report_recorded"
-                and e["data"].get("case_id") == ticket_id
-                for e in own
-            ):
+            if own.latest(
+                "anomaly_report_recorded", data={"case_id": ticket_id},
+            ) is None:
                 await self.s.clients[role].send_line("oxsample " + ticket_id)
                 await self.s.clients[role].expect_text(
                     "OX_ANOMALY_SAMPLE " + ticket_id, timeout=12,
@@ -162,21 +152,19 @@ class CaptainFollowthrough:
                     "anomaly_report", {"case_id": ticket_id},
                 )
                 return True
-            if not any(
-                e["kind"] in ("anomaly_question_recorded", "anomaly_challenge_recorded")
-                and e["data"].get("case_id") == ticket_id
-                for e in own
-            ):
+            if (own.latest(
+                    "anomaly_question_recorded", data={"case_id": ticket_id},
+                ) is None and own.latest(
+                    "anomaly_challenge_recorded", data={"case_id": ticket_id},
+                ) is None):
                 await self._work(
                     record, "question:" + assigned_id, role,
                     "anomaly_question", {"case_id": ticket_id},
                 )
                 return True
-            if not any(
-                e["kind"] == "anomaly_probe_report_recorded"
-                and e["data"].get("case_id") == ticket_id
-                for e in own
-            ):
+            if own.latest(
+                "anomaly_probe_report_recorded", data={"case_id": ticket_id},
+            ) is None:
                 # Probe returns a persisted repeat-safe local measurement;
                 # no claimed result is fabricated from the captain's theory.
                 await self.s.clients[role].send_line("oxprobe " + ticket_id)
@@ -214,9 +202,10 @@ class CaptainFollowthrough:
 
     async def advance(self) -> bool:
         messages = await self.s.read_inbox("captain")
-        notices = [
-            e for e in messages.select(kind="captain_problem_open")
-        ]
+        # Open/closed transition state is derived from this captain's own
+        # addressed world events in the same SQLite ingest transaction.
+        # Do not rescan all historical resolved tickets each dispatch.
+        notices = list(messages.pending("captain"))
         if not notices:
             return False
         # Higher priority real-world problems are always considered first.
@@ -229,12 +218,6 @@ class CaptainFollowthrough:
             if (not isinstance(ticket_id, str) or len(ticket_id) != 32
                     or kind not in ("analyzer_anomaly", "atmosphere_alarm")):
                 raise PermissionError("Invalid captain's world-issued problem")
-            resolved = [
-                e for e in messages if e["kind"] == "captain_world_resolved"
-                and e["data"].get("ticket_id") == ticket_id
-            ]
-            if resolved:
-                continue
             record = self.cases.get(ticket_id)
             if record is None:
                 record = {"captain": self.s.ids["captain"],
@@ -281,11 +264,9 @@ class CaptainFollowthrough:
                     {"ticket_id": ticket_id},
                 )
                 own = await self.s.read_inbox("captain")
-                if not any(
-                    e["event_id"] == observed.source_event_id
-                    and e["kind"] == "captain_firsthand_observation"
-                    for e in own
-                ):
+                if own.get(
+                    observed.source_event_id, kind="captain_firsthand_observation",
+                ) is None:
                     raise RuntimeError("Captain's personal observation lacks a world receipt")
                 return True
             if (kind == "atmosphere_alarm"
@@ -298,22 +279,23 @@ class CaptainFollowthrough:
                     {"ticket_id": ticket_id},
                 )
                 return True
-            order_events = [
-                e for e in messages if e["kind"] == "captain_assignment_recorded"
-                and e["data"].get("ticket_id") == ticket_id
-            ]
+            order_events = list(messages.select(
+                kind="captain_assignment_recorded", data={"ticket_id": ticket_id},
+            ))
             if order_events:
                 current = order_events[-1]["data"]
                 order_id = current["order_id"]
                 # A real report/decline/blocked response is needed before
                 # overwriting an active order; the world validates it again.
-                finished = [
-                    e for e in messages
-                    if e["data"].get("order_id") == order_id
-                    and (e["kind"] == "captain_followup_evidence"
-                         or (e["kind"] == "captain_order_response"
-                             and e["data"].get("status") in ("blocked", "declined")))
-                ]
+                finished = messages.latest(
+                    "captain_followup_evidence", data={"order_id": order_id},
+                ) is not None or any(
+                    e["data"].get("status") in ("blocked", "declined")
+                    for e in messages.select(
+                        kind="captain_order_response",
+                        data={"order_id": order_id},
+                    )
+                )
                 if not finished or record.get("last_reviewed_order") != order_id:
                     if await self._assigned(ticket_id, record, messages):
                         return True
@@ -328,26 +310,26 @@ class CaptainFollowthrough:
             # World-addressed prior test receipts prevent a captain from
             # reassigning work that could not produce a fresh measurement.
             used.update(
-                e["data"]["role"] for e in messages
-                if e["kind"] == "captain_specialist_test_logged"
-                and e["data"].get("ticket_id") == ticket_id
-                and e["data"].get("role") in ROLES
+                e["data"]["role"] for e in messages.select(
+                    kind="captain_specialist_test_logged",
+                    data={"ticket_id": ticket_id},
+                )
+                if e["data"].get("role") in ROLES
             )
             candidates = ["teo"] if kind == "atmosphere_alarm" else list(ROLES)
             remaining = [role for role in candidates if role not in used]
             # A world-timed reminder permits re-review after escalation.
             if record.get("waiting_due"):
-                due = [
-                    e for e in messages if e["kind"] == "captain_review_due"
-                    and e["data"].get("ticket_id") == ticket_id
-                    and e["sequence"] > record["waiting_due"]
-                ]
-                if not due:
+                due = messages.latest(
+                    "captain_review_due", data={"ticket_id": ticket_id},
+                    after=record["waiting_due"],
+                )
+                if due is None:
                     continue
                 record.pop("waiting_due")
                 self.s.checkpoint()
                 await self._work(
-                    record, "periodic:" + str(due[-1]["sequence"]),
+                    record, "periodic:" + str(due["sequence"]),
                     "captain", "captain_review", {"ticket_id": ticket_id},
                 )
                 return True
@@ -395,8 +377,6 @@ class CaptainFollowthrough:
                 self.s.checkpoint()
                 return True
             if not record.get("waiting_due"):
-                record["waiting_due"] = max(
-                    e["sequence"] for e in await self.s.read_inbox("captain")
-                )
+                record["waiting_due"] = (await self.s.read_inbox("captain")).through
                 self.s.checkpoint()
         return False
