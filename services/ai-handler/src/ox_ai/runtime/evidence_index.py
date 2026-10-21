@@ -40,13 +40,14 @@ class ActorEvidenceIndex:
         self._db.execute(
             "CREATE TABLE IF NOT EXISTS scope (actor TEXT NOT NULL PRIMARY KEY)"
         )
-        self._db.execute(
-            "INSERT OR IGNORE INTO scope(actor) VALUES (?)", (actor_dbref,)
-        )
         owners = [r[0] for r in self._db.execute("SELECT actor FROM scope")]
-        if owners != [actor_dbref]:
+        if owners and owners != [actor_dbref]:
             self._db.close()
             raise PermissionError("Foreign actor's indexed evidence")
+        if not owners:
+            self._db.execute(
+                "INSERT INTO scope(actor) VALUES (?)", (actor_dbref,)
+            )
         self._db.execute(
             "CREATE TABLE IF NOT EXISTS events ("
             "sequence INTEGER PRIMARY KEY CHECK(sequence > 0), "
