@@ -8,11 +8,16 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import tempfile
 from pathlib import Path
 
 from ox_ai.ports.evennia.client import EvenniaWebSocketClient
 from ox_ai.ports.evennia.evidence import WorldEventPort
-from ox_ai.ports.evennia.journal import WorldJournalPort
+from ox_ai.ports.evennia.journal import (
+    WorldJournalPort, continue_digest, journal_seed,
+)
+from ox_ai.runtime.evidence_index import ActorEvidenceIndex
+from ox_ai.runtime.watch_service import replay_inbox_pages
 
 URL = "ws://127.0.0.1:4002"
 
@@ -69,6 +74,58 @@ async def run() -> None:
         assert restart_certificate.generation == certificate.generation
         assert restart_certificate.prefix_digest == certificate.prefix_digest
         assert restart_certificate.requested_cursor == certificate.requested_cursor
+    # Live parity check between authoritative world events, page wire
+    # decoding, hot/cold SQLite and the world certificate. The offline
+    # supervisor tests separately enforce the brain/checkpoint boundary.
+    with tempfile.TemporaryDirectory(prefix="ox-real-prefix-test-") as folder:
+        local = Path(folder) / "lin.sqlite3"
+        async with EvenniaWebSocketClient(
+            URL, "OxBotLin", password, ids["lin"], timeout=15,
+        ) as first:
+            actor_index = ActorEvidenceIndex(local, ids["lin"])
+            root = await WorldJournalPort(first).attest(0)
+            digest = journal_seed(root.generation, ids["lin"])
+
+            def collect(page: list[dict]) -> None:
+                nonlocal digest
+                for event in page:
+                    digest = continue_digest(digest, event)
+                actor_index.append_page(page)
+
+            with actor_index.transaction():
+                _, cursor = await replay_inbox_pages(
+                    first, after=0, page_sink=collect,
+                )
+                world_prefix = await WorldJournalPort(first).attest(cursor)
+                world_prefix.require_prefix(root.generation, cursor, digest)
+                actor_index.seal_attestation(root.generation, digest)
+                actor_index.compact_hot(recent=1)
+            assert actor_index.cold_count >= 1
+            actor_index.close()
+
+        # Only the exact old cursor is attested after new login. This
+        # second socket must not request earlier oxinbox pages.
+        async with EvenniaWebSocketClient(
+            URL, "OxBotLin", password, ids["lin"], timeout=15,
+        ) as resumed:
+            actor_index = ActorEvidenceIndex(local, ids["lin"])
+            generation, saved_cursor, saved_digest = (
+                actor_index.stored_attestation()
+            )
+            assert saved_cursor == cursor
+            assert actor_index.recompute_prefix(generation) == saved_digest
+            check = await WorldJournalPort(resumed).attest(saved_cursor)
+            check.require_prefix(generation, saved_cursor, saved_digest)
+            with actor_index.transaction():
+                _, delta_cursor = await replay_inbox_pages(
+                    resumed, after=saved_cursor,
+                    page_sink=actor_index.append_page,
+                )
+            assert delta_cursor == saved_cursor
+            assert actor_index.view().get(item["event_id"]) == item
+            actor_index.close()
+
+    print("OX_P4F_REAL_SERVER_ATTESTED_CACHE_RESTART_PASS")
     print("OX_P4F_AUTHENTICATED_EXACT_EVENT_RESTART_AND_PRIVACY_PASS")
 
 

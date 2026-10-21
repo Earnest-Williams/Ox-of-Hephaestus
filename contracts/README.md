@@ -112,27 +112,29 @@ private belief or self-description. See [G4f](../design/prototypes/g4f-world-rec
   New per-recipient SHA-256 prefix seals and a durable journal generation
   support `oxjournal <nonce> <actor-cursor>`, returning a nonce/actor-
   challenged continuity certificate for an exact addressed prefix.
-  This establishes a future safe cache-reuse prerequisite, not a new
-  authority or a bound on world history.
+  This establishes the world-side basis for the now-implemented cache
+  validation gate, not a new authority or a bound on world history.
   [Protocol](../design/prototypes/p4f-journal-continuity.md).
   A-01 alarms and captain reminders follow P-01 → ticket → journal locks.
-- PRs #85–88: the handler authenticates each recipient's complete world
-  inbox once per process (streamed to a disposable actor-scoped SQLite
-  index), then requests only deltas after its indexed cursor. Immutable
-  indexed views retain exact event identity and legacy kind/case/ticket
-  selections. Actor-scoped unresolved work has indexed source references;
-  the ordinary authenticated `oxevent` command can retrieve an old exact
-  event without a full inbox query. Independent native brain, agenda and
-  epistemic cursors still govern cognition recovery. Incomplete pages,
-  divergent sequences, foreign recipients and interrupted multi-page
-  transactions cannot advance the handler cursor.
+- PRs #85–88 established actor-private authenticated inbox hydration,
+  delta pages, indexed historical records and exact world-event proofs.
+  Attested cache reuse now persists the complete recipient-scoped index
+  across handler processes. A new process must recompute the full local
+  historical prefix and derived obligation state, then authenticate it
+  against Evennia's `oxjournal` generation/recipient/cursor/digest
+  certificate before requesting only the remaining world inbox delta.
+  The native brain, private agenda and epistemic cursors remain separate;
+  evidence indexed before an interrupted brain save is replayed without
+  repeating physical work or fabricating receipts. Corrupt, missing,
+  foreign, rewound or divergent evidence fails closed.
 - Local hot/cold optimization keeps the most recent 256 addressed event
   bodies **plus mandatory live proof pins** available uncompressed. Every
   other original event remains retrievable, with case/kind metadata indexed
   and its complete body stored losslessly in compressed local SQLite cold
-  storage. This does **not** delete world evidence, bound total disk usage,
-  validate portable caches or eliminate cold-start replay. No source-event
-  lookup grants independent world action authority.
+  storage. It does **not** delete world evidence or bound total disk use.
+  Cache reuse is conditioned on the complete authenticated actor prefix;
+  no old event or receipt independently grants world authority.
+  [Cache-continuity contract](../design/prototypes/p4f-attested-cache-reuse.md).
 - `receive_matching()` preserves unrelated WebSocket frames in order
   under a 512-packet bound. On saturation it raises **before** reading
   another wire frame. Malformed unattributable `ox_receipt` frames remain

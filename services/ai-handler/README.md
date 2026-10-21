@@ -55,29 +55,37 @@ below retain their stage-specific historical limitations; consult
 
 ## PR #85 — incremental inbox consumption and its current boundary
 
-The first call to `CrewWatchSupervisor.read_inbox(role)` after a process
-launch rehydrates all of that character's recipient-scoped `oxinbox`
-pages from world truth. Subsequent calls to that authenticated socket
-fetch **only** records whose world sequence exceeds the saved
-`inbox_cursors[role]`. Empty warm reads use one completion page rather
-than repeatedly traversing all historical world pages.
+PR #85 established full authenticated `oxinbox` hydration and warm
+incremental reads. An empty warm read still uses only one completion
+page. The attested-cache implementation below now avoids that initial
+full-network hydration when an existing local archive passes both local
+and world continuity verification.
 
 **PR #86 follow-up:** the handler no longer retains a voyage-length Python
-list of old addressed events. A fresh, actor-specific SQLite index is created
-in a private disposable process directory, then filled with **validated
-128-event pages** from world truth. Legacy callers see a stable, lazy
-`EvidenceView` that preserves chronological iteration and exact event IDs;
-hot receipt, ticket, case and hail checks select through indexes instead of
-scanning unrelated events. Each actor's index is isolated by the verified
-dbref. Warm inbox reads request only events after the index high-water mark.
+list of old addressed events. Actor-specific SQLite indexes receive validated
+128-event world pages. Legacy callers see stable, lazy `EvidenceView`
+snapshots, exact event IDs, and indexed receipt/ticket/case/hail queries.
+The index enforces the authenticated actor dbref for each record.
 
-The archive is **not** a durable authoritative backup. It is deleted at
-normal shutdown and never reused by a new process; each restart rehydrates
-the complete addressed world journal and rebuilds the SQLite index.
-Long voyages therefore still incur O(history) cold-start time and local
-disk use, but Python does not retain all historical event dicts.
-The unrelated OOB wake-frame staging deque is capped at 256 per actor.
-This does not cap a character's private Concordia memories or snapshots.
+**Attested cache reuse:** each actor's local SQLite archive persists across
+process restarts. Before reuse, the handler recomputes the digest of every
+retained original event and validates the indexed obligation state. It
+requires agreement with the atomically saved local seal and a fresh,
+nonce-bound `oxjournal` world certificate for that actor's exact prefix.
+A successful check permits `oxinbox` to resume **after the verified local
+cursor**, instead of transferring and rebuilding the old archive again.
+Newly received events, the updated digest, obligation indexes, and hot/cold
+compression commit in one SQLite transaction. A crash after that commit but
+before a brain checkpoint is recovered by replaying the missed observations
+from the verified local archive. Corruption, generation changes, a rewind
+or historical divergence fail closed.
+
+World history and local disk deliberately remain O(history). Initial
+creation without an archive still replays every addressed event. On later
+starts, verification requires O(history) **local** I/O, but old network
+pages are not retransmitted. The OOB wake-frame deque remains capped at
+256 per actor, without limiting Concordia memory or character snapshots.
+[Cache reuse protocol](../../design/prototypes/p4f-attested-cache-reuse.md).
 
 **Hot/cold follow-up:** once fully authenticated pages have been indexed,
 the handler keeps the newest 256 addressed event bodies plus exact sources
@@ -88,9 +96,9 @@ selectors, exact IDs, indexed case/ticket evidence, historical snapshots
 and completed-work references still return the original records on demand.
 The effective hot cap is 256 **plus actual live pins**; genuine unresolved
 obligations cannot be removed to enforce an arbitrary fixed number. Local
-cold bodies are integrity-checked, not authoritative. This reduces active
-uncompressed evidence, **not** the total number of on-disk records or the
-full world-authenticated startup replay.
+cold bodies are integrity-checked, not authoritative. This reduces
+uncompressed evidence, **not** total disk records. Old world-page
+retransmission is avoided only after full local and world-prefix checks.
 [Retention and pinning contract](../../design/prototypes/p4f-hot-cold-evidence.md).
 
 The entire inbox read is indexed in one transaction; a broken later page
@@ -109,10 +117,10 @@ The new authenticated `WorldJournalPort` additionally obtains a
 nonce/character/cursor-bound journal generation and historical prefix
 digest from the world-owned `oxjournal` command. Its typed client checks
 epoch, nonce, actor, digest and head consistency before the result can
-be used as continuity evidence. The handler **still rehydrates every
-previously addressed event on a fresh process**; persistence and reuse
-of a local archive must be coordinated with complete archive-integrity
-verification and native memory/agenda checkpoint revisions.
+be used as continuity evidence. The handler now separately verifies its
+entire local archive and pending-obligation projection before trusting
+that certificate, while cognition and agenda checkpoint cursors remain
+independent.
 [Continuity contract](../../design/prototypes/p4f-journal-continuity.md).
 
 The new authenticated `WorldEventPort` supports a separate *exact*
@@ -121,9 +129,8 @@ It verifies the actor, nonce, requested identity and complete original
 event in an `ox_event_lookup` reply; `missing` includes both absent and
 foreign-recipient IDs, and `oversized` refuses partial events. The
 supervisor can obtain an old source proof using `prove_world_event`,
-serialized with its own inbox page reads. This does **not** yet replace
-cold-start replay or permit local disk eviction, nor can an old receipt
-authorise new physical work.
+serialized with its own inbox page reads. It does not permit historical
+event deletion or allow an old receipt to authorise new physical work.
 [Full contract](../../design/prototypes/p4f-world-exact-evidence.md).
 
 The PR #85 fixture covers 2,401 mixed-recipient events and asserts one
