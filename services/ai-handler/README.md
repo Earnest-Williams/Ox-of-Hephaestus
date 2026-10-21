@@ -100,9 +100,9 @@ selectors, exact IDs, indexed case/ticket evidence, historical snapshots
 and completed-work references still return the original records on demand.
 The effective hot cap is 256 **plus actual live pins**; genuine unresolved
 obligations cannot be removed to enforce an arbitrary fixed number. Local
-cold bodies are integrity-checked, not authoritative. This reduces active
-uncompressed evidence, **not** the total number of on-disk records or the
-full world-authenticated startup replay.
+cold bodies are integrity-checked, not authoritative. This reduces active uncompressed evidence, **not** the total number
+of on-disk records. A separately attested local archive now avoids
+the old full-network startup replay, without deleting any history.
 [Retention and pinning contract](../../design/prototypes/p4f-hot-cold-evidence.md).
 
 The entire inbox read is indexed in one transaction; a broken later page
