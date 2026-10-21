@@ -2,16 +2,18 @@
 
 **An autonomous spaceship MUD/simulation prototype built on [Evennia](https://www.evennia.com/).**
 
-> **Current state — 19 October 2026 (through merged G4h / PR #63).**
-> A seven-compartment ship contains three simulated physical systems,
-> five independently authenticated specialist crewmembers and an **optional
-> sixth captain**. The world enforces physical outcomes, individual
-> knowledge boundaries, crew duties and receipts. It now persists distinct
-> formative aptitudes, psychology, professional skills, conceptual knowledge
-> and exact-equipment familiarity. Verified physical work can earn practical
-> experience; two narrow assessed activities can earn conceptual progress.
-> This is a **bounded and tested prototype**, not a complete commercial
-> freighter, a production deployment or generally intelligent crew.
+> **Current state — 21 October 2026 (through G12 and PostgreSQL PRs #82–83).**
+> The primary proving-ground ship has seven compartments, three physical
+> systems, five independently authenticated technical crew and an optional
+> sixth captain. Evennia remains authoritative for their work, skills,
+> evidence and world-issued receipts. G6 adds a *separate opt-in* terminal
+> atmosphere crisis; G7 tests social GOAP and persistent bilateral agreements;
+> G8–G10b add private temporal memory, independent reinterpretation, protected
+> Concordia integration and authoritative simulation-clock reads. G11 is a
+> small matched-evidence hosted-model A/B **harness**; G12 profiles native
+> Concordia at 6/20/40 *instantiated brains*, not 40 live ship characters.
+> This is a bounded research prototype, not a deployed freighter or proof
+> of generally capable autonomous people.
 
 **Start here:** [verified implementation and limitations](design/STATUS.md) ·
 [install and tests](INSTALL.md) · [in-world ship guide](game/README.md) ·
@@ -44,6 +46,11 @@ equipment, authorize itself, invent evidence or settle a case.
 | Authority and recovery | Evennia owns world truth, equipment, private event journal, global actor-bound work receipts and restart/replay reconciliation for supported stages |
 | Character system | Twelve formative aptitudes, twelve psychological dimensions, 55 world-owned practical skills in 16 disciplines, independent theoretical foundations and exact procedure familiarity |
 | Learning | Receipt-backed, rate-limited practice from successful selected P-01/C-01/A-01 work; G4g supervised transfer assessment; G4h firsthand investigation and evidence-limits reflection |
+| Opt-in crisis | G6/G6b: six authenticated crew confront a world-owned terminal atmospheric failure with finite resources, mortality and bounded decision budgets |
+| Social authority | G7/G7b: separate two-person apartment GOAP fixture, reusable typed social choices, and Evennia-owned bilateral commitments with authenticated receipts |
+| Private cognition | G8–G10b: seeded temporal episodes, subjective reinterpretation, owner-revisioned memory, native read-only Concordia context and simulated-time aging |
+| Experimental evidence | Six-client, 500-decision G8 model-free ship/social trial; G11 matched-evidence hosted-model A/B harness; G12 local native profiling at 6/20/40 brains |
+| Transport and concurrency | Buffered authenticated WebSocket matching; PostgreSQL commit-ordered recipient journal and exact work-event provenance (PRs #82–83) |
 | Observation | Operator/test journals and focused CI evidence; no published world/handler inspection APIs and no browser observatory |
 
 **Current learning is narrower than the character design.** The operator-only
@@ -89,10 +96,15 @@ evidence, character records and learning. The
 [G4g conceptual-learning workflow](.github/workflows/ox-g4g-concept-learning.yml)
 and [G4h investigative-learning workflow](.github/workflows/ox-g4h-inquiry-learning.yml)
 include authenticated real-client restart and lost-acknowledgment checks.
-The final merged G4h implementation ([PR #63](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/63))
-reported **194 passing world tests, 150 handler tests, and 36/36 applicable
-focused workflows** on its final head. These are scoped acceptance tests,
-not proof of general autonomous performance.
+The G4h milestone ([PR #63](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/63))
+historically reported **194 passing world tests, 150 handler tests and
+36/36 workflows**; those are *G4h-era counts*, not today's full inventory.
+The later G8 experiment completed 500 model-free decisions with six real
+authenticated clients, five resolved ship faults and private memory revisions.
+PR #83 passed 50/50 final-head checks, including real PostgreSQL ordering
+and captain-obligation contention. G11's opt-in hosted-model harness and
+G12's native dispatch profiler answer **different** questions from this
+integration testing. See [status and limits](design/STATUS.md).
 
 P5 (operator observatory) is postponed. Still unimplemented are a full ship,
 propulsion, freight trading/economics, graded real physical task attempts,
