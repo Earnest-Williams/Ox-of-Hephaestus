@@ -43,7 +43,7 @@ jobs:
       - name: Install actual Evennia and handler
         run: |
           python -m pip install .
-          python -m pip install -e ./services/ai-handler
+          python -m pip install -e './services/ai-handler[transport]'
           python -m compileall -q game services/ai-handler/src services/ai-handler/tests
       - name: Provision ephemeral Evennia owner
         shell: bash
