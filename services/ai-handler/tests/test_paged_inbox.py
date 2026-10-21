@@ -103,6 +103,31 @@ class InboxReplayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(client.commands[0], "oxinbox 0")
         self.assertNotEqual(client.commands[1], "oxinbox 0")
 
+    async def test_streaming_hydration_keeps_only_one_page_in_python(self):
+        events = [event(n, "#10" if n % 4 else "#11")
+                  for n in range(1, 8002)]
+        client = MockInboxClient("#10", events)
+        page_sizes = []
+        received_ids = set()
+
+        def append_validated_page(page):
+            page_sizes.append(len(page))
+            self.assertLessEqual(len(page), 128)
+            for event_record in page:
+                self.assertEqual(event_record["recipient_dbref"], "#10")
+                received_ids.add(event_record["event_id"])
+
+        collected, cursor = await replay_inbox_pages(
+            client, page_sink=append_validated_page,
+        )
+        self.assertEqual(collected, [])  # not the full voyage in a Python list
+        self.assertEqual(len(received_ids), 6001)
+        self.assertEqual(cursor, 8001)
+        self.assertEqual(len(page_sizes), 47)
+        self.assertGreater(max(page_sizes), 120)
+        self.assertEqual(client.commands[0], "oxinbox 0")
+        self.assertNotEqual(client.commands[-1], "oxinbox 0")
+
     async def test_mid_page_restart_without_losing_event(self):
         events = [event(n, "#10") for n in range(1, 321)]
         failing = MockInboxClient("#10", events, disconnect_page=2)
