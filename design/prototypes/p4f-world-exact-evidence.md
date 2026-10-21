@@ -22,34 +22,34 @@ Request via the same authenticated/puppeted game session:
 
     oxevent <32-lowercase-hex-nonce> <world-event-id>
 
-The ID accepts both legacy \`oxevt-0010\` and \`oxevt-v2-0010\` forms (at
+The ID accepts both legacy `oxevt-0010` and `oxevt-v2-0010` forms (at
 most 64 characters). Evennia performs the indexed CrewEvent query using the
 *actual command caller's dbref* in the database filter. There is no
 recipient argument, admin path, or aggregate-history API.
 
-Response: one \`ox_event_lookup\` OOB frame containing one serialized
+Response: one `ox_event_lookup` OOB frame containing one serialized
 JSON string with exactly:
 
-- \`version\` = 1, \`nonce\` (exact requested challenge), \`actor_dbref\`
-  (the authenticated caller), \`event_id\` (the exact requested ID);
-- \`status\`: \`found\`, \`missing\`, or \`oversized\`;
-- \`event\`: the complete original world event for \`found\`, otherwise
-  \`null\`. The event includes exact \`event_id\`, \`sequence\`,
-  \`recipient_dbref\`, \`sender_dbref\`, \`kind\`, \`data\`, \`text\` and
-  \`game_time\`.
+- `version` = 1, `nonce` (exact requested challenge), `actor_dbref`
+  (the authenticated caller), `event_id` (the exact requested ID);
+- `status`: `found`, `missing`, or `oversized`;
+- `event`: the complete original world event for `found`, otherwise
+  `null`. The event includes exact `event_id`, `sequence`,
+  `recipient_dbref`, `sender_dbref`, `kind`, `data`, `text` and
+  `game_time`.
 
-\`missing\` has the same wire result whether the ID was never issued or
+`missing` has the same wire result whether the ID was never issued or
 belongs to another recipient. A foreign identifier cannot reveal its
-contents. \`oversized\` is explicit; the world refuses to send a partial or
+contents. `oversized` is explicit; the world refuses to send a partial or
 truncated proof when the **double-encoded** outbound JSON frame would
 exceed the 48,000-byte safety ceiling (inside the 65,536-byte socket cap).
 
-The handler's \`WorldEventPort\` requires authenticated puppeting and
+The handler's `WorldEventPort` requires authenticated puppeting and
 verifies response nonce, actor, event identity, exact field set, positive
 integer sequence, valid sender/recipient, bounded scalar data, finite time
 and permitted status. Old or unrelated packets stay in the normal bounded
-client queue. The supervisor's \`prove_world_event\` wrapper serializes
-lookup with that character's inbox pagination. \`require(kind, sender)\`
+client queue. The supervisor's `prove_world_event` wrapper serializes
+lookup with that character's inbox pagination. `require(kind, sender)`
 does not turn a source-event observation into a new permission.
 
 ## Verified vs. remaining properties
@@ -63,7 +63,7 @@ connection. None of these tests require hosted model calls.
 - This command neither modifies equipment nor grants authority to perform,
   repeat or resolve work. Operation receipts and current-world checks remain
   separate.
-- \`missing\` is not a proof of resolution, nor is \`found\` a proof of
+- `missing` is not a proof of resolution, nor is `found` a proof of
   current validity.
 - PR #87's open-obligation index is still a disposable *derived local*
   projection. A fresh supervisor continues to hydrate its entire addressed
@@ -78,8 +78,8 @@ connection. None of these tests require hosted model calls.
 
 ## Test locations
 
-- \`game/world/tests/test_world_event_lookup.py\`
-- \`services/ai-handler/tests/test_world_event_port.py\`
-- \`services/ai-handler/tests/test_paged_inbox.py\`
-- \`services/ai-handler/src/ox_ai/scenarios/p4f_exact_event_lookup.py\`
-- \`.github/workflows/ox-p4f-event-journal.yml\`
+- `game/world/tests/test_world_event_lookup.py`
+- `services/ai-handler/tests/test_world_event_port.py`
+- `services/ai-handler/tests/test_paged_inbox.py`
+- `services/ai-handler/src/ox_ai/scenarios/p4f_exact_event_lookup.py`
+- `.github/workflows/ox-p4f-event-journal.yml`
