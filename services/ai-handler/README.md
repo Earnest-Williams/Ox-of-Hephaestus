@@ -71,13 +71,25 @@ hot receipt, ticket, case and hail checks select through indexes instead of
 scanning unrelated events. Each actor's index is isolated by the verified
 dbref. Warm inbox reads request only events after the index high-water mark.
 
-The archive is **not** a durable authoritative backup. It is deleted at
-normal shutdown and never reused by a new process; each restart rehydrates
-the complete addressed world journal and rebuilds the SQLite index.
-Long voyages therefore still incur O(history) cold-start time and local
-disk use, but Python does not retain all historical event dicts.
-The unrelated OOB wake-frame staging deque is capped at 256 per actor.
-This does not cap a character's private Concordia memories or snapshots.
+The archive is a handler-owned **durable local cache**, never the world's
+authoritative backup. A new process recomputes the complete retained
+actor-private history digest locally (hot and cold original bodies),
+compares it with the saved transactional cache seal and an independent
+fresh `oxjournal` world continuity certificate, and only then requests
+`oxinbox` **after the cached cursor**. A missing, unsealed, corrupt,
+rewound or changed archive is rejected rather than silently trusted.
+New events, the updated seal and hot/cold compaction commit atomically.
+A crash after that cache commit but before the native brain checkpoint
+is recovered by rereading missing cognition evidence from that verified
+cache. The first startup without a cache still rehydrates the world
+journal from cursor zero.
+
+Local verification is O(history) disk reads; local storage still scales
+with retained history, deliberately. Network retransmission and SQL
+rebuilding are reduced to the delta after the verified cache cursor.
+The unrelated OOB wake-frame staging deque remains capped at 256 per
+actor; it does not cap a character's private memories or snapshots.
+[Attested cache reuse](../../design/prototypes/p4f-attested-cache-reuse.md).
 
 **Hot/cold follow-up:** once fully authenticated pages have been indexed,
 the handler keeps the newest 256 addressed event bodies plus exact sources
