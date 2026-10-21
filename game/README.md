@@ -1,18 +1,46 @@
 # Ox playable ship — authoritative Evennia game
 
-**Status (19 October 2026):** Seven connected compartments, three
-stateful ship systems and **five independently authenticated technical
-crewmembers plus an opt-in sixth captain**. The captain owns unresolved
-follow-through but cannot substitute rank for engineering skill. The world
-now persists twelve aptitudes, twelve psychological dimensions, separate
-practical/conceptual/procedural competencies, **receipt-verified practical
-experience**, one supervised conceptual course and one assessed firsthand
-investigative-method activity. This remains a
-proving ground, not a complete cargo freighter.
+**Status (21 October 2026):** The primary ship has seven connected rooms,
+three stateful systems, five independently authenticated technical crew
+and an optional captain. Evennia owns physical outcomes, character
+capabilities, durable social agreements and verified assessments.
+G6 adds an opt-in terminal-atmosphere scenario, not a permanent second
+ship; G7's apartment is a separate adult social GOAP fixture. G10b
+provides a read-only game-clock command. PostgreSQL PRs #82–83 protect
+journal ordering, receipt provenance and captain ticket locking.
+This remains a proving ground, not a complete cargo freighter.
 [Current milestone status](../design/STATUS.md).
 
 All Ox ship content is under `game/`; the inherited `evennia/` engine has
 not been converted into a different distribution.
+
+## Current world extensions beyond G4h
+
+G6/G6b optionally arm terminal atmospheric failure and a six-client
+world-owned mortality/reserve trial. A cartridge exchange is authenticated
+maintenance, **not** an assertion that an unrelated pressure breach is
+resolved. The experiment is bounded; it does not make the primary ship a
+production life-support simulator.
+[G6b scope](../design/prototypes/g6b-continuous-crisis.md).
+
+G7b persists participant-only proposals, counteroffers, replies and
+witnessed performance in `SocialAgreement` and `WorkReceipt` rows,
+with exact revision, actor identity and replay rules. The apartment
+is a separate test fixture, and no inner desire/consent is inferred
+from a model-only declaration.
+[Social authority](../design/prototypes/g7c-world-social-authority.md).
+
+Authenticated `oxclock <nonce>` emits one actor-scoped `ox_clock`
+response with authoritative Evennia game seconds. It never sets world
+time. [Clock read](../design/prototypes/g10b-world-clock-read.md).
+
+Under PostgreSQL the indexed journal acquires one transaction-held
+serialization lock before allocating a global sequence, so recipient
+cursors cannot skip an earlier-inserted event that commits later.
+Ship-work receipts carry their **own** operation's event ID. A-01
+alarms acquire the P-01 and captain-obligation locks **before**
+journal writes; a pair of separate-connection tests covers races.
+Future event writers must retain these acquisition orders.
 
 ## G4 character development and narrow Evennia command sets
 

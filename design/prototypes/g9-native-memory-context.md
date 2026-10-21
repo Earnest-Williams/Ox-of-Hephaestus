@@ -1,6 +1,11 @@
 # G9 — Private cognition revision and native Concordia memory context
 
-**Status:** Proposed implementation, to be validated on feature branch.
+**Status (21 October 2026):** Implemented in merged PR #74; owner-only
+private mutation/revision bypasses resolved by PR #76, and the
+500-decision G8 acceptance retargeted by PR #75. G10/G10b
+subsequently added the game-time bridge (PRs #77 and #81).
+This document preserves original G9 design detail for comparison.
+
 **Scope:** Prevent a detached inference result from overwriting new private
 memory, and supply genuinely relevant Ox memory/interpretations to native
 Concordia choice decisions. No world or GOAP authority changes.
@@ -28,12 +33,12 @@ checkpoints. Missing values in old snapshots restore to zero; present values
 must be nonnegative integers. Checkpoint roundtrips and inference forks
 preserve the current revision.
 
-**Boundary:** This revision is advanced by \`CrewAgent.remember_timed()\`.
-Direct in-place editing of exposed mutable \`TemporalMemory\` records, direct
-\`InterpretationBank.admit()\` calls, or rehearsal requested through a raw
-memory-bank reference do not advance it. Those bypasses are not supported as
-concurrent mutation APIs; a subsequent task should establish a sole owner-
-controlled mutation interface and strengthen tests accordingly.
+**Resolved in PR #76:** Original PR #74 advanced the private cognition
+revision for memory admissions. Raw bank records are now defensive/
+read-only, and the owner-controlled rehearsal and reconsideration
+methods advance private revision even for interpretation-only changes.
+Stale native inference cannot overwrite that state; legacy checkpoints
+remain compatible.
 
 ## 2. Native read-only memory context
 
@@ -66,10 +71,12 @@ component state for it is compatible with the new entity. The original
 Concordia observation-to-list-memory and recent-observation components
 remain in place in this stage.
 
-Memory event/learning timestamps are currently Ox's relative integer turn
-domain. The context ranks according to the newest time **within that
-domain**; it never substitutes raw Evennia seconds. A unified time authority
-and gameplay-time memory age calculation remain separate future work.
+**Original G9 time limit, since closed by G10/G10b:** G9 initially
+ranked Ox-relative memory turns independently of live Evennia time.
+`MemoryClockBridge` now maps validated authoritative game seconds into
+private memory ticks, and authenticated `oxclock` reads advance ordinary
+native decisions through quiet intervals. G8's model-free experiment
+continues to use independent virtual turns.
 
 ## 3. Test contracts
 
@@ -96,18 +103,15 @@ Concordia still owns its native entity/component lifecycle, \`ListMemory\`,
 \`LastNObservations\`, and its constrained choice-act component. No Concordia
 fork or broad dependency removal is part of this change.
 
-## Next work after this PR
+## Completed follow-ups and remaining evaluation
 
-1. Make the G8 six-client acceptance workflow run for relevant later PRs,
-   not just its historical \`experiment/g8-authored-memories\` branch; use
-   appropriately scoped triggers to avoid expensive duplicate runs.
-2. Establish a single owner-controlled private cognition mutation API,
-   including rehearsal and direct interpretation changes; test all revision
-   invalidation routes and preserve old checkpoints.
-3. Compare baseline vs augmented native prompts against the **same
-   actor-visible evidence** using both deterministic and genuine model calls.
-4. Profile per-decision prompt length, response quality, snapshot copy cost,
-   memory growth and component dispatch overhead for 6/20/40 characters.
-5. Split optional OpenAI-compatible provider dependencies, bound logging
-   retention, and review native observation-store replacement only after
-   equivalence and restore tests.
+- **Completed:** G8 500-decision acceptance triggers for relevant cognition
+  changes (PR #75); defensive owner-controlled private mutation (PR #76);
+  clock-domain conversions (PR #77) and live `oxclock` reads (PR #81).
+- **Bounded tools implemented:** G11 matched-evidence hosted-model A/B
+  harness (PR #80); G12 6/20/40 native-component profile (PR #78);
+  unused pinned Concordia OpenAI provider extra removed (PR #79).
+- **Still open:** blinded repeated, multi-model evidence of behavioural
+  gains; incremental journal replay and long-run memory/CPU scaling;
+  broader independent scheduling. Correctness regressions do not prove
+  these outcomes.
