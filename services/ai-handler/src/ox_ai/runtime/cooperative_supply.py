@@ -64,12 +64,7 @@ class CooperativeSupply:
         # supervisor variable. She must receive her own *world addressed*
         # order; Teo must separately receive the world delivery notice.
         messages = await self.sup.read_inbox(role)
-        return next(
-            (e for e in reversed(messages)
-             if e["kind"] == kind
-             and e["data"].get("order_id") == order_id),
-            None,
-        )
+        return messages.latest(kind, data={"order_id": order_id})
 
     async def _work(self, stage: str, role: str, verb: str, *, order_id=None,
                     interrupt_at=None):

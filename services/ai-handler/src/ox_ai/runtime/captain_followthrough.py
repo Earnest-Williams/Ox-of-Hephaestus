@@ -52,8 +52,9 @@ class CaptainFollowthrough:
 
     async def _assigned(self, ticket_id, record, messages) -> bool:
         order_events = [
-            e for e in messages if e["kind"] == "captain_assignment_recorded"
-            and e["data"].get("ticket_id") == ticket_id
+            e for e in messages.select(
+                kind="captain_assignment_recorded", data={"ticket_id": ticket_id},
+            )
         ]
         if not order_events:
             return False
@@ -65,8 +66,9 @@ class CaptainFollowthrough:
         if not isinstance(assigned_id, str) or len(assigned_id) != 32:
             raise PermissionError("Malformed world-owned assignment")
         responses = [
-            e for e in messages if e["kind"] == "captain_order_response"
-            and e["data"].get("order_id") == assigned_id
+            e for e in messages.select(
+                kind="captain_order_response", data={"order_id": assigned_id},
+            )
         ]
         if not responses:
             worker_events = await self.s.read_inbox(role)
@@ -213,7 +215,7 @@ class CaptainFollowthrough:
     async def advance(self) -> bool:
         messages = await self.s.read_inbox("captain")
         notices = [
-            e for e in messages if e["kind"] == "captain_problem_open"
+            e for e in messages.select(kind="captain_problem_open")
         ]
         if not notices:
             return False

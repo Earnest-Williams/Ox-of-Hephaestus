@@ -401,7 +401,7 @@ class CrewWatchSupervisor:
     async def next_alarm(self, *, block: bool) -> dict | None:
         history = await self.read_inbox("lin")
         alarm, prior_ids = newest_unseen_alarm(
-            history, set(self.state["handled_alarms"])
+            history.select(kind="coolant_alarm"), set(self.state["handled_alarms"])
         )
         if alarm is not None:
             self.state["handled_alarms"] = sorted(
@@ -478,14 +478,11 @@ class CrewWatchSupervisor:
             if not isinstance(pending, dict):
                 raise RuntimeError("Incomplete bridge work checkpoint")
             history = await self.read_inbox("lin")
-            matches = [
-                e for e in history
-                if e["kind"] == "coolant_alarm"
-                and e["data"].get("alarm_id") == pending["alarm_id"]
-            ]
-            if not matches:
+            alarm = history.latest(
+                "coolant_alarm", data={"alarm_id": pending["alarm_id"]},
+            )
+            if alarm is None:
                 raise PermissionError("Restored incident not observed by bridge")
-            alarm = matches[-1]
             brain.observe_event(alarm)
         else:
             raise RuntimeError("Cannot begin over an unresolved world operation")
@@ -516,15 +513,9 @@ class CrewWatchSupervisor:
         if relay.status != "succeeded" or not relay.source_event_id:
             raise RuntimeError("Bridge relay lacks authoritative receipt")
         addressed = await self.read_inbox(active)
-        event = next(
-            (e for e in addressed
-             if e["event_id"] == relay.source_event_id
-             and e["kind"] == "radio_alert"
-             and e["sender_dbref"] == self.ids["lin"]
-             and e["data"].get("alarm_id") == pending["alarm_id"]),
-            None,
-        )
-        if event is None:
+        event = addressed.get(relay.source_event_id, kind="radio_alert")
+        if (event is None or event["sender_dbref"] != self.ids["lin"]
+                or event["data"].get("alarm_id") != pending["alarm_id"]):
             raise PermissionError("Radio alert not addressed to active engineer")
         engineer = self.brains[active]
         engineer.observe_event(event)
@@ -646,10 +637,8 @@ class CrewWatchSupervisor:
         # The reviewer must actually have received the request. The
         # private inbox remains authoritative across dropped OOB packets.
         reviewer_events = await self.read_inbox(reviewer)
-        requested = next(
-            (e for e in reviewer_events
-             if e["event_id"] == request.source_event_id
-             and e["kind"] == "release_request"), None,
+        requested = reviewer_events.get(
+            request.source_event_id, kind="release_request",
         )
         if requested is None or requested["sender_dbref"] != self.ids[active]:
             raise PermissionError("No addressed, engineer-authored safety request")
@@ -686,10 +675,8 @@ class CrewWatchSupervisor:
         if not approval.source_event_id:
             raise RuntimeError("World safety approval has no addressed source")
         worker_events = await self.read_inbox(active)
-        grant = next(
-            (e for e in worker_events
-             if e["event_id"] == approval.source_event_id
-             and e["kind"] == "release_granted"), None,
+        grant = worker_events.get(
+            approval.source_event_id, kind="release_granted",
         )
         if grant is None or grant["sender_dbref"] != self.ids[reviewer]:
             raise PermissionError("Separate reviewer has not granted commissioning")
@@ -729,18 +716,14 @@ class CrewWatchSupervisor:
         if not resolution.source_event_id:
             raise RuntimeError("Resolved incident lacks a world event")
         bridge_events = await self.read_inbox("lin")
-        bridge_notice = next(
-            (e for e in bridge_events
-             if e["event_id"] == resolution.source_event_id
-             and e["kind"] == "incident_resolved"), None,
+        bridge_notice = bridge_events.get(
+            resolution.source_event_id, kind="incident_resolved",
         )
         if bridge_notice is None:
             raise PermissionError("Bridge never received world incident resolution")
         reviewer_events = await self.read_inbox(reviewer)
-        reviewer_notice = next(
-            (e for e in reviewer_events
-             if e["kind"] == "incident_resolved"
-             and e["data"].get("alarm_id") == pending["alarm_id"]), None,
+        reviewer_notice = reviewer_events.latest(
+            "incident_resolved", data={"alarm_id": pending["alarm_id"]},
         )
         if reviewer_notice is None:
             raise PermissionError("Reviewer never received incident resolution")
@@ -780,8 +763,8 @@ class CrewWatchSupervisor:
         work = self.state.get("handover_work")
         if work is None:
             history = await self.read_inbox("ari")
-            due = [e for e in history if e["kind"] == "handover_due"]
-            if not due:
+            due = history.latest("handover_due")
+            if due is None:
                 return False
             bridge = self.clients["lin"]
             await bridge.send_line("inspect roster")
@@ -791,10 +774,10 @@ class CrewWatchSupervisor:
             if current != "ari":
                 return False
             incoming_events = await self.read_inbox("iona")
-            if not any(e["kind"] == "handover_due" for e in incoming_events):
+            if incoming_events.latest("handover_due") is None:
                 return False
             work = {
-                "due_event_id": due[-1]["event_id"],
+                "due_event_id": due["event_id"],
                 "outgoing": self.ids["ari"], "incoming": self.ids["iona"],
             }
             self.state["handover_work"] = work
@@ -804,11 +787,10 @@ class CrewWatchSupervisor:
                     or work.get("outgoing") != self.ids["ari"]
                     or work.get("incoming") != self.ids["iona"]):
                 raise PermissionError("Persisted handover no longer matches identities")
-            due_ids = {
-                e["event_id"] for e in await self.read_inbox("ari")
-                if e["kind"] == "handover_due"
-            }
-            if work.get("due_event_id") not in due_ids:
+            source = (await self.read_inbox("ari")).get(
+                work.get("due_event_id"), kind="handover_due",
+            )
+            if source is None:
                 raise PermissionError("Persisted handover lacks world-issued duty")
         ledger = WorkStepLedger(
             work, self.checkpoint, character_ids=self.ids,
@@ -833,14 +815,10 @@ class CrewWatchSupervisor:
             "offer", "ari", "offer", "ship", DurableEvenniaPort(old),
             interrupt_at=interrupt_at,
         )
-        offered = next(
-            (e for e in await self.read_inbox("iona")
-             if e["event_id"] == offer.source_event_id
-             and e["kind"] == "handover_offer"
-             and e["sender_dbref"] == self.ids["ari"]),
-            None,
+        offered = (await self.read_inbox("iona")).get(
+            offer.source_event_id, kind="handover_offer",
         )
-        if offered is None:
+        if offered is None or offered["sender_dbref"] != self.ids["ari"]:
             raise PermissionError("Incoming watch did not receive an authorized offer")
         iona.observe_event(offered)
 
@@ -859,22 +837,16 @@ class CrewWatchSupervisor:
             DurableEvenniaPort(incoming), interrupt_at=interrupt_at,
         )
         outgoing_events = await self.read_inbox("ari")
-        transferred = next(
-            (e for e in outgoing_events
-             if e["event_id"] == accepted.source_event_id
-             and e["kind"] == "watch_transferred"
-             and e["sender_dbref"] == self.ids["iona"]
-             and e["data"].get("new_watch") == self.ids["iona"]),
-            None,
+        transferred = outgoing_events.get(
+            accepted.source_event_id, kind="watch_transferred",
         )
-        if transferred is None:
+        if (transferred is None or transferred["sender_dbref"] != self.ids["iona"]
+                or transferred["data"].get("new_watch") != self.ids["iona"]):
             raise PermissionError("Outgoing watch did not observe world transfer")
         own_events = await self.read_inbox("iona")
-        if not any(
-            e["kind"] == "watch_transferred"
-            and e["data"].get("new_watch") == self.ids["iona"]
-            for e in own_events
-        ):
+        if own_events.latest(
+            "watch_transferred", data={"new_watch": self.ids["iona"]},
+        ) is None:
             raise PermissionError("Incoming watch lacks world transfer confirmation")
         await self.clients["lin"].send_line("inspect roster")
         roster = await self.clients["lin"].expect_text(
@@ -928,12 +900,9 @@ class CrewWatchSupervisor:
         pending = self.state.setdefault("hail_work", {})
         events = await self.read_inbox(role)
         answered = {
-            e["data"]["hail_id"] for e in events
-            if e["kind"] == "hail_answered"
+            e["data"]["hail_id"] for e in events.select(kind="hail_answered")
         }
-        for event in events:
-            if event["kind"] != "crew_hail":
-                continue
+        for event in events.select(kind="crew_hail"):
             hail_id = event["data"]["hail_id"]
             work = pending.get(hail_id)
             if hail_id in answered and work is None:
@@ -969,15 +938,12 @@ class CrewWatchSupervisor:
             )
             if result.status != "succeeded":
                 raise RuntimeError("World did not accept addressed hail")
-            verified = [
-                e for e in await self.read_inbox(role)
-                if e["kind"] == "hail_answered"
-                and e["data"].get("hail_id") == hail_id
-                and e["data"].get("mode") == work["mode"]
-            ]
-            if not verified:
+            verified = (await self.read_inbox(role)).latest(
+                "hail_answered", data={"hail_id": hail_id, "mode": work["mode"]},
+            )
+            if verified is None:
                 raise RuntimeError("Hail answer unconfirmed by world journal")
-            brain.observe_event(verified[-1])
+            brain.observe_event(verified)
             answered.add(hail_id)
             del pending[hail_id]
             count += 1

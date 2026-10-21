@@ -649,10 +649,12 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
             raise PermissionError("Invalid character-scoped independent round state")
         for role in self.ids:
             events = await self.read_inbox(role)
-            windows = [e for e in events if e["kind"] == "crew_round_window"]
-            if not windows:
+            latest = max(
+                events.select(kind="crew_round_window"),
+                key=lambda e: int(e["data"]["cycle"]), default=None,
+            )
+            if latest is None:
                 continue
-            latest = max(windows, key=lambda e: int(e["data"]["cycle"]))
             cycle = int(latest["data"]["cycle"])
             record = rounds.get(role)
             if record is not None:
@@ -715,15 +717,10 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
             # Re-read this actor's addressed report for its wear finding;
             # do not consult world Attributes or the bridge's private mail.
             own = await self.read_inbox(role)
-            reports = [
-                e for e in own if e["kind"] == "round_recorded"
-                and e["event_id"] == outcome.source_event_id
-                and e["data"].get("cycle") == record["cycle"]
-                and e["data"].get("station") == station
-            ]
-            if not reports:
+            report = own.get(outcome.source_event_id, kind="round_recorded")
+            if (report is None or report["data"].get("cycle") != record["cycle"]
+                    or report["data"].get("station") != station):
                 raise RuntimeError("Authenticated local round proof not delivered")
-            report = reports[-1]
             if (role in ("mara", "teo")
                     and report["data"].get("finding") == "maintenance_due"):
                 operation = "retension" if role == "mara" else "purge"
@@ -770,10 +767,9 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
             raise PermissionError("Foreign investigation checkpoint")
         for role in self.ids:
             messages = await self.read_inbox(role)
-            notices = [e for e in messages if e["kind"] == "anomaly_notice"]
-            if not notices:
+            notice = messages.latest("anomaly_notice")
+            if notice is None:
                 continue
-            notice = notices[-1]
             case_id = notice["data"].get("case_id")
             if not isinstance(case_id, str) or len(case_id) != 32:
                 raise RuntimeError("Malformed world investigation identity")
@@ -808,8 +804,9 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
             if not result.source_event_id:
                 raise RuntimeError("No world-proven anomaly report")
             events = await self.read_inbox(role)
-            if not any(e["event_id"] == result.source_event_id
-                       and e["kind"] == "anomaly_report_recorded" for e in events):
+            if events.get(
+                result.source_event_id, kind="anomaly_report_recorded",
+            ) is None:
                 raise RuntimeError("Report not visible to its own author")
             record["done"] = True
             self.checkpoint()
@@ -821,8 +818,9 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
             return False
         case_id = lin["case_id"]
         events = await self.read_inbox("lin")
-        reports = [e for e in events if e["kind"] == "anomaly_crew_report"
-                   and e["data"].get("case_id") == case_id]
+        reports = list(events.select(
+            kind="anomaly_crew_report", data={"case_id": case_id},
+        ))
         senders = {e["sender_dbref"] for e in reports}
         if not (any(self.ids[r] in senders for r in ("ari", "iona"))
                 and any(self.ids[r] in senders for r in ("mara", "teo"))):

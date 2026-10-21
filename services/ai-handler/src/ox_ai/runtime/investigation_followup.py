@@ -32,7 +32,11 @@ def _case_id(source: dict) -> str:
     return cid
 
 
-def _own(events: list[dict], *, kind: str, case_id: str) -> list[dict]:
+def _own(events, *, kind: str, case_id: str) -> list[dict]:
+    """Query case/kind indexes when available; keep old list fixtures valid."""
+    from ox_ai.runtime.evidence_index import EvidenceView
+    if isinstance(events, EvidenceView):
+        return list(events.select(kind=kind, data={"case_id": case_id}))
     return [
         e for e in events
         if e["kind"] == kind and e["data"].get("case_id") == case_id
@@ -67,10 +71,9 @@ class FollowupInvestigation:
 
     async def _specialist(self, role: str) -> bool:
         messages = await self.s.read_inbox(role)
-        explanations = [e for e in messages if e["kind"] == "anomaly_hypothesis_shared"]
-        if not explanations:
+        initial = messages.latest("anomaly_hypothesis_shared")
+        if initial is None:
             return False
-        initial = explanations[-1]
         case_id = _case_id(initial)
         hypothesis = initial["data"].get("hypothesis")
         if hypothesis not in CAUSES:
