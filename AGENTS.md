@@ -1,56 +1,35 @@
 # AGENTS.md — repository guidance
 
-This is an **Evennia fork plus an implemented Ox prototype**, not a new
-`evennia` distribution. Read [Ox status](design/STATUS.md),
-[architecture](ARCHITECTURE.md) and [setup](INSTALL.md) before changes.
+This is an Evennia fork with a bounded Ox prototype, not an Evennia
+distribution. Read [status](design/STATUS.md), [architecture](ARCHITECTURE.md)
+and [setup](INSTALL.md) before changing code.
 
 ## Ox boundaries
 
-- **World authority:** only Evennia changes rooms, pumps, assigned duties,
-  safety approvals and physical outcomes. Models propose actions.
-- **Cognition:** Concordia supplies native choices; symbolic GOAP covers
-  bounded engineering and experimental social plans. Five technical crew
-  and an opt-in captain maintain separate memories and observations.
-  G8 adds actor-private temporal episodes and reinterpretation; G9
-  protects private mutation/revisions and exposes bounded read-only context
-  to Concordia. G10/G10b use explicit simulated-time ownership and
-  authenticated clock reads. The three-crew mode remains a regression.
-- **Transport:** ordinary authenticated Evennia WebSocket sessions, exact
-  world-issued receipt IDs and recipient-scoped events. Preserve unrelated
-  packets in bounded wire order; overflow must not consume the next frame.
-  Malformed unattributable receipts do not establish a different request's
-  outcome. Never fabricate an ACK or substitute a new request ID.
-- **Capabilities:** the world owns stable character identity, twelve aptitudes, twelve psychology dimensions, 55 skills, separate theory and equipment-technique ledgers. G4f–G4h grant narrow receipt-backed practice and assessed learning; the task shadow is **not** the live outcome system. No model-written narrative awards XP.
-- **Recovery:** reconcile unknown physical actions by request ID, never
-  blindly retry. Generic mid-scene crash recovery is still incomplete.
-- **Runtime:** `ox_ai.runtime.five_crew_service serve` controls the
-  five-specialist fixture (optional `OX_CAPTAIN_OVERSIGHT=1`); never run
-  legacy `watch_service serve` concurrently against the same ship.
-  Neither is a managed deployment. G6/G8 have distinct bounded live-server
-  experiments; G11's manual hosted-model A/B and G12's 6/20/40
-  native-brain profile are not general model-quality or scaling proof.
-- **World chronology:** PostgreSQL event-journal sequence allocation must
-  remain serialized through commit (PR #82). Preserve the P-01 → captain
-  ticket → journal lock order (PR #83) and exact operation-event receipt
-  provenance, not a global before/after-sequence guess.
-- **UI:** deferred; no public handler API or observatory. Do not claim one.
-- **Isolation:** keep Ox changes in `game/`, `services/`, `contracts/`,
-  `design/`, `scenarios/` unless a justified upstream engine change is required.
-- **CI:** prefer focused `ox-*` workflows; the upstream nine-job engine
-  matrix is manual. Never publish upstream Evennia images from this fork.
+- **World:** Evennia owns physics, time, identities, permissions and receipts.
+- **Cognition:** native Concordia plus bounded GOAP; separate actor minds.
+- **Memory:** G8–G9 private temporal/reinterpreted records, owner mutations and revision-protected read-only native context.
+- **Clock:** G10/G10b use authenticated game time, not handler wall time.
+- **Transport:** authenticated per-actor sockets; bounded, lossless unmatched-frame buffering; never treat a malformed/unverified receipt as success.
+- **Capabilities:** world owns aptitudes, psychology, 55 skills, theory and procedure ledgers; G4 learning is receipt-gated, not model-awarded.
+- **Recovery:** reconcile uncertain work under its original request ID.
+- **Runtime:** five specialist agents, optional sixth captain; never run the legacy three-crew supervisor on the same world concurrently.
+- **PostgreSQL:** preserve commit-ordered journal sequences, exact receipt event provenance and P-01 → captain ticket → journal lock order (PRs #82–83).
+- **Evidence:** G6/G8 bounded world trials; G11 manual model A/B; G12 local 6/20/40 brain profile is not live-crew scaling.
+- **UI:** no public API or live observatory.
+- **Scope/CI:** isolate Ox code in game/services/contracts/design/scenarios; use focused Ox checks, not the inherited engine matrix.
 
 ## Pointers
 
 - [Ox component/test map](design/README.md)
-- [Active ship and local commands](game/README.md)
-- [AI runtime and experiments](services/ai-handler/README.md)
+- [Active ship and commands](game/README.md)
+- [AI runtime](services/ai-handler/README.md)
 - [Evennia core beliefs](.agents/docs/core-beliefs.md)
 - [Engine architecture](.agents/docs/architecture.md)
 - [Engine testing](.agents/docs/testing.md)
 - [Engine code style](.agents/docs/code-style.md)
-- [Engine development commands](.agents/docs/commands.md)
-- [Upstream CI reference](.agents/docs/ci.md)
-- [GitHub tooling reference](.agents/docs/github.md)
+- [Engine commands](.agents/docs/commands.md)
+- [Upstream CI](.agents/docs/ci.md)
+- [GitHub tooling](.agents/docs/github.md)
 
-After editing agent-context files, run `make cleanrot`. Follow the
-repository's tests and docstring conventions for code changes.
+After editing agent-context files, run `make cleanrot`.
