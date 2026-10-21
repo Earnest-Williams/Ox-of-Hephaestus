@@ -53,6 +53,9 @@ jobs:
           echo "EVENNIA_SUPERUSER_PASSWORD=$TOKEN" >> "$GITHUB_ENV"
           echo "EVENNIA_SUPERUSER_USERNAME=OxCI" >> "$GITHUB_ENV"
           echo "EVENNIA_SUPERUSER_EMAIL=oxci@example.invalid" >> "$GITHUB_ENV"
+          BOT_TOKEN="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          echo "::add-mask::$BOT_TOKEN"
+          echo "OX_PROBE_PASSWORD=$BOT_TOKEN" >> "$GITHUB_ENV"
       - name: Apply and audit Django migrations
         working-directory: game
         run: |
@@ -61,7 +64,36 @@ jobs:
       - name: Real game journal, migration, and existing crew tests
         working-directory: game
         run: |
-          python -m world.test_runner world.tests.test_event_journal world.tests.test_live_cooperation world.tests.test_crew_interaction --verbosity=2
-      - name: Independent handler paging and restart contract tests
+          python -m world.test_runner world.tests.test_event_journal world.tests.test_world_event_lookup world.tests.test_live_cooperation world.tests.test_crew_interaction --verbosity=2
+      - name: Independent handler paging, exact-event and restart contract tests
         run: |
           python -m unittest discover -s services/ai-handler/tests -p 'test_paged_inbox.py' -v
+          python -m unittest discover -s services/ai-handler/tests -p 'test_evidence_index.py' -v
+          python -m unittest discover -s services/ai-handler/tests -p 'test_world_event_port.py' -v
+      - name: Provision independently authenticated exact-event proof owners
+        working-directory: game
+        run: |
+          evennia shell --command="from world.transport_probe import provision; provision(); from world.live_crew import fixture_setup; fixture_setup(scheduled_clock=True); from world.bootstrap import build_ship; from world.event_journal import emit; from pathlib import Path; import json; s=build_ship(); lin=emit(s['pump'], s['officer'], 'world_exact_trial', data={'case_id':'lin-private'}); ari=emit(s['pump'], s['watch'], 'world_exact_trial', data={'case_id':'ari-private'}); Path('../.ox-state/p4f-event-ids.json').write_text(json.dumps({'lin':lin['event_id'],'ari':ari['event_id']}),encoding='utf-8'); print('OX_EXACT_EVENT_IDS_PROVISIONED')"
+      - name: Prove exact events through two real character WebSockets and reconnect
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd game && evennia start)
+          python - <<'PY'
+          import socket
+          import time
+          for _ in range(90):
+              try:
+                  with socket.create_connection(("127.0.0.1", 4002), timeout=1):
+                      break
+              except OSError:
+                  time.sleep(1)
+          else:
+              raise RuntimeError("Authenticated Evennia WebSocket did not start")
+          PY
+          sleep 5
+          python -m ox_ai.scenarios.p4f_exact_event_lookup
+      - name: Stop disposable Evennia world
+        if: always()
+        working-directory: game
+        run: evennia stop || true
