@@ -91,6 +91,17 @@ The handler checkpoints each native character *before* advancing the
 durable supervisor cursor. No world timestamp, action permission or
 ownership boundary changed.
 
+The new authenticated `WorldEventPort` supports a separate *exact*
+`oxevent <nonce> <event-id>` query without replaying the entire journal.
+It verifies the actor, nonce, requested identity and complete original
+event in an `ox_event_lookup` reply; `missing` includes both absent and
+foreign-recipient IDs, and `oversized` refuses partial events. The
+supervisor can obtain an old source proof using `prove_world_event`,
+serialized with its own inbox page reads. This does **not** yet replace
+cold-start replay or permit local disk eviction, nor can an old receipt
+authorise new physical work.
+[Full contract](../../design/prototypes/p4f-world-exact-evidence.md).
+
 The PR #85 fixture covers 2,401 mixed-recipient events and asserts one
 world request on a warm empty read. PR #86 additionally tests 8,001
 mixed-recipient streamed frames, 12,800 indexed records, exact old-receipt
