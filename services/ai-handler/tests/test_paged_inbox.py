@@ -436,6 +436,70 @@ class InboxReplayTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(blocked.checkpoints, 0)
             blocked._evidence_indexes["lin"].close()
 
+    async def test_cached_obligation_projection_must_match_original_world_proof(self):
+        # An attacker or crashed writer might corrupt a derived open/closed
+        # obligation table without altering a single original event body.
+        # Prefix hashing alone cannot detect that: rebuild/check the index.
+        records = [event(n, "#10") for n in range(1, 381)]
+        records[1] = {**records[1], "kind": "crew_hail",
+                      "datum_hail_id": "open-hail"}
+        records[2] = {**records[2], "kind": "captain_problem_open",
+                      "datum_ticket_id": "open-ticket"}
+        records[3] = {**records[3], "kind": "crew_hail",
+                      "datum_hail_id": "answered-hail"}
+        records[4] = {**records[4], "kind": "hail_answered",
+                      "datum_hail_id": "answered-hail"}
+        with tempfile.TemporaryDirectory() as folder:
+            first = SupervisorFixture(MockCertifiedClient("#10", records))
+            first._journal_continuity = True
+            first._evidence_root = Path(folder)
+            await first.read_inbox("lin")
+            checkpoint = first.saved
+            self.assertEqual(
+                [x["sequence"] for x in
+                 first._evidence_indexes["lin"].view().pending("hail")],
+                [2],
+            )
+            first._evidence_indexes["lin"].close()
+            from ox_ai.runtime.evidence_index import ActorEvidenceIndex
+            archive = ActorEvidenceIndex(Path(folder) / "lin.sqlite3", "#10")
+            archive._db.execute(
+                "UPDATE obligations SET resolved_sequence=10 "
+                "WHERE category='hail' AND reference='open-hail'"
+            )
+            archive.close()
+            resumed = SupervisorFixture(MockCertifiedClient("#10", records),
+                                        checkpoint)
+            resumed._journal_continuity = True
+            resumed._evidence_root = Path(folder)
+            with self.assertRaisesRegex(RuntimeError, "obligations"):
+                await resumed.read_inbox("lin")
+            self.assertEqual(resumed.checkpoints, 0)
+            resumed._evidence_indexes["lin"].close()
+
+    async def test_cached_index_metadata_alteration_cannot_change_old_queries(self):
+        records = [event(n, "#10") for n in range(1, 350)]
+        with tempfile.TemporaryDirectory() as folder:
+            first = SupervisorFixture(MockCertifiedClient("#10", records))
+            first._journal_continuity = True
+            first._evidence_root = Path(folder)
+            await first.read_inbox("lin")
+            state = first.saved
+            first._evidence_indexes["lin"].close()
+            from ox_ai.runtime.evidence_index import ActorEvidenceIndex
+            archive = ActorEvidenceIndex(Path(folder) / "lin.sqlite3", "#10")
+            archive._db.execute(
+                "UPDATE events SET data_index='{}' WHERE sequence=2"
+            )
+            archive.close()
+            second = SupervisorFixture(MockCertifiedClient("#10", records), state)
+            second._journal_continuity = True
+            second._evidence_root = Path(folder)
+            with self.assertRaisesRegex(RuntimeError, "metadata"):
+                await second.read_inbox("lin")
+            self.assertEqual(second.checkpoints, 0)
+            second._evidence_indexes["lin"].close()
+
     async def test_interrupted_incremental_pages_leave_cursor_unadvanced(self):
         events = [event(n, "#10") for n in range(1, 151)]
         client = MockInboxClient("#10", events)
