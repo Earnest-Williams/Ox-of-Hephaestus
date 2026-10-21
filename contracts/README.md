@@ -131,9 +131,11 @@ private belief or self-description. See [G4f](../design/prototypes/g4f-world-rec
   bodies **plus mandatory live proof pins** available uncompressed. Every
   other original event remains retrievable, with case/kind metadata indexed
   and its complete body stored losslessly in compressed local SQLite cold
-  storage. This does **not** delete world evidence, bound total disk usage,
-  validate portable caches or eliminate cold-start replay. No source-event
-  lookup grants independent world action authority.
+  storage. This does **not** delete world evidence or bound total disk
+  usage. The reuse gate verifies the complete actor-local archive against
+  the world prefix on each new process before skipping old network pages;
+  no source-event lookup grants independent world action authority.
+  [Archive reuse contract](../design/prototypes/p4f-attested-cache-reuse.md).
 - `receive_matching()` preserves unrelated WebSocket frames in order
   under a 512-packet bound. On saturation it raises **before** reading
   another wire frame. Malformed unattributable `ox_receipt` frames remain
