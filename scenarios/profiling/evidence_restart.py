@@ -189,6 +189,33 @@ def profile_case(
         delta_s = time.perf_counter() - start
         assert index.cursor == n + PAGE
         assert index.stored_attestation() == (GENERATION, n + PAGE, digest)
+        # This is an *offline experiment*, not an archive mutation.
+        # SQLite may leave considerable B-tree slack after moving payloads
+        # to compressed cold rows. VACUUM INTO writes a separate complete
+        # SQLite database; it never deletes evidence or replaces this cache.
+        vacuum = None
+        if profile_hotspot:
+            output_path = Path(folder) / "repacked.sqlite3"
+            original_size = path.stat().st_size
+            vacuum_start = time.perf_counter()
+            index._db.execute("VACUUM INTO ?", (str(output_path),))
+            vacuum_elapsed = time.perf_counter() - vacuum_start
+            repacked = ActorEvidenceIndex(output_path, ACTOR)
+            try:
+                assert repacked.stored_attestation() == (
+                    GENERATION, n + PAGE, digest,
+                )
+                assert repacked.recompute_prefix(GENERATION) == digest
+                assert len(repacked.view()) == n + PAGE
+                vacuum = {
+                    "comparison": "offline VACUUM INTO copy only; original unchanged",
+                    "original_file_bytes": original_size,
+                    "repacked_file_bytes": output_path.stat().st_size,
+                    "repack_seconds": round(vacuum_elapsed, 5),
+                    "original_world_prefix_verified": True,
+                }
+            finally:
+                repacked.close()
         index.close()
         return {
             "actor_events": n,
@@ -204,6 +231,7 @@ def profile_case(
             "before_delta_storage": pre_close,
             "lookup": lookups,
             "hotspot_cprofile": profile_excerpt,
+            "offline_vacuum_experiment": vacuum,
         }
 
 
