@@ -263,11 +263,13 @@ def run_cohort(specs: list[dict], *, mode: str, width: int) -> dict:
 
 
 def summarize_rounds(rounds: list[dict]) -> list[dict]:
+    """Compare candidate worker widths, without changing the actor count."""
     answer = []
-    for mode in ("staggered", "simultaneous"):
-        group = [record for record in rounds if record["mode"] == mode]
+    for workers in sorted({round_["parallel_workers"] for round_ in rounds}):
+        group = [r for r in rounds if r["parallel_workers"] == workers]
         answer.append({
-            "mode": mode,
+            "parallel_workers": workers,
+            "mode": group[0]["mode"],
             "rounds": len(group),
             "median_cohort_wall_s": round(statistics.median(
                 r["cohort_wall_s"] for r in group
@@ -278,21 +280,44 @@ def summarize_rounds(rounds: list[dict]) -> list[dict]:
             "median_p95_actor_ready_s": round(statistics.median(
                 r["p95_actor_ready_s"] for r in group
             ), 5),
+            "median_p95_prefix_verify_s": round(statistics.median(
+                r["p95_prefix_verify_s"] for r in group
+            ), 5),
             "median_process_cpu_s": round(statistics.median(
                 r["cohort_process_cpu_s"] for r in group
             ), 5),
+            "median_cpu_per_wall": round(statistics.median(
+                r["cohort_cpu_per_wall"] for r in group
+            ), 4),
+            "median_physical_read_bytes_linux": (
+                round(statistics.median(
+                    r["physical_read_bytes_linux"] for r in group
+                )) if all(r["physical_read_bytes_linux"] is not None
+                         for r in group) else None
+            ),
         })
     return answer
 
 
 def profile_fleet(
     *, actors: int, events_per_actor: int, chars: int,
-    stagger_width: int, trials: int,
+    stagger_width: int, trials: int, widths: tuple[int, ...] | None = None,
 ) -> dict:
     if not 1 <= trials <= 4 or not 1 <= stagger_width < actors:
         raise ValueError("Invalid trial count or stagger width")
     if not 64 <= chars <= 16384:
         raise ValueError("Payload must be 64..16384 characters")
+    if widths is None:
+        # Retain the original two-policy profile for reproducibility.
+        selected_widths = (stagger_width, actors)
+    else:
+        if (
+            not widths or len(set(widths)) != len(widths)
+            or any(type(width) is not int or not 1 <= width <= actors
+                   for width in widths)
+        ):
+            raise ValueError("Widths must be distinct integers between 1 and actors")
+        selected_widths = tuple(widths)
     specs = actor_specs(actors, events_per_actor)
     if sum(s["event_count"] for s in specs) > 3_000_000:
         raise ValueError("Fleet benchmark limited to three million events")
@@ -300,20 +325,21 @@ def profile_fleet(
         root = Path(folder)
         build = build_archives(root, specs, chars)
         rounds = []
-        # ABBA order across two trials reduces (but does not remove) the
-        # confounding effect of the OS page cache and shared-runner workload.
+        # Reverse candidate order on alternating trials to reduce, not erase,
+        # the confounding effect of warmed OS caches and variable CI load.
         for trial in range(trials):
-            order = ("staggered", "simultaneous") if trial % 2 == 0 else (
-                "simultaneous", "staggered"
-            )
-            for mode in order:
-                record = run_cohort(specs, mode=mode, width=stagger_width)
+            order = selected_widths if trial % 2 == 0 else selected_widths[::-1]
+            for width in order:
+                mode = "simultaneous" if width == actors else "staggered"
+                record = run_cohort(specs, mode=mode, width=width)
                 record["trial"] = trial + 1
                 rounds.append(record)
                 print(
                     f"OX_FLEET_VERIFIED trial={trial+1} mode={mode} "
-                    f"actors={actors} wall_s={record['cohort_wall_s']:.5f} "
+                    f"actors={actors} workers={width} "
+                    f"wall_s={record['cohort_wall_s']:.5f} "
                     f"cpu_s={record['cohort_process_cpu_s']:.5f} "
+                    f"first_ready_s={record['first_actor_ready_s']:.5f} "
                     f"p95_ready_s={record['p95_actor_ready_s']:.5f}",
                     flush=True,
                 )
@@ -333,6 +359,8 @@ def profile_fleet(
                 "page": PAGE,
                 "bundle": BUNDLE,
                 "stagger_width": stagger_width,
+                "worker_widths": list(selected_widths),
+                "scheduling_order": "forward/reversed each alternating trial",
                 "generation": "synthetic",
                 "build": build,
                 "actor_archives": [
@@ -360,15 +388,17 @@ def profile_fleet(
                 "live_40_actor_supervisor": False,
             },
             "limitations": [
+                "All candidate widths verify the SAME complete actor population.",
                 "Synthetic 40-recipient interleaved history; not measured voyage telemetry.",
                 "ThreadPoolExecutor tests candidate scheduling, not current supervisor concurrency.",
                 "Build/setup time is excluded from every measured restart round.",
                 "Verification remains O(each actor's complete addressed history).",
                 "SQLite data may be in the OS page cache; Linux physical_read_bytes can be zero.",
                 "Process CPU and thread CPU distinguish contention; do not infer real disk latency from cached reads.",
+                "Process maxrss is a lifetime high-water mark, not cohort-specific peak memory.",
                 "Real native brain restore, world authentication, and certificate round trips are not measured.",
                 "No truncation, no reassignment of actor scope, and no weakening of local digest checks.",
-                "Shared CI runner numbers are observations, not performance guarantees.",
+                "Shared CI runner numbers are observations, never performance SLAs.",
             ],
         }
 
@@ -379,6 +409,7 @@ def main() -> None:
     parser.add_argument("--events-per-actor", type=int, default=40000)
     parser.add_argument("--payload-chars", type=int, default=1200)
     parser.add_argument("--stagger-width", type=int, default=4)
+    parser.add_argument("--widths", help="Distinct concurrency widths, e.g. 1,2,4,8,16,40")
     parser.add_argument("--trials", type=int, default=2)
     parser.add_argument("--output", type=Path)
     options = parser.parse_args()
@@ -389,6 +420,8 @@ def main() -> None:
             chars=options.payload_chars,
             stagger_width=options.stagger_width,
             trials=options.trials,
+            widths=(tuple(int(x) for x in options.widths.split(","))
+                    if options.widths is not None else None),
         )
     except ValueError as exc:
         parser.error(str(exc))
