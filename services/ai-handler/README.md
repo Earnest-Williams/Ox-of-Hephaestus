@@ -97,8 +97,16 @@ and completed-work references still return the original records on demand.
 The effective hot cap is 256 **plus actual live pins**; genuine unresolved
 obligations cannot be removed to enforce an arbitrary fixed number. Local
 cold bodies are integrity-checked, not authoritative. This reduces
-uncompressed evidence, **not** total disk records. Old world-page
-retransmission is avoided only after full local and world-prefix checks.
+uncompressed evidence, **not** total disk records. Every 2,048 actual
+hot-to-cold demotions, the handler can transactionally repack the SQLite
+file **after** the authenticated page/prefix-seal commit and before
+advancing a native brain checkpoint. This reclaims allocated B-tree
+space without dropping a single old event, receipt or unfinished task.
+The durable maintenance counter resets only after successful repack, so
+an interruption cannot silently advance world or cognition evidence.
+[Lossless physical repack](../../design/prototypes/p4f-lossless-repack.md).
+Old world-page retransmission is avoided only after full local and
+world-prefix checks.
 [Retention and pinning contract](../../design/prototypes/p4f-hot-cold-evidence.md).
 
 The entire inbox read is indexed in one transaction; a broken later page
