@@ -109,6 +109,12 @@ private belief or self-description. See [G4f](../design/prototypes/g4f-world-rec
 - PostgreSQL journal allocation is **commit-ordered** under a single
   transaction-held lock. `oxinbox` cursors are recipient-scoped and
   replayable; work receipts use events causally emitted by the operation.
+  New per-recipient SHA-256 prefix seals and a durable journal generation
+  support `oxjournal <nonce> <actor-cursor>`, returning a nonce/actor-
+  challenged continuity certificate for an exact addressed prefix.
+  This establishes a future safe cache-reuse prerequisite, not a new
+  authority or a bound on world history.
+  [Protocol](../design/prototypes/p4f-journal-continuity.md).
   A-01 alarms and captain reminders follow P-01 → ticket → journal locks.
 - PRs #85–88: the handler authenticates each recipient's complete world
   inbox once per process (streamed to a disposable actor-scoped SQLite

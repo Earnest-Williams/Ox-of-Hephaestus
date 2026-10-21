@@ -40,8 +40,14 @@ def fixture_setup(*, scheduled_clock: bool = False) -> None:
     pump.db.ox_incident_closed = False
     # ONLY this disposable operator fixture may discard journal history.
     # A real ship upgrade must instead run the idempotent legacy importer.
-    from world.models import CrewEvent
+    from world.models import CrewEvent, JournalEpoch
+    import uuid
     CrewEvent.objects.all().delete()
+    # This operator-only destructive fixture starts a *new* world history.
+    # An old local cache must never validate against this reset journal.
+    JournalEpoch.objects.update_or_create(
+        id=1, defaults={"generation": uuid.uuid4().hex},
+    )
     pump.db.ox_private_events = []
     pump.db.ox_event_journal_migrated = True
     pump.db.ox_inspections = {}

@@ -100,6 +100,31 @@ class CmdOxEvent(Command):
         self.caller.msg(ox_event_lookup=([raw], {}))
 
 
+class CmdOxJournal(Command):
+    """Attest an addressed historical prefix: oxjournal <nonce> <cursor>."""
+
+    key = "oxjournal"
+    locks = "cmd:all()"
+
+    def func(self) -> None:
+        from world.event_journal import journal_certificate
+
+        parts = self.args.strip().split()
+        if (len(parts) != 2
+                or re.fullmatch(r"[0-9a-f]{32}", parts[0]) is None
+                or re.fullmatch(r"(?:0|[1-9][0-9]{0,18})", parts[1]) is None):
+            self.caller.msg("Usage: oxjournal <32 lowercase hex nonce> <cursor>")
+            return
+        nonce, raw_cursor = parts
+        statement = journal_certificate(self.caller, cursor=int(raw_cursor))
+        # Every response is bound to the authenticated caller and a unique
+        # challenge. It supplies no other character's event IDs or records.
+        statement["nonce"] = nonce
+        self.caller.msg(ox_journal_proof=([
+            json.dumps(statement, sort_keys=True, allow_nan=False),
+        ], {}))
+
+
 class CmdOxRadioAlarm(_CrewCommand):
     """Relay an authenticated bridge alarm to the current duty engineer."""
 

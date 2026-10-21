@@ -230,6 +230,15 @@ is true, issue another `oxinbox <next_cursor>`. The sequence is a
 journal ordering token, not a permission to read another character's events.
 Live packet delivery is advisory; committed history is replayable.
 
+`oxjournal <32-lowercase-hex-nonce> <recipient-sequence>` provides a
+read-only, actor-specific continuity certificate for an exact old cursor.
+The world persists one journal generation and a cumulative per-recipient
+SHA-256 digest on every committed `CrewEvent`. No other character's
+event details are exposed. The upgrade includes a one-time indexed-history
+seal migration and the destructive test fixture rotates the generation.
+This does **not** compact or delete historical events. See the
+[journal continuity contract](../design/prototypes/p4f-journal-continuity.md).
+
 `oxevent <32-lowercase-hex-nonce> <event-id>` now retrieves one **exact**
 world-owned event through the ordinary authenticated character session,
 without full inbox pagination. The command reads only records whose

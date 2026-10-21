@@ -13,12 +13,14 @@ from collections.abc import Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
 import re
+import uuid
 
 from django.db import connection, transaction
 from evennia.utils import gametime
 
 from world.bootstrap import find_fixture
-from world.models import CrewEvent
+from world.models import CrewEvent, JournalEpoch
+from world.journal_chain import append_digest, seed
 
 PAGE_SIZE = 128
 SCHEMA_VERSION = 2
@@ -101,6 +103,39 @@ def _as_dict(record: CrewEvent) -> dict:
     }
 
 
+def _epoch() -> str:
+    # Called only under the world journal's transaction lock. The epoch
+    # survives normal restarts, but operator-only journal reset rotates it.
+    row, _ = JournalEpoch.objects.get_or_create(
+        id=1, defaults={"generation": uuid.uuid4().hex},
+    )
+    return row.generation
+
+
+def _reseal_legacy(generation: str) -> None:
+    """One-time legacy importer: recompute prefixes in world order.
+
+    Migrated rows retain their original IDs. Rehashing after a late legacy
+    import invalidates old cache anchors instead of silently accepting
+    an expanded or reordered historical prefix.
+    """
+    last = {}
+    updates = []
+    for record in CrewEvent.objects.order_by("sequence").iterator(chunk_size=500):
+        actor = record.recipient_dbref
+        event = _as_dict(record)
+        last[actor] = append_digest(
+            last.get(actor, seed(generation, actor)), event,
+        )
+        record.chain_hash = last[actor]
+        updates.append(record)
+        if len(updates) >= 500:
+            CrewEvent.objects.bulk_update(updates, ["chain_hash"])
+            updates.clear()
+    if updates:
+        CrewEvent.objects.bulk_update(updates, ["chain_hash"])
+
+
 def migrate_legacy_events(pump=None) -> int:
     """Import P4e's P-01 Attribute history once without renumbering event IDs.
 
@@ -139,6 +174,8 @@ def migrate_legacy_events(pump=None) -> int:
             ):
                 raise RuntimeError("Conflicting historical event; import aborted")
             count += int(created)
+        if count:
+            _reseal_legacy(_epoch())
         # Preserve the old Attribute as an emergency rollback source.
         pump.db.ox_event_journal_migrated = True
     return count
@@ -154,6 +191,12 @@ def emit(pump, recipient, kind: str, *, sender=None, data=None, text="") -> dict
     with transaction.atomic():
         migrate_legacy_events(pump)
         _serialize_journal_transaction()
+        generation = _epoch()
+        prior = CrewEvent.objects.filter(
+            recipient_dbref=recipient.dbref,
+        ).order_by("-sequence").first()
+        if prior is not None and not prior.chain_hash:
+            raise RuntimeError("World journal contains unsealed predecessor")
         record = CrewEvent.objects.create(
             event_id=None,
             recipient_dbref=recipient.dbref,
@@ -164,8 +207,12 @@ def emit(pump, recipient, kind: str, *, sender=None, data=None, text="") -> dict
             game_time=float(gametime.gametime(absolute=True)),
         )
         record.event_id = f"oxevt-v2-{record.sequence:04d}"
-        record.save(update_fields=["event_id"])
         event = _as_dict(record)
+        record.chain_hash = append_digest(
+            prior.chain_hash if prior is not None else seed(generation, recipient.dbref),
+            event,
+        )
+        record.save(update_fields=["event_id", "chain_hash"])
         captured = _CAPTURED_EVENTS.get()
         if captured is not None:
             captured.append(event)
@@ -222,6 +269,50 @@ def addressed_event(actor, event_id: str) -> dict | None:
         recipient_dbref=actor.dbref, event_id=event_id,
     ).first()
     return _as_dict(record) if record is not None else None
+
+
+def journal_certificate(actor, *, cursor: int = 0) -> dict:
+    """Authenticate one actor's local prefix and current world high-water mark.
+
+    The requested cursor must be exactly this recipient's event sequence (or
+    zero). A missing/foreign cursor does not reveal another character's data.
+    The result is a continuity certificate, *not* evidence that physical
+    world effects remain valid and not a permission to replay an operation.
+    """
+    if (actor is None or not isinstance(getattr(actor, "dbref", None), str)
+            or re.fullmatch(r"#[1-9][0-9]*", actor.dbref) is None):
+        raise ValueError("Authenticated character required")
+    if type(cursor) is not int or cursor < 0:
+        raise ValueError("Invalid journal certificate cursor")
+    migrate_legacy_events()
+    with transaction.atomic():
+        # Prevent a PostgreSQL append from interleaving the two certificate
+        # reads, so epoch/head/prefix describe one committed world state.
+        _serialize_journal_transaction()
+        generation = _epoch()
+        genesis = seed(generation, actor.dbref)
+        head = CrewEvent.objects.filter(
+            recipient_dbref=actor.dbref,
+        ).order_by("-sequence").first()
+        if head is not None and not head.chain_hash:
+            raise RuntimeError("Unsealed world journal head")
+        matched = None
+        if cursor != 0:
+            matched = CrewEvent.objects.filter(
+                recipient_dbref=actor.dbref, sequence=cursor,
+            ).first()
+            if matched is not None and not matched.chain_hash:
+                raise RuntimeError("Unsealed world journal prefix")
+        return {
+            "version": 1,
+            "actor_dbref": actor.dbref,
+            "generation": generation,
+            "requested_cursor": cursor,
+            "prefix_digest": (genesis if cursor == 0 else
+                              matched.chain_hash if matched is not None else None),
+            "head_cursor": int(head.sequence) if head is not None else 0,
+            "head_digest": head.chain_hash if head is not None else genesis,
+        }
 
 
 def inbox(actor, *, after: int = 0) -> list[dict]:

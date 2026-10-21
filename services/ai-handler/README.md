@@ -105,6 +105,16 @@ The handler checkpoints each native character *before* advancing the
 durable supervisor cursor. No world timestamp, action permission or
 ownership boundary changed.
 
+The new authenticated `WorldJournalPort` additionally obtains a
+nonce/character/cursor-bound journal generation and historical prefix
+digest from the world-owned `oxjournal` command. Its typed client checks
+epoch, nonce, actor, digest and head consistency before the result can
+be used as continuity evidence. The handler **still rehydrates every
+previously addressed event on a fresh process**; persistence and reuse
+of a local archive must be coordinated with complete archive-integrity
+verification and native memory/agenda checkpoint revisions.
+[Continuity contract](../../design/prototypes/p4f-journal-continuity.md).
+
 The new authenticated `WorldEventPort` supports a separate *exact*
 `oxevent <nonce> <event-id>` query without replaying the entire journal.
 It verifies the actor, nonce, requested identity and complete original
