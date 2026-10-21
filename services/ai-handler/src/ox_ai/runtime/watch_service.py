@@ -36,6 +36,9 @@ from ox_ai.ports.base import ActionRequest
 from ox_ai.ports.evennia.client import EvenniaWebSocketClient, WebPacket
 from ox_ai.ports.evennia.clock import WorldClockPort
 from ox_ai.ports.evennia.evidence import WorldEventPort
+from ox_ai.ports.evennia.journal import (
+    WorldJournalPort, continue_digest, journal_seed,
+)
 from ox_ai.ports.evennia.durable import DurableEvenniaPort
 from ox_ai.scenarios.p3b_goap import inspect
 from ox_ai.scenarios.p3c_crew import IDS, URL, next_event, replayable_event
@@ -238,6 +241,12 @@ class CrewWatchSupervisor:
         # Older event IDs are indexed on disk, never retained in a Python
         # voyage-length list. It is not an alternative world authority.
         self._evidence_temporary = tempfile.TemporaryDirectory(prefix="ox-evidence-")
+        # This file is a handler-owned *cache*, not world authority. After a
+        # restart, it cannot be queried until its complete local chain has
+        # been checked against a nonce-bound authenticated world prefix.
+        # Old disposable cache versions remain separate.
+        self._journal_continuity = True
+        self._evidence_root = self.state_path.parent / "attested-evidence-v1"
         self._evidence_indexes: dict[str, ActorEvidenceIndex] = {}
         self._inbox_hydrated: set[str] = set()
         self._inbox_role_locks: dict[str, asyncio.Lock] = {}
@@ -372,8 +381,10 @@ class CrewWatchSupervisor:
     async def read_inbox(self, role: str) -> EvidenceView:
         """Return a stable, indexed, read-only snapshot of this actor's history.
 
-        Each process rehydrates world-addressed history from cursor zero,
-        streaming each verified page into a disposable private SQLite index.
+        A new process first authenticates and verifies every retained local
+        hot/cold record against an actor- and nonce-bound world prefix.
+        Matching generations and prefixes allow it to request only journal
+        deltas. A missing, rewound, corrupted or divergent cache fails closed.
         Later requests begin at the index's high-water mark. Legacy lookups
         traverse the index lazily rather than keeping complete Python lists.
 
@@ -392,29 +403,95 @@ class CrewWatchSupervisor:
             previous = cursors.get(role, 0)
             if type(previous) is not int or previous < 0:
                 raise PermissionError("Invalid actor inbox high-water mark")
+            continuity = getattr(self, "_journal_continuity", False)
             index = self._evidence_indexes.get(role)
             if index is None:
-                index = ActorEvidenceIndex(
-                    Path(self._evidence_temporary.name) / (role + ".sqlite3"),
-                    self.ids[role],
-                )
+                if continuity:
+                    self._evidence_root.mkdir(
+                        mode=0o700, parents=True, exist_ok=True,
+                    )
+                    os.chmod(self._evidence_root, 0o700)
+                    path = self._evidence_root / (role + ".sqlite3")
+                else:
+                    # Legacy isolated supervisor test fixtures have no
+                    # world journal attestation channel, and remain
+                    # disposable. Production never falls back after failure.
+                    path = Path(self._evidence_temporary.name) / (
+                        role + ".sqlite3"
+                    )
+                index = ActorEvidenceIndex(path, self.ids[role])
+                if continuity:
+                    os.chmod(path, 0o600)
                 self._evidence_indexes[role] = index
             before = index.cursor
-            # The world, not this process, determines the continuation token.
-            # Commit the full multi-page index batch or none of it.
+            generation = None
+            digest = None
+            if continuity:
+                cached = index.stored_attestation()
+                cold_start = role not in self._inbox_hydrated
+                if cold_start:
+                    certificate = await WorldJournalPort(
+                        self.clients[role],
+                    ).attest(before)
+                    if certificate.head_cursor < previous:
+                        raise RuntimeError(
+                            "World journal behind saved cognition checkpoint"
+                        )
+                    if cached is None:
+                        if before != 0:
+                            raise RuntimeError(
+                                "Nonempty archive has no authenticated continuity seal"
+                            )
+                        generation = certificate.generation
+                        digest = journal_seed(generation, self.ids[role])
+                        certificate.require_prefix(generation, 0, digest)
+                    else:
+                        generation, cached_cursor, cached_digest = cached
+                        if cached_cursor != before:
+                            raise RuntimeError(
+                                "Archive prefix differs from saved cache cursor"
+                            )
+                        # Deliberately rehash the *complete* local archive,
+                        # including compressed cold bodies and indexes,
+                        # rather than trusting locally stored metadata.
+                        digest = index.recompute_prefix(generation)
+                        if digest != cached_digest:
+                            raise RuntimeError(
+                                "Persisted evidence content fails local continuity"
+                            )
+                        certificate.require_prefix(generation, before, digest)
+                else:
+                    if cached is None or cached[1] != before:
+                        raise RuntimeError(
+                            "Warm evidence cache lost its continuity seal"
+                        )
+                    generation, _, digest = cached
+
+            def ingest(page: list[dict]) -> None:
+                nonlocal digest
+                if continuity:
+                    for event in page:
+                        digest = continue_digest(digest, event)
+                index.append_page(page)
+
+            # All newly addressed pages, hot/cold compression, and verified
+            # digest advancement commit in the *same* local SQL transaction.
             with index.transaction():
                 _unused, cursor = await replay_inbox_pages(
                     self.clients[role], after=before,
-                    page_sink=index.append_page,
+                    page_sink=ingest,
                 )
                 if cursor != index.cursor or cursor < previous:
                     raise RuntimeError("World inbox behind local actor checkpoint")
-                # Hot/cold is a lossless view of this *verified* history.
-                # Keep outstanding-world source events and original references
-                # from this actor's unfinished private work in the hot tier.
-                # Every other event, including historic character evidence,
-                # remains available through cold decompression and exact
-                # world lookup. Do not skip world replay on fresh processes.
+                if continuity:
+                    verified = await WorldJournalPort(
+                        self.clients[role],
+                    ).attest(cursor)
+                    verified.require_prefix(generation, cursor, digest)
+                    index.seal_attestation(generation, digest)
+                # Keep actual outstanding world sources and unfinished
+                # checkpoint references hot. All other complete event
+                # bodies remain indexed and retrievable cold.
                 index.replace_pins(checkpoint_evidence_pins(self.state, role))
                 index.compact_hot()
             if cursor > previous:

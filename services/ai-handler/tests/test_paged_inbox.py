@@ -1,10 +1,13 @@
 """Non-network inbox replay and crash-safe agent cursor tests."""
 from collections import deque
 import copy
+import json
 import tempfile
+from pathlib import Path
 import unittest
 
 from ox_ai.ports.evennia.client import WebPacket
+from ox_ai.ports.evennia.journal import continue_digest, journal_seed
 from ox_ai.runtime.watch_service import CrewWatchSupervisor, replay_inbox_pages
 
 
@@ -55,6 +58,54 @@ class MockInboxClient:
             if predicate(packet):
                 return packet
         raise RuntimeError("No matching replay packet")
+
+
+class MockCertifiedClient(MockInboxClient):
+    """Authoritative actor-bound journal head for offline cache-reuse tests."""
+
+    authenticated = True
+
+    def __init__(self, recipient, events, generation="a" * 32):
+        super().__init__(recipient, events)
+        self.generation = generation
+
+    async def send_line(self, command):
+        if not command.startswith("oxjournal "):
+            return await super().send_line(command)
+        self.commands.append(command)
+        _, nonce, requested = command.split()
+        cursor = int(requested)
+        addressed = [
+            event for event in self.events
+            if event["recipient_dbref"] == self.character_dbref
+        ]
+        digest = journal_seed(self.generation, self.character_dbref)
+        old_prefix = digest if cursor == 0 else None
+        for record in addressed:
+            # The mock packet is in original Evennia wire form; for the
+            # canonical journal chain it must be restored to the same
+            # original nested source shape as replay_inbox_pages().
+            actual = {
+                key: value for key, value in record.items()
+                if not key.startswith("datum_")
+            }
+            actual["data"] = {
+                key[len("datum_"):]: value
+                for key, value in record.items()
+                if key.startswith("datum_")
+            }
+            digest = continue_digest(digest, actual)
+            if actual["sequence"] == cursor:
+                old_prefix = digest
+        self.pending.append(WebPacket("ox_journal_proof", (json.dumps({
+            "version": 1, "nonce": nonce,
+            "actor_dbref": self.character_dbref,
+            "generation": self.generation,
+            "requested_cursor": cursor,
+            "prefix_digest": old_prefix,
+            "head_cursor": addressed[-1]["sequence"] if addressed else 0,
+            "head_digest": digest,
+        }),), {}))
 
 
 class Brain:
@@ -235,6 +286,155 @@ class InboxReplayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(advanced.get("oxevt-v2-0005")["sequence"], 5)
         self.assertEqual((second._evidence_indexes["lin"].hot_count,
                           second._evidence_indexes["lin"].cold_count), (257, 373))
+
+    async def test_authenticated_cache_reuse_skips_old_network_pages(self):
+        events = [event(n, "#10") for n in range(1, 801)]
+        with tempfile.TemporaryDirectory() as folder:
+            first = SupervisorFixture(MockCertifiedClient("#10", events))
+            first._journal_continuity = True
+            first._evidence_root = Path(folder)
+            old = await first.read_inbox("lin")
+            self.assertEqual(len(old), 800)
+            self.assertEqual(first._evidence_indexes["lin"].cold_count, 544)
+            saved = first.saved
+            first._evidence_indexes["lin"].close()
+            second_client = MockCertifiedClient("#10", events)
+            second = SupervisorFixture(second_client, saved)
+            second._journal_continuity = True
+            second._evidence_root = Path(folder)
+            restored = await second.read_inbox("lin")
+            self.assertEqual(len(restored), 800)
+            self.assertEqual(len(second.brains["lin"].seen), 800)
+            self.assertEqual(second.checkpoints, 0)
+            self.assertEqual(
+                [command for command in second_client.commands
+                 if command.startswith("oxinbox ")],
+                ["oxinbox 800"],
+            )
+            self.assertEqual(restored.get("oxevt-v2-0001")["sequence"], 1)
+            events.extend(event(n, "#10") for n in range(801, 901))
+            resumed = await second.read_inbox("lin")
+            self.assertEqual(len(resumed), 900)
+            self.assertEqual(len(second.brains["lin"].seen), 900)
+            self.assertEqual(
+                [cmd for cmd in second_client.commands if cmd.startswith("oxinbox ")],
+                ["oxinbox 800", "oxinbox 800"],
+            )
+            self.assertEqual(
+                second._evidence_indexes["lin"].stored_attestation()[1], 900,
+            )
+            second._evidence_indexes["lin"].close()
+
+    async def test_interrupted_attested_delta_is_not_partially_sealed(self):
+        history = [event(n, "#10") for n in range(1, 301)]
+        with tempfile.TemporaryDirectory() as folder:
+            client = MockCertifiedClient("#10", history)
+            worker = SupervisorFixture(client)
+            worker._journal_continuity = True
+            worker._evidence_root = Path(folder)
+            await worker.read_inbox("lin")
+            base_digest = worker._evidence_indexes["lin"].stored_attestation()
+            self.assertEqual(base_digest[1], 300)
+            history.extend(event(n, "#10") for n in range(301, 601))
+            # One later page has been indexed inside the transaction when the
+            # next world page disappears; neither events nor digest commit.
+            client.disconnect_page = len(client.commands) + 2
+            with self.assertRaises(ConnectionError):
+                await worker.read_inbox("lin")
+            self.assertEqual(worker._evidence_indexes["lin"].cursor, 300)
+            self.assertEqual(
+                worker._evidence_indexes["lin"].stored_attestation(), base_digest,
+            )
+            self.assertEqual(worker.state["inbox_cursors"]["lin"], 300)
+            client.disconnect_page = None
+            replayed = await worker.read_inbox("lin")
+            self.assertEqual(len(replayed), 600)
+            self.assertEqual(
+                worker._evidence_indexes["lin"].stored_attestation()[1], 600,
+            )
+            worker._evidence_indexes["lin"].close()
+
+    async def test_cached_prefix_change_rewind_and_epoch_reset_fail_closed(self):
+        original = [event(n, "#10") for n in range(1, 551)]
+        with tempfile.TemporaryDirectory() as folder:
+            first = SupervisorFixture(MockCertifiedClient("#10", original))
+            first._journal_continuity = True
+            first._evidence_root = Path(folder)
+            await first.read_inbox("lin")
+            state = first.saved
+            first._evidence_indexes["lin"].close()
+
+            cases = (
+                ("world_rewind", original[:400], "a" * 32),
+                ("generation_change", original, "b" * 32),
+                ("changed_old_event", [
+                    {**e, "text": "changed historical content"} if
+                    e["sequence"] == 3 else e for e in original
+                ], "a" * 32),
+            )
+            for label, world, generation in cases:
+                with self.subTest(label=label):
+                    worker = SupervisorFixture(
+                        MockCertifiedClient("#10", world, generation), state,
+                    )
+                    worker._journal_continuity = True
+                    worker._evidence_root = Path(folder)
+                    with self.assertRaises(RuntimeError):
+                        await worker.read_inbox("lin")
+                    self.assertEqual(worker.checkpoints, 0)
+                    self.assertEqual(worker.state["inbox_cursors"]["lin"], 550)
+                    self.assertEqual(len(worker.brains["lin"].seen), 550)
+                    worker._evidence_indexes["lin"].close()
+
+    async def test_cache_corruption_and_interrupted_checkpoint_recovery(self):
+        class FailOnce(SupervisorFixture):
+            def __init__(self, client):
+                super().__init__(client)
+                self.fail = True
+
+            def checkpoint(self):
+                if self.fail:
+                    self.fail = False
+                    raise OSError("checkpoint storage interruption")
+                super().checkpoint()
+
+        records = [event(n, "#10") for n in range(1, 321)]
+        with tempfile.TemporaryDirectory() as folder:
+            failed = FailOnce(MockCertifiedClient("#10", records))
+            failed._journal_continuity = True
+            failed._evidence_root = Path(folder)
+            with self.assertRaisesRegex(OSError, "checkpoint storage interruption"):
+                await failed.read_inbox("lin")
+            self.assertEqual(failed._evidence_indexes["lin"].cursor, 320)
+            self.assertEqual(
+                failed._evidence_indexes["lin"].stored_attestation()[1], 320,
+            )
+            failed._evidence_indexes["lin"].close()
+            next_worker = SupervisorFixture(MockCertifiedClient("#10", records))
+            next_worker._journal_continuity = True
+            next_worker._evidence_root = Path(folder)
+            restored = await next_worker.read_inbox("lin")
+            self.assertEqual(len(restored), 320)
+            self.assertEqual(next_worker.checkpoints, 1)
+            self.assertEqual(len(next_worker.brains["lin"].seen), 320)
+            next_worker._evidence_indexes["lin"].close()
+            # A damaged cold body is never accepted merely because the saved
+            # attestation table and world prefix both look correct.
+            from ox_ai.runtime.evidence_index import ActorEvidenceIndex
+            archive = ActorEvidenceIndex(Path(folder) / "lin.sqlite3", "#10")
+            archive._db.execute(
+                "UPDATE cold_events SET body=? WHERE sequence=?",
+                (b"corrupt", 1),
+            )
+            archive.close()
+            blocked = SupervisorFixture(MockCertifiedClient("#10", records),
+                                        next_worker.saved)
+            blocked._journal_continuity = True
+            blocked._evidence_root = Path(folder)
+            with self.assertRaises(RuntimeError):
+                await blocked.read_inbox("lin")
+            self.assertEqual(blocked.checkpoints, 0)
+            blocked._evidence_indexes["lin"].close()
 
     async def test_interrupted_incremental_pages_leave_cursor_unadvanced(self):
         events = [event(n, "#10") for n in range(1, 151)]

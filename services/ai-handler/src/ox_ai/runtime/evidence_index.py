@@ -141,6 +141,15 @@ class ActorEvidenceIndex:
             "CREATE TABLE IF NOT EXISTS pinned ("
             "event_id TEXT PRIMARY KEY NOT NULL)"
         )
+        # A persisted archive is not evidence by itself. Its exact complete
+        # local prefix is verified against this saved seal AND an independent
+        # actor/nonce-bound world certificate before it is used after restart.
+        self._db.execute(
+            "CREATE TABLE IF NOT EXISTS attestation ("
+            "singleton INTEGER PRIMARY KEY CHECK(singleton = 1), "
+            "generation TEXT NOT NULL, cursor INTEGER NOT NULL, "
+            "digest TEXT NOT NULL)"
+        )
         self._db.execute(
             "CREATE INDEX IF NOT EXISTS event_hot_sequence "
             "ON events(sequence) WHERE payload IS NOT NULL"
@@ -175,7 +184,7 @@ class ActorEvidenceIndex:
 
     def _read_row(self, row: tuple) -> dict:
         """Decode one indexed hot/cold record and verify its local integrity."""
-        sequence, event_id, payload, body, codec, digest = row
+        sequence, event_id, kind, data_index, payload, body, codec, digest = row
         if payload is None:
             if body is None or codec not in ("plain", "zlib"):
                 raise RuntimeError("Missing local cold event body")
@@ -194,11 +203,16 @@ class ActorEvidenceIndex:
                 or type(event.get("sequence")) is not int
                 or event["sequence"] != sequence):
             raise PermissionError("Local evidence does not match its actor or identity")
+        # Indexed metadata is part of the evidence representation. A valid
+        # compressed body with altered kind/case/ticket selectors is NOT an
+        # acceptable local archive.
+        if event.get("kind") != kind or event.get("data") != json.loads(data_index):
+            raise RuntimeError("Indexed metadata disagrees with original world event")
         return event
 
     def _materialize(self, sequence: int) -> dict:
         record = self._db.execute(
-            "SELECT e.sequence,e.event_id,e.payload,"
+            "SELECT e.sequence,e.event_id,e.kind,e.data_index,e.payload,"
             "c.body,c.codec,c.digest FROM events AS e "
             "LEFT JOIN cold_events AS c ON e.sequence=c.sequence "
             "WHERE e.sequence=?", (sequence,),
@@ -206,6 +220,52 @@ class ActorEvidenceIndex:
         if record is None:
             raise LookupError("Indexed world event was not found")
         return self._read_row(record)
+
+    def stored_attestation(self) -> tuple[str, int, str] | None:
+        """The local transaction's saved prefix, never world authority."""
+        row = self._db.execute(
+            "SELECT generation,cursor,digest FROM attestation WHERE singleton=1"
+        ).fetchone()
+        if row is not None:
+            if (not isinstance(row[0], str) or not re.fullmatch(r"[0-9a-f]{32}", row[0])
+                    or type(row[1]) is not int or row[1] < 0
+                    or not isinstance(row[2], str)
+                    or not re.fullmatch(r"[0-9a-f]{64}", row[2])):
+                raise RuntimeError("Invalid persisted journal cache attestation")
+        return tuple(row) if row is not None else None
+
+    def seal_attestation(self, generation: str, digest: str) -> None:
+        """Bind the atomically committed archive to its verified world prefix."""
+        if (not isinstance(generation, str)
+                or re.fullmatch(r"[0-9a-f]{32}", generation) is None
+                or not isinstance(digest, str)
+                or re.fullmatch(r"[0-9a-f]{64}", digest) is None):
+            raise ValueError("Invalid actor journal seal")
+        if not self._db.in_transaction:
+            raise RuntimeError("Cache continuity must be committed with indexed pages")
+        cursor = self.cursor
+        self._db.execute(
+            "INSERT INTO attestation(singleton,generation,cursor,digest) "
+            "VALUES(1,?,?,?) ON CONFLICT(singleton) DO UPDATE SET "
+            "generation=excluded.generation, cursor=excluded.cursor, "
+            "digest=excluded.digest",
+            (generation, cursor, digest),
+        )
+
+    def recompute_prefix(self, generation: str) -> str:
+        """Scan *every* retained original record for local crash/tamper safety.
+
+        O(history) local sequential SQLite I/O is deliberate for this first
+        reuse gate. Unlike replay, it does not transfer the voyage over the
+        network or rebuild SQLite indexes. All hot and compressed cold
+        records, including their indexed metadata, are checked.
+        """
+        from ox_ai.ports.evennia.journal import continue_digest, journal_seed
+
+        digest = journal_seed(generation, self.actor_dbref)
+        for event in self.view():
+            digest = continue_digest(digest, event)
+        return digest
 
     @property
     def hot_count(self) -> int:
@@ -433,7 +493,8 @@ class ActorEvidenceIndex:
             else:
                 raise ValueError("Invalid indexed event selector value")
         query = (
-            "SELECT e.sequence,e.event_id,e.payload,c.body,c.codec,c.digest "
+            "SELECT e.sequence,e.event_id,e.kind,e.data_index,e.payload,"
+            "c.body,c.codec,c.digest "
             "FROM events AS e LEFT JOIN cold_events AS c "
             "ON c.sequence=e.sequence WHERE " + " AND ".join(clauses)
             + (" ORDER BY e.sequence DESC" if newest_first
@@ -457,7 +518,8 @@ class ActorEvidenceIndex:
         if category not in ("hail", "captain"):
             raise ValueError("Unknown addressed obligation category")
         query = (
-            "SELECT e.sequence,e.event_id,e.payload,c.body,c.codec,c.digest "
+            "SELECT e.sequence,e.event_id,e.kind,e.data_index,e.payload,"
+            "c.body,c.codec,c.digest "
             "FROM obligations AS o "
             "JOIN events AS e ON e.sequence = o.source_sequence "
             "LEFT JOIN cold_events AS c ON c.sequence=e.sequence "
