@@ -386,6 +386,32 @@ class IndexedEvidenceTests(unittest.TestCase):
             "SELECT demoted_since_repack FROM local_maintenance"
         ).fetchone()[0], 0)
 
+    def test_repack_requires_proportionally_more_growth_in_large_archives(self):
+        with self.archive.transaction():
+            for start in range(1, 1001, 128):
+                self.archive.append_page([
+                    evidence(i) for i in range(start, min(start + 128, 1001))
+                ])
+            self.archive.compact_hot(recent=8)
+        self.assertTrue(self.archive.repack_if_worthwhile(after_demotions=8))
+
+        def grow(first, end):
+            with self.archive.transaction():
+                self.archive.append_page([
+                    evidence(i) for i in range(first, end)
+                ])
+                self.archive.compact_hot(recent=8)
+
+        grow(1001, 1041)
+        self.assertFalse(self.archive.repack_if_worthwhile(after_demotions=8))
+        grow(1041, 1281)
+        self.assertFalse(self.archive.repack_if_worthwhile(after_demotions=8))
+        grow(1281, 1361)
+        self.assertTrue(self.archive.repack_if_worthwhile(after_demotions=8))
+        self.assertEqual(len(self.archive.view()), 1360)
+        self.assertEqual(self.archive.view().get("oxevt-v2-0001"), evidence(1))
+        self.assertFalse(self.archive.repack_if_worthwhile(after_demotions=8))
+
     def test_checkpoint_hot_pins_ignore_terminal_and_cross_role_work(self):
         state = {
             "current": {"radio_event": "oxevt-v2-0007"},
