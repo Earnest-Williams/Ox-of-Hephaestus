@@ -101,10 +101,13 @@ lock inversion and retains exactly one active obligation under contention.
 Neither gate eliminates the need for future adversarial transaction reviews.
 PR #85 removed repeated full-history *network* scans. PR #86 also removes
 the unbounded Python history list: historical proof is streamed to a
-disposable per-actor SQLite index and accessed through lazy snapshots or
-indexed case/ticket/receipt queries. The first read on every process start
-still authenticates the full world history; local disk usage grows with
-voyage length and individual Concordia checkpoint rewrites remain costly.
+per-actor SQLite index and accessed through lazy snapshots or indexed
+case/ticket/receipt queries. Verified reusable local archives retain old
+indexed records across processes and request only new world inbox pages
+after world-generation and complete-prefix checks. Local disk usage
+necessarily grows with voyage length; Concordia checkpoint rewrites and
+the O(history) local cold-start integrity scan remain future optimization
+opportunities.
 
 ## G3d independent-initiative pilot (merged)
 
