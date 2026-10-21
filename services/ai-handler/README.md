@@ -1,17 +1,57 @@
 # Ox AI handler — native Concordia, GOAP and live crew
 
-**Status (19 October 2026, through merged G4h):** The external handler
-supports the legacy three-person supervisor and a separate five-specialist
-supervisor, with **optional sixth-captain oversight** (G3f). Six distinct
-world character identities and private Concordia checkpoints are available
-in the opt-in configuration. The original P4e full-server trial covered
-cargo, atmosphere, coolant, hails and lost-ACK recovery; later G3–G4 gates
-added real inventory, uncertain investigation, receipt-backed practical
-learning and two **world-owned** assessed conceptual-learning activities.
-The ordinary handler does **not** yet autonomously schedule those lessons
-or investigative reflections. This is **not** deployed production software
-or proof of unconstrained multi-agent intelligence.
+**Status (21 October 2026, through G12):** The normal external handler
+supports a legacy three-person and a separate five-specialist supervisor
+(optional sixth captain), authenticated characters and private Concordia
+checkpoints. G6/G7 are **opt-in experiments**, not a replacement normal
+runtime. G8–G10b introduce temporal memory, subjective reinterpretation,
+revision-protected native Concordia context and authoritative game-clock
+reads. G11's hosted-model matched-evidence A/B harness is manual; G12's
+6/20/40 native-brain profiler is not a 40-crew ship run. The handler
+still does not schedule G4g/G4h education autonomously, nor constitute
+a managed production service.
 [Current status](../../design/STATUS.md).
+
+## Current G6–G12 cognition, experiments and transport
+
+- **G6/G6b:** the optional continuous six-client atmospheric crisis uses
+  real world receipts, finite resources, evidence-sensitive assessments,
+  explicit movement and decision caps. Model-free GOAP and optional hosted
+  runs represent different evidence.
+  [G6b scope](../../design/prototypes/g6b-continuous-crisis.md).
+- **G7/G7b:** an apartment social GOAP domain tests adult conversations,
+  changing preferences and negotiated obligations. World-recorded social
+  terms bind participants only within the authenticated agreement protocol.
+  [Social authority](../../design/prototypes/g7c-world-social-authority.md).
+- **G8/G9:** private temporal memories can be seeded at construction and
+  reinterpreted from subsequently admitted typed events. Admission,
+  rehearsal and reconsideration belong to the owner and advance
+  `cognition_revision` whenever private state changes. Detached
+  inference is rejected when its world or cognition revision is stale.
+  Native `OxMemoryContext` provides bounded, relevant read-only context.
+  [G8](../../design/prototypes/g8-private-memory-seeding.md) ·
+  [G9](../../design/prototypes/g9-native-memory-context.md).
+- **G10/G10b:** G8 virtual turns remain separate from Evennia game seconds.
+  `WorldClockPort` validates actor and nonce on an `oxclock` response
+  before ordinary native model choices. Quiet periods age private memory
+  without handler wall-clock inference.
+  [Time contract](../../design/prototypes/g10b-world-clock-read.md).
+- **G11/G12:** a manual matched-evidence hosted-model A/B harness is
+  distinct from deterministic native profiling at 6/20/40 instantiated
+  Concordia brains, not live-world scaling.
+  [G11](../../design/prototypes/g11-model-memory-ab.md) ·
+  [G12](../../design/prototypes/g12-concordia-profile.md).
+- **Current WebSocket:** unrelated frames are buffered in arrival order
+  under a finite bound. A full queue causes failure **before** reading
+  the next wire frame; malformed unattributable receipts remain unmatched
+  while the requested ID, actor and status are verified normally.
+
+G8's real six-client, 500-decision acceptance was **model-free GOAP**,
+with five real-world fault repairs, private interpretation revisions,
+fixed rotating turns and mostly templated speech. It is not evidence of
+general unscripted hosted-model interpersonal reasoning. The sections
+below retain their stage-specific historical limitations; consult
+[live STATUS](../../design/STATUS.md) for the current feature inventory.
 
 ## G3d optional independently elected crew rounds (PR #46, merged)
 

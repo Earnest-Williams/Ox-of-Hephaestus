@@ -1,18 +1,61 @@
 # Ox of Hephaestus — architecture and authority boundaries
 
-**Current implementation (19 October 2026):** P4a–P4j, G3f and
-G4a–G4h have merged after focused real-Evennia regression tests. Five
-technical crew, and an opt-in sixth captain, operate as independent authenticated
-Concordia agents on a **seven-room, three-equipment-system ship**. Evennia
-validates cooling repairs, cargo work, atmospheric servicing, safety/handover
-and command follow-through; its persistent world also owns formative traits,
-individual practical skills, theoretical knowledge, exact equipment familiarity,
-and receipt-backed practical and assessed conceptual progression. G4g and G4h
-supply one supervised course and one firsthand investigative-method reflection;
-neither is autonomously scheduled. The handler can resume interrupted
-work without replaying physical effects. This remains a bounded proving
-ground—not a deployed freighter or general social simulation.
+**Current implementation (21 October 2026):** P4a–P4j, G3–G5 and
+G6–G12 are merged and scoped. The primary ship remains **seven rooms and
+three equipment systems**, with five independently authenticated specialists
+and an opt-in sixth captain; G6 terminal loss and G7's apartment are
+*separate experimental fixtures*, not a larger general ship. Evennia owns
+world state, roles, receipts, bilateral agreements and physical outcomes.
+Native Concordia/GOAP owns actor-private beliefs, interpretations, memory
+and decisions; native private-memory prompts are read-only and time-indexed.
+The handler restores only supported stages, not arbitrary mid-scene actions.
+The G11 A/B harness and G12 profiler do not establish open-ended agent
+competence or a 40-character live simulation.
 [Verified feature matrix](design/STATUS.md) · [Development setup](INSTALL.md).
+
+## Current G6–G12 and journal/transport boundaries
+
+- **G6/G6b:** an opt-in six-authenticated-character terminal atmosphere
+  scenario uses world-owned irreversible damage, finite reserves, witnessed
+  operations, survival/mortality state, and bounded decisions. Model-free GOAP
+  and opt-in hosted trials are distinct forms of evidence. A successful
+  A-01 diagnostic cartridge exchange never proves the wider crisis resolved.
+- **G7/G7b:** the separate adult apartment is an explicit social GOAP
+  testbed. Typed negotiations can create Evennia-persistent, participant-
+  scoped agreements and receipts. Assent to terms is not proof of desire,
+  disclosure is not proof of truth, and unimplemented material transfers
+  cannot be claimed as fulfilled.
+- **G8/G9:** subjective memories carry separate occurrence/learning times,
+  provenance, confidence and bounded interpretations. The character owns
+  mutation and rehearsal; the independent cognition revision prevents a
+  detached Concordia inference from overwriting intervening private changes.
+  `OxMemoryContext` is a bounded, read-only native prompt projection;
+  it has no authority to modify the ship or other actors' private history.
+- **G10/G10b:** G8's deterministic social-turn clock is distinct from
+  absolute Evennia game seconds. `MemoryClockBridge` converts explicitly;
+  the normal live decision path reads actor-authenticated `oxclock` before
+  inference and ages private context even when no addressed event arrived.
+  It never substitutes handler wall time or modifies the world clock.
+- **G11/G12:** a manual, matched-evidence hosted-model A/B pilot isolates
+  the added private prompt projection; local G12 profiling instantiates
+  6/20/40 native brains without hosted inference. Neither is a production
+  scaling or model-quality certification.
+- **PRs #82–83:** PostgreSQL journal appenders acquire one transaction-held
+  serialization lock before allocating global sequences, so recipient
+  cursors cannot skip a late-committing earlier insert. An `oxwork` receipt
+  captures its own operation's emitted event identity rather than guessing
+  from a sequence interval. Captain alarm creation follows the world
+  P-01 lock → obligation lock → journal lock order, with real PostgreSQL
+  contention and rollback gates.
+- **Authenticated transport:** response matching keeps unrelated frames in
+  wire order under a finite buffer. It refuses to read when that buffer is
+  already full; malformed unattributable receipts remain unmatched, and
+  actor/receipt status checks on the matching request still fail closed.
+  These are transport safeguards, not independent world authority.
+
+The older milestone-specific sections below describe the implementation at
+those milestones. Their former "next step" statements are historical; for the
+live scope and limitations use [STATUS](design/STATUS.md).
 
 ## G3d: optional independent crew initiative (PR #46, merged)
 

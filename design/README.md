@@ -6,7 +6,7 @@ directory is the inherited Evennia manual, not the Ox implementation guide.
 **CI workflow and path-filter policy:** [CI.md](CI.md). Documentation-only changes should never trigger gameplay integration suites.
 
 **Authoritative current-state index:** [STATUS.md](STATUS.md), updated
-through merged **G4h (PR #63, 19 October 2026)**. The
+through **G12 and merged PostgreSQL PRs #82–83 (21 October 2026)**. The
 [ROADMAP](ROADMAP.md) separates completed gates from pending implementation.
 Earlier ADRs, P2 scenarios and milestone plans retain their original
 historical framing; an old “not yet implemented” in one of those documents
@@ -45,6 +45,17 @@ is not a description of today's `main`. P5 is postponed.
 - [G4g taught conceptual assessment](prototypes/g4g-verified-conceptual-learning.md) ·
   [G4h firsthand investigative method](prototypes/g4h-investigative-learning.md)
 - [G5 adversarial/restart tests](prototypes/g5-adversarial-voyage.md)
+- [G6 terminal loss](prototypes/g6-terminal-full-world.md) ·
+  [G6b continuous crisis](prototypes/g6b-continuous-crisis.md)
+- [G7 apartment GOAP](prototypes/g7-social-goap-apartment.md) ·
+  [G7b bargaining](prototypes/g7b-reusable-social-negotiation.md) ·
+  [world-persistent agreements](prototypes/g7c-world-social-authority.md)
+- [G8 temporal memory](prototypes/g8-private-memory-seeding.md) ·
+  [G9 native context](prototypes/g9-native-memory-context.md)
+- [G10 memory clock](prototypes/g10-memory-clock-bridge.md) ·
+  [G10b authenticated read](prototypes/g10b-world-clock-read.md)
+- [G11 matched evidence](prototypes/g11-model-memory-ab.md) ·
+  [G12 profiler](prototypes/g12-concordia-profile.md)
 
 ## Retained early scenarios
 

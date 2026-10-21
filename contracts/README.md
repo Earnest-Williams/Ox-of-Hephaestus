@@ -1,9 +1,11 @@
 # Cross-system contracts: implemented transport and future APIs
 
-**Status (19 October 2026, through merged G4h):** Ox has a working **ordinary Evennia
-WebSocket + game-command/OOB protocol**, and a provisional Python `WorldPort`
-type interface. It does **not** yet publish a versioned, independent
-multi-character service endpoint or a browser/handler API.
+**Status (21 October 2026, through G12 and PRs #82–83):** Ox uses an
+**ordinary authenticated Evennia WebSocket + game-command/OOB protocol**.
+G7b adds persistent typed social agreements, G10b adds authenticated clock
+reads, and the PostgreSQL journal now serializes sequence assignment
+through commit. The Python `WorldPort` remains an internal prototype
+interface, **not** a public multi-character service or browser/handler API.
 See [implementation status](../design/STATUS.md).
 
 ## Ownership rules
@@ -11,11 +13,11 @@ See [implementation status](../design/STATUS.md).
 | Information | Sole authority | Handler/view behavior |
 | --- | --- | --- |
 | Character identity, location, roles, watch, physical machinery | Evennia | Observe or propose via character-authorized game actions |
-| Real game time and scheduled due events | Evennia | Follow delivered timestamps/deadlines |
+| Real game time and scheduled due events | Evennia | Verify `oxclock` nonce/actor before mapping game seconds to private memory ticks |
 | World physical operation receipts | Evennia | Reconcile unknown by request ID; never infer success from text |
 | Stable person IDs, formative aptitudes, professional skills, theoretical mastery, procedure familiarity and awarded learning | Evennia | Read only authorized observations; no agent self-awarded capability or credit |
 | Private observations legitimately delivered to a character | Evennia | Feed only that character's Concordia memory |
-| Beliefs, memories, plans, proposed decisions and unresolved actions | AI handler | May be stale; persist by individual agent |
+| Beliefs, private reinterpretations, cognition clocks, plans and unresolved actions | AI handler | Owner-specific records, independent cognition revision and private checkpoints; never world authority |
 | Joined dashboards and charts | Future interface | Derived and permissioned; never world authority |
 
 ## Implemented ordinary-client wire path (P3/P4)
@@ -42,9 +44,10 @@ See [implementation status](../design/STATUS.md).
   On unknown, the handler must reconcile the **same ID** rather than
   replay the command. An action proposal and a world-issued result are
   different records.
-- Game-side release approval, radio and handover events are
-  recipient-scoped, but **not every social action** has a durable
-  physical-style receipt or crash-recovery guarantee.
+- Supported radio, handover, captain, education and G7b bilateral social
+  operations use typed actor-bound world receipts. Free-text speech does not
+  form a persistent agreement or prove a motive; arbitrary mid-scene
+  activities are not all recoverable.
 
 This is **Ox's current convention on top of ordinary game commands**,
 not a stable publicly versioned network schema. See
@@ -76,6 +79,36 @@ be grading inputs. World capability records remain distinct from an AI's
 private belief or self-description. See [G4f](../design/prototypes/g4f-world-receipt-learning.md),
 [G4g](../design/prototypes/g4g-verified-conceptual-learning.md) and
 [G4h](../design/prototypes/g4h-investigative-learning.md).
+
+## Current G6–G12 additions and transport safety
+
+- G6/G6b terminal actions and mortality remain opt-in game-authoritative
+  fixtures. A service receipt proves an equipment operation, **not**
+  restoration of an unrelated atmospheric breach.
+- G7b `oxwork <request-id> social_<operation> social <encoded-arguments>`
+  is a typed participant-specific transaction; `oxsocialstatus` is
+  restricted to the parties. Agreed terms do not prove desire; work
+  consideration requires verified, unused world-receipt evidence.
+- G8–G9 private memories and interpretations belong to the handler.
+  `cognition_revision` protects against stale detached inference and
+  `OxMemoryContext` exposes only fallible, owner-relevant read-only
+  history to native Concordia prompts.
+- G10b `oxclock <32-lowercase-hex-nonce>` returns actor-bound `ox_clock`.
+  `WorldClockPort` verifies actor, nonce and finite game seconds before
+  advancing private time. G8's virtual GOAP decision clock is distinct.
+- PostgreSQL journal allocation is **commit-ordered** under a single
+  transaction-held lock. `oxinbox` cursors are recipient-scoped and
+  replayable; work receipts use events causally emitted by the operation.
+  A-01 alarms and captain reminders follow P-01 → ticket → journal locks.
+- `receive_matching()` preserves unrelated WebSocket frames in order
+  under a 512-packet bound. On saturation it raises **before** reading
+  another wire frame. Malformed unattributable `ox_receipt` frames remain
+  unmatched and never count as the desired result. The requested ID,
+  actor and status remain subject to fail-closed validation.
+
+G11 is a small manual matched-evidence hosted-model A/B harness. G12's
+6/20/40 local native-brain profile is **not** 20/40 live crew sessions
+or hosted inference latency. Neither changes the world/handler boundary.
 
 ## Python-only contract
 

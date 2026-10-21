@@ -160,6 +160,42 @@ class ClientTests(unittest.IsolatedAsyncioTestCase):
             await client.close()
         self.assertEqual(len(client._pending), 0)
 
+    async def test_buffer_limit_preserves_next_unread_wire_packet(self):
+        from ox_ai.ports.evennia.client import MAX_BUFFERED_PACKETS
+        socket = FakeSocket()
+        async def connector(*args, **kwargs):
+            return socket
+        client = EvenniaWebSocketClient(
+            "ws://localhost:4002", "OxBotAri",
+            "AnEphemeralPass_123456", "#42", connector=connector,
+        )
+        await client.open()
+        try:
+            socket.frames.extend(
+                json.dumps(["text", [f"queued-{index}"], {}])
+                for index in range(MAX_BUFFERED_PACKETS)
+            )
+            wanted = "a" * 32
+            socket.frames.append(json.dumps([
+                "ox_receipt", [{"request_id": wanted}], {},
+            ]))
+            with self.assertRaisesRegex(RuntimeError, "bounded buffer"):
+                await client.receive_matching(
+                    lambda p: p.kind == "ox_receipt",
+                    frame_budget=MAX_BUFFERED_PACKETS + 1,
+                )
+            self.assertEqual(len(client._pending), MAX_BUFFERED_PACKETS)
+            self.assertEqual(len(socket.frames), 1)
+            self.assertEqual((await client.receive()).text, "queued-0")
+            receipt = await client.receive_matching(
+                lambda p: p.kind == "ox_receipt", frame_budget=1,
+            )
+            self.assertEqual(receipt.args[0]["request_id"], wanted)
+            self.assertEqual((await client.receive()).text, "queued-1")
+            self.assertEqual(len(client._pending), MAX_BUFFERED_PACKETS - 2)
+        finally:
+            await client.close()
+
     async def test_interleaved_observations_and_out_of_order_receipts_survive(self):
         socket = FakeSocket()
         async def connector(*args, **kwargs):

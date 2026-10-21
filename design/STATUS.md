@@ -1,6 +1,6 @@
 # Ox implementation status
 
-**Snapshot: 19 October 2026.** This document is the current-state index for
+**Snapshot: 21 October 2026.** This document is the current-state index for
 Ox-specific documentation. Earlier ADRs and P2/P3 scenario documents preserve
 the design and acceptance criteria of those milestones; they are not live
 feature inventories.
@@ -48,6 +48,15 @@ feature inventories.
 | G4f — verified practical experience | Tested and merged (29/29 workflows) | [PR #60](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/60): successful physical work receipts increment bounded practical skill and procedure familiarity, with replay and rate limits. No routine theory XP or graded real-world failure mechanics yet. |
 | G4g — verified conceptual instruction | Tested and merged in PR #62 (35/35 focused workflows) | [Design and verification](prototypes/g4g-verified-conceptual-learning.md): a qualified, separately identified instructor and consenting local learner complete a timed course and private transfer assessment. Passed work creates bounded conceptual progress under global receipts; no practical, permission or hidden-fact grants. |
 | G4h — firsthand investigative learning | Tested and merged in [PR #63](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/63) (36/36 applicable workflows; 194 world and 150 handler tests) | [Design and verification](prototypes/g4h-investigative-learning.md): a saved pre-test forecast, real actor-local probe/report and assessed evidence-limits/source-independence reflection can generate bounded `investigation.methods` study progress. Hidden causes and diagnosis accuracy never determine credit. Autonomous study remains future work. |
+| G6/G6b — terminal atmosphere crisis | Tested, merged, opt-in | [PR #66](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/66), [PR #67](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/67), [PR #68](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/68): a synthetic pilot followed by real Evennia six-client crisis trials with world-owned mortality, finite resources and decision ceilings. GOAP and hosted model experiments are separate, bounded evidence. |
+| G7/G7b — social GOAP and bilateral authority | Tested and merged | [PR #69](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/69) and [PR #70](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/70): separate two-person apartment, reusable social GOAP and world-persistent typed agreements/obligations, receipts and post-restart fulfillment. World does not infer desire or consent from a model prediction. |
+| G8 — private temporal memories and revision | Tested and merged | [PR #73](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/73): six authenticated clients, 500 model-free social/ship decisions across restarts, five repaired faults, typed personal episodes and independent interpretation revisions; fixed decision rotation and mostly templated speech. [PR #75](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/75) restores relevant 500-turn PR acceptance. |
+| G9 — native memory relevance and lost-update guard | Tested and merged | [PR #74](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/74) and [PR #76](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/76): protected private-cognition revision/fork adoption, owner-only memory mutation, rehearsal/reconsideration and bounded read-only native Concordia context; no new world truth. |
+| G10/G10b — explicit simulated-memory clock | Tested and merged | [PR #77](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/77) and [PR #81](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/81): explicit virtual-turn/game-second conversion, no future-memory leakage, and an authenticated `oxclock` read before ordinary native model decisions. No wall-clock substitute. |
+| G11 — matched-evidence native choice A/B | Harness merged; manual hosted trial | [PR #80](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/80): baseline and read-only-memory augmented Concordia choices share identical evidence across four synthetic cases. Capture/mock mode is not model-quality evidence; hosted Gemini workflow requires explicit dispatch and credentials. |
+| G12 — native Concordia 6/20/40 profiling | Tested and merged | [PR #78](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/78): local, deterministic native-component timing, memory/checkpoint and prompt-size measurements for *instantiated brains*. Not 20/40 authenticated ship crew or hosted inference latency. [PR #79](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/79) removed only an unused Concordia OpenAI provider extra. |
+| Transport — authentication, framing, buffering | Implemented, focused checks | [PR #71](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/71) and [PR #84](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/84): world-aligned command budget, interleaved private events/receipts, bounded unmatched packets and lossless overflow handling; malformed unattributable receipts cannot masquerade as the requested result. |
+| PostgreSQL journal and captain locking | Tested and merged | [PR #82](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/82): commit-ordered global journal sequence and exact work-receipt source identity. [PR #83](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/83): P-01 → captain obligation → journal lock ordering and unique concurrent obligation creation; actual two-connection PostgreSQL regressions. |
 | P5 — browser observatory | **Deferred / not built** | No browser UI, joined handler/world API, or operator dashboard |
 
 **Naming note:** the original Prototype 1 plan used “P4” for the first
@@ -62,6 +71,31 @@ deadline, transfers watch from Ari to Iona, injects a second fault, stops and
 restarts an external handler, reconciles a deliberately lost isolation ACK,
 and verifies the persisted physical event journal without duplicate isolation.
 The full focused CI suite passed on `main` following PR #14.
+
+## G6–G12 acceptance and ongoing limits
+
+The G8 500-decision acceptance trial used **six real authenticated Evennia
+characters** and repaired **five separate ship faults**, with world receipts
+and private memory/interpretation checkpoints across restarts. Its social
+controller was **model-free, typed GOAP**, with a fixed rotating scheduler and
+mostly templated utterances. It demonstrates causal bookkeeping and subjective
+reinterpretation of supplied evidence; it does *not* prove the accuracy of
+independent hosted-model interpretations or spontaneous social dialogue.
+
+G11's matched-evidence harness is deliberately separate: both native
+Concordia arms receive the same legitimate events, and only one receives an
+extra read-only Ox memory projection. Its captured/mock mode verifies
+plumbing, **not choice quality**. Hosted experiments are manual, small and
+case-specific. G12's six/twenty/forty native-brain profile is a local
+non-hosted benchmark, not a simulated ship population or throughput guarantee.
+
+World invariants improved after G12: [PR #82](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/82) serializes PostgreSQL journal
+sequence assignment through transaction commit and attributes receipts to
+actual causal emissions; [PR #83](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/83) repairs the captain alarm/ticket/journal
+lock inversion and retains exactly one active obligation under contention.
+Neither gate eliminates the need for future adversarial transaction reviews.
+Private handler replay still scans full addressed histories for legacy P4e
+consumers and rewrites per-actor checkpoints frequently.
 
 ## G3d independent-initiative pilot (merged)
 
@@ -95,6 +129,9 @@ every page, deduplicates observation IDs and checkpoints per-character
 high-water cursors after saving its private Concordia state.
 
 Existing P4e procedural consumers still need full addressed-history scans.
+The later PostgreSQL journal serialization fix in PR #82 ensures global
+sequence allocation cannot overtake transaction commit; PR #83 standardizes
+captain alarm lock ordering before journal emission.
 A bounded per-agent incremental work queue, retained-history compaction,
 broader crash-safe physical/social actions and the autonomy scheduler remain
 future work. P4f does **not** establish arbitrary mid-scene transaction
@@ -127,11 +164,12 @@ G4g [PR #62](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/62) and G
 
 ## What passing tests do NOT prove
 
-- Both three- and five-crew CI use **Concordia's deterministic MockModel**,
-  not independently reasoning live hosted models. An earlier opt-in
-  single-engineer Gemini trial succeeded, but unconstrained multi-agent
-  negotiation, novel diagnosis and language-based coordination are not
-  validated by these workflows.
+- Legacy three-/five-crew regression flows primarily use **deterministic
+  Concordia MockModel**, and G8's six-client 500-decision trial uses
+  **model-free GOAP**. G6 has separate bounded hosted Gemini cases, and G11
+  provides an optional matched-evidence hosted-model pilot. These do not
+  validate unconstrained independent conversation, diagnoses or intention
+  inference across a general ship population.
 - This remains a **small proving-ground**, with seven compartments and up
   to six independently authenticated crew. C-01 and A-01 are locally
   actionable state machines, not general freight commerce or high-fidelity
@@ -141,15 +179,17 @@ G4g [PR #62](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/62) and G
   training and the complete freighter remain future work.
 - `serve` is a runnable runtime, **not a hosted deployment or a system
   service**. Disposable CI trials cover two consecutive incidents and
-  seven sequential handler restarts across a separate pump cycle; no
+  seven sequential handler restarts across a separate pump cycle. G8 also
+  exercises 500 decisions across multiple real-server restarts, but no
   long-duration soak test or production operations guarantee exists.
 - **P-01, C-01 and A-01 physical actions** have actor-bound durable
   receipts, with a common typed world work ledger available. P4h adds
   restartable repair, safety request, independent approval, commissioning
   and resolution stages in the cooling supervisor. Initial alarm radio,
   autonomous handover, player hails and specialist task stage bookkeeping
-  are not all migrated to the general restartable protocol. Full
-  mid-scene recovery remains an unmet G1 acceptance criterion.
+  now have specified supported restart/reconciliation stages (P4i/P4j).
+  Arbitrary mid-scene actions and general social lives are **not** fully
+  transactional; comprehensive recovery remains unimplemented.
 - Development account provisioning uses **disposable three-, five- or
   six-actor fixtures** and test credentials. It is not a production
   account-management scheme. The prototype server binds to loopback and
@@ -169,6 +209,13 @@ G4g [PR #62](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/62) and G
   [G4d shadow resolution](prototypes/g4d-skill-shadow.md),
   [G4e knowledge and techniques](prototypes/g4e-independent-knowledge-techniques.md)
   and [G4f verified experience](prototypes/g4f-world-receipt-learning.md)
+- [G6 real-world terminal crisis](prototypes/g6-terminal-full-world.md),
+  [G7 world social agreements](prototypes/g7c-world-social-authority.md),
+  [G8 temporal memory](prototypes/g8-private-memory-seeding.md),
+  [G9 Concordia context](prototypes/g9-native-memory-context.md),
+  [G10 clock](prototypes/g10-memory-clock-bridge.md),
+  [G11 matched A/B](prototypes/g11-model-memory-ab.md) and
+  [G12 profile](prototypes/g12-concordia-profile.md)
 - [Archived P2 test scenarios](../scenarios/shift_handover/README.md) and
   [cooling fault](../scenarios/coolant_fault/README.md)
 

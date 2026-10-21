@@ -1,6 +1,6 @@
 # Ox of Hephaestus — execution roadmap after P4e
 
-**Historical planning baseline:** `main` commit `100f4ff6eb5acdcfccb73fba7e2651e80c0cdf9a` (18 October 2026), with 13 focused workflows at that time. **This roadmap separates planned work from verified implementation evidence.** For live milestones and test links see [STATUS](STATUS.md), including the G4g conceptual-instruction pilot on 19 October 2026. GitHub Issues were disabled when this plan was recorded.
+**Historical planning baseline:** `main` commit `100f4ff6eb5acdcfccb73fba7e2651e80c0cdf9a` (18 October 2026), with 13 focused workflows *at that time*. This roadmap preserves original task history and acceptance intent; it is **not** a live feature inventory. For merged G6–G12, PostgreSQL PRs #82–83 and remaining limitations see [STATUS](STATUS.md) (21 October 2026). GitHub Issues were disabled when this plan was recorded.
 
 ## Invariants
 
@@ -17,7 +17,13 @@
 - Define authoritative owner, schema, invariants, and anticipated failure modes.
 - Include tests for permitted and refused actions, cross-character scope, duplicate requests, stale state, and interrupted work.
 - Exercise real Evennia DB transactions as well as an independent authenticated handler. Add PostgreSQL checks where concurrent DB writers or row locks matter; SQLite alone cannot certify these guarantees.
-- Re-run the 13 existing focused Ox workflows plus new affected tests on the **final** PR commit. A test that passes with Concordia MockModel proves integration, not open-ended model competence.
+- Run the fast PR gate and then **applicable path-scoped
+  ready-for-review acceptance checks** on the final code commit, including
+  real PostgreSQL contention for journal/lock changes and G8 500-decision
+  acceptance for relevant private-cognition changes. The historic
+  "13 workflows" was an early count, not a fixed matrix. Paid-provider
+  experiments stay manual. MockModel or GOAP results demonstrate bounded
+  integration, not generally capable independent reasoning.
 - Update STATUS.md, ARCHITECTURE.md, guides, and the milestone evidence links in the same PR. No merge if documentation overstates implementation.
 - Merge only after the new acceptance gate is met, the complete required CI is green, and the result has been checked on the merged main branch.
 

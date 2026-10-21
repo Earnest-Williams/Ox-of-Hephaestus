@@ -43,13 +43,15 @@ preserves the deterministic 500-decision experiment without pretending that
 
 ## Live-time advancement contract
 
-The native brain accepts validated addressed-event timestamps through
-`observe_event()`, and can accept newer **authoritative world game-time
-readouts** through `advance_game_time()` without adding a memory or a new
-world observation. Production scheduler call sites must supply such readouts
-during otherwise silent intervals. This change does not fabricate a wall
-clock or introduce an unauthenticated timer, and does not yet introduce a
-new world-side `oxclock` command.
+The native brain accepts validated addressed events through
+`observe_event()` and newer authoritative world-time reads through
+`advance_game_time()`, without adding a memory or world event.
+**Completed follow-up G10b (PR #81):** an ordinary authenticated
+`oxclock <nonce>` returns Evennia game seconds. The handler verifies
+the nonce and actor, then advances that character's clock just before
+native model inference. Original G10 did not yet include that
+transport path; the follow-up closed the gap without wall-clock guesses.
+See [G10b](g10b-world-clock-read.md).
 
 ## Regression and limitations
 
@@ -57,7 +59,8 @@ Tests cover exact conversions, late deliveries, cursor idempotence, non-event
 aging, stale inference rejection, legacy checkpoint restore, and refusal of
 future rehearsal. The G8 500-turn acceptance must pass after the change.
 
-Not addressed here: calendar display, variable game-time acceleration, or
-periodic live clock reads when the world has not sent any event. Those require
-an authoritative time-read transport contract and should not be guessed from
-elapsed handler wall seconds.
+Still outside this scope: calendar display, variable game-time acceleration
+and a separate always-on clock-polling service. G10b implements
+**pre-decision authoritative reads** during otherwise silent periods,
+without guessing from elapsed handler wall time. Earlier G10 limitations
+are retained as historical evidence.
