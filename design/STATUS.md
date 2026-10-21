@@ -58,12 +58,12 @@ feature inventories.
 | Transport — authentication, framing, buffering | Implemented, focused checks | [PR #71](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/71) and [PR #84](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/84): world-aligned command budget, interleaved private events/receipts, bounded unmatched packets and lossless overflow handling; malformed unattributable receipts cannot masquerade as the requested result. |
 | PostgreSQL journal and captain locking | Tested and merged | [PR #82](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/82): commit-ordered global journal sequence and exact work-receipt source identity. [PR #83](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/83): P-01 → captain obligation → journal lock ordering and unique concurrent obligation creation; actual two-connection PostgreSQL regressions. |
 | Handler inbox — incremental warm replay | Implemented in PR #85 | [PR #85](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/85): one full world-history hydration **per process**, then recipient-scoped `oxinbox <saved-cursor>` delta reads; independent five-crew private proof/agenda cursor recovery and strict page validation. The original implementation retained a complete Python history; see PR #86 for its indexed replacement. |
-| Handler indexed historical evidence | Implemented in PRs #86–#88 | [PR #86](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/86): streamed authenticated <=128-event pages into actor-isolated, disposable SQLite evidence indexes with stable lazy history views. [PR #87](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/87): indexed unresolved hails and captain follow-through with transactional source references. [PR #88](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/88): ordinary authenticated `oxevent` exact world proof, with recipient/nonce binding and explicit missing/oversized responses. These preserve historical proof; neither skips full world rehydration at process start. |
+| Handler indexed historical evidence | Merged, extended by PRs #89–#93 | [PR #86](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/86): streamed actor-isolated SQLite evidence views. [PR #87](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/87): indexed unresolved hails and captain obligations. [PR #88](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/88): authenticated exact `oxevent` retrieval. Subsequent [PR #91](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/91) introduced authenticated cross-process cache reuse; full network rehydration is now needed only for a missing or unverified archive. |
 | Handler lossless hot/cold evidence | Merged in PR #89 | [PR #89](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/89): typed indexes retain every event's identity and selectors. Bodies older than the recent 256 addressed events, except mandatory live pins, move to losslessly compressed SQLite cold storage. All previous knowledge remains available; disk grows with history. [Design](prototypes/p4f-hot-cold-evidence.md). |
 | World journal continuity | Merged in PR #90 | [PR #90](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/90): immutable journal epoch, per-recipient cumulative SHA-256 prefix seals and authenticated `oxjournal` certificates, including migration/reset/legacy controls. [Design](prototypes/p4f-journal-continuity.md). |
 | Handler attested archive reuse | Merged in PR #91 | [PR #91](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/91): recompute the complete local actor-specific hot/cold digest and open-obligation projection; require the matching world generation and original addressed prefix before resuming from the saved cursor. Crash-interrupted private checkpoints backfill without reproducing physical work. [Design](prototypes/p4f-attested-cache-reuse.md). |
 | Historical evidence restart profile | Merged in PR #92 | [PR #92](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/92): reproducible local profile across 1k/10k/40k addressed events and two payload sizes, measuring entire restart attestation and a lossless offline SQLite repack. No historical cutoff or evidence-weakening inference. [Measurements](prototypes/p4f-evidence-restart-profile.md). |
-| Periodic lossless SQLite repack | Implementation under review | Reclaims B-tree allocation after 2,048 demotions plus proportional cold-archive growth, following the committed world-evidence seal and preceding native cognition checkpoint advancement. SQLite's transactional VACUUM retains all event IDs, cold bodies, open work and valid prefix seals. [Recovery contract](prototypes/p4f-lossless-repack.md). |
+| Periodic lossless SQLite repack | Merged and verified in PR #93 | [PR #93](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/93): transactionally reclaim SQLite B-tree allocation only after at least 2,048 demotions **and** demotions reaching 25% of the current cold archive; proportional cadence avoids repeatedly rewriting an ever-growing history. The archive seal, old events, private-source proofs, and unresolved obligations remain intact. 31/31 workflows passed. [Recovery contract](prototypes/p4f-lossless-repack.md). |
 | P5 — browser observatory | **Deferred / not built** | No browser UI, joined handler/world API, or operator dashboard |
 
 **Naming note:** the original Prototype 1 plan used “P4” for the first
@@ -143,18 +143,21 @@ every page, deduplicates observation IDs and checkpoints per-character
 high-water cursors after saving its private Concordia state.
 
 Existing P4e procedural consumers still need old addressed event identities.
-PR #85 retrieves the complete actor-private history **once per handler
-process**, then requests only events after its durable recipient cursor.
-Independently checkpointed five-crew agenda and epistemic cursors use
-delta slices and can recover from a parent/child checkpoint interruption.
-PR #86 replaces the per-process unbounded Python compatibility history
-with a stream-populated, actor-scoped disposable SQLite index; historical
-event identities remain queryable and rollback rules are unchanged.
-It is **not** persisted trusted evidence between processes, and it does not
-truncate the world journal. PR #82 ensures sequence allocation follows
-PostgreSQL commit; PR #83 standardizes captain alarm lock ordering.
-A durable verified cold-start index, selective checkpoint writes and
-broader crash-safe physical/social actions remain future work. P4f does **not** establish arbitrary mid-scene transaction
+PRs #85–#86 originally added delta inbox reads and actor-scoped SQLite
+compatibility views. PRs #87–#89 added indexed outstanding obligations,
+authenticated exact-event lookup, and losslessly compressed cold rows.
+PR #90 provides world journal generations and actor-specific prefix
+attestation; PR #91 now **persists and reuses verified archives between
+handler processes**, retrieving only newer world events after their
+unchanged historical prefix has been reauthenticated. Private cognition,
+agenda, and epistemic checkpoints remain independently recoverable.
+PR #92 profiled complete restart verification, and PR #93 introduced
+proportional, lossless SQLite repacking. The complete authoritative journal
+and every exact source event remain retained; storage grows with history.
+PR #82 ensures sequence allocation follows PostgreSQL commit and PR #83
+standardizes captain alarm lock ordering. Selective native cognition
+checkpoint writes and broader crash-safe physical/social actions remain
+future work. P4f does **not** establish arbitrary mid-scene transaction
 recovery or general LLM-driven planning.
 
 ## What the prototype does today
