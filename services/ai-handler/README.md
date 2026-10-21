@@ -121,10 +121,10 @@ The new authenticated `WorldJournalPort` additionally obtains a
 nonce/character/cursor-bound journal generation and historical prefix
 digest from the world-owned `oxjournal` command. Its typed client checks
 epoch, nonce, actor, digest and head consistency before the result can
-be used as continuity evidence. The handler **still rehydrates every
-previously addressed event on a fresh process**; persistence and reuse
-of a local archive must be coordinated with complete archive-integrity
-verification and native memory/agenda checkpoint revisions.
+be used as continuity evidence. Before any saved SQLite index is reused,
+the handler recomputes its entire historical prefix locally and requires
+that both the saved cache seal and fresh Evennia world certificate agree.
+Native brain, agenda and epistemic cursors remain separately checked.
 [Continuity contract](../../design/prototypes/p4f-journal-continuity.md).
 
 The new authenticated `WorldEventPort` supports a separate *exact*
