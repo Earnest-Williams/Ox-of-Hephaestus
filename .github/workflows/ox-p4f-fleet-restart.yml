@@ -34,14 +34,14 @@ jobs:
       - name: Test fleet archive, scope and fail-closed behavior
         run: python -m unittest discover -s services/ai-handler/tests -p 'test_fleet_evidence_restart.py' -v
       - name: PR-only four-character profiler smoke
-        if: ${{ false }}
+        if: ${{ github.event_name == 'pull_request' }}
         run: |
           python scenarios/profiling/fleet_evidence_restart.py \
             --actors 4 --events-per-actor 800 --payload-chars 160 \
             --stagger-width 2 --trials 2 \
             --output .ox-state/profiles/p4f-fleet-smoke.json
       - name: Manual forty-character realistic archive comparison
-        if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
           python scenarios/profiling/fleet_evidence_restart.py \
             --actors 40 --events-per-actor 40000 --payload-chars 1200 \
