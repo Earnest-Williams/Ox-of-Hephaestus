@@ -92,9 +92,12 @@ real ship history, nor a measurement of long-lived incremental behavior.
   measurements do not justify weakening authenticated historical checks.
   A larger voyage and actual 40-crew restart may need their own profiling
   before treating these single-actor numbers as service startup latency.
-- **Apply a narrowly scoped, lossless SQLite repack** after an
-  accumulated 2,048 hot-to-cold demotions. SQLite's transactional `VACUUM`
-  runs only *after* the authenticated page/continuity-seal transaction,
+- **Apply a narrowly scoped, lossless SQLite repack** only after an
+  accumulated 2,048 hot-to-cold demotions **and** enough new cold
+  records to represent at least 25% of the total cold archive. This
+  prevents quadratic lifetime rewriting at very large voyage scales.
+  SQLite's transactional `VACUUM` runs *after* the authenticated
+  page/continuity-seal transaction,
   before the native cognition checkpoint advances. The maintenance counter
   persists across smaller reads and resets only after successful completion;
   a crash between those operations can cause a harmless repeat, not lost
