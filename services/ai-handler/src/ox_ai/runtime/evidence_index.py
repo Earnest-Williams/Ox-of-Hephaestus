@@ -64,6 +64,21 @@ class ActorEvidenceIndex:
                 f"CREATE INDEX IF NOT EXISTS event_{key}_seq "
                 f"ON events(kind, json_extract(payload, '$.data.{key}'), sequence)"
             )
+        # Materialised *addressed* obligation transitions, not a second
+        # authority. Closed rows remain for pinned historical snapshots.
+        # Only still-open obligations are visited during normal dispatch.
+        self._db.execute(
+            "CREATE TABLE IF NOT EXISTS obligations ("
+            "category TEXT NOT NULL, reference TEXT NOT NULL, "
+            "source_sequence INTEGER NOT NULL, "
+            "resolved_sequence INTEGER, "
+            "PRIMARY KEY (category, reference), "
+            "CHECK (category IN ('hail', 'captain')))"
+        )
+        self._db.execute(
+            "CREATE INDEX IF NOT EXISTS obligation_state_seq "
+            "ON obligations(category, resolved_sequence, source_sequence)"
+        )
 
     def close(self) -> None:
         self._db.close()
@@ -113,6 +128,43 @@ class ActorEvidenceIndex:
                 "INSERT INTO events(sequence,event_id,kind,payload)"
                 " VALUES (?,?,?,?)", rows,
             )
+        # Derived obligation state advances in the *same* transaction as
+        # the event pages. A truncated replay cannot partially close work.
+        openings = {"crew_hail": ("hail", "hail_id"),
+                    "captain_problem_open": ("captain", "ticket_id")}
+        endings = {"hail_answered": ("hail", "hail_id"),
+                   "captain_world_resolved": ("captain", "ticket_id")}
+        for event in page:
+            kind = event["kind"]
+            entry = openings.get(kind)
+            closing = False
+            if entry is None:
+                entry = endings.get(kind)
+                closing = entry is not None
+            if entry is None:
+                continue
+            category, key = entry
+            reference = event["data"].get(key)
+            if not isinstance(reference, str) or not reference:
+                raise ValueError("World obligation event lacks identity")
+            if closing:
+                # An unmatched completion is not evidence of an opening.
+                # Never invent an obligation on a closing notification.
+                self._db.execute(
+                    "UPDATE obligations SET resolved_sequence = ? "
+                    "WHERE category = ? AND reference = ? "
+                    "AND resolved_sequence IS NULL",
+                    (event["sequence"], category, reference),
+                )
+            else:
+                try:
+                    self._db.execute(
+                        "INSERT INTO obligations(category,reference,source_sequence) "
+                        "VALUES (?,?,?)",
+                        (category, reference, event["sequence"]),
+                    )
+                except sqlite3.IntegrityError as exc:
+                    raise ValueError("Duplicate world obligation identity") from exc
 
     def view(self, *, after: int = 0, through: int | None = None) -> EvidenceView:
         if type(after) is not int or after < 0:
@@ -170,6 +222,28 @@ class ActorEvidenceIndex:
                 raise PermissionError("Cached evidence belongs to a foreign actor")
             yield event
 
+    def _pending(
+        self, category: str, after: int, through: int,
+    ) -> Iterator[dict]:
+        """Source events for obligations still open at this view's cursor."""
+        if category not in ("hail", "captain"):
+            raise ValueError("Unknown addressed obligation category")
+        query = (
+            "SELECT e.payload FROM obligations AS o "
+            "JOIN events AS e ON e.sequence = o.source_sequence "
+            "WHERE o.category = ? AND o.source_sequence > ? "
+            "AND o.source_sequence <= ? "
+            "AND (o.resolved_sequence IS NULL OR o.resolved_sequence > ?) "
+            "ORDER BY o.source_sequence"
+        )
+        for (payload,) in self._db.execute(
+            query, (category, after, through, through),
+        ):
+            event = json.loads(payload)
+            if event.get("recipient_dbref") != self.actor_dbref:
+                raise PermissionError("Foreign actor in obligation index")
+            yield event
+
     def _count(self, after: int, through: int) -> int:
         return int(self._db.execute(
             "SELECT COUNT(*) FROM events WHERE sequence > ? AND sequence <= ?",
@@ -211,12 +285,20 @@ class EvidenceView(Sequence[dict]):
         self, *, kind: str | None = None, event_id: str | None = None,
         data: Mapping[str, object] | None = None,
         newest_first: bool = False, limit: int | None = None,
+        after: int | None = None,
     ) -> Iterator[dict]:
-        """Use SQLite indexes without materializing the whole voyage."""
+        """Use kind/field/sequence indexes inside this pinned cursor view."""
+        if after is not None and (type(after) is not int or after < 0):
+            raise ValueError("Invalid historical selection cursor")
         return self.archive._query(
-            self.after, self.through, kind=kind, event_id=event_id,
+            max(self.after, after) if after is not None else self.after,
+            self.through, kind=kind, event_id=event_id,
             data=data, newest_first=newest_first, limit=limit,
         )
+
+    def pending(self, category: str) -> Iterator[dict]:
+        """Only unresolved hails or captain problems, at the pinned cursor."""
+        return self.archive._pending(category, self.after, self.through)
 
     def get(
         self, event_id: str, *, kind: str | None = None,
@@ -226,7 +308,8 @@ class EvidenceView(Sequence[dict]):
 
     def latest(
         self, kind: str, *, data: Mapping[str, object] | None = None,
+        after: int | None = None,
     ) -> dict | None:
         return next(self.select(
-            kind=kind, data=data, newest_first=True, limit=1,
+            kind=kind, data=data, newest_first=True, limit=1, after=after,
         ), None)
