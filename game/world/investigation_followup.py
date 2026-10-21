@@ -186,6 +186,11 @@ def report_probe(actor, case_id: str) -> tuple[bool, str]:
         "reading": observed["reading"],
         "sample_event_id": observed["sample_event_id"],
     }
+    # Acquire the captain ticket BEFORE the journal append lock. The captain
+    # duty Script takes ticket -> journal in that order, too; reversing those
+    # two locks here would introduce a PostgreSQL deadlock.
+    from world.captain import lock_report_obligation
+    lock_report_obligation(case_id)
     first = emit(
         ship["pump"], actor, "anomaly_probe_report_recorded",
         sender=actor, data=data,

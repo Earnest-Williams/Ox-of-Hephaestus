@@ -10,9 +10,11 @@ the journal only through the explicitly disposable operator setup.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from contextlib import contextmanager
+from contextvars import ContextVar
 import re
 
-from django.db import transaction
+from django.db import connection, transaction
 from evennia.utils import gametime
 
 from world.bootstrap import find_fixture
@@ -21,6 +23,43 @@ from world.models import CrewEvent
 PAGE_SIZE = 128
 SCHEMA_VERSION = 2
 _EVENT_ID = re.compile(r"oxevt-[0-9]+")
+# Fixed transaction-scoped namespace: all journal writers must use this lock.
+# PostgreSQL sequences are allocated at INSERT, not in commit order.
+_PG_JOURNAL_ADVISORY_LOCK = 0x4F584A4F55524E4C
+_CAPTURED_EVENTS: ContextVar[list[dict] | None] = ContextVar(
+    "ox_journal_action_events", default=None,
+)
+
+
+def _serialize_journal_transaction() -> None:
+    """Hold the append lock through the *outermost* writer transaction commit.
+
+    SQLite serializes writes already. Every PostgreSQL writer (including legacy
+    import) must take this lock immediately before allocating an event sequence.
+    It must never be released at a nested savepoint exit.
+    """
+    if connection.vendor == "postgresql":
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT pg_advisory_xact_lock(%s)", [_PG_JOURNAL_ADVISORY_LOCK],
+            )
+
+
+@contextmanager
+def capture_emitted_events():
+    """Capture precisely this execution context's new authoritative events.
+
+    An oxwork caller uses this around one ship operation so the durable receipt
+    points to an event actually emitted by that operation, not an unrelated
+    concurrently committed event with a nearby database sequence.
+    """
+    events: list[dict] = []
+    token = _CAPTURED_EVENTS.set(events)
+    try:
+        yield events
+    finally:
+        _CAPTURED_EVENTS.reset(token)
+
 
 
 def _details(data: Mapping | None) -> dict:
@@ -72,6 +111,7 @@ def migrate_legacy_events(pump=None) -> int:
         return 0
     count = 0
     with transaction.atomic():
+        _serialize_journal_transaction()
         if pump.db.ox_event_journal_migrated:
             return 0
         legacy = list(pump.db.ox_private_events or [])
@@ -110,6 +150,7 @@ def emit(pump, recipient, kind: str, *, sender=None, data=None, text="") -> dict
     details = _details(data)
     with transaction.atomic():
         migrate_legacy_events(pump)
+        _serialize_journal_transaction()
         record = CrewEvent.objects.create(
             event_id=None,
             recipient_dbref=recipient.dbref,
@@ -122,6 +163,9 @@ def emit(pump, recipient, kind: str, *, sender=None, data=None, text="") -> dict
         record.event_id = f"oxevt-v2-{record.sequence:04d}"
         record.save(update_fields=["event_id"])
         event = _as_dict(record)
+        captured = _CAPTURED_EVENTS.get()
+        if captured is not None:
+            captured.append(event)
         # Socket packets are advisory. Only a committed journal row is truth.
         transaction.on_commit(
             lambda: recipient.msg(ox_event=([wire_event(event)], {}))
