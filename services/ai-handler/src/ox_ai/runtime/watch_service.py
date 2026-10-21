@@ -33,6 +33,7 @@ from ox_ai.planning.goap import GoapPlanner
 from ox_ai.ports.base import ActionRequest
 from ox_ai.ports.evennia.client import EvenniaWebSocketClient, WebPacket
 from ox_ai.ports.evennia.clock import WorldClockPort
+from ox_ai.ports.evennia.evidence import WorldEventPort
 from ox_ai.ports.evennia.durable import DurableEvenniaPort
 from ox_ai.scenarios.p3b_goap import inspect
 from ox_ai.scenarios.p3c_crew import IDS, URL, next_event, replayable_event
@@ -339,6 +340,25 @@ class CrewWatchSupervisor:
                 f"{role} cannot reach assigned station; no physical work requested"
             )
         return result
+
+    async def prove_world_event(
+        self, role: str, event_id: str, *, kind: str,
+        sender_dbref: str | None = None,
+    ) -> dict:
+        """Verify one old actor-addressed event directly against Evennia.
+
+        This explicit proof lookup does not replay the voyage, advance a
+        cursor, infer an obligation's outcome, or automatically alter a
+        character's memory. It is serialized against inbox pagination for
+        the same authenticated socket, preserving packet provenance.
+        """
+        self.lease.assert_held()
+        if (role not in self.clients or role not in self.brains
+                or self.ids.get(role) != self.clients[role].character_dbref):
+            raise PermissionError("No authenticated actor for event proof")
+        async with self._inbox_role_locks.setdefault(role, asyncio.Lock()):
+            proof = await WorldEventPort(self.clients[role]).lookup(event_id)
+        return proof.require(kind=kind, sender_dbref=sender_dbref)
 
     def inbox_events_since(self, role: str, sequence: int) -> EvidenceView:
         """Return a bounded-memory, actor-scoped delta from historical proof."""
