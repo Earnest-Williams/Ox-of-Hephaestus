@@ -64,7 +64,16 @@ class CooperativeSupply:
         # supervisor variable. She must receive her own *world addressed*
         # order; Teo must separately receive the world delivery notice.
         messages = await self.sup.read_inbox(role)
-        return messages.latest(kind, data={"order_id": order_id})
+        if hasattr(messages, "latest"):
+            return messages.latest(kind, data={"order_id": order_id})
+        # Legacy synthetic supervisor fixtures expose an addressed list.
+        # Preserve their recipient-scope semantics while production uses
+        # the indexed actor-only evidence view.
+        return next(
+            (e for e in reversed(messages)
+             if e["kind"] == kind and e["data"].get("order_id") == order_id),
+            None,
+        )
 
     async def _work(self, stage: str, role: str, verb: str, *, order_id=None,
                     interrupt_at=None):
