@@ -198,6 +198,44 @@ class InboxReplayTests(unittest.IsolatedAsyncioTestCase):
             "lin", initial[-1]["sequence"],
         )), 170)
 
+    async def test_hot_cold_full_replay_preserves_old_work_proof_on_restart(self):
+        records = [event(n, "#10") for n in range(1, 451)]
+        saved = {"hail_work": {
+            "hail-open": {"role": "lin", "hail_event_id": "oxevt-v2-0005"},
+        }}
+        first = SupervisorFixture(MockInboxClient("#10", records), saved)
+        initial = await first.read_inbox("lin")
+        self.assertEqual(len(initial), 450)
+        archive = first._evidence_indexes["lin"]
+        self.assertEqual((archive.hot_count, archive.cold_count), (257, 193))
+        self.assertEqual(
+            initial.get("oxevt-v2-0005")["sequence"], 5,
+        )
+        self.assertEqual(
+            initial.get("oxevt-v2-0001")["sequence"], 1,
+        )
+        self.assertIsNone(archive._db.execute(
+            "SELECT payload FROM events WHERE sequence=1"
+        ).fetchone()[0])
+        # Process-local archives remain disposable. A second process still
+        # authenticates the full inbox from zero, not a portable local cache.
+        second = SupervisorFixture(MockInboxClient("#10", records), first.saved)
+        reread = await second.read_inbox("lin")
+        self.assertEqual(len(reread), 450)
+        self.assertEqual(second.clients["lin"].commands[0], "oxinbox 0")
+        self.assertEqual((second._evidence_indexes["lin"].hot_count,
+                          second._evidence_indexes["lin"].cold_count), (257, 193))
+        self.assertEqual(len(second.brains["lin"].seen), 450)
+        self.assertEqual(second.checkpoints, 0)
+        records.extend([event(n, "#10") for n in range(451, 631)])
+        advanced = await second.read_inbox("lin")
+        self.assertEqual(len(advanced), 630)
+        self.assertEqual(len(second.brains["lin"].seen), 630)
+        self.assertEqual(advanced.get("oxevt-v2-0001")["sequence"], 1)
+        self.assertEqual(advanced.get("oxevt-v2-0005")["sequence"], 5)
+        self.assertEqual((second._evidence_indexes["lin"].hot_count,
+                          second._evidence_indexes["lin"].cold_count), (257, 373))
+
     async def test_interrupted_incremental_pages_leave_cursor_unadvanced(self):
         events = [event(n, "#10") for n in range(1, 151)]
         client = MockInboxClient("#10", events)
