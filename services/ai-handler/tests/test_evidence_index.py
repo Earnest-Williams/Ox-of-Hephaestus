@@ -119,6 +119,71 @@ class IndexedEvidenceTests(unittest.TestCase):
         self.assertFalse(hasattr(self.archive, "_inbox_history"))
         self.assertFalse(hasattr(view, "_events"))
 
+    def test_open_obligations_and_pinned_historical_views(self):
+        with self.archive.transaction():
+            self.archive.append_page([
+                evidence(1, kind="crew_hail", hail_id="hail-a"),
+                evidence(2, kind="captain_problem_open", ticket_id="ticket-a"),
+                evidence(3, kind="crew_hail", hail_id="hail-b"),
+            ])
+        earlier = self.archive.view()
+        self.assertEqual([e["sequence"] for e in earlier.pending("hail")], [1, 3])
+        self.assertEqual([e["sequence"] for e in earlier.pending("captain")], [2])
+        with self.archive.transaction():
+            self.archive.append_page([
+                evidence(4, kind="hail_answered", hail_id="hail-a"),
+                evidence(5, kind="captain_world_resolved", ticket_id="ticket-a"),
+            ])
+        # Closing a claim does not revise an older pinned historical view.
+        self.assertEqual([e["sequence"] for e in earlier.pending("hail")], [1, 3])
+        self.assertEqual([e["sequence"] for e in earlier.pending("captain")], [2])
+        now = self.archive.view()
+        self.assertEqual([e["sequence"] for e in now.pending("hail")], [3])
+        self.assertEqual(list(now.pending("captain")), [])
+        self.assertEqual(now.get("oxevt-v2-0001")["kind"], "crew_hail")
+        self.assertEqual(
+            now.latest("hail_answered", data={"hail_id": "hail-a"})["sequence"], 4,
+        )
+        self.assertEqual(
+            list(now.select(kind="crew_hail", after=1))[0]["sequence"], 3,
+        )
+        self.assertIsNone(
+            now.latest("hail_answered", data={"hail_id": "hail-a"}, after=4),
+        )
+        with self.assertRaises(ValueError):
+            list(now.pending("unknown"))
+        with self.assertRaises(ValueError):
+            list(now.select(after=-1))
+
+    def test_obligation_state_rollback_and_orphan_close(self):
+        with self.archive.transaction():
+            self.archive.append_page([
+                evidence(1, kind="hail_answered", hail_id="never-opened"),
+                evidence(2, kind="crew_hail", hail_id="active"),
+            ])
+        with self.assertRaisesRegex(RuntimeError, "truncated"):
+            with self.archive.transaction():
+                self.archive.append_page([
+                    evidence(3, kind="hail_answered", hail_id="active"),
+                ])
+                raise RuntimeError("truncated")
+        self.assertEqual(
+            [x["data"]["hail_id"] for x in self.archive.view().pending("hail")],
+            ["active"],
+        )
+        with self.assertRaises(ValueError):
+            with self.archive.transaction():
+                self.archive.append_page([
+                    evidence(3, kind="crew_hail", hail_id="active"),
+                ])
+        self.assertEqual(self.archive.cursor, 2)
+        with self.assertRaises(ValueError):
+            with self.archive.transaction():
+                self.archive.append_page([
+                    evidence(3, kind="captain_problem_open"),
+                ])
+        self.assertEqual(self.archive.cursor, 2)
+
     def test_actor_ids_are_restricted_and_view_slices_are_scoped(self):
         with self.assertRaises(PermissionError):
             ActorEvidenceIndex(Path(self.temp.name) / "bad.sqlite3", "../42")

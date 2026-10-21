@@ -905,14 +905,20 @@ class CrewWatchSupervisor:
         count = 0
         pending = self.state.setdefault("hail_work", {})
         events = await self.read_inbox(role)
-        answered = {
-            e["data"]["hail_id"] for e in events.select(kind="hail_answered")
-        }
-        for event in events.select(kind="crew_hail"):
-            hail_id = event["data"]["hail_id"]
+        # Resolved hails normally disappear from the pending index. An
+        # interrupted work ledger must still reconcile its original source.
+        # Never silently discard a previously persisted operation.
+        candidates = {e["data"]["hail_id"]: e for e in events.pending("hail")}
+        for hail_id, work in pending.items():
+            if work.get("role") == role and hail_id not in candidates:
+                source = events.get(work.get("hail_event_id"), kind="crew_hail")
+                if source is None or source["data"].get("hail_id") != hail_id:
+                    raise PermissionError("Persisted hail has no addressed source")
+                candidates[hail_id] = source
+        for hail_id, event in sorted(
+            candidates.items(), key=lambda pair: pair[1]["sequence"],
+        ):
             work = pending.get(hail_id)
-            if hail_id in answered and work is None:
-                continue
             brain = self.brains[role]
             brain.observe_event(event)
             if work is None:
@@ -950,7 +956,6 @@ class CrewWatchSupervisor:
             if verified is None:
                 raise RuntimeError("Hail answer unconfirmed by world journal")
             brain.observe_event(verified)
-            answered.add(hail_id)
             del pending[hail_id]
             count += 1
             self.checkpoint()
