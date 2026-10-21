@@ -10,7 +10,7 @@ from commands.inventory import CmdOxInventory
 from commands.clock import CmdOxClock
 
 from commands.crew import (
-    CmdOxInbox, CmdOxRadioAlarm, CmdOxRequestRelease,
+    CmdOxInbox, CmdOxEvent, CmdOxRadioAlarm, CmdOxRequestRelease,
     CmdOxApproveRelease, CmdOxResolve, CmdOxOfferWatch, CmdOxAcceptWatch,
     CmdOxHail, CmdOxAnswer, CmdOxWork, CmdOxWorkReceipt, CmdOxSample, CmdOxProbe, CmdOxCaptainInspect,
 )
@@ -69,6 +69,7 @@ class CharacterCmdSet(CmdSet):
             CmdReplaceCartridge,
             CmdRestartScrubber,
             CmdOxInbox,
+            CmdOxEvent,
             CmdOxRadioAlarm,
             CmdOxRequestRelease,
             CmdOxApproveRelease,

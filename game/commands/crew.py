@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+import re
+
 from world import live_crew
 
 from evennia.commands.command import Command
@@ -55,6 +58,46 @@ class CmdOxInbox(Command):
                 {},
             )
         )
+
+
+class CmdOxEvent(Command):
+    """Read one own journal event: oxevent <32-hex-nonce> <event-id>.
+
+    The authenticated caller is the *only* accepted recipient. Missing and
+    foreign events are intentionally indistinguishable. This never grants
+    permission to repeat an old work request.
+    """
+
+    key = "oxevent"
+    locks = "cmd:all()"
+
+    def func(self) -> None:
+        from world.event_journal import addressed_event
+
+        parts = self.args.strip().split()
+        if (len(parts) != 2 or re.fullmatch(r"[0-9a-f]{32}", parts[0]) is None
+                or len(parts[1]) > 64
+                or re.fullmatch(r"oxevt-(?:v2-)?[0-9]+", parts[1]) is None):
+            self.caller.msg("Usage: oxevent <32 lowercase hex nonce> <event-id>")
+            return
+
+        nonce, event_id = parts
+        found = addressed_event(self.caller, event_id)
+        response = {
+            "version": 1, "nonce": nonce, "actor_dbref": self.caller.dbref,
+            "event_id": event_id,
+            "status": "found" if found is not None else "missing",
+            "event": found,
+        }
+        # The actual Evennia socket has a 64 KiB frame limit. Check the
+        # *double-encoded* JSON frame and reserve ample protocol overhead;
+        # never truncate or claim a partial event as verified evidence.
+        raw = json.dumps(response, sort_keys=True, allow_nan=False)
+        if len(json.dumps(["ox_event_lookup", [raw], {}]).encode("utf-8")) > 48000:
+            response["status"] = "oversized"
+            response["event"] = None
+            raw = json.dumps(response, sort_keys=True, allow_nan=False)
+        self.caller.msg(ox_event_lookup=([raw], {}))
 
 
 class CmdOxRadioAlarm(_CrewCommand):

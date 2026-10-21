@@ -230,6 +230,16 @@ is true, issue another `oxinbox <next_cursor>`. The sequence is a
 journal ordering token, not a permission to read another character's events.
 Live packet delivery is advisory; committed history is replayable.
 
+`oxevent <32-lowercase-hex-nonce> <event-id>` now retrieves one **exact**
+world-owned event through the ordinary authenticated character session,
+without full inbox pagination. The command reads only records whose
+`recipient_dbref` equals its real caller. Unknown and foreign events both
+reply `missing`; `found` returns the complete original source through
+typed `ox_event_lookup`, while `oversized` explicitly refuses responses
+over the wire safety bound. Legacy `oxevt-N` IDs remain queryable.
+This is read-only past evidence, not an operation, permission or journal
+compaction. [Protocol and limits](../design/prototypes/p4f-world-exact-evidence.md).
+
 Only the disposable `fixture_setup()` acceptance-test setup clears the
 journal. **Never run it against a populated ship.** There is no automatic
 retention or history compaction yet, and a supported live upgrade requires
