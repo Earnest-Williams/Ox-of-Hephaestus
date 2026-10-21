@@ -14,6 +14,7 @@ simultaneously with the three-character watch_service for the same ship.
 from __future__ import annotations
 
 import asyncio
+from collections import deque
 import json
 import os
 import uuid
@@ -118,7 +119,7 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
                 ) if path.is_file()
                 else LiveCrewBrain(role, self.ids[role], make_model())
             )
-            self.memories[role] = []
+            self.memories[role] = deque(maxlen=256)
         if os.getenv("OX_CAPTAIN_OVERSIGHT", "0") == "1":
             captain_ids = ROOT / "p4f-captain-id.json"
             if not captain_ids.is_file():
@@ -141,7 +142,7 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
                 ) if captain_path.is_file()
                 else LiveCrewBrain("captain", captain_id, make_model())
             )
-            self.memories["captain"] = []
+            self.memories["captain"] = deque(maxlen=256)
         self.state.setdefault("specialist_jobs", {"mara": None, "teo": None})
         self.state.setdefault("specialist_handled", {"mara": [], "teo": []})
         self.state.setdefault("specialist_completed", [])

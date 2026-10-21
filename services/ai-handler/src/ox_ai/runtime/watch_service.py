@@ -12,6 +12,7 @@ it on a fresh process without repeating the operation.
 from __future__ import annotations
 
 import asyncio
+from collections import deque
 import json
 from html import unescape
 import os
@@ -223,7 +224,12 @@ class CrewWatchSupervisor:
         if self.state.get("version") != 1:
             raise RuntimeError("Incompatible handler checkpoint format")
         self.brains = self._restore_brains()
-        self.memories: dict[str, list[dict]] = {role: [] for role in self.clients}
+        # Live OOB wake-up frames are a transient hint, NOT the world journal.
+        # Cap this unrelated legacy staging buffer; all durable evidence
+        # remains available in the actor-scoped index and native checkpoints.
+        self.memories: dict[str, deque[dict]] = {
+            role: deque(maxlen=256) for role in self.clients
+        }
         # This directory is deliberately disposable. Every new process
         # re-verifies old events through the actor's world-authenticated inbox.
         # Older event IDs are indexed on disk, never retained in a Python

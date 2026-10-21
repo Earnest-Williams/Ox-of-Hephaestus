@@ -181,7 +181,7 @@ class ActorEvidenceIndex:
 class EvidenceView(Sequence[dict]):
     """Immutable sequence/cursor snapshot backed by a bounded SQLite cache."""
 
-    index: ActorEvidenceIndex
+    archive: ActorEvidenceIndex
     after: int
     through: int
 
@@ -192,7 +192,7 @@ class EvidenceView(Sequence[dict]):
         return self.select(newest_first=True)
 
     def __len__(self) -> int:
-        return self.index._count(self.after, self.through)
+        return self.archive._count(self.after, self.through)
 
     def __getitem__(self, key: int | slice) -> dict | list[dict]:
         if isinstance(key, slice):
@@ -203,7 +203,7 @@ class EvidenceView(Sequence[dict]):
         index = key if key >= 0 else count + key
         if not 0 <= index < count:
             raise IndexError(key)
-        return next(self.index._query(
+        return next(self.archive._query(
             self.after, self.through, limit=1, offset=index,
         ))
 
@@ -213,7 +213,7 @@ class EvidenceView(Sequence[dict]):
         newest_first: bool = False, limit: int | None = None,
     ) -> Iterator[dict]:
         """Use SQLite indexes without materializing the whole voyage."""
-        return self.index._query(
+        return self.archive._query(
             self.after, self.through, kind=kind, event_id=event_id,
             data=data, newest_first=newest_first, limit=limit,
         )
