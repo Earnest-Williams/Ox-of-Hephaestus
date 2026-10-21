@@ -51,7 +51,16 @@ competence or a 40-character live simulation.
   wire order under a finite buffer. It refuses to read when that buffer is
   already full; malformed unattributable receipts remain unmatched, and
   actor/receipt status checks on the matching request still fail closed.
-  These are transport safeguards, not independent world authority.
+- **PR #85 incremental addressed inbox:** each authenticated recipient's
+  first handler read hydrates historical context once per *process*.
+  Following reads request `oxinbox` strictly after the saved actor cursor.
+  The live per-actor compatibility history remains complete, not truncated,
+  because pump, social, captain and investigation recovery still verify old
+  world event IDs. Five-crew epistemics/agenda use binary-searched deltas
+  against their own independently durable cursors. A cold process still
+  rehydrates full history; in-memory retention is still unbounded. No
+  additional server authority or journal mutation is introduced.
+  These are transport/handler optimizations, not independent world authority.
 
 The older milestone-specific sections below describe the implementation at
 those milestones. Their former "next step" statements are historical; for the
@@ -396,9 +405,16 @@ an event, and live OOB messages are sent only when the journal commit succeeds.
 `oxinbox` now replies with version, count, `next_cursor` and `has_more`
 and only returns observations addressed to its caller. The external handler
 scans all pages and durably checkpoints consumed per-character high-water
-marks **after** the corresponding native Concordia snapshots. The older
-procedures still reread complete recipient-private history for compatibility;
-cursor-only incremental scheduling, retention and compaction are not present.
+marks **after** the corresponding native Concordia snapshots.
+
+**Follow-up PR #85:** one full authenticated hydration per actor per handler
+process preserves those older event proofs. Subsequent reads use
+`oxinbox <persisted-cursor>` and append new recipient-only events.
+The per-process compatibility history and cold-start replay remain
+unbounded; only the repeated per-turn **world** pagination is removed.
+Unread page counts/sequence continuations are validated before accepting
+a cursor. Future bounded historical indexes and retention compaction require
+migrating the remaining legacy lookup sites explicitly.
 
 ## P4e verified five-agent extension
 

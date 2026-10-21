@@ -53,6 +53,36 @@ general unscripted hosted-model interpersonal reasoning. The sections
 below retain their stage-specific historical limitations; consult
 [live STATUS](../../design/STATUS.md) for the current feature inventory.
 
+## PR #85 — incremental inbox consumption and its current boundary
+
+The first call to `CrewWatchSupervisor.read_inbox(role)` after a process
+launch rehydrates all of that character's recipient-scoped `oxinbox`
+pages from world truth. Subsequent calls to that authenticated socket
+fetch **only** records whose world sequence exceeds the saved
+`inbox_cursors[role]`. Empty warm reads use one completion page rather
+than repeatedly traversing all historical world pages.
+
+The supervisor retains a complete per-role **in-memory** history to support
+existing pump, radio, hail, captain, investigation and work-recovery proof
+lookups. It intentionally does not trim old observations or substitute
+a guessed receipt. On process restart it rehydrates the complete history
+again; this is **not** a constant-memory solution or a persisted bounded
+event index. Five-crew `AgentEpistemics` and `AgentAgenda` ingest a
+binary-searched delta based on each independent cursor; a checkpoint crash
+between parent and private-consumer commits can replay from history
+without admitting fabricated evidence.
+
+A partial inbox page, inconsistent event sequence or cursor,
+cross-recipient packet, or interrupted WebSocket replay fails closed.
+The handler checkpoints each native character *before* advancing the
+durable supervisor cursor. No world timestamp, action permission or
+ownership boundary changed.
+
+The regression fixture includes over 2,400 mixed-recipient events and
+asserts that a warm empty poll issues one `oxinbox` request rather than
+re-requesting the complete history. This is a **request-count**
+comparison, not a measured production latency or memory benchmark.
+
 ## G3d optional independently elected crew rounds (PR #46, merged)
 
 The existing external five-crew supervisor has an opt-in
@@ -296,12 +326,12 @@ Each character's newly authorized events enter that character's own
 Concordia state before `inbox_cursors` is saved in the supervisor ledger.
 This ordering makes interrupted replay safe to repeat.
 
-**Compatibility limitation:** current P4e consumers need historic alarm,
-handover and hail context, so they still scan all recipient-private pages
-from cursor zero on each processing pass. The saved high-water cursors do
-not yet eliminate those full scans. Independent incremental agenda and
-retention support are planned in `design/ROADMAP.md`. This milestone does
-not make every arbitrary physical or social action crash-transactional.
+**Historical P4f limitation, partially lifted by PR #85:** P4e consumers
+still require historic alarm, handover and hail records, but the handler
+now loads that context from world truth only once after startup and
+fetches later events by its saved cursor. Cold-start full hydration
+and in-process unbounded compatibility history remain. This is not
+general event-retention compaction or arbitrary mid-scene recovery.
 
 ## P4e merged five-crew runtime
 
