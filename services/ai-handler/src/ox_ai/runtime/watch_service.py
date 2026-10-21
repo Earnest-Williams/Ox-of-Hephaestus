@@ -410,6 +410,7 @@ class CrewWatchSupervisor:
                     self._evidence_root.mkdir(
                         mode=0o700, parents=True, exist_ok=True,
                     )
+                    os.chmod(self._evidence_root, 0o700)
                     path = self._evidence_root / (role + ".sqlite3")
                 else:
                     # Legacy isolated supervisor test fixtures have no
@@ -419,6 +420,8 @@ class CrewWatchSupervisor:
                         role + ".sqlite3"
                     )
                 index = ActorEvidenceIndex(path, self.ids[role])
+                if continuity:
+                    os.chmod(path, 0o600)
                 self._evidence_indexes[role] = index
             before = index.cursor
             generation = None
