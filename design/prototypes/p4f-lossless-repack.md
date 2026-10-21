@@ -1,7 +1,8 @@
 # Periodic lossless SQLite repack of historical evidence
 
-**Status:** Implementation in PR review following the
-[measured P4f local profile](p4f-evidence-restart-profile.md).
+**Status:** Implemented, verified (31/31 applicable CI workflows), and
+[merged as PR #93](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/93)
+following the [measured P4f local profile](p4f-evidence-restart-profile.md).
 
 The world journal and all historical evidence continue to grow with
 simulation history. This optimization only reclaims inefficient *physical
