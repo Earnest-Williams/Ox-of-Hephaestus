@@ -116,16 +116,17 @@ private belief or self-description. See [G4f](../design/prototypes/g4f-world-rec
   authority or a bound on world history.
   [Protocol](../design/prototypes/p4f-journal-continuity.md).
   A-01 alarms and captain reminders follow P-01 → ticket → journal locks.
-- PRs #85–88: the handler authenticates each recipient's complete world
-  inbox once per process (streamed to a disposable actor-scoped SQLite
-  index), then requests only deltas after its indexed cursor. Immutable
-  indexed views retain exact event identity and legacy kind/case/ticket
-  selections. Actor-scoped unresolved work has indexed source references;
-  the ordinary authenticated `oxevent` command can retrieve an old exact
-  event without a full inbox query. Independent native brain, agenda and
-  epistemic cursors still govern cognition recovery. Incomplete pages,
-  divergent sequences, foreign recipients and interrupted multi-page
-  transactions cannot advance the handler cursor.
+- PRs #85–88 established the indexed actor-private inbox, delta paging,
+  exact event identity and typed event queries. An attested reusable
+  handler cache now retains complete hot/cold historical records across
+  process lifetimes. Every new process recomputes and validates its full
+  local historical digest and checks `oxjournal` for a matching
+  authenticated world generation and exact actor prefix. Only verified
+  archives resume `oxinbox` at the saved cursor. New events, derived
+  obligation indexes and the new prefix seal advance transactionally.
+  Independent native brain, agenda and epistemic checkpoints retain
+  their own recovery cursors. A world rewind, changed historical prefix,
+  missing or corrupt archive or incomplete page fails closed.
 - Local hot/cold optimization keeps the most recent 256 addressed event
   bodies **plus mandatory live proof pins** available uncompressed. Every
   other original event remains retrievable, with case/kind metadata indexed
