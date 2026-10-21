@@ -70,6 +70,7 @@ class CharacterCmdSet(CmdSet):
             CmdRestartScrubber,
             CmdOxInbox,
             CmdOxEvent,
+            CmdOxJournal,
             CmdOxRadioAlarm,
             CmdOxRequestRelease,
             CmdOxApproveRelease,
