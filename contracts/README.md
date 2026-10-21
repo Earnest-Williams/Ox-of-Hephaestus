@@ -132,6 +132,10 @@ private belief or self-description. See [G4f](../design/prototypes/g4f-world-rec
   other original event remains retrievable, with case/kind metadata indexed
   and its complete body stored losslessly in compressed local SQLite cold
   storage. It does **not** delete world evidence or bound total disk use.
+  Physical SQLite repacking is deferred until 2,048 demotions have
+  accumulated and occurs only after the attested history transaction
+  commits, before the native cognition checkpoint can advance.
+  Repacking preserves every source proof and its authenticated world seal.
   Cache reuse is conditioned on the complete authenticated actor prefix;
   no old event or receipt independently grants world authority.
   [Cache-continuity contract](../design/prototypes/p4f-attested-cache-reuse.md).
