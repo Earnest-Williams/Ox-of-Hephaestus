@@ -12,6 +12,7 @@ from pathlib import Path
 
 from ox_ai.ports.evennia.client import EvenniaWebSocketClient
 from ox_ai.ports.evennia.evidence import WorldEventPort
+from ox_ai.ports.evennia.journal import WorldJournalPort
 
 URL = "ws://127.0.0.1:4002"
 
@@ -30,6 +31,13 @@ async def run() -> None:
         item = source.require(kind="world_exact_trial")
         assert item["recipient_dbref"] == ids["lin"]
         assert item["data"]["case_id"] == "lin-private"
+        certificate = await WorldJournalPort(lin).attest(item["sequence"])
+        assert certificate.prefix_digest is not None
+        assert certificate.head_cursor >= item["sequence"]
+        foreign_prefix = await WorldJournalPort(lin).attest(
+            int(proofs["ari"].split("-")[-1])
+        )
+        assert foreign_prefix.prefix_digest is None
         hidden = await WorldEventPort(lin).lookup(proofs["ari"])
         assert hidden.status == "missing" and hidden.event is None
         unknown = await WorldEventPort(lin).lookup("oxevt-v2-999999999999")
@@ -40,6 +48,11 @@ async def run() -> None:
     ) as ari:
         own = await WorldEventPort(ari).lookup(proofs["ari"])
         assert own.require(kind="world_exact_trial")["data"]["case_id"] == "ari-private"
+        ari_certificate = await WorldJournalPort(ari).attest(
+            own.event["sequence"]
+        )
+        assert ari_certificate.prefix_digest is not None
+        assert ari_certificate.generation == certificate.generation
         denied = await WorldEventPort(ari).lookup(proofs["lin"])
         assert denied.status == "missing" and denied.event is None
 
@@ -50,6 +63,10 @@ async def run() -> None:
     ) as lin_again:
         restored = await WorldEventPort(lin_again).lookup(proofs["lin"])
         assert restored.require(kind="world_exact_trial") == item
+        restart_certificate = await WorldJournalPort(lin_again).attest(
+            item["sequence"],
+        )
+        assert restart_certificate == certificate
     print("OX_P4F_AUTHENTICATED_EXACT_EVENT_RESTART_AND_PRIVACY_PASS")
 
 
