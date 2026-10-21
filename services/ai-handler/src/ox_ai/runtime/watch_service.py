@@ -405,11 +405,16 @@ class CrewWatchSupervisor:
                     int(e.get("sequence", e["event_id"].split("-")[-1]))
                     for e in received
                 ]
-            else:
-                history.extend(received)
-                self._inbox_sequences[role].extend(
-                    int(e.get("sequence", e["event_id"].split("-")[-1]))
-                    for e in received
+            elif received:
+                # Preserve snapshots previously returned to callers. A new
+                # world delivery must not mutate an older local view while
+                # a separate workflow is still examining that evidence.
+                self._inbox_history[role] = history + received
+                self._inbox_sequences[role] = (
+                    self._inbox_sequences[role] + [
+                        int(e.get("sequence", e["event_id"].split("-")[-1]))
+                        for e in received
+                    ]
                 )
             return self._inbox_history[role]
 

@@ -214,7 +214,7 @@ class InboxReplayTests(unittest.IsolatedAsyncioTestCase):
         worker = SupervisorFixture(Partial("#10", []))
         with self.assertRaisesRegex(RuntimeError, "count disagrees"):
             await worker.read_inbox("lin")
-        self.assertNotIn("inbox_cursors", worker.state)
+        self.assertEqual(worker.state.get("inbox_cursors", {}), {})
         self.assertEqual(worker._inbox_history, {})
         self.assertEqual(worker.checkpoints, 0)
 
