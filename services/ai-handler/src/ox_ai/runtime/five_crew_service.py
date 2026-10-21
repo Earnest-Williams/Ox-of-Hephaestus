@@ -182,6 +182,7 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
         Old P4e histories are fully paginated by the parent reader. Replays
         do not reawaken deferred work or recreate completed obligations.
         """
+        cold_hydration = role not in self._inbox_history
         events = await super().read_inbox(role)
         agenda = self.agendas[role]
         changed = False
@@ -189,11 +190,16 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
         proof_cursor = proof_cursors.get(role, 0)
         if type(proof_cursor) is not int or proof_cursor < 0:
             raise PermissionError("Invalid private proof cursor")
-        for event in events:
+        # Only iterate the events missed by either private consumer. The
+        # parent history remains available for older world-proof lookups,
+        # including after a restart between parent/child checkpoints.
+        proof_delta = self.inbox_events_since(
+            role, min(proof_cursor, agenda.record["last_sequence"]),
+        )
+        for event in proof_delta:
             sequence = int(event["sequence"])
-            # The legacy consumer replays the entire inbox on every pass.
-            # Prove each NEW addressed event once; replaying aged proofs
-            # would otherwise churn a bounded 512-entry evidence cache.
+            # A past event must not churn the 512-entry epistemic evidence
+            # cache; use the independently persisted private proof cursor.
             if sequence > proof_cursor:
                 self.epistemics[role].receive_event(event)
                 proof_cursor = sequence
@@ -202,8 +208,16 @@ class FiveCrewSupervisor(CrewWatchSupervisor):
             if sequence > agenda.record["last_sequence"]:
                 agenda.observe(event)
                 changed = True
-            if role in EXTRA_ACCOUNTS and event["kind"] == ALARMS[role]:
-                if agenda.task(event["event_id"]) is None:
+        # On a legacy checkpoint's *first* hydration, preserve the old
+        # upgrade rule: even a historic alarm below agenda.last_sequence
+        # may lack a task entry and must be offered before reconciling it.
+        alarm_candidates = (
+            events if cold_hydration else proof_delta
+        )
+        if role in EXTRA_ACCOUNTS:
+            for event in alarm_candidates:
+                if (event["kind"] == ALARMS[role]
+                        and agenda.task(event["event_id"]) is None):
                     agenda.offer(
                         event, priority=PRIORITY[role],
                         kind=ALARMS[role],

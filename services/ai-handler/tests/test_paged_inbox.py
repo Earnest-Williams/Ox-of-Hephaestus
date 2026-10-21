@@ -66,6 +66,7 @@ class Brain:
 
 class SupervisorFixture:
     read_inbox = CrewWatchSupervisor.read_inbox
+    inbox_events_since = CrewWatchSupervisor.inbox_events_since
 
     def __init__(self, client, saved=None):
         snapshot = copy.deepcopy(saved or {})
@@ -74,8 +75,13 @@ class SupervisorFixture:
         self.brains = {"lin": Brain(observations)}
         self.state = snapshot
         self.saved = None
+        self.checkpoints = 0
+        self._inbox_history = {}
+        self._inbox_sequences = {}
+        self._inbox_role_locks = {}
 
     def checkpoint(self):
+        self.checkpoints += 1
         self.saved = copy.deepcopy(self.state)
         self.saved["_seen"] = sorted(self.brains["lin"].seen)
 
@@ -111,15 +117,164 @@ class InboxReplayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(await first.read_inbox("lin")), 300)
         self.assertEqual(first.state["inbox_cursors"]["lin"], 300)
         self.assertEqual(len(first.brains["lin"].seen), 300)
+        self.assertEqual(first.clients["lin"].commands[0], "oxinbox 0")
+        self.assertEqual(first.checkpoints, 1)
+        self.assertEqual(len(await first.read_inbox("lin")), 300)
+        self.assertEqual(first.clients["lin"].commands[-1], "oxinbox 300")
+        self.assertEqual(first.checkpoints, 1)
         second = SupervisorFixture(
             MockInboxClient("#10", events), first.saved,
         )
         self.assertEqual(len(await second.read_inbox("lin")), 300)
+        # Cold start rehydrates history for legacy lookups; it must NOT
+        # re-observe already checkpointed brain episodes or rewrite state.
+        self.assertEqual(second.clients["lin"].commands[0], "oxinbox 0")
+        self.assertEqual(second.checkpoints, 0)
         self.assertEqual(len(second.brains["lin"].seen), 300)
         events.extend([event(n, "#10") for n in range(301, 406)])
         self.assertEqual(len(await second.read_inbox("lin")), 405)
         self.assertEqual(second.state["inbox_cursors"]["lin"], 405)
         self.assertEqual(len(second.brains["lin"].seen), 405)
+        self.assertEqual(second.clients["lin"].commands[-1], "oxinbox 300")
+        self.assertEqual(second.checkpoints, 1)
+        self.assertEqual(len(second.inbox_events_since("lin", 300)), 105)
+
+    async def test_incremental_reader_avoids_repeated_full_pagination(self):
+        events = [event(n, "#10" if n % 5 else "#11")
+                  for n in range(1, 2402)]
+        client = MockInboxClient("#10", events)
+        worker = SupervisorFixture(client)
+        initial = await worker.read_inbox("lin")
+        page_count = len(client.commands)
+        self.assertGreater(page_count, 10)
+        self.assertEqual(client.commands[0], "oxinbox 0")
+        self.assertEqual(len(worker.brains["lin"].seen), len(initial))
+        self.assertEqual(len(await worker.read_inbox("lin")), len(initial))
+        self.assertEqual(client.commands[page_count:], [
+            "oxinbox " + str(initial[-1]["sequence"]),
+        ])
+        self.assertEqual(worker.checkpoints, 1)
+        self.assertEqual(worker.inbox_events_since(
+            "lin", initial[-1]["sequence"],
+        ), [])
+        events.extend([event(n, "#10") for n in range(2402, 2572)])
+        appended = await worker.read_inbox("lin")
+        self.assertEqual(len(appended), len(initial) + 170)
+        self.assertEqual(client.commands[page_count + 1],
+                         "oxinbox " + str(initial[-1]["sequence"]))
+        self.assertEqual(len(worker.brains["lin"].seen), len(appended))
+        self.assertEqual(worker.state["inbox_cursors"]["lin"], 2571)
+        self.assertEqual(worker.checkpoints, 2)
+        self.assertEqual(len(worker.inbox_events_since(
+            "lin", initial[-1]["sequence"],
+        )), 170)
+
+    async def test_interrupted_incremental_pages_leave_cursor_unadvanced(self):
+        events = [event(n, "#10") for n in range(1, 151)]
+        client = MockInboxClient("#10", events)
+        worker = SupervisorFixture(client)
+        await worker.read_inbox("lin")
+        old_cursor = worker.state["inbox_cursors"]["lin"]
+        events.extend([event(n, "#10") for n in range(151, 431)])
+        client.disconnect_page = len(client.commands) + 2
+        with self.assertRaises(ConnectionError):
+            await worker.read_inbox("lin")
+        self.assertEqual(worker.state["inbox_cursors"]["lin"], old_cursor)
+        self.assertEqual(len(worker.brains["lin"].seen), old_cursor)
+        self.assertEqual(len(worker._inbox_history["lin"]), old_cursor)
+        client.disconnect_page = None
+        retried = await worker.read_inbox("lin")
+        self.assertEqual(len(retried), 430)
+        self.assertEqual(len(worker.brains["lin"].seen), 430)
+        self.assertEqual(worker.state["inbox_cursors"]["lin"], 430)
+
+    async def test_same_role_concurrent_reads_serialize_on_one_socket(self):
+        import asyncio
+        client = MockInboxClient("#10", [
+            event(n, "#10") for n in range(1, 190)
+        ])
+        worker = SupervisorFixture(client)
+        both = await asyncio.gather(
+            worker.read_inbox("lin"), worker.read_inbox("lin"),
+        )
+        self.assertEqual([len(events) for events in both], [189, 189])
+        self.assertEqual(worker.checkpoints, 1)
+        self.assertEqual(client.commands[0], "oxinbox 0")
+        self.assertEqual(client.commands[-1], "oxinbox 189")
+        self.assertEqual(len(worker.brains["lin"].seen), 189)
+
+    async def test_incomplete_page_cannot_advance_any_cursor(self):
+        class Partial(MockInboxClient):
+            async def send_line(self, command):
+                self.commands.append(command)
+                self.pending.append(WebPacket("ox_inbox_done", ({
+                    "version": 2, "count": 1,
+                    "next_cursor": 17, "has_more": False,
+                },), {}))
+        worker = SupervisorFixture(Partial("#10", []))
+        with self.assertRaisesRegex(RuntimeError, "count disagrees"):
+            await worker.read_inbox("lin")
+        self.assertEqual(worker.state.get("inbox_cursors", {}), {})
+        self.assertEqual(worker._inbox_history, {})
+        self.assertEqual(worker.checkpoints, 0)
+
+    async def test_private_agenda_and_proof_cursor_backfill_after_parent_checkpoint(self):
+        from ox_ai.runtime.five_crew_service import FiveCrewSupervisor
+
+        class PrivateProof:
+            def __init__(self):
+                self.seen = []
+            def receive_event(self, event):
+                self.seen.append(event["event_id"])
+
+        class PrivateAgenda:
+            def __init__(self, record):
+                self.record = record
+                self.seen = []
+            def observe(self, event):
+                self.seen.append(event["event_id"])
+                self.record["last_sequence"] = event["sequence"]
+            def task(self, _event_id):
+                return None
+
+        class FiveFixture(FiveCrewSupervisor):
+            def __init__(self, client, saved):
+                # Real inheritance is needed: FiveCrewSupervisor.read_inbox
+                # uses super() to reach the parent world inbox reader.
+                # Supply an isolated test state without opening sockets.
+                SupervisorFixture.__init__(self, client, saved)
+                agenda_record = self.state.setdefault(
+                    "agendas", {},
+                ).setdefault("lin", {"last_sequence": 160})
+                self.agendas = {"lin": PrivateAgenda(agenda_record)}
+                self.epistemics = {"lin": PrivateProof()}
+                self.state.setdefault("specialist_completed", [])
+
+            def checkpoint(self):
+                SupervisorFixture.checkpoint(self)
+
+        events = [event(n, "#10") for n in range(1, 351)]
+        # Simulate an interrupted earlier process: parent cursor and native
+        # brain checkpoint reached 350, but its two private consumers only
+        # committed through 150 and 160. A new process must not lose 151+.
+        saved = {
+            "inbox_cursors": {"lin": 350},
+            "epistemic_event_cursors": {"lin": 150},
+            "agendas": {"lin": {"last_sequence": 160}},
+            "specialist_completed": [],
+            "_seen": [f"oxevt-v2-{n:04d}" for n in range(1, 351)],
+        }
+        worker = FiveFixture(MockInboxClient("#10", events), saved)
+        self.assertEqual(len(await worker.read_inbox("lin")), 350)
+        self.assertEqual(len(worker.epistemics["lin"].seen), 200)
+        self.assertEqual(len(worker.agendas["lin"].seen), 190)
+        self.assertEqual(worker.state["epistemic_event_cursors"]["lin"], 350)
+        self.assertEqual(worker.agendas["lin"].record["last_sequence"], 350)
+        self.assertEqual(worker.checkpoints, 1)
+        self.assertEqual(len(await worker.read_inbox("lin")), 350)
+        self.assertEqual(worker.clients["lin"].commands[-1], "oxinbox 350")
+        self.assertEqual(worker.checkpoints, 1)
+        self.assertEqual(len(worker.epistemics["lin"].seen), 200)
 
     async def test_private_scope_and_stalled_cursor_fail_closed(self):
         class Stalled(MockInboxClient):

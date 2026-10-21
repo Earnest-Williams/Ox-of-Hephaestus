@@ -50,7 +50,7 @@ equipment, authorize itself, invent evidence or settle a case.
 | Social authority | G7/G7b: separate two-person apartment GOAP fixture, reusable typed social choices, and Evennia-owned bilateral commitments with authenticated receipts |
 | Private cognition | G8–G10b: seeded temporal episodes, subjective reinterpretation, owner-revisioned memory, native read-only Concordia context and simulated-time aging |
 | Experimental evidence | Six-client, 500-decision G8 model-free ship/social trial; G11 matched-evidence hosted-model A/B harness; G12 local native profiling at 6/20/40 brains |
-| Transport and concurrency | Buffered authenticated WebSocket matching; PostgreSQL commit-ordered recipient journal and exact work-event provenance (PRs #82–83) |
+| Transport and concurrency | Buffered authenticated WebSocket matching; PostgreSQL commit-ordered event journal and exact work-event provenance (PRs #82–83); incremental warm inbox reads while preserving older per-actor proof history (PR #85) |
 | Observation | Operator/test journals and focused CI evidence; no published world/handler inspection APIs and no browser observatory |
 
 **Current learning is narrower than the character design.** The operator-only
