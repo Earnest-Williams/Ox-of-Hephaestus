@@ -398,25 +398,31 @@ class InboxReplayTests(unittest.IsolatedAsyncioTestCase):
                     raise OSError("checkpoint storage interruption")
                 super().checkpoint()
 
-        records = [event(n, "#10") for n in range(1, 321)]
+        records = [event(n, "#10") for n in range(1, 2501)]
         with tempfile.TemporaryDirectory() as folder:
             failed = FailOnce(MockCertifiedClient("#10", records))
             failed._journal_continuity = True
             failed._evidence_root = Path(folder)
             with self.assertRaisesRegex(OSError, "checkpoint storage interruption"):
                 await failed.read_inbox("lin")
-            self.assertEqual(failed._evidence_indexes["lin"].cursor, 320)
+            self.assertEqual(failed._evidence_indexes["lin"].cursor, 2500)
             self.assertEqual(
-                failed._evidence_indexes["lin"].stored_attestation()[1], 320,
+                failed._evidence_indexes["lin"].stored_attestation()[1], 2500,
             )
+            # More than 2,048 original bodies were demoted. The SQLite
+            # allocation repack must already have completed even though
+            # the subsequent native brain checkpoint failed.
+            self.assertEqual(failed._evidence_indexes["lin"]._db.execute(
+                "SELECT demoted_since_repack FROM local_maintenance"
+            ).fetchone()[0], 0)
             failed._evidence_indexes["lin"].close()
             next_worker = SupervisorFixture(MockCertifiedClient("#10", records))
             next_worker._journal_continuity = True
             next_worker._evidence_root = Path(folder)
             restored = await next_worker.read_inbox("lin")
-            self.assertEqual(len(restored), 320)
+            self.assertEqual(len(restored), 2500)
             self.assertEqual(next_worker.checkpoints, 1)
-            self.assertEqual(len(next_worker.brains["lin"].seen), 320)
+            self.assertEqual(len(next_worker.brains["lin"].seen), 2500)
             next_worker._evidence_indexes["lin"].close()
             # A damaged cold body is never accepted merely because the saved
             # attestation table and world prefix both look correct.
