@@ -31,8 +31,9 @@ _EVENT_ID = re.compile(r"^oxevt-(?:v2-)?[0-9]+$")
 # referenced by still-persisted handler work. Those must win over eviction.
 DEFAULT_HOT_EVENTS = 256
 COLD_BATCH = 128
-# Physical SQLite B-tree maintenance cadence; NOT a limit on evidence age
-# or number of retained events. Every original record survives repacking.
+# Minimum physical maintenance batch; large archives also require
+# >=25% of current cold-row count demoted since the previous VACUUM.
+# This avoids quadratic lifetime rewriting without deleting evidence.
 REPACK_AFTER_DEMOTIONS = 2048
 
 
@@ -471,6 +472,12 @@ class ActorEvidenceIndex:
         if count is None:
             raise RuntimeError("Missing local evidence maintenance state")
         if count[0] < after_demotions:
+            return False
+        # Rewriting the complete voyage after each fixed-size new batch
+        # would be quadratic over time. At larger history sizes, require
+        # enough new cold data to amortize one full-file VACUUM. This is
+        # a physical maintenance cadence, never a history retention cap.
+        if count[0] < self.cold_count // 4:
             return False
 
         attested = self.stored_attestation()
