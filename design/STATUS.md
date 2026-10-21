@@ -59,7 +59,9 @@ feature inventories.
 | PostgreSQL journal and captain locking | Tested and merged | [PR #82](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/82): commit-ordered global journal sequence and exact work-receipt source identity. [PR #83](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/83): P-01 → captain obligation → journal lock ordering and unique concurrent obligation creation; actual two-connection PostgreSQL regressions. |
 | Handler inbox — incremental warm replay | Implemented in PR #85 | [PR #85](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/85): one full world-history hydration **per process**, then recipient-scoped `oxinbox <saved-cursor>` delta reads; independent five-crew private proof/agenda cursor recovery and strict page validation. The original implementation retained a complete Python history; see PR #86 for its indexed replacement. |
 | Handler indexed historical evidence | Implemented in PRs #86–#88 | [PR #86](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/86): streamed authenticated <=128-event pages into actor-isolated, disposable SQLite evidence indexes with stable lazy history views. [PR #87](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/87): indexed unresolved hails and captain follow-through with transactional source references. [PR #88](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/88): ordinary authenticated `oxevent` exact world proof, with recipient/nonce binding and explicit missing/oversized responses. These preserve historical proof; neither skips full world rehydration at process start. |
-| Handler lossless hot/cold evidence | Implementation under review | Typed indexes retain every event's identity and field selectors. Full original bodies outside the recent 256 addressed events and actively pinned work are losslessly compressed into an indexed cold tier; no old knowledge is deleted, and unresolved obligations remain hot. Total local disk still scales with history; cold-start replay is unchanged. [Design and limits](prototypes/p4f-hot-cold-evidence.md). |
+| Handler lossless hot/cold evidence | Merged in PR #89 | [PR #89](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/89): typed indexes retain every event's identity and selectors. Bodies older than the recent 256 addressed events, except mandatory live pins, move to losslessly compressed SQLite cold storage. All previous knowledge remains available; disk grows with history. [Design](prototypes/p4f-hot-cold-evidence.md). |
+| World journal continuity | Merged in PR #90 | [PR #90](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/90): immutable journal epoch, per-recipient cumulative SHA-256 prefix seals and authenticated `oxjournal` certificates, including migration/reset/legacy controls. [Design](prototypes/p4f-journal-continuity.md). |
+| Handler attested archive reuse | Under verification | Recompute the full local actor-specific hot/cold digest and open-obligation projection; require a matching authenticated world generation and prefix before resuming from the cached cursor. Crash-interrupted private checkpoints backfill from verified original evidence. No arbitrary historical cutoff. [Design](prototypes/p4f-attested-cache-reuse.md). |
 | P5 — browser observatory | **Deferred / not built** | No browser UI, joined handler/world API, or operator dashboard |
 
 **Naming note:** the original Prototype 1 plan used “P4” for the first
@@ -99,10 +101,13 @@ lock inversion and retains exactly one active obligation under contention.
 Neither gate eliminates the need for future adversarial transaction reviews.
 PR #85 removed repeated full-history *network* scans. PR #86 also removes
 the unbounded Python history list: historical proof is streamed to a
-disposable per-actor SQLite index and accessed through lazy snapshots or
-indexed case/ticket/receipt queries. The first read on every process start
-still authenticates the full world history; local disk usage grows with
-voyage length and individual Concordia checkpoint rewrites remain costly.
+per-actor SQLite index and accessed through lazy snapshots or indexed
+case/ticket/receipt queries. Validated local archives can now survive
+process restarts and skip unnecessary old network-page transfers, after
+the world generation and complete local-prefix continuity are checked.
+Total historical storage intentionally grows with the voyage; local
+cold-start integrity scanning and Concordia checkpoint rewrites remain
+performance costs.
 
 ## G3d independent-initiative pilot (merged)
 
