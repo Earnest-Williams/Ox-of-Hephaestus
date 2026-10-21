@@ -10,7 +10,7 @@ from evennia.utils.test_resources import EvenniaTestCase
 from commands.crew import CmdOxJournal
 from commands.default_cmdsets import CharacterCmdSet
 from world.bootstrap import build_ship
-from world.event_journal import emit, journal_certificate, migrate_legacy_events
+from world.event_journal import emit, inbox_page, journal_certificate, migrate_legacy_events
 from world.journal_chain import append_digest, seed
 from world.live_crew import fixture_setup
 from world.models import CrewEvent, JournalEpoch
@@ -43,15 +43,20 @@ class JournalContinuityTests(EvenniaTestCase):
         latest = emit(self.pump, self.lin, "private_report", data={"step": 2})
         world = journal_certificate(self.lin, cursor=latest["sequence"])
         genesis = seed(world["generation"], self.lin.dbref)
+        # The operator fixture opened the first bridge alarm *before* this
+        # test emitted its private reports. The prefix must include it too.
         expected = genesis
-        for item in (first, latest):
+        at_first = None
+        for item in inbox_page(self.lin)["events"]:
             expected = append_digest(expected, item)
+            if item["sequence"] == first["sequence"]:
+                at_first = expected
         self.assertEqual(world["head_digest"], expected)
         self.assertEqual(world["prefix_digest"], expected)
         self.assertEqual(world["head_cursor"], latest["sequence"])
         self.assertEqual(
             journal_certificate(self.lin, cursor=first["sequence"])["prefix_digest"],
-            append_digest(genesis, first),
+            at_first,
         )
         other_cursor = journal_certificate(self.lin, cursor=hidden["sequence"])
         self.assertIsNone(other_cursor["prefix_digest"])
