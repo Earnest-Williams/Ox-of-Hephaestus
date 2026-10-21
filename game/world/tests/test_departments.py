@@ -69,6 +69,34 @@ class DepartmentWorldTests(EvenniaTestCase):
         self.assertEqual(len(again["cradle"].db.event_history), 1)
         self.assertEqual(len(again["scrubber"].db.event_history), 1)
 
+
+    def test_alarm_fanout_failure_rolls_back_captain_ticket(self):
+        from world import live_crew
+        from world.models import CaptainObligation, CrewEvent
+
+        scrubber = self.ship["scrubber"]
+        before = CrewEvent.objects.count()
+        original_emit = live_crew.emit
+        emitted = 0
+
+        def fail_second_alarm(*args, **kwargs):
+            nonlocal emitted
+            emitted += 1
+            if emitted == 2:
+                raise RuntimeError("synthetic second alarm failure")
+            return original_emit(*args, **kwargs)
+
+        with patch.object(live_crew, "emit", side_effect=fail_second_alarm):
+            with self.assertRaisesRegex(RuntimeError, "second alarm failure"):
+                scrubber.inject_fault()
+
+        self.assertEqual(scrubber.state, "nominal")
+        self.assertEqual(CrewEvent.objects.count(), before)
+        self.assertFalse(CaptainObligation.objects.filter(
+            kind="atmosphere_alarm", source_ref="atmosphere-scrubber",
+            status="open",
+        ).exists())
+
     def test_cargo_load_recovery_requires_specialist_and_fresh_inspections(self):
         cradle = self.ship["cradle"]
         self.assertEqual(cradle.state, "secured")

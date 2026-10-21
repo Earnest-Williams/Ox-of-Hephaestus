@@ -84,6 +84,12 @@ class DepartmentFixture(FixedFixture):
         from world.bootstrap import build_ship
         from world.live_crew import emit
         ship = build_ship()
+        if kind == "atmosphere_alarm":
+            # The captain clock takes obligation-row -> journal-lock.
+            # Reserve the obligation before the first alarm event so a
+            # concurrent reminder cannot take those locks in reverse order.
+            from world.captain import open_obligation
+            open_obligation("atmosphere_alarm", "atmosphere-scrubber", priority=100)
         for person in (ship["officer"], ship[assigned_role]):
             emit(
                 ship["pump"], person, kind,
@@ -92,9 +98,6 @@ class DepartmentFixture(FixedFixture):
                       else self.state},
                 text=message,
             )
-        if kind == "atmosphere_alarm":
-            from world.captain import open_obligation
-            open_obligation("atmosphere_alarm", "atmosphere-scrubber", priority=100)
 
     # Requests are actor-bound and persist with this *physical fixture*.
     # A refused transition is also durable: the same ID cannot later

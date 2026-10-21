@@ -10,6 +10,7 @@ from __future__ import annotations
 import uuid
 
 from django.db import transaction
+from evennia.objects.models import ObjectDB
 from evennia.utils import gametime
 
 from world.bootstrap import build_ship, find_fixture
@@ -55,6 +56,11 @@ def open_obligation(kind: str, source_ref: str, *, priority: int,
         raise ValueError("Unsupported world-created command obligation")
     ship = build_ship()
     with transaction.atomic():
+        # The ship fixture is the stable world-wide serialization point for
+        # opening obligations. Without it, two first alarms could both find
+        # no open row after moving the ticket lock ahead of journal emissions.
+        # Lock ordering: P-01 -> captain obligation -> journal.
+        ObjectDB.objects.select_for_update().get(pk=ship["pump"].pk)
         existing = CaptainObligation.objects.select_for_update().filter(
             kind=kind, source_ref=source_ref, status="open",
         ).first()
