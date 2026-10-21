@@ -12,6 +12,7 @@ it on a fresh process without repeating the operation.
 from __future__ import annotations
 
 import asyncio
+from bisect import bisect_right
 import json
 from html import unescape
 import os
@@ -164,6 +165,10 @@ async def replay_inbox_pages(
         count = done.get("count")
         if isinstance(count, bool) or not isinstance(count, int) or not 0 <= count <= 128:
             raise ValueError("Invalid world inbox page count")
+        if received != count:
+            # A partial page MUST NOT commit a cursor that permanently
+            # leaves unreceived recipient events behind.
+            raise RuntimeError("World inbox completion count disagrees with frames")
         if done.get("version") is None:
             # Historic pre-P4f servers have no continuation token. Refuse an
             # apparently full page, whose missing next page cannot be proven.
@@ -177,6 +182,16 @@ async def replay_inbox_pages(
         if (isinstance(following, bool) or not isinstance(following, int)
                 or following < cursor or not isinstance(more, bool)):
             raise ValueError("Invalid world inbox continuation")
+        page = events[-received:] if received else []
+        if (page and (
+                any(type(e.get("sequence")) is not int for e in page)
+                or page[0]["sequence"] <= cursor
+                or any(a["sequence"] >= b["sequence"]
+                       for a, b in zip(page, page[1:]))
+                or page[-1]["sequence"] != following)):
+            raise RuntimeError("World inbox page sequence/cursor mismatch")
+        if not page and following != cursor:
+            raise RuntimeError("Empty world inbox page advanced its cursor")
         if more and (count == 0 or following <= cursor):
             raise RuntimeError("World inbox stalled with more pages pending")
         cursor = following
@@ -209,6 +224,13 @@ class CrewWatchSupervisor:
             raise RuntimeError("Incompatible handler checkpoint format")
         self.brains = self._restore_brains()
         self.memories: dict[str, list[dict]] = {role: [] for role in self.clients}
+        # Compatibility callers require historical, addressed evidence IDs.
+        # Hydrate that view ONCE per handler process, then fetch only after
+        # the checkpointed world cursor. Nothing is discarded or promoted
+        # to world authority; a new process rehydrates from Evennia truth.
+        self._inbox_history: dict[str, list[dict]] = {}
+        self._inbox_sequences: dict[str, list[int]] = {}
+        self._inbox_role_locks: dict[str, asyncio.Lock] = {}
         self.cognition = DecisionScheduler(
             max_parallel=int(os.getenv("OX_MAX_PARALLEL_COGNITION", "2")),
             per_actor_budget=int(os.getenv("OX_COGNITION_ACTOR_BUDGET", "500")),
@@ -307,31 +329,89 @@ class CrewWatchSupervisor:
             )
         return result
 
-    async def read_inbox(self, role: str) -> list[dict]:
-        """Losslessly replay legacy consumers' full authenticated history.
+    def inbox_events_since(self, role: str, sequence: int) -> list[dict]:
+        """Return the in-process, actor-scoped delta without rescanning history.
 
-        Existing P4e routines still need historical hail/shift context, so
-        this compatibility reader scans from zero. For every newly observed
-        event it also advances a durable, per-character high-water mark only
-        AFTER each character brain is checkpointed. A crash before the final
-        state checkpoint triggers harmless replay and observation-ID dedup.
-        Later agenda consumers can switch to cursor-only fetches.
+        A five-crew private proof/agenda cursor can lag the parent inbox cursor
+        if the process died between the two checkpoints. A restart hydrates
+        the full actor history once, so this slice includes those events.
         """
-        events, cursor = await replay_inbox_pages(self.clients[role])
-        cursors = self.state.setdefault("inbox_cursors", {})
-        previous = int(cursors.get(role, 0))
-        if cursor > previous:
-            for event in events:
-                serial = int(event.get(
-                    "sequence", event["event_id"].split("-")[-1]
-                ))
-                if serial > previous:
-                    self.brains[role].observe_event(event)
-            cursors[role] = cursor
-            # checkpoint() persists individual brain state before the
-            # supervisor cursor. A partial crash is always replay-safe.
-            self.checkpoint()
-        return events
+        if (role not in self.clients or type(sequence) is not int
+                or sequence < 0 or role not in self._inbox_history):
+            raise ValueError("Actor inbox must be hydrated before delta lookup")
+        start = bisect_right(self._inbox_sequences[role], sequence)
+        return self._inbox_history[role][start:]
+
+    async def read_inbox(self, role: str) -> list[dict]:
+        """Read recipient-private world events incrementally after first hydrate.
+
+        Existing P4e/captain/investigation callers still need exact *older*
+        event IDs and multi-event case context. Rehydrate their full
+        history from authenticated Evennia exactly once per process; after
+        that, every ordinary read starts at the durable high-water cursor,
+        rather than requesting page zero repeatedly.
+
+        Preserve the per-role history in memory for compatibility. It is
+        intentionally not a bounded retention policy: dropping old evidence
+        requires explicit migrated consumers and its own regression gate.
+        On every cursor advance, persist that character's brain BEFORE the
+        supervisor cursor. A crash between checkpoints replays safely and
+        brain event-ID dedup handles the overlap.
+        """
+        if role not in self.clients or role not in self.brains:
+            raise PermissionError("Unknown authenticated crew inbox")
+        locks = self._inbox_role_locks
+        async with locks.setdefault(role, asyncio.Lock()):
+            cursors = self.state.setdefault("inbox_cursors", {})
+            if not isinstance(cursors, dict):
+                raise PermissionError("Invalid actor inbox cursor checkpoint")
+            previous = cursors.get(role, 0)
+            if type(previous) is not int or previous < 0:
+                raise PermissionError("Invalid actor inbox high-water mark")
+            history = self._inbox_history.get(role)
+            # Cold start is the ONE full scan required by historical P4e
+            # consumers. Warm reads use the persisted per-actor cursor.
+            after = previous if history is not None else 0
+            received, cursor = await replay_inbox_pages(
+                self.clients[role], after=after,
+            )
+            if cursor < previous:
+                raise RuntimeError("World journal is behind saved actor cursor")
+            if history is not None and received:
+                if received[0].get("sequence", 0) <= previous:
+                    raise RuntimeError("Incremental inbox replay overlapped cursor")
+            if cursor > previous:
+                for event in received:
+                    serial = int(event.get(
+                        "sequence", event["event_id"].split("-")[-1]
+                    ))
+                    if serial > previous:
+                        self.brains[role].observe_event(event)
+                cursors[role] = cursor
+                try:
+                    self.checkpoint()
+                except BaseException:
+                    # Do not publish an advanced in-memory cursor without a
+                    # successful state save. The brain may already hold events;
+                    # re-observation is ID-idempotent after recovery.
+                    if previous:
+                        cursors[role] = previous
+                    else:
+                        cursors.pop(role, None)
+                    raise
+            if history is None:
+                self._inbox_history[role] = received
+                self._inbox_sequences[role] = [
+                    int(e.get("sequence", e["event_id"].split("-")[-1]))
+                    for e in received
+                ]
+            else:
+                history.extend(received)
+                self._inbox_sequences[role].extend(
+                    int(e.get("sequence", e["event_id"].split("-")[-1]))
+                    for e in received
+                )
+            return self._inbox_history[role]
 
     async def next_alarm(self, *, block: bool) -> dict | None:
         history = await self.read_inbox("lin")
