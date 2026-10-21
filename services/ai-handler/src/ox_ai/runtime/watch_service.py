@@ -494,6 +494,11 @@ class CrewWatchSupervisor:
                 # bodies remain indexed and retrievable cold.
                 index.replace_pins(checkpoint_evidence_pins(self.state, role))
                 index.compact_hot()
+            # SQLite may preserve B-tree allocation after lossless hot-to-
+            # cold demotion. Repack only after enough such rows accumulated,
+            # outside the attested ingest transaction and before checkpoint
+            # advancement. All past evidence and open obligations remain.
+            index.repack_if_worthwhile()
             if cursor > previous:
                 for event in index.view(after=previous, through=cursor):
                     self.brains[role].observe_event(event)
