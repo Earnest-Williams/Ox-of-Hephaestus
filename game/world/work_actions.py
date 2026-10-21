@@ -15,7 +15,8 @@ from collections.abc import Mapping
 
 from django.db import transaction
 from world.bootstrap import find_fixture
-from world.models import CrewEvent, WorkReceipt
+from world.models import WorkReceipt
+from world.event_journal import capture_emitted_events
 
 from evennia.objects.models import ObjectDB
 from evennia.utils import gametime
@@ -422,12 +423,13 @@ def execute_work(
             result = fixture.durable_action(request_id, operation, actor)
             outcome = {**result, "target": target}
         else:
-            before = (
-                CrewEvent.objects.order_by("-sequence").values_list("sequence", flat=True).first()
-                or 0
-            )
-            succeeded, message = _social_action(actor, operation, validated)
-            first_event = CrewEvent.objects.filter(sequence__gt=before).order_by("sequence").first()
+            # Record the actual events produced by this one operation.
+            # A global sequence interval is not a causal relationship:
+            # a roster-clock transaction may commit during this operation.
+            with capture_emitted_events() as emitted:
+                succeeded, message = _social_action(actor, operation, validated)
+            if succeeded and not emitted:
+                raise RuntimeError("Successful ship work emitted no attributable event")
             outcome = {
                 "request_id": request_id,
                 "actor_dbref": actor.dbref,
@@ -440,7 +442,7 @@ def execute_work(
                     and message == "unchanged_assessment" else
                     "world_refused"
                 ),
-                "source_event_id": (first_event.event_id if first_event else None),
+                "source_event_id": emitted[0]["event_id"] if emitted else None,
                 "game_time": float(gametime.gametime(absolute=True)),
             }
             # This is a world-authored diagnostic, never an LLM claim.

@@ -106,6 +106,117 @@ def locked_writer_probe(pump_id: int, actor_dbref: str) -> None:
     assert WorkReceipt.objects.filter(request_id="f" * 32).count() == 1
 
 
+
+def journal_commit_order_probe(recipient_dbref: str) -> None:
+    """Sequence visibility cannot outrun an uncommitted journal writer.
+
+    Both threads use independent PostgreSQL transactions. A inserts and holds
+    its transaction; B attempts the next event. Under the old implementation B
+    committed a higher sequence first and a saved inbox cursor lost A forever.
+    """
+    from world.event_journal import emit, inbox_page
+    from world.models import CrewEvent
+    from concurrent.futures import ThreadPoolExecutor
+
+    inserted_a, allow_commit_a, attempting_b = Event(), Event(), Event()
+    start_after = CrewEvent.objects.order_by("-sequence").values_list(
+        "sequence", flat=True,
+    ).first() or 0
+
+    def writer_a():
+        close_old_connections()
+        try:
+            with transaction.atomic():
+                recipient = ObjectDB.objects.get(pk=int(recipient_dbref[1:]))
+                event = emit(None, recipient, "pg_order_a")
+                inserted_a.set()
+                assert allow_commit_a.wait(timeout=12), "A release not signalled"
+            return event
+        finally:
+            connections.close_all()
+
+    def writer_b():
+        close_old_connections()
+        try:
+            assert inserted_a.wait(timeout=10), "A never inserted its event"
+            recipient = ObjectDB.objects.get(pk=int(recipient_dbref[1:]))
+            attempting_b.set()
+            return emit(None, recipient, "pg_order_b")
+        finally:
+            connections.close_all()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        a = pool.submit(writer_a)
+        assert inserted_a.wait(timeout=10), "A never acquired the journal lock"
+        b = pool.submit(writer_b)
+        assert attempting_b.wait(timeout=10), "B never attempted its insertion"
+        try:
+            assert not b.done(), "B passed the uncommitted journal writer"
+            # There is no committed B event beyond this cursor before A ends.
+            before = inbox_page(
+                ObjectDB.objects.get(pk=int(recipient_dbref[1:])),
+                after=start_after,
+            )
+            assert not any(
+                e["kind"] in ("pg_order_a", "pg_order_b")
+                for e in before["events"]
+            ), before
+        finally:
+            allow_commit_a.set()
+        ea, eb = a.result(timeout=15), b.result(timeout=15)
+
+    recipient = ObjectDB.objects.get(pk=int(recipient_dbref[1:]))
+    page = inbox_page(recipient, after=start_after)
+    ours = [e for e in page["events"]
+            if e["kind"] in ("pg_order_a", "pg_order_b")]
+    assert [e["event_id"] for e in ours] == [
+        ea["event_id"], eb["event_id"],
+    ], ours
+    assert ea["sequence"] < eb["sequence"], (ea, eb)
+    print("OX_PG_JOURNAL_COMMIT_ORDER_PASS", flush=True)
+
+
+def concurrent_receipt_provenance_probe(actor_dbref: str) -> None:
+    """A ship receipt must never attribute a concurrent clock event."""
+    from world.event_journal import emit
+    from world.models import CrewEvent
+    from unittest.mock import patch
+    from world import work_actions
+    from threading import Event as ThreadEvent
+
+    # Inject a competing direct journal writer before the ship action emits.
+    # The old global before/after query assigned that unrelated row to work.
+    started, finished = ThreadEvent(), ThreadEvent()
+    original_action = work_actions._social_action
+    actor = ObjectDB.objects.get(pk=int(actor_dbref[1:]))
+
+    def other_writer():
+        close_old_connections()
+        try:
+            started.set()
+            recipient = ObjectDB.objects.get(pk=actor.pk)
+            return emit(None, recipient, "pg_unrelated_receipt_probe")
+        finally:
+            finished.set()
+            connections.close_all()
+
+    def interleaved_action(person, operation, arguments):
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            pending = pool.submit(other_writer)
+            assert started.wait(timeout=10)
+            pending.result(timeout=15)
+        return original_action(person, operation, arguments)
+
+    with patch.object(work_actions, "_social_action", side_effect=interleaved_action):
+        receipt = execute_work(actor, "e" * 32, "radio", "ship")
+    assert finished.is_set()
+    assert receipt["status"] == "succeeded", receipt
+    event = CrewEvent.objects.get(event_id=receipt["source_event_id"])
+    assert event.kind == "radio_alert", (receipt, event.kind)
+    assert event.recipient_dbref != actor_dbref
+    print("OX_PG_RECEIPT_EXACT_EVENT_PROVENANCE_PASS", flush=True)
+
+
 def main() -> None:
     assert_postgres()
     fixture_setup(scheduled_clock=False)
@@ -185,6 +296,9 @@ def main() -> None:
 
     from world.adversarial_concurrency import verify_concurrent_hails_and_duties
     verify_concurrent_hails_and_duties(ship)
+
+    journal_commit_order_probe(ari.dbref)
+    concurrent_receipt_provenance_probe(lin.dbref)
 
 
 if __name__ == "__main__":

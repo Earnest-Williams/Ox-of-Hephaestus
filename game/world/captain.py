@@ -202,6 +202,17 @@ def answer(actor, ticket_id: str, mode: str) -> tuple[bool, str]:
     return True, "Specialist's decision was reported to captain"
 
 
+def lock_report_obligation(case_id: str) -> None:
+    """Reserve a live captain ticket before a probe report emits any event.
+
+    Must be invoked inside the caller's atomic work transaction. Reacquiring
+    the same row in reported_experiment is safe on this connection.
+    """
+    if not transaction.get_connection().in_atomic_block:
+        raise RuntimeError("Report ticket lock requires the outer world transaction")
+    _ticket(case_id)
+
+
 @transaction.atomic
 def reported_experiment(case_id: str, actor, source_event_id: str) -> None:
     """From the world-verified probe report, never from model testimony."""
