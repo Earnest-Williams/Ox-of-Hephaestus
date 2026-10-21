@@ -217,6 +217,180 @@ def concurrent_receipt_provenance_probe(actor_dbref: str) -> None:
     print("OX_PG_RECEIPT_EXACT_EVENT_PROVENANCE_PASS", flush=True)
 
 
+
+def captain_alarm_lock_order_probe(ship) -> None:
+    """A repeated A-01 alarm must lock its ticket before its first event.
+
+    Hold the alarm's transaction after its first journal append while a
+    separate PostgreSQL connection attempts the captain reminder. The
+    ticket remains unavailable to a NOWAIT reader, and the concurrent
+    reminder proceeds after commit without a ticket/journal deadlock.
+    """
+    from unittest.mock import patch
+    from django.db import DatabaseError
+    from world import live_crew
+    from world.captain import tick_captain_obligations
+    from world.models import CaptainObligation, CrewEvent
+
+    # The preceding scarce-cartridge contention ended with A-01 serviced.
+    # Restore it through the real local technician procedure, leaving the
+    # captain's existing alarm obligation open for another physical fault.
+    scrubber = ObjectDB.objects.get(pk=ship["scrubber"].pk)
+    technician = ObjectDB.objects.get(pk=ship["environment"].pk)
+    assert scrubber.state == "serviced", scrubber.state
+    scrubber.note_inspection(technician)
+    restored, reason = scrubber.restart(technician)
+    assert restored and scrubber.state == "nominal", reason
+    ticket = CaptainObligation.objects.get(
+        kind="atmosphere_alarm", source_ref="atmosphere-scrubber",
+        status="open",
+    )
+    ticket.due_game_time = 1.0
+    ticket.save(update_fields=["due_game_time"])
+    before_bridge = CrewEvent.objects.filter(
+        recipient_dbref=ship["officer"].dbref, kind="atmosphere_alarm",
+    ).count()
+    before_tech = CrewEvent.objects.filter(
+        recipient_dbref=technician.dbref, kind="atmosphere_alarm",
+    ).count()
+    before_reminders = CrewEvent.objects.filter(
+        recipient_dbref=ship["captain"].dbref, kind="captain_review_due",
+    ).count()
+
+    first_event, resume_alarm, tick_attempted = Event(), Event(), Event()
+    original_emit = live_crew.emit
+
+    def pause_alarm_after_append(pump, recipient, kind, **kwargs):
+        event = original_emit(pump, recipient, kind, **kwargs)
+        if kind == "atmosphere_alarm" and recipient.dbref == ship["officer"].dbref:
+            first_event.set()
+            if not resume_alarm.wait(timeout=12):
+                raise RuntimeError("Alarm writer was not released")
+        return event
+
+    def alarm_writer():
+        close_old_connections()
+        try:
+            fixture = ObjectDB.objects.get(pk=ship["scrubber"].pk)
+            return fixture.inject_fault()
+        finally:
+            connections.close_all()
+
+    def reminder_writer():
+        close_old_connections()
+        try:
+            tick_attempted.set()
+            return tick_captain_obligations(now_game_time=2.0)
+        finally:
+            connections.close_all()
+
+    with patch.object(live_crew, "emit", side_effect=pause_alarm_after_append):
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            alarm = pool.submit(alarm_writer)
+            reminder = None
+            try:
+                assert first_event.wait(timeout=10), "Alarm never appended first event"
+                # The opposite ordering (journal first) leaves this row free
+                # and would allow captain clock to take it before the alarm.
+                locked = False
+                try:
+                    with transaction.atomic():
+                        CaptainObligation.objects.select_for_update(nowait=True).get(
+                            pk=ticket.pk,
+                        )
+                except DatabaseError:
+                    locked = True
+                assert locked, "Alarm acquired journal lock before captain obligation"
+                reminder = pool.submit(reminder_writer)
+                assert tick_attempted.wait(timeout=10), "Reminder did not attempt work"
+                assert not reminder.done(), "Reminder bypassed uncommitted alarm ticket"
+            finally:
+                resume_alarm.set()
+            applied, detail = alarm.result(timeout=15)
+            assert applied, detail
+            assert reminder is not None and reminder.result(timeout=15) == 1
+
+    assert CrewEvent.objects.filter(
+        recipient_dbref=ship["officer"].dbref, kind="atmosphere_alarm",
+    ).count() == before_bridge + 1
+    assert CrewEvent.objects.filter(
+        recipient_dbref=technician.dbref, kind="atmosphere_alarm",
+    ).count() == before_tech + 1
+    assert CrewEvent.objects.filter(
+        recipient_dbref=ship["captain"].dbref, kind="captain_review_due",
+    ).count() == before_reminders + 1
+    assert CaptainObligation.objects.filter(
+        kind="atmosphere_alarm", source_ref="atmosphere-scrubber",
+        status="open",
+    ).count() == 1
+    print("OX_PG_CAPTAIN_ALARM_JOURNAL_LOCK_ORDER_PASS", flush=True)
+
+
+def captain_first_obligation_race_probe(ship) -> None:
+    """Two genuinely concurrent openers must create one world obligation.
+
+    The first opener holds its transaction and P-01 lock while the second
+    attempts the same as-yet-uncommitted identity on another connection.
+    Both must receive the same ticket; the captain gets one source event.
+    """
+    from django.db import DatabaseError
+    from world.captain import open_obligation
+    from world.models import CaptainObligation, CrewEvent
+
+    source = "pg-ci-disposable-open-race"
+    created, release_first, second_attempted = Event(), Event(), Event()
+
+    def first_writer():
+        close_old_connections()
+        try:
+            with transaction.atomic():
+                ticket_id = open_obligation("atmosphere_alarm", source, priority=90)
+                created.set()
+                assert release_first.wait(timeout=12), "First obligation not released"
+            return ticket_id
+        finally:
+            connections.close_all()
+
+    def second_writer():
+        close_old_connections()
+        try:
+            assert created.wait(timeout=10), "First obligation not created"
+            second_attempted.set()
+            return open_obligation("atmosphere_alarm", source, priority=90)
+        finally:
+            connections.close_all()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(first_writer)
+        assert created.wait(timeout=10), "First opener failed"
+        second = pool.submit(second_writer)
+        try:
+            assert second_attempted.wait(timeout=10), "Second opener never attempted"
+            assert not second.done(), "Second opener bypassed uncommitted obligation"
+            blocked = False
+            try:
+                with transaction.atomic():
+                    ObjectDB.objects.select_for_update(nowait=True).get(
+                        pk=ship["pump"].pk,
+                    )
+            except DatabaseError:
+                blocked = True
+            assert blocked, "First-time obligation open did not hold P-01 lock"
+        finally:
+            release_first.set()
+        ticket_ids = (first.result(timeout=15), second.result(timeout=15))
+
+    assert ticket_ids[0] == ticket_ids[1], ticket_ids
+    assert CaptainObligation.objects.filter(
+        kind="atmosphere_alarm", source_ref=source,
+        status="open",
+    ).count() == 1
+    assert CrewEvent.objects.filter(
+        kind="captain_problem_open", details__ticket_id=ticket_ids[0],
+    ).count() == 1
+    print("OX_PG_CAPTAIN_FIRST_OBLIGATION_UNIQUE_PASS", flush=True)
+
+
 def main() -> None:
     assert_postgres()
     fixture_setup(scheduled_clock=False)
@@ -299,6 +473,8 @@ def main() -> None:
 
     journal_commit_order_probe(ari.dbref)
     concurrent_receipt_provenance_probe(lin.dbref)
+    captain_alarm_lock_order_probe(ship)
+    captain_first_obligation_race_probe(ship)
 
 
 if __name__ == "__main__":
