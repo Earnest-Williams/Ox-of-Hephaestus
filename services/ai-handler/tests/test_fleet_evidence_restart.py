@@ -53,6 +53,30 @@ class FleetEvidenceRestartTests(unittest.TestCase):
         self.assertFalse(result["stage_coverage"]["evennia_websocket_authentication"])
         self.assertGreater(result["fixture"]["build"]["archive_bytes"], 0)
 
+    def test_same_population_runs_width_sweep_in_reversed_order(self):
+        result = profile_fleet(
+            actors=4, events_per_actor=800, chars=160,
+            stagger_width=2, trials=2, widths=(1, 2, 4),
+        )
+        self.assertEqual(result["fixture"]["build"]["total_events"], 3200)
+        self.assertEqual(result["fixture"]["worker_widths"], [1, 2, 4])
+        self.assertEqual(
+            [(r["trial"], r["parallel_workers"]) for r in result["rounds"]],
+            [(1, 1), (1, 2), (1, 4), (2, 4), (2, 2), (2, 1)],
+        )
+        self.assertEqual(
+            [s["parallel_workers"] for s in result["summary"]], [1, 2, 4]
+        )
+        for record in result["rounds"]:
+            self.assertEqual(
+                {row["actor_dbref"] for row in record["actors"]},
+                {"#1000", "#1001", "#1002", "#1003"},
+            )
+            self.assertEqual(sum(
+                row["event_count"] for row in record["actors"]
+            ), 3200)
+            self.assertGreater(record["cohort_wall_s"], 0)
+
     def test_corruption_and_foreign_actor_fail_without_poisoning_other_cache(self):
         with tempfile.TemporaryDirectory() as dirname:
             specs = actor_specs(4, 800)
@@ -89,6 +113,13 @@ class FleetEvidenceRestartTests(unittest.TestCase):
                 actors=4, events_per_actor=800, chars=160,
                 stagger_width=2, trials=0,
             )
+        for widths in ((1, 1), (0, 4), (1, 5), (), (True, 2)):
+            with self.subTest(widths=widths), self.assertRaises(ValueError):
+                profile_fleet(
+                    actors=4, events_per_actor=800, chars=160,
+                    stagger_width=2, trials=1, widths=widths,
+                )
+
 
 
 if __name__ == "__main__":
