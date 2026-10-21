@@ -1,7 +1,7 @@
 # P4f — forty-character historical-evidence restart comparison
 
 **Status:** The initial 40-character, two-width profile passed on 21 October
-2026 in [GitHub Actions run 39676403054](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/39676403054). A follow-up six-width experiment extends the measurements, without changing actor counts, evidence rules or live supervisor concurrency. These local archive timings are not end-to-end fleet startup latency.
+2026 in [GitHub Actions run 39676403054](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/39676403054). The follow-up six-width experiment also completed successfully, without changing actor counts, evidence rules or live supervisor concurrency. These local archive timings are not end-to-end fleet startup latency.
 
 ## What is compared
 
@@ -123,9 +123,48 @@ The dedicated PR smoke uses four actors and widths `1,2,4`, solely for
 regression testing of measurement and identity invariants; the actual
 full-scale benchmark always specifies `--actors 40`.
 
-The sweep must report whether concurrency pays for itself on the four-vCPU
-runner. It must **not** silently introduce a production scheduler or change
-which events can be known, remembered or authenticated by an actor.
+The six-width sweep **completed successfully** on 21 October 2026 in
+[GitHub Actions run 39680654561](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/39680654561).
+The exact production actor-scoped SQLite index was reopened and its complete
+original addressed prefix, recorded attestations, outstanding obligations
+and old source IDs verified for **all forty characters in every round**.
+Both trials used 1.6 million retained records across forty distinct archives.
+
+| Worker threads | Fleet completion, median of two | First actor ready | p95 actor ready | Fleet process CPU |
+| ---: | ---: | ---: | ---: | ---: |
+| **1** | **46.66 s** | **0.60 s** | **43.16 s** | **46.66 CPU-s** |
+| 2 | 70.20 s | 1.79 s | 65.41 s | 81.42 CPU-s |
+| 4 | 116.69 s | 6.08 s | 113.20 s | 168.31 CPU-s |
+| 8 | 161.02 s | 16.37 s | 159.23 s | 284.88 CPU-s |
+| 16 | 174.80 s | 34.91 s | 174.79 s | 318.85 CPU-s |
+| 40 | 181.92 s | 91.18 s | 181.90 s | 329.02 CPU-s |
+
+On that four-logical-CPU Ubuntu shared runner, **one verifier thread
+outperformed 2, 4, 8, 16 and 40 workers** in both fleet completion and
+first-actor availability. Forty simultaneous workers were 3.90 times slower
+than serial verification. The experiment is reproducible but its absolute
+timings are environment-dependent: the initial two-width run on another
+runner measured 142.35 s for width four and 237.24 s for width forty.
+
+All twelve rounds reported **zero physical disk-read bytes and zero major
+faults**, so the measured increase with thread count was not demonstrated
+physical disk contention. It may reflect Python/GIL scheduling and/or
+SQLite thread competition; this experiment cannot isolate those factors.
+The fixture-build stage took 165.79 seconds and was excluded from restart
+cohort timings. All actor archives together occupied 1,267,527,680 bytes,
+and their creation exercised 340 actual proportional lossless repacks.
+
+**Decision:** Do not introduce threaded `recompute_prefix` as a production
+optimization. The existing event-loop-owned SQLite connection cannot safely
+be handed to a worker thread without redesigning connection ownership,
+and there is no performance justification on the measured host. No runtime
+code or event-retention/authorization policy has changed.
+
+**Next measurements:** Distinguish native Concordia checkpoint recovery for
+forty agents and real world-authenticated forty-session initialization,
+including nonce-bound continuity certificates. This profile does not cover
+those startup phases and must never be called a 40-live-character startup
+acceptance test.
 
 ## What it deliberately does not measure
 
