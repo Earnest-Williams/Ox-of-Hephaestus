@@ -92,10 +92,17 @@ real ship history, nor a measurement of long-lived incremental behavior.
   measurements do not justify weakening authenticated historical checks.
   A larger voyage and actual 40-crew restart may need their own profiling
   before treating these single-actor numbers as service startup latency.
-- **Investigate a narrowly scoped, lossless SQLite repack** once a
-  substantial hot-to-cold migration commits. Use SQLite's own transactional
-  recovery and verify restart/interrupt behavior before changing production
-  code. Do not repack every 128-event warm delta.
+- **Apply a narrowly scoped, lossless SQLite repack** only after an
+  accumulated 2,048 hot-to-cold demotions **and** enough new cold
+  records to represent at least 25% of the total cold archive. This
+  prevents quadratic lifetime rewriting at very large voyage scales.
+  SQLite's transactional `VACUUM` runs *after* the authenticated
+  page/continuity-seal transaction,
+  before the native cognition checkpoint advances. The maintenance counter
+  persists across smaller reads and resets only after successful completion;
+  a crash between those operations can cause a harmless repeat, not lost
+  world evidence. No world journal or character-memory data is retired.
+  [Implementation and recovery contract](p4f-lossless-repack.md).
 - **Do not cap the journal or character knowledge.** World and local
   storage remain O(history). Compaction merely improves allocated-byte
   efficiency; exact old evidence and unfinished work remain addressable.
