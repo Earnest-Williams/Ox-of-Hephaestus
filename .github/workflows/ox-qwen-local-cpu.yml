@@ -95,10 +95,10 @@ jobs:
           exit 1
       - name: Native Concordia single-choice inference
         run: python scenarios/qwen_local_smoke.py --output .ox-state/qwen/probe.json
-      - name: Matched-evidence Qwen memory A/B (8 real CPU model calls)
+      - name: Matched-evidence Qwen memory A/B (24 real CPU model calls)
         run: |
           python scenarios/g11_memory_ab_trial.py --provider qwen-local \
-            --repetitions 1 --output .ox-state/qwen/memory-ab-results.json
+            --repetitions 3 --output .ox-state/qwen/memory-ab-results.json
       - name: Upload bounded diagnostics
         if: always()
         uses: actions/upload-artifact@v4
