@@ -1,0 +1,141 @@
+name: Ox personality route live P4a pump
+on:
+  push:
+    branches: [experiment/personality-goap-cognition-routing]
+    paths:
+      - ".github/workflows/ox-personality-live-pump.yml"
+      - "services/ai-handler/src/ox_ai/scenarios/p4a_personality_gate.py"
+      - "services/ai-handler/src/ox_ai/runtime/personality_routing.py"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ox-personality-live-p4a
+  cancel-in-progress: true
+jobs:
+  world-pump-boundary:
+    name: Live P4a ${{ matrix.case }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 29
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {case: methodical-goap, persona: methodical, route: goap, final: isolated}
+          - {case: independent-llm-defer, persona: independent, route: llm, final: low_pressure}
+          - {case: goap-crash-reconcile, persona: methodical, route: goap, final: isolated}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            services/ai-handler/pyproject.toml
+            uv.lock
+            .github/ci/cache-profiles/concordia.txt
+      - name: Install Evennia and Concordia
+        run: |
+          python -m pip install .
+          python -m pip install -e './services/ai-handler[concordia,transport]'
+      - name: Offline contracts before real world
+        run: |
+          python -m compileall -q services/ai-handler/src/ox_ai/scenarios/p4a_personality_gate.py
+          python -m unittest discover -s services/ai-handler/tests -p test_personality_routing.py -v
+      - name: Temporary credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          OWNER="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          echo "::add-mask::$TOKEN"
+          echo "::add-mask::$OWNER"
+          echo "OX_PROBE_PASSWORD=$TOKEN" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_PASSWORD=$OWNER" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_USERNAME=OxPersonalityOwner" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_EMAIL=personality@example.invalid" >> "$GITHUB_ENV"
+      - name: Provision real accounts and incident
+        working-directory: game
+        run: |
+          evennia migrate --noinput
+          evennia shell --command="from world.transport_probe import provision; provision(); from world.live_crew import fixture_setup; fixture_setup(); print('OX_PERSONALITY_WORLD_READY')"
+      - name: Start real Evennia
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd game && evennia start)
+          python - <<'PY'
+          import socket,time
+          stable=None
+          for _ in range(120):
+              try:
+                  with socket.create_connection(("127.0.0.1",4002),timeout=1): pass
+              except OSError: stable=None
+              else:
+                  stable=stable or time.monotonic()
+                  if time.monotonic()-stable>=8: break
+              time.sleep(1)
+          else: raise RuntimeError("Game portal not stable")
+          PY
+      - name: Live personality route and world receipt
+        shell: bash
+        env:
+          PERSONA: ${{ matrix.persona }}
+          ROUTE: ${{ matrix.route }}
+          CASE: ${{ matrix.case }}
+        run: |
+          set -euo pipefail
+          mkdir -p .ox-state/personality-live
+          ARGS=(--persona "$PERSONA" --expect-route "$ROUTE" --checkpoint .ox-state/personality-live/route.json --verdict .ox-state/personality-live/verdict.json)
+          if [ "$CASE" = "goap-crash-reconcile" ]; then
+            set +e
+            python -m ox_ai.scenarios.p4a_personality_gate ${ARGS[@]} --interrupt-at isolate:committed > .ox-state/personality-live/interruption.log 2>&1
+            CODE=$?
+            set -e
+            if [ "$CODE" -eq 0 ]; then
+              echo "Expected an interruption but got success"
+              exit 1
+            fi
+            grep -q 'SimulatedWorkInterruption' .ox-state/personality-live/interruption.log
+            python -m ox_ai.scenarios.p4a_personality_gate ${ARGS[@]} | tee .ox-state/personality-live/recovery.log
+          else
+            python -m ox_ai.scenarios.p4a_personality_gate ${ARGS[@]} | tee .ox-state/personality-live/run.log
+          fi
+          python - <<'PY'
+          import json,os
+          d=json.load(open('.ox-state/personality-live/verdict.json'))
+          route=os.environ["ROUTE"]
+          assert d["route"]==route,d
+          if route=="llm":
+              assert d["status"]=="deferred_no_isolation" and d["model_calls"]==1,d
+              assert d["world_commands_sent"]==0,d
+          else:
+              assert d["status"]=="isolated_verified" and d["source_event_id"],d
+              assert d["world_commands_sent"]==1,d
+          print("OX_PERSONALITY_LIVE_BOUNDARY_PASS")
+          PY
+      - name: Stop world before state audit
+        if: always()
+        working-directory: game
+        run: evennia stop || true
+      - name: Independently verify exact world state and effect count
+        working-directory: game
+        env:
+          EXPECTED_STATE: ${{ matrix.final }}
+        run: |
+          evennia shell --command="import os; from world.bootstrap import build_ship; s=build_ship(); p=s['pump']; ops=[e['operation'] for e in p.db.event_history]; expected=os.environ['EXPECTED_STATE']; assert p.state==expected,(p.state,expected); assert ops==(['fault','isolate'] if expected=='isolated' else ['fault']),ops; print('OX_PERSONALITY_WORLD_RECEIPT_PASS',p.state,ops)"
+      - name: Archive private route and world receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-personality-live-${{ matrix.case }}
+          path: |
+            .ox-state/personality-live/route.json
+            .ox-state/personality-live/route.brain.json
+            .ox-state/personality-live/verdict.json
+            .ox-state/personality-live/interruption.log
+            .ox-state/personality-live/recovery.log
+            .ox-state/personality-live/run.log
+          retention-days: 14
+          if-no-files-found: ignore
