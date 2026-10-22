@@ -1,0 +1,90 @@
+# Isolated from the existing three-model workflow to avoid repeat downloads.
+# Not triggered automatically on PRs or pushes to main.
+name: Ox Decider 2B local CPU G11
+on:
+  workflow_dispatch:
+  push:
+    branches: [experiment/qwen3.5-0.8b-ci]
+    paths:
+      - ".github/workflows/ox-decider-2b-cpu.yml"
+permissions:
+  contents: read
+concurrency:
+  group: ox-decider-2b-cpu
+  cancel-in-progress: false
+jobs:
+  decider-2b:
+    name: Decider 2B native Concordia choices
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      OLLAYA_HOST: 127.0.0.1:11435
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            services/ai-handler/pyproject.toml
+            uv.lock
+            .github/ci/cache-profiles/concordia.txt
+      - name: Install pinned native Concordia
+        run: python -m pip install -e './services/ai-handler[concordia]'
+      - name: Verify bounded decision adapter (offline)
+        run: python -m unittest discover -s services/ai-handler/tests -p test_decision_models_trial.py -v
+      - name: Install checksum-verified Ollaya v0.16.0 CPU binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .ox-state/decider/bin
+          curl --fail --location --retry 3 --retry-delay 3 --output .ox-state/decider/ollaya.tar.zst \
+            'https://github.com/ollaya-dev/ollaya/releases/download/v0.16.0/ollaya-linux-amd64.tar.zst'
+          echo '2b99e7d2fec0bd0d05d77b74df43a84e0f0171a33fc7a1494f79b18702f15f32  .ox-state/decider/ollaya.tar.zst' | sha256sum -c -
+          if ! command -v zstd >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq zstd
+          fi
+          tar --zstd -xf .ox-state/decider/ollaya.tar.zst -C .ox-state/decider/bin
+          BIN="$(find .ox-state/decider/bin -type f -name ollaya -print -quit)"
+          test -n "$BIN"
+          chmod +x "$BIN"
+          echo "$PWD/$(dirname "$BIN")" >> "$GITHUB_PATH"
+          "$BIN" --version
+      - name: Start isolated Ollaya CPU service
+        shell: bash
+        run: |
+          set -euo pipefail
+          ollaya serve > .ox-state/decider/server.log 2>&1 &
+          echo $! > .ox-state/decider/server.pid
+          for i in $(seq 1 50); do
+            if curl --silent --fail http://127.0.0.1:11435/api/version; then exit 0; fi
+            if ! kill -0 "$(cat .ox-state/decider/server.pid)" 2>/dev/null; then
+              tail -n 100 .ox-state/decider/server.log
+              exit 1
+            fi
+            sleep 2
+          done
+          tail -n 100 .ox-state/decider/server.log
+          exit 1
+      - name: Pull Decider 2B only
+        shell: bash
+        run: |
+          set -euo pipefail
+          ollaya pull decider:2b
+          ollaya list
+          df -h .
+      - name: Run 24 genuine paired G11 decisions
+        run: |
+          python -m scenarios.decision_models_trial --model decider:2b \
+            --repetitions 3 --output .ox-state/decider/g11-results.json
+      - name: Archive bounded results and server diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-decider-2b-g11-three-pairs
+          path: |
+            .ox-state/decider/g11-results.json
+            .ox-state/decider/server.log
+          if-no-files-found: ignore
+          retention-days: 7
