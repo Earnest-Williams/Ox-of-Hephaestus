@@ -99,7 +99,7 @@ def validate(ship: dict, pressure: dict, gas: dict) -> dict:
             continue
         sized += 1
         full_gross += gross
-        cls = gas["void_fraction_policy"][original["classification"]]
+        cls = gas.get("cell_void_fraction_overrides", {}).get(cell_id) or gas["void_fraction_policy"][original["classification"]]
         lower, upper = cls["bounds"]
         check(0 < lower < upper <= 1, f"void bound nonphysical {cell_id}")
         check(row["planning_void_fraction_lower"] == lower and
@@ -120,7 +120,7 @@ def validate(ship: dict, pressure: dict, gas: dict) -> dict:
         lo_kg += gross*lower*density
         hi_kg += gross*upper*density
 
-    check(sized == 85 and len(lines) - sized == 48,
+    check(sized == 96 and len(lines) - sized == 37,
           "gross/geometric data scope altered")
     totals = gas["totals"]
     checks = {
@@ -157,7 +157,7 @@ def validate(ship: dict, pressure: dict, gas: dict) -> dict:
         check(room[policy["space_id"]]["pressure_zone"] is None,
               f"unclassified room silently pressurised: {policy['space_id']}")
     check(totals["pressure_unclassified_spaces"] == len(policies) and
-          totals["unsized_pressurized_cells"] == 48,
+          totals["unsized_pressurized_cells"] == 37,
           "incomplete uncertainty accounting")
 
     equipment = unique(ship["equipment"], "ship equipment")
