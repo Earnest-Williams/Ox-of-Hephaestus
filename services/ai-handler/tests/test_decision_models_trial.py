@@ -21,6 +21,17 @@ class DecisionHeadTests(unittest.TestCase):
             with self.subTest(endpoint=endpoint), self.assertRaises(ValueError):
                 localhost_api(endpoint)
 
+    def test_decider_2b_uses_the_same_bounded_decision_interface(self):
+        model = OllayaChoiceModel(
+            "decider:2b", ("Inspect gauge", "Wait"),
+            localhost_api("http://127.0.0.1:11435"),
+        )
+        self.assertEqual(model.model_id, "decider:2b")
+        self.assertEqual(model.calls, 0)
+        with self.assertRaises(ValueError):
+            OllayaChoiceModel("decider:2b-vision", ("a", "b"),
+                              localhost_api("http://localhost"))
+
     def test_reject_unknown_and_empty_menus(self):
         with self.assertRaises(ValueError):
             OllayaChoiceModel("unknown", ("a", "b"), localhost_api("http://localhost"))
