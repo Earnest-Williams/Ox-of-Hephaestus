@@ -221,7 +221,7 @@ def run(provider: str, model_id: str, *, api_base: str,
 
         def mk(options):
             return OllayaChoiceModel(model_id, tuple(o.label for o in options),
-                                     endpoint)
+                                     endpoint, timeout=(600 if model_id == "decider:4b" else 180))
     elif provider == "qwen-local":
         from urllib.parse import urlsplit
         from ox_ai.inference.compatible_chat import CompatibleChatModel
