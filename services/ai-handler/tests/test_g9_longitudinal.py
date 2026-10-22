@@ -102,6 +102,24 @@ class LongitudinalPersonalityTests(unittest.TestCase):
             older = CrewAgent.from_checkpoint(checkpoint, MockModel())
             self.assertEqual(older.observation_history_length, 32)
 
+    def test_counterfactual_menu_is_the_same_safe_goap_menu(self):
+        if find_spec("concordia") is None:
+            self.skipTest("Native Concordia optional extra not installed")
+        path = Path("scenarios/g8_soap_opera/g9_memory_counterfactual.py")
+        spec = spec_from_file_location("g9_counterfactual", path)
+        mod = module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        trial = load_g8()
+        offered, mapped = mod.menu_for_target(trial, "mara", "lin")
+        self.assertEqual(len(offered), len(trial.G9_INTENTS))
+        self.assertEqual(set(mapped.values()), set(trial.G9_INTENTS))
+        self.assertEqual({o.verb for o in offered}, {"say"})
+        self.assertEqual(len({(o.verb, o.target) for o in offered}), len(offered))
+        with self.assertRaises(ValueError):
+            mod.menu_for_target(trial, "mara", "mara")
+        with self.assertRaises(ValueError):
+            mod.menu_for_target(trial, "mara", "unknown")
+
     def test_verifier_rejects_authored_only_or_incomplete_world(self):
         evaluation = load_g9_evaluator().evaluate
         with tempfile.TemporaryDirectory() as d:
