@@ -376,6 +376,7 @@ class Trial:
                     ),
                     self._model(), blueprint=blueprint,
                     initial_memories=seeds_for(role),
+                    observation_history_length=(8 if self.cognition_mode == "decider" else 32),
                 )
             elif brain.identity.character_id != ids[role]:
                 raise PermissionError("Restored brain cannot puppet another body")
@@ -730,12 +731,9 @@ class Trial:
         key = (proposal.action.verb, proposal.action.target)
         if key not in mapped:
             raise PermissionError("Decider chose an unoffered social operator")
-        # The future speech itself is not a model claim of success.
-        if proposal.route.selected == "llm":
-            agent.record_outcome(ActionOutcome(
-                proposal.action.request_id, "succeeded",
-                "A dialogue intention was selected, not world-confirmed speech",
-            ))
+        # Keep the inference proposal outstanding until authenticated
+        # counterparts actually hear speech. Never claim world success while
+        # merely choosing a dialogue intent. No silent GOAP fallback on error.
         active = [entry for entry in agent.temporal_memories.entries()
                   if entry.kind == "witnessed_speech"
                   and entry.learned_turn <= self.turn and entry.subject == other]
@@ -748,6 +746,9 @@ class Trial:
             "turn": self.turn, "actor": role, "target": other,
             "route": proposal.route.selected,
             "model_calls": proposal.model_calls,
+            "proposal_request_id": (
+                proposal.action.request_id if proposal.route.selected == "llm"
+                else None),
             "baseline_intent": symbolic_intent,
             "chosen_intent": mapped[key],
             "deviated": mapped[key] != symbolic_intent,
@@ -904,6 +905,13 @@ class Trial:
                         "We should talk.")
         await self.speak(clients, ids, role, other, line, intent,
                          statement=disclosed_statement)
+        if routed is not None and routed["route"] == "llm":
+            # All co-located client sockets confirmed this exact line.
+            # The G8 local speech key is NOT a server-signed work receipt.
+            self.brains[role].record_outcome(ActionOutcome(
+                routed["proposal_request_id"], "succeeded",
+                "Authenticated peer clients witnessed the selected dialogue",
+            ))
         # Explain the subjective sources of a decision without declaring
         # those memories accurate or publishing the whole private bank.
         self.trace[-1]["remembered"] = sources
