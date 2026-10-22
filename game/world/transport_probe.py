@@ -139,7 +139,7 @@ def provision_fleet() -> dict[str, dict[str, str]]:
         emit(
             ship["pump"], person, "fleet_duty_posted",
             data={"station": station, "phase": "begin"},
-            text=f"You are posted to the {station} station for this duty interval.",
+            text=f"Private post for {role}: inspect the {station} station this interval.",
         )
     if len({entry["character_dbref"] for entry in roster.values()}) != FLEET_SIZE:
         raise RuntimeError("Fleet must have forty different persistent bodies")
@@ -166,8 +166,8 @@ def advance_fleet_recovery() -> None:
     from world.models import WorkReceipt
 
     ship = build_ship()
-    if WorkReceipt.objects.filter(operation="round_report", target="ship").count() != 1:
-        raise RuntimeError("Expected exactly one committed lost-ACK round report")
+    if WorkReceipt.objects.filter(operation="round_report", target="ship").count() != FLEET_SIZE:
+        raise RuntimeError("Expected forty committed, separately receipted duty reports")
     for ordinal in range(FLEET_SIZE):
         person = find_fixture(f"fleet-recovery-{ordinal:02d}")
         if person is None:
@@ -176,5 +176,6 @@ def advance_fleet_recovery() -> None:
         emit(
             ship["pump"], person, "fleet_duty_updated",
             data={"station": station, "phase": "resume"},
-            text=f"The world confirms the next {station} duty interval update.",
+            text=(f"Private update for fleet{ordinal:02d}: "
+                  f"the next {station} duty interval is posted."),
         )

@@ -8,6 +8,7 @@ import unittest
 from ox_ai.runtime.fleet_recovery import (
     FLEET_COUNT, FLEET_ROLES, validated_fleet_roster,
 )
+from ox_ai.scenarios.p4k_fleet_recovery import station_for, verify_pending_record
 
 
 def roster():
@@ -51,6 +52,32 @@ class FleetRosterContractTests(unittest.TestCase):
         members["fleet03"]["name"] = members["fleet02"]["name"]
         with self.assertRaises(PermissionError):
             validated_fleet_roster(members)
+
+    def test_every_fleet_member_has_one_world_validated_station(self):
+        self.assertEqual(
+            {station_for(role) for role in FLEET_ROLES},
+            {"cargo", "scrubber", "operations", "pump"},
+        )
+        self.assertEqual(
+            [sum(station_for(role) == station for role in FLEET_ROLES)
+             for station in ("cargo", "scrubber", "operations", "pump")],
+            [10, 10, 10, 10],
+        )
+        for role in FLEET_ROLES:
+            record = {"role": role, "request_id": "a" * 32,
+                      "station": station_for(role), "status": "prepared"}
+            verify_pending_record(role, record)
+            with self.assertRaises(PermissionError):
+                verify_pending_record(role, {**record, "station": "foreign"})
+            with self.assertRaises(PermissionError):
+                verify_pending_record(role, {**record, "role": "fleetXX"})
+            with self.assertRaises(PermissionError):
+                verify_pending_record(role, {**record, "source_event_id": "fake"})
+            settled = {**record, "status": "reconciled",
+                       "source_event_id": "oxevt-v2-1234"}
+            verify_pending_record(role, settled)
+            with self.assertRaises(PermissionError):
+                verify_pending_record(role, {**settled, "status": "prepared"})
 
     def test_reject_untyped_or_extra_roster_fields(self):
         members = roster()
