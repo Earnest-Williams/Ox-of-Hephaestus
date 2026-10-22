@@ -9,6 +9,8 @@ on:
       - "services/ai-handler/src/ox_ai/runtime/cognition_scheduler.py"
       - "services/ai-handler/src/ox_ai/agents/crew.py"
       - "services/ai-handler/tests/test_personality_routing.py"
+      - "services/ai-handler/tests/test_personality_dilemmas.py"
+      - "services/ai-handler/src/ox_ai/scenarios/personality_dilemmas.py"
       - "scenarios/personality_route_trial.py"
   workflow_dispatch:
 permissions:
@@ -37,6 +39,7 @@ jobs:
         run: |
           python -m compileall -q services/ai-handler/src/ox_ai/runtime/personality_routing.py services/ai-handler/src/ox_ai/runtime/cognition_scheduler.py services/ai-handler/src/ox_ai/agents/crew.py services/ai-handler/tests/test_personality_routing.py
           python -m unittest discover -s services/ai-handler/tests -p test_personality_routing.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_personality_dilemmas.py -v
       - name: Regression checks on native scheduler and existing blueprints
         run: |
           python -m unittest discover -s services/ai-handler/tests -p test_cognition_scheduler.py -v
@@ -45,11 +48,15 @@ jobs:
       - name: Real native mock-model routed choices, three personas
         run: |
           python scenarios/personality_route_trial.py --decisions 48 --output .ox-state/personality-routing/summary.json
+      - name: Paired dilemma fixture exercises character-scoped decisions
+        run: python -m ox_ai.scenarios.personality_dilemmas --model fixture --output .ox-state/personality-routing/dilemmas-fixture.json
       - name: Archive personality experiment without world actions
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ox-personality-goap-cognition-trial
-          path: .ox-state/personality-routing/summary.json
+          path: |
+            .ox-state/personality-routing/summary.json
+            .ox-state/personality-routing/dilemmas-fixture.json
           retention-days: 14
           if-no-files-found: ignore
