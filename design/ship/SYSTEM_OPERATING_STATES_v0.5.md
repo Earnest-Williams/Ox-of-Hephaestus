@@ -96,7 +96,13 @@ automatic loss of the entire 900,000 t reference cargo manifest.
 Forty people require two physically distinct ECLSS trains whose
 protected single-train duty is 40 persons. ECLSS-A and ECLSS-B can
 be AVAILABLE, ON_LINE, STANDBY, LIMITED, ISOLATED, FAULTED, or
-UNDER_LOCAL_CONTROL. Process capacity and distribution path are
+UNDER_LOCAL_CONTROL. The proposed normal gas-chemistry assemblies are ECLSS-A/B-O2-GEN
+(each 40 kg/day oxygen from treated-water electrolysis) and
+ECLSS-A/B-CO2-REGEN (each 45 kg/day carbon-dioxide removal).
+Oxygen purity, hydrogen discharge/recovery and CO2 desorption/receivers
+are physical conditions; see ENDURANCE_LEDGER_v0.5.md.
+
+Process capacity and distribution path are
 separate; a good train cannot clean air in an isolated zone that has
 no open route to it.
 
@@ -127,8 +133,11 @@ become potable by reassigning inventory to another tag.
 Forty people: reference 1,000 L domestic use per day, 90%
 domestic recovery, about 100 L/day unrecovered domestic use
 before the additional growth-process and failure demands.
-The 162 t normal voyage makeup and 70 t protected degradation
-reserve are actual separate stock accounts. Any balance asserting
+The 162 t normal voyage makeup includes about 73 t domestic
+unrecovered use, 29.237 t gross water electrolysis feed,
+35 t food/cultivation processing and the remaining technical
+rejection allowance; the 70 t protected degradation reserve
+remains separately counted. Any balance asserting
 730 days endurance must explicitly include additional processes,
 leaks, degradation and actual consumption rather than calling
 the whole balance 73 t.
@@ -138,6 +147,10 @@ pump runs. An operator can reroute compatible greywater or
 activate local reserves only with valid valve boundaries and
 water-quality checks. Do not drain protected emergency stock
 automatically to satisfy normal crop irrigation.
+
+The new INV-FOOD-LONG-LEG records 32 t of stored provisions,
+including at least 24.82 t reference edible demand for
+forty people over 730 days.
 
 Three growth rooms supply additional fresh food, not long-voyage
 calorie independence. Their pumps/lighting/nutrients are

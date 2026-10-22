@@ -45,7 +45,14 @@ the measured present-day physical ship.
 | Bridge maintenance | Eight BR-nn **rooms** misidentified as equipment IDs | Eight new BR-nn-UTILITY-SLEEVE equipment assemblies and corrected maintenance targets |
 | Arc-end closures | Sixteen bridge-facing pressure hatches were only graph edges | Sixteen individually identified end-hatch equipment assemblies linked to those graph edges |
 | Modification provenance | Three modification records used undefined ERA-LIFE-EXTENSION | Remapped to existing ERA-LIFE, retaining the modification histories |
-| Maintenance coverage | No grouped maintenance procedures for much of the principal plant | 35 grouped procedures cover every one of the candidate's 716 installed equipment IDs |
+| Maintenance coverage | No grouped maintenance procedures for much of the principal plant | 36 grouped procedures cover every one of the candidate's 720 installed equipment IDs |
+
+The next incremental addition also gives the ship two oxygen-production
+subassemblies and two regenerable CO2-removal subassemblies, plus an
+explicit 32 t long-voyage food inventory. These serve the existing
+A/B ECLSS trains rather than fabricating a third full-capacity train.
+There are now 720 installed modeled equipment objects, 36 maintenance
+groups and eight explicit inventory accounts. See ENDURANCE_LEDGER_v0.5.md.
 
 No physical compartment or access-link identities were renamed, and no
 current equipment condition, inventory amount, dry-mass planning envelope or
@@ -116,7 +123,7 @@ and demand **1,000 L/day domestic water**. At 90% domestic recovery, the
 domestic unrecovered share is **100 L/day**, before cultivation,
 processing, reserve degradation and extra losses. The published 162 t
 730-day makeup budget is *not* simply 100 L x 730 days: its other uses
-still require explicit inventory reconciliation.
+now have a provisional 162 t breakdown including domestic unrecovered water, normal oxygen electrolysis feed, crop/food processing and technical rejects; see ENDURANCE_LEDGER_v0.5.md. The split is a planning contract, not a measured hydroponic yield or exact closed-loop balance.
 
 The two independent HAB-04/HAB-08 refuge packages retain
 40 people x 72 h each; each refuge oxygen allocation is 106.8 kg.
@@ -153,9 +160,9 @@ misapplied as propulsion power.
 ## What the maintenance expansion actually means
 
 The original fourteen group definitions were useful but incomplete, and
-some named the wrong object class. The candidate now has 35 procedures
-whose combined target sets cover all **716 modeled equipment IDs**.
-These are grouped schedules, not 716 individually hand-authored manuals.
+some named the wrong object class. The candidate now has 36 procedures
+whose combined target sets cover all **720 modeled equipment IDs**.
+These are grouped schedules, not 720 individually hand-authored manuals.
 Each carries representative intervention time, skills, parts and a
 verification predicate. A passed checklist is not automatically
 a repaired machine. Actual spares, access, isolation, elapsed work time,
@@ -190,7 +197,7 @@ tasks.
    mixed-generation panels, unstandardised spares, equipment-specific
    degraded modes, documentation reliability and normal watch practice.
 
-Only then should we promote the v0.5 candidate into ox_full_ship.json,
+After the remaining physical interfaces and ledgers agree, we should promote the v0.5 candidate into ox_full_ship.json,
 regenerate the wire-render snapshot and rebase the presently unmerged
 Evennia integration PR. **Do not turn unfinished design into game rules
 by accident.**

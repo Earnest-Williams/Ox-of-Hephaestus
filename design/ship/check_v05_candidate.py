@@ -48,9 +48,9 @@ def validate(candidate: dict, baseline: dict) -> dict:
             "spatial count changed")
     require(len(candidate["access_links"]) == len(baseline["access_links"]) == 517,
             "physical-link count changed")
-    require(len(candidate["equipment"]) == len(baseline["equipment"]) + 24 == 716,
-            "expected only 16 hatches and 8 bridge sleeves")
-    require(len(candidate["maintenance_tasks"]) == 35, "maintenance package count changed")
+    require(len(candidate["equipment"]) == len(baseline["equipment"]) + 28 == 720,
+            "expected 16 hatches, 8 sleeves and 4 ECLSS chemical modules")
+    require(len(candidate["maintenance_tasks"]) == 36, "maintenance package count changed")
 
     spaces = ident_map(candidate["spaces"], "spaces")
     equips = ident_map(candidate["equipment"], "equipment")
@@ -61,8 +61,19 @@ def validate(candidate: dict, baseline: dict) -> dict:
     era = ident_map(candidate["eras"], "refit eras")
     tasks = ident_map(candidate["maintenance_tasks"], "maintenance tasks")
 
-    for section in ("spaces", "service_nodes", "isolation_points", "inventories"):
+    for section in ("spaces", "service_nodes", "isolation_points"):
         require(candidate[section] == baseline[section], f"unexpected {section} mutation")
+    require(candidate["inventories"][:len(baseline["inventories"])] == baseline["inventories"],
+            "v0.4 inventory stock unexpectedly rewritten")
+    require(len(candidate["inventories"]) == len(baseline["inventories"]) + 1,
+            "missing or duplicated new food stock")
+    food = next((i for i in candidate["inventories"]
+                 if i["id"] == "INV-FOOD-LONG-LEG"), None)
+    require(food is not None and food["nominal_mass_t"] == 32 and
+            all(room in spaces for room in food["location_ids"]),
+            "missing or misplaced 32 t long-leg provisions")
+    require(40 * 0.85 * 730 / 1000 <= food["nominal_mass_t"],
+            "food stock cannot support reference edible provision demand")
     for row in baseline["access_links"]:
         other = links[row["id"]]
         require((row["from"], row["to"], row["kind"]) ==
@@ -170,6 +181,35 @@ def validate(candidate: dict, baseline: dict) -> dict:
             and e["attributes"]["duration_days"] == 30 for e in craft),
             "deep survival-craft layer changed")
 
+    # The operating ECLSS trains own two different processes:
+    # oxygen must actually be replaced and captured CO2 must have a
+    # regeneration/disposal path. These are not duplicates of bottled O2.
+    o2 = [e for e in equips.values() if e["kind"] == "oxygen_generation_skid"]
+    co2 = [e for e in equips.values() if e["kind"] == "carbon_dioxide_recovery_skid"]
+    require(len(o2) == len(co2) == 2, "normal gas production/removal absent")
+    require({e["attributes"]["host_train_id"] for e in o2} ==
+            {"ECLSS-A", "ECLSS-B"}, "oxygen unit misassigned")
+    require({e["attributes"]["host_train_id"] for e in co2} ==
+            {"ECLSS-A", "ECLSS-B"}, "CO2 scrubber unit misassigned")
+    require(all(e["attributes"]["oxygen_capacity_kg_day"] >= 35.6
+                and e["attributes"]["requires_oxygen_purity_proof"]
+                and e["attributes"]["requires_hydrogen_byproduct_safe_path"]
+                for e in o2),
+            "normal oxygen replacement insufficient or unverified")
+    require(all(e["attributes"]["carbon_dioxide_capacity_kg_day"] >= 43.2
+                and e["attributes"]["requires_regeneration_or_receiving_route"]
+                for e in co2),
+            "CO2 regeneration/disposal insufficient or unverified")
+    water_budget = ls["makeup_water_730day_planning_split_t"]
+    require(isclose(sum(water_budget.values()), 162.0, abs_tol=0.002),
+            "normal 162 t makeup water allocations do not balance")
+    require(isclose(water_budget["domestic_unrecovered_t"], 73,
+                    abs_tol=0.001),
+            "domestic water recovery math lost")
+    require(isclose(water_budget["oxygen_electrolysis_feed_t"],
+                    (40 * 0.89 * 730 / 1000 * 18/16),
+                    abs_tol=0.002),
+            "O2 electrolysis water feed inconsistent")
     mass = candidate["mass"]
     require(sum(mass["dry_allocations_t"].values()) == mass["dry_t"],
             "dry mass allocation lost reconciliation")
@@ -198,6 +238,9 @@ def validate(candidate: dict, baseline: dict) -> dict:
             "gross tube geometry misrepresented as pressure gas inventory")
 
     return {
+        "food_departure_t": food["nominal_mass_t"],
+        "normal_oxygen_generators": len(o2),
+        "normal_CO2_regenerators": len(co2),
         "spaces": len(spaces), "physical_links": len(links),
         "equipment": len(equips), "maintenance_groups": len(tasks),
         "maintained_equipment": len(covered),
@@ -223,6 +266,14 @@ def negative_regressions(base: dict, source: dict) -> None:
          ["attributes"].update(oxygen_kg=1)),
         ("removed hatch", lambda m: m["equipment"].remove(next(
          e for e in m["equipment"] if e["kind"] == "arc_end_pressure_hatch"))),
+        ("missing food stores", lambda m: m["inventories"].pop()),
+        ("undersized oxygen production", lambda m: m["equipment"][next(
+         i for i, e in enumerate(m["equipment"])
+         if e["id"] == "ECLSS-A-O2-GEN")]["attributes"]
+         .update(oxygen_capacity_kg_day=20)),
+        ("unbalanced water budget", lambda m: m["life_support_contract"]
+         ["makeup_water_730day_planning_split_t"].update(
+         cultivation_and_food_process_t=999)),
     ]
     for title, inject in cases:
         mutated = deepcopy(base)
@@ -239,4 +290,4 @@ if __name__ == "__main__":
     candidate = load(CANDIDATE)
     print(json.dumps(validate(candidate, source), indent=2, sort_keys=True))
     negative_regressions(candidate, source)
-    print("OX_V05_DESIGN_CANDIDATE_AND_SIX_NEGATIVE_REGRESSIONS_PASS")
+    print("OX_V05_DESIGN_CANDIDATE_AND_NINE_NEGATIVE_REGRESSIONS_PASS")

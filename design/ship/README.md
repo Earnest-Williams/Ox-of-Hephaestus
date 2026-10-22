@@ -37,7 +37,7 @@ unchanged.
 
 - [v0.5 candidate JSON](ox_full_ship_v0.5_candidate.json): a full copy
   of the linked ship world with corrected freight geometry, physical
-  bridge/hatch equipment, repaired references and 35 maintenance groups.
+  bridge/hatch equipment, repaired references and 36 maintenance groups.
 - [Design reconciliation](DESIGN_CLOSURE_v0.5.md): the findings, changed
   assumptions, balances, preserved decisions and remaining design work.
 - [Pressure ends, cradles and rotary access](HAB_PRESSURE_ACCESS_v0.5.md):
@@ -46,6 +46,9 @@ unchanged.
 - [Major-system operating states](SYSTEM_OPERATING_STATES_v0.5.md):
   power, atmosphere, water, thermal, cargo, damage control and repair
   doctrine for a 40-person ship.
+- [730-day, 40-person endurance ledger](ENDURANCE_LEDGER_v0.5.md):
+  explicit 32 t stored food, oxygen electrolysis, CO2 regeneration,
+  water-makeup balance and actual chemical byproducts.
 - [Focused design validator](check_v05_candidate.py): stdlib model-reference,
   geometry, mass/O2 and negative-regression checks; runnable without Evennia.
 
