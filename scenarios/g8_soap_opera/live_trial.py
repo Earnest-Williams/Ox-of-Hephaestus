@@ -185,7 +185,7 @@ def g9_blueprint(role):
         raise ValueError("Unrecognized crew role")
     return compose_blueprint(
         "g9." + role, ROLES[role][0],
-        templates=("occupation.environmental_technician",),
+        templates=("occupation.environmental_technician",) if role == "teo" else (),
         trait_overrides=G9_TRAITS[role],
         history=("Has spent years working with this crew and carries private "
                  "but fallible recollections of their shared relationships.",),
@@ -306,6 +306,11 @@ class Trial:
             if d.get("cognition_mode", "symbolic") != cognition_mode:
                 raise PermissionError("Cannot change cognition mode at checkpoint restart")
             self.turn = d["turn"]
+            if cognition_mode == "decider" and len(d.get("trace", [])) != self.turn:
+                raise RuntimeError(
+                    "In-flight G9 conversation requires world reconciliation; "
+                    "never replay potentially witnessed speech"
+                )
             self.private = d["private"]
             self.agreements = d["agreements"]
             self.faults = d["faults"]
