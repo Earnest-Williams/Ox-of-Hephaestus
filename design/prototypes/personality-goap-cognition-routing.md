@@ -1,6 +1,6 @@
 # Personality-weighted GOAP and cognition routing (prototype P1)
 
-**Status:** experimental branch, no production supervisor activation or Evennia changes.
+**Status:** Decider Q4 behavioural prototype validated in opt-in CI; no production supervisor activation or Evennia authority changes.
 
 ## Goal
 
@@ -27,7 +27,7 @@ The policy records the seed, authenticated actor DBref, blueprint fingerprint, e
 
 Feedback requires an actor-addressed WorldObservation and source event ID. It represents the character's *interpretation* of a consequence, never authoritative verification of success. Duplicates do not update twice. Persistence failures roll back the change.
 
-The caller must use the existing durable WorkStepLedger and Evennia authentication/receipt pipeline before sending any future physical action. The prototype itself has no world connection.
+The caller must use the existing durable WorkStepLedger and Evennia authentication/receipt pipeline before sending any future physical action. The offline personality controller itself has no world connection.
 
 ## Verification
 
@@ -39,7 +39,7 @@ The offline pilot runs three different authored personalities through 48 synthet
 
 This change does NOT turn personality routing on in the production three/five-crew supervisor. The live supervisor's WorkStepLedger and interrupted-command recovery need a distinct incident-level checkpoint integration before action submission can be enabled. It also does not add an actual Decider/Qwen provider: the comparative local model adapter remains on separate experimental PR #99.
 
-Next: integrate one reversible, real-world decision boundary with durable world receipts; run model-free versus persona-routed Decider Q4_K_M and generative Qwen with identical actor-scoped evidence. Measure story-relevant mistakes and character consistency separately from incoherent provider mistakes. No world permissions or approved procedures are waived by model delegation.
+The reversible, real-world pump boundary was subsequently integrated and validated (see below). Decider Q4_K_M is now selected; further Qwen comparisons are not a decision requirement. Measure story-relevant, attributable departures separately from incoherent provider mistakes. No world permissions or approved procedures are waived by model delegation.
 
 ## Live-world validation, not merely a mock choice
 
@@ -146,14 +146,16 @@ and the same four available actions, once without and once with a relevant
 private recollection. The GOAP reference is a real planner result, not a
 hard-coded outcome; Decider may agree, recheck, escalate, or defer.
 
-This is a **12-decision / 6-pair assay**; it does not imply 12 independent
-samples of psychological behaviour. Each private-memory pairing shares the
+The expanded validation is a **48-decision / 24-pair assay** (four conflicts,
+three personas, two memory arms and two offered-action orders); it does not
+imply 48 independent samples of psychological behaviour. Each private-memory pairing shares the
 identical actor, observation, trait blueprint, boundary ID, routing seed and
 finite action menu. Routing seeds intentionally cover the LLM branch for
 measurement; the natural routing-frequency tests remain separate.
 
 The output records the chosen option, the GOAP baseline, native Decider option
-probabilities, changed choices after memory, and stable route draws. Because
+probabilities, changed choices after memory, counterbalanced option positions,
+and stable route draws. Because
 Decider is an option scorer, **it does not generate reasons**. Inferences
 such as loyalty or mistrust being causal are hypotheses to investigate, not
 assertions of access to the character's internal reasoning.
@@ -172,3 +174,64 @@ run in the regular personality CI. A separate opt-in Decider CPU workflow runs
 the corresponding real GGUF assay and archives the individual decision records.
 Interpret the data before expanding to actual longitudinal interaction,
 staggered information, contradictory testimony, or action consequences.
+
+
+### Behavioural assay acceptance: real Decider Q4 (2026-10-22)
+
+[Green workflow #39858425168](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/39858425168)
+on commit `e47ddf85` used the selected **Decider 4B Q4_K_M** with
+unchanged native model scoring and no scripted action selection. Every
+model choice was an actor-scoped proposal. The separate live Evennia
+pump operation passed receipt reconciliation and independent world
+event-state verification.
+
+| Metric | Observed |
+| --- | ---: |
+| Real Decider decisions | 48 |
+| Changed from GOAP's symbolic first step | 20 / 48 |
+| Memory changed the selected option (order-specific pairs) | 6 / 24 |
+| Distinct persona/dilemma memory effects reproduced in **both** orders | 3 / 12 |
+| Semantic choice unchanged when action-menu order reversed | 22 / 24 |
+
+**Specific reproduced memory effects (same perceived facts, profile and
+routing draw):**
+
+- **Loyal engineer, nonurgent filter:** filing the maintenance ticket
+  changed to **help Rae replace the filter before filing** when recalling
+  Rae's earlier personal help. The methodical engineer consistently
+  filed the ticket. This is the clearest relationship-driven,
+  role-appropriate deviation.
+- **Authority-challenging engineer, low-pressure pump:** immediate
+  isolation changed to **rechecking** after recalling wrongful blame
+  for an unnecessary isolation. This held in both menu orders.
+- **Methodical engineer, low-pressure pump:** immediate isolation also
+  changed to **rechecking** when recalling a previous missed problem
+  and rupture. This may reflect caution or overchecking, but is not
+  evidence of a uniquely defiant motive.
+
+**Useful negative controls and limitations:** All three personas secured
+the red cargo restraint rather than protecting Jon's record. All chose
+to request an authorized watch swap rather than instantly taking over
+Lio's duty. Those choices are sensible, but the watch-swap case did
+not distinguish personalities. The defiant engineer's minor-filter
+deferral was **order-sensitive** (record in canonical order, defer in
+reversed order); do not count it as a robust trait result. The remaining
+22/24 order checks agreed.
+
+No social goals, personalities, preferred actions, or final outcomes
+were hard-coded into the model adapter. The case histories were
+authored, not naturally acquired; this probes behavioural sensitivity,
+**not** causal psychological validity or a longitudinal voyage.
+The earlier 12-choice experiment is a subset and should not be added
+as independent evidence. Native option scores are diagnostic
+preferences, not calibrated confidence or generated explanations.
+
+**Acceptance:** The three reproducible, actor-specific memory effects,
+especially the loyal engineer's safe assistance deviation, establish a
+meaningful behavioral response rather than simply passing a harness
+integration test. Retain Decider Q4 as selected. The next high-value
+experiment is an operational sequence in which crew members encounter
+each other's real world-observed actions and update memories over time;
+do not reactivate model comparison or infer personality from a single
+choice. The prototype does **not** enable personality routing in the
+production supervisor.
