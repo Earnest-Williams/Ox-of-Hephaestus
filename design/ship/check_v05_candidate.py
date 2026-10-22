@@ -48,7 +48,7 @@ def validate(candidate: dict, baseline: dict) -> dict:
             "spatial count changed")
     require(len(candidate["access_links"]) == len(baseline["access_links"]) == 517,
             "physical-link count changed")
-    require(len(candidate["equipment"]) == len(baseline["equipment"]) + 88 == 780,
+    require(len(candidate["equipment"]) == len(baseline["equipment"]) + 94 == 786,
             "expected v0.5 equipment including Bprime supports and reserved atmosphere makeup distribution")
     require(len(candidate["maintenance_tasks"]) == 42, "maintenance package count changed")
 
@@ -64,9 +64,9 @@ def validate(candidate: dict, baseline: dict) -> dict:
     for section in ("service_nodes", "isolation_points"):
         require(candidate[section][:len(baseline[section])] == baseline[section],
                 f"original {section} unexpectedly mutated")
-        require(all(x["network"] == "repressurization_gas"
+        require(all(x["network"] in ("repressurization_gas", "byproduct_exhaust")
                     for x in candidate[section][len(baseline[section]):]),
-                f"unexpected added {section} outside deliberate gas-refill network")
+                f"unexpected added {section} outside reviewed gas/byproduct services")
     # Only the explicitly justified pressure-cell corrections may alter the
     # 421 installed space records. Physical geometry and room IDs stay fixed.
     expected_spaces = deepcopy(baseline["spaces"])
@@ -180,10 +180,10 @@ def validate(candidate: dict, baseline: dict) -> dict:
 
     require(candidate["inventories"][:len(baseline["inventories"])] == baseline["inventories"],
             "v0.4 inventory stock unexpectedly rewritten")
-    require(len(candidate["inventories"]) == len(baseline["inventories"]) + 3,
+    require(len(candidate["inventories"]) == len(baseline["inventories"]) + 4,
             "missing food or independent gas-bank inventories")
     require({x["id"] for x in candidate["inventories"][len(baseline["inventories"]):]} ==
-            {"INV-FOOD-LONG-LEG", "INV-GAS-REFILL-A", "INV-GAS-REFILL-B"},
+            {"INV-FOOD-LONG-LEG", "INV-GAS-REFILL-A", "INV-GAS-REFILL-B", "INV-WASTE-RESIDUE"},
             "unknown newly invented stores or missing gas-bank inventory")
     food = next((i for i in candidate["inventories"]
                  if i["id"] == "INV-FOOD-LONG-LEG"), None)
@@ -331,6 +331,28 @@ def validate(candidate: dict, baseline: dict) -> dict:
             and sum(x["network"] == "repressurization_gas" for x in candidate["service_edges"]) == 132
             and sum(x["network"] == "repressurization_gas" for x in candidate["isolation_points"]) == 143,
             "stage-one physical repressurization network incomplete")
+    # Escaping oxygen-generation hydrogen and regenerating CO2 sorbents
+    # require distinct, finite discharge services, not indefinite invisible
+    # storage or uncontrolled vents into occupied rooms.
+    require([x["id"] for x in candidate["networks"]].count("byproduct_exhaust") == 1,
+            "byproduct discharge network missing")
+    require(sum(x["network"] == "byproduct_exhaust" for x in candidate["service_nodes"]) == 8
+            and sum(x["network"] == "byproduct_exhaust" for x in candidate["service_edges"]) == 4
+            and sum(x["network"] == "byproduct_exhaust" for x in candidate["isolation_points"]) == 8,
+            "segregated oxygen/CO2 exhaust isolation topology incomplete")
+    byproduct = ls["byproduct_handling"]
+    require(byproduct["reference_people"] == 40
+            and byproduct["days"] == 730
+            and byproduct["storage_mass_not_additional_departure_mass"]
+            and byproduct["dry_residue_holding_t_capacity"] >=
+                byproduct["solid_sanitary_residue_t_730d_screen"],
+            "generated waste and long-leg receiver capacity not reconciled")
+    waste = next((x for x in candidate["inventories"] if x["id"] == "INV-WASTE-RESIDUE"), None)
+    require(waste and waste["nominal_mass_t"] == 0
+            and waste["capacity_t"] == 16
+            and waste["source_inventory_is_transformed_not_additional"],
+            "departure waste mass accidentally added on top of source stock")
+
     water_budget = ls["makeup_water_730day_planning_split_t"]
     require(isclose(sum(water_budget.values()), 162.0, abs_tol=0.002),
             "normal 162 t makeup water allocations do not balance")
