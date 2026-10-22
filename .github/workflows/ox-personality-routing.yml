@@ -1,0 +1,62 @@
+# Experimental decision-strategy policy. No paid API, no world/server effects.
+name: Ox personality-weighted cognition routing
+on:
+  push:
+    branches: [experiment/personality-goap-cognition-routing]
+    paths:
+      - ".github/workflows/ox-personality-routing.yml"
+      - "services/ai-handler/src/ox_ai/runtime/personality_routing.py"
+      - "services/ai-handler/src/ox_ai/runtime/cognition_scheduler.py"
+      - "services/ai-handler/src/ox_ai/agents/crew.py"
+      - "services/ai-handler/tests/test_personality_routing.py"
+      - "services/ai-handler/tests/test_personality_dilemmas.py"
+      - "services/ai-handler/src/ox_ai/scenarios/personality_dilemmas.py"
+      - "scenarios/personality_route_trial.py"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ox-personality-routing
+  cancel-in-progress: true
+jobs:
+  personality-goap-llm:
+    name: Native Concordia + GOAP personality-routing contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            services/ai-handler/pyproject.toml
+            uv.lock
+            .github/ci/cache-profiles/concordia.txt
+      - name: Install native Concordia and handler
+        run: python -m pip install -e './services/ai-handler[concordia]'
+      - name: Validate Python and deterministic routing contracts
+        run: |
+          python -m compileall -q services/ai-handler/src/ox_ai/runtime/personality_routing.py services/ai-handler/src/ox_ai/runtime/cognition_scheduler.py services/ai-handler/src/ox_ai/agents/crew.py services/ai-handler/tests/test_personality_routing.py
+          python -m unittest discover -s services/ai-handler/tests -p test_personality_routing.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_personality_dilemmas.py -v
+      - name: Regression checks on native scheduler and existing blueprints
+        run: |
+          python -m unittest discover -s services/ai-handler/tests -p test_cognition_scheduler.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_profile_decision_trials.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_goap_planner.py -v
+      - name: Real native mock-model routed choices, three personas
+        run: |
+          python scenarios/personality_route_trial.py --decisions 48 --output .ox-state/personality-routing/summary.json
+      - name: Paired dilemma fixture exercises character-scoped decisions
+        run: python -m ox_ai.scenarios.personality_dilemmas --model fixture --output .ox-state/personality-routing/dilemmas-fixture.json
+      - name: Archive personality experiment without world actions
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-personality-goap-cognition-trial
+          path: |
+            .ox-state/personality-routing/summary.json
+            .ox-state/personality-routing/dilemmas-fixture.json
+          retention-days: 14
+          if-no-files-found: ignore

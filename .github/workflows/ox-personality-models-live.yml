@@ -1,0 +1,179 @@
+# Expensive real Decider Q4 and live-world acceptance is deliberately opt-in.
+# The fast personality CI runs automatically for routing code and fixtures.
+# A model release/revision is explicitly retested with workflow_dispatch.
+name: Ox personality Decider Q4 live and motivation assay
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ox-personality-models-live
+  cancel-in-progress: true
+jobs:
+  decider-live:
+    name: Decider Q4 world choice and order-balanced motives
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      OX_MODEL: decider-q4
+      OX_BRANCH: decider
+      MODEL_DIR: .ox-state/personality-model/weights
+      OX_DECIDER_GGUF_PATH: .ox-state/personality-model/weights/decider-4b.Q4_K_M.gguf
+      HF_HUB_DISABLE_TELEMETRY: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            services/ai-handler/pyproject.toml
+            uv.lock
+            .github/ci/cache-profiles/concordia.txt
+      - name: Install world, native Concordia and local model dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install .
+          python -m pip install -e './services/ai-handler[concordia,transport]'
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers>=5,<6' 'numpy<3' 'huggingface_hub>=0.34,<2' jinja2 'llama-cpp-python>=0.3.35,<0.4'
+          python -m pip install --no-deps 'decider-ai==1.10.0'
+
+      - name: Run scored-decision and coverage contracts
+        run: |
+          python -m unittest discover -s services/ai-handler/tests -p test_personality_live_models.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_personality_routing.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_personality_dilemmas.py -v
+      - name: Provision Q4 Decider GGUF pinned weights and publisher tokenizer
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$MODEL_DIR"
+          python - <<'PY'
+          from huggingface_hub import snapshot_download,hf_hub_download
+          from pathlib import Path
+          import os,shutil,hashlib,json
+          d=Path(os.environ["MODEL_DIR"])
+          qrev="3b02c98fa0b19e9daab247d633095b6e8a6cd4c5"
+          trev="d3a78581751d518bbfa9e871a6d84059554d53c5"
+          snapshot_download(repo_id="Mapika/decider-4b-GGUF",revision=trev,
+              local_dir=str(d),allow_patterns=["config.json","decider_config.json",
+                  "tokenizer.json","tokenizer_config.json","special_tokens_map.json",
+                  "*.jinja","vocab.json","merges.txt","added_tokens.json"])
+          from huggingface_hub import HfApi
+          names=[x.rfilename for x in HfApi().model_info(
+              "mradermacher/decider-4b-GGUF",revision=qrev).siblings]
+          qs=[n for n in names if n.lower().endswith("q4_k_m.gguf") and "/" not in n]
+          if len(qs)!=1:raise RuntimeError(f"Expected one Q4_K_M: {qs}")
+          src=hf_hub_download(repo_id="mradermacher/decider-4b-GGUF",
+              filename=qs[0],revision=qrev)
+          out=d/qs[0]
+          if not out.exists():shutil.copyfile(src,out)
+          expected=d/"decider-4b.Q4_K_M.gguf"
+          if out!=expected:
+              if expected.exists():raise RuntimeError("Unexpected existing model")
+              expected.symlink_to(out.name)
+          h=hashlib.sha256()
+          with out.open("rb") as f:
+              while piece:=f.read(8*1024*1024):h.update(piece)
+          m=dict(model="decider-q4",hf_revision=qrev,tokenizer_revision=trev,
+                 sha256=h.hexdigest(),size=out.stat().st_size,source_file=out.name)
+          (d.parent/"model-manifest.json").write_text(json.dumps(m,indent=2))
+          print(m)
+          PY
+      - name: Create temporary world credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          OWNER="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          echo "::add-mask::$TOKEN"; echo "::add-mask::$OWNER"
+          echo "OX_PROBE_PASSWORD=$TOKEN" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_PASSWORD=$OWNER" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_USERNAME=OxModelTrialOwner" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_EMAIL=modeltrial@example.invalid" >> "$GITHUB_ENV"
+      - name: Provision real Evennia accounts and cooling incident
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd game && evennia migrate --noinput)
+          (cd game && evennia shell --command="from world.transport_probe import provision; provision(); from world.live_crew import fixture_setup; fixture_setup(); print('OX_MODEL_WORLD_READY')")
+      - name: Start real Evennia process
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd game && evennia start)
+          python - <<'PY'
+          import socket,time
+          stable=None
+          for _ in range(120):
+              try:
+                  with socket.create_connection(("127.0.0.1",4002),timeout=1):pass
+              except OSError:stable=None
+              else:
+                  stable=stable or time.monotonic()
+                  if time.monotonic()-stable>=8:break
+              time.sleep(1)
+          else:raise RuntimeError("Game websocket not stable")
+          PY
+      - name: One true model-routed incident choice and consequences
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m ox_ai.scenarios.p4a_personality_gate \
+            --persona independent --expect-route llm --model "$OX_MODEL" \
+            --checkpoint .ox-state/personality-model/route.json \
+            --verdict .ox-state/personality-model/verdict.json \
+            | tee .ox-state/personality-model/trial.log
+          python - <<'PY'
+          import json,os
+          r=json.load(open(".ox-state/personality-model/verdict.json"))
+          assert r["route"]=="llm" and r["model"]==os.environ["OX_MODEL"],r
+          assert r["model_calls"]==1,r
+          assert r["status"] in ("isolated_verified","deferred_no_isolation"),r
+          assert r["world_commands_sent"]==(1 if r["status"]=="isolated_verified" else 0),r
+          print("OX_REAL_MODEL_WORLD_CHOICE_PASS",r["model"],r["status"])
+          PY
+      - name: Paired private-memory motivation choices with real Decider Q4
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m ox_ai.scenarios.personality_dilemmas \
+            --model decider-q4 \
+            --gguf-path "$OX_DECIDER_GGUF_PATH" \
+            --output .ox-state/personality-model/dilemmas-decider.json
+          python - <<'PY'
+          import json
+          r=json.load(open(".ox-state/personality-model/dilemmas-decider.json"))
+          assert r["model"]=="decider-q4" and len(r["rows"])==48 and len(r["paired"])==24 and len(r["order_invariant"])==24,r
+          assert all(x["same_route_roll"] for x in r["paired"]),r
+          assert set(x["order"] for x in r["rows"])=={"canonical","reversed"},r
+          assert r["world_commands_sent"]==0,r
+          assert all(x["model_calls"]==1 and x["route"]=="llm" for x in r["rows"]),r
+          print("OX_DECIDER_PERSONALITY_ASSAY_PASS")
+          PY
+      - name: Stop world for independent authoritative state inspection
+        if: always()
+        working-directory: game
+        run: evennia stop || true
+      - name: Confirm action existence and state, separately from model claims
+        working-directory: game
+        run: |
+          evennia shell --command="import json; from world.bootstrap import build_ship; s=build_ship(); p=s['pump']; r=json.load(open('../.ox-state/personality-model/verdict.json')); isolated=r['status']=='isolated_verified'; expect='isolated' if isolated else 'low_pressure'; ops=[e['operation'] for e in p.db.event_history]; assert p.state==expect,(p.state,expect); assert ops==(['fault','isolate'] if isolated else ['fault']),ops; print('OX_REAL_MODEL_WORLD_AUTHORITY_PASS')"
+      - name: Archive real actor choice and world work evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-personality-real-decider
+          path: |
+            .ox-state/personality-model/dilemmas-decider.json
+            .ox-state/personality-model/route.json
+            .ox-state/personality-model/route.brain.json
+            .ox-state/personality-model/verdict.json
+            .ox-state/personality-model/trial.log
+            .ox-state/personality-model/model-manifest.json
+            .ox-state/personality-model/model-sha256.txt
+          retention-days: 14
+          if-no-files-found: ignore
