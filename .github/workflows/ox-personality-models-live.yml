@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   decider-live:
-    name: Decider Q4 one world choice and paired motives
+    name: Decider Q4 world choice and order-balanced motives
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
@@ -153,8 +153,9 @@ jobs:
           python - <<'PY'
           import json
           r=json.load(open(".ox-state/personality-model/dilemmas-decider.json"))
-          assert r["model"]=="decider-q4" and len(r["rows"])==12 and len(r["paired"])==6,r
+          assert r["model"]=="decider-q4" and len(r["rows"])==48 and len(r["paired"])==24 and len(r["order_invariant"])==24,r
           assert all(x["same_route_roll"] for x in r["paired"]),r
+          assert set(x["order"] for x in r["rows"])=={"canonical","reversed"},r
           assert r["world_commands_sent"]==0,r
           assert all(x["model_calls"]==1 and x["route"]=="llm" for x in r["rows"]),r
           print("OX_DECIDER_PERSONALITY_ASSAY_PASS")
