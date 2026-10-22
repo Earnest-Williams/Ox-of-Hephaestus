@@ -8,6 +8,11 @@ from ox_ai.scenarios.personality_dilemmas import (
 )
 from ox_ai.runtime.personality_routing import PersonalityRouter
 
+try:
+    from concordia.testing.mock_model import MockModel
+except ImportError:
+    MockModel = None
+
 
 class PersonalityDilemmaTests(unittest.TestCase):
     def test_scenarios_have_distinct_authorized_menu_signatures(self):
@@ -32,6 +37,7 @@ class PersonalityDilemmaTests(unittest.TestCase):
             self.assertLess(router._draw(boundary),
                             router.probability(situation.state, situation.kind))
 
+    @unittest.skipIf(MockModel is None, "Native Concordia optional extra not installed")
     def test_fixture_covers_all_pairs_without_world_action(self):
         result = asyncio.run(run_dossier(model_name="fixture"))
         self.assertEqual(result["world_commands_sent"], 0)
