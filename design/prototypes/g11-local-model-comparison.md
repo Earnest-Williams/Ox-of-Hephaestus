@@ -1,0 +1,65 @@
+# G11 follow-up: stronger generative model and native decision heads
+
+Status: opt-in GitHub CPU experiments on experiment/qwen3.5-0.8b-ci.
+Never treat a queued workflow as a completed model evaluation.
+
+## Models
+
+| Model | Purpose | Serving | Weights |
+|---|---|---|---|
+| Qwen3.5-0.8B Q4_K_M | Existing baseline | llama.cpp OpenAI-compatible chat | 0.56 GB |
+| Qwen3.5-4B Q4_K_M | Larger generative comparison | llama.cpp OpenAI-compatible chat | 2.74 GB (Unsloth) |
+| Laya English | Fast specialised decision head | Ollaya /api/decide | ModernBERT-large, 421M |
+| Laya typed-decisions | Specialised fine-tuned decision head | Ollaya /api/decide | ModernBERT-large, 421M |
+| JevK5-4B v0.3 Q8_0 | Qwen3.5-4B decision specialist | Ollaya /api/decide, llama.cpp | 4.48 GB |
+
+Laya and JevK5 are **not chat models**: they consume a state, an
+explicit question and a bounded menu, returning choice probabilities
+with no free text. The first native-entity adapter feeds Concordia's
+authored choice prompt to /api/decide; the action descriptions come
+from the SAME caller-supplied command options. This differs from
+the Qwen chat-completion interface, so score comparisons are
+descriptive, not a controlled architecture comparison.
+
+## Protocol
+
+Use the unchanged G11 four synthetic actor-scoped evidence fixtures.
+Each arm receives identical seeded memory, observations, interpretations,
+time and Concordia state. The only arm difference is bounded
+OxMemoryContext visibility. Three paired repetitions create 12 decisions
+per arm, 24 per model. The order alternates to reduce warm-cache bias.
+
+Success requires local inference to return validated finite options
+and a pending proposal. Failed HTTP requests, missing probabilities,
+invalid labels, and truncated input fail closed. No model result can
+send a game-world command, forge a world receipt, or grant authority.
+
+The original 0.8B results are recorded in qwen3.5-local-cpu.md.
+The follow-ups run from:
+
+- .github/workflows/ox-qwen-4b-cpu.yml
+- .github/workflows/ox-decision-models-cpu.yml
+
+Qwen 4B weights use a verified upstream SHA-256:
+00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4.
+Both llama.cpp and Ollaya binaries are release-pinned and checksum
+verified. Ollaya additionally pins registry manifests and their
+downloaded blobs to the model publishers' hashes.
+
+## Interpretation
+
+A high authored expected-choice rate is NOT evidence that a model
+understands the world. This is a small, synthetic four-case pilot:
+retracted commitments, contradictory cargo evidence, confidentiality
+and identical repeated refusal. Individual choices and the full
+option-probability distribution matter more than a pooled score.
+
+The larger model will usually cost more CPU time. Decision-head
+models might be much faster, but they cannot perform the rest of
+Concordia cognition that requires language generation.
+
+Repeated identical prompts reuse prompt / KV caches for decoder
+models, so median wall-time is an observed run statistic, not a
+cold-prompt benchmark. Good results warrant more varied cases,
+repeated independent contexts and a separate real-world authority
+integration experiment.
