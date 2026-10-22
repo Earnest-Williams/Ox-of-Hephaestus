@@ -152,6 +152,17 @@ def main():
         "witnessed_context_references": report["witnessed_context_references"],
         "world_work_receipts": len(report["verified_world_work"]),
         "private_memory_counts": report["private_memory_counts"],
+        "decider_choice_trace": [
+            {
+                "turn": row["turn"], "actor": row["actor"],
+                "counterpart": row["target"],
+                "symbolic_intent": row["baseline_intent"],
+                "decider_intent": row["chosen_intent"],
+                "encountered_witnesses": row["encountered_history_count"],
+                "world_receipt_memories": row["world_receipt_memory_count"],
+            }
+            for row in report["choice_trace"] if row["route"] == "llm"
+        ],
     }, sort_keys=True))
     print("OX_G9_REAL_LONGITUDINAL_PASS")
 
