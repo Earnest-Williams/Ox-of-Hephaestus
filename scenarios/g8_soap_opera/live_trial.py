@@ -20,11 +20,17 @@ import random
 import secrets
 
 from concordia.testing.mock_model import MockModel
-from ox_ai.agents.crew import CrewAgent, CrewIdentity
+from ox_ai.agents.crew import CrewAgent, CrewIdentity, CommandOption
+from ox_ai.agents.crew_blueprints import compose_blueprint
+from ox_ai.ports.base import ActionOutcome
 from ox_ai.agents.live_concordia import ROLES
 from ox_ai.memory.seeds import SeededMemory
 from ox_ai.memory.temporal import TemporalMemory
 from ox_ai.planning.goap import GoapAction, GoapPlanner
+from ox_ai.runtime.cognition_scheduler import DecisionScheduler
+from ox_ai.runtime.personality_routing import (
+    CharacterRouteController, PersonalState, PersonalityRouter,
+)
 from ox_ai.ports.base import WorldObservation
 from ox_ai.ports.evennia.client import EvenniaWebSocketClient
 from ox_ai.social.domain import SOCIAL_OPERATORS
@@ -144,6 +150,48 @@ WORK = {
 }
 ROOM = {"cargo": "Cargo Hold", "scrubber": "Environmental Plant"}
 GOAP = GoapPlanner(tuple(a.goap() for a in SOCIAL_OPERATORS))
+# G9 is strictly opt-in. G8's 500-turn symbolic regression remains unchanged.
+# The named roles receive distinct, authored starting tendencies. Their
+# *subsequent* experiences are admitted only from witnessed speech/receipts.
+G9_TRAITS = {
+    "lin": {"conscientiousness": 46, "agreeableness": 79, "risk_tolerance": 73,
+            "authority_challenge": 54, "collaboration": 84},
+    "ari": {"conscientiousness": 92, "agreeableness": 52, "risk_tolerance": 22,
+            "authority_challenge": 21, "collaboration": 60},
+    "iona": {"conscientiousness": 54, "agreeableness": 39, "risk_tolerance": 82,
+             "authority_challenge": 93, "openness": 82},
+    "mara": {"conscientiousness": 49, "agreeableness": 90, "risk_tolerance": 77,
+             "authority_challenge": 48, "collaboration": 88},
+    "teo": {"conscientiousness": 89, "agreeableness": 72, "risk_tolerance": 24,
+            "authority_challenge": 18, "collaboration": 80},
+    "captain": {"conscientiousness": 82, "agreeableness": 63, "risk_tolerance": 37,
+                "authority_challenge": 42, "collaboration": 72},
+}
+G9_INTENTS = ("confront", "question", "reassure", "disclose",
+              "boundary", "connect", "reflect")
+G9_DESCRIPTIONS = (
+    "Confront the colleague about mistrust or an inconsistency.",
+    "Ask the colleague a question to learn more.",
+    "Reassure the colleague, choosing patience.",
+    "Disclose your own private remembered experience to the colleague.",
+    "Set a personal boundary with the colleague.",
+    "Express interest in spending more time with the colleague.",
+    "Reflect or gently change the subject instead of escalating tension.",
+)
+
+
+def g9_blueprint(role):
+    if role not in ROSTER:
+        raise ValueError("Unrecognized crew role")
+    return compose_blueprint(
+        "g9." + role, ROLES[role][0],
+        templates=("occupation.environmental_technician",),
+        trait_overrides=G9_TRAITS[role],
+        history=("Has spent years working with this crew and carries private "
+                 "but fallible recollections of their shared relationships.",),
+    )
+
+
 GOALS = {
     "connect": "interest_expressed",
     "question": "question_asked",
@@ -242,7 +290,11 @@ async def social_action(clients, ids, role, other, operation, payload):
     return receipt, heard
 
 class Trial:
-    def __init__(self, seed, root):
+    def __init__(self, seed, root, *, cognition_mode="symbolic"):
+        if cognition_mode not in ("symbolic", "decider"):
+            raise ValueError("Unknown G8/G9 decision mode")
+        self.cognition_mode = cognition_mode
+        self._shared_decider = None
         self.seed = seed
         self.root = root
         self.file = root / "state.json"
@@ -251,17 +303,23 @@ class Trial:
             d = json.loads(self.file.read_text())
             if d["seed"] != seed:
                 raise ValueError("Changed seed during a 500-turn run")
+            if d.get("cognition_mode", "symbolic") != cognition_mode:
+                raise PermissionError("Cannot change cognition mode at checkpoint restart")
             self.turn = d["turn"]
             self.private = d["private"]
             self.agreements = d["agreements"]
             self.faults = d["faults"]
             self.trace = d["trace"]
             self.reinterpretations = d.get("reinterpretations", [])
+            self.routing = d.get("routing", {role: {} for role in ROSTER})
+            self.route_audit = d.get("route_audit", [])
             self.locations = d["locations"]
             self.seen = {tuple(item) for item in d["seen"]}
             for role in ROSTER:
                 self.brains[role] = CrewAgent.from_checkpoint(
-                    root / f"{role}.brain.json", MockModel())
+                    root / f"{role}.brain.json", self._model())
+                if cognition_mode == "decider" and self.brains[role].blueprint != g9_blueprint(role):
+                    raise PermissionError("G9 checkpoint has mismatched personal identity")
         else:
             self.turn = 0
             self.private = {}
@@ -273,6 +331,8 @@ class Trial:
             ]
             self.trace = []
             self.reinterpretations = []
+            self.routing = {role: {} for role in ROSTER}
+            self.route_audit = []
             self.locations = {r: "mess" for r in ROSTER}
             self.seen = set()
             for role in ROSTER:
@@ -284,15 +344,33 @@ class Trial:
                     "last": {}, "disclosed": [],
                 }
 
+    def _model(self):
+        if self.cognition_mode == "symbolic":
+            return MockModel()
+        from ox_ai.inference.decider_gguf_choice import DeciderGGUFChoiceModel
+        path = os.environ.get("OX_DECIDER_GGUF_PATH", "")
+        model = DeciderGGUFChoiceModel(
+            path, G9_DESCRIPTIONS, engine=self._shared_decider,
+        )
+        if self._shared_decider is None:
+            self._shared_decider = model.engine
+        return model
+
     def bind(self, ids):
         """Existing checkpoints are tied to the same authenticated body."""
         for role in ROSTER:
             brain = self.brains[role]
             if brain is None:
                 name, duty, goal = ROLES[role]
+                blueprint = (g9_blueprint(role)
+                             if self.cognition_mode == "decider" else None)
                 self.brains[role] = CrewAgent(
-                    CrewIdentity(f"ox.g8.{role}", ids[role], name, duty, goal),
-                    MockModel(), initial_memories=seeds_for(role),
+                    CrewIdentity(
+                        f"ox.person.{blueprint.person_id}" if blueprint else f"ox.g8.{role}",
+                        ids[role], name, duty, goal,
+                    ),
+                    self._model(), blueprint=blueprint,
+                    initial_memories=seeds_for(role),
                 )
             elif brain.identity.character_id != ids[role]:
                 raise PermissionError("Restored brain cannot puppet another body")
@@ -305,7 +383,10 @@ class Trial:
         for role in ROSTER:
             self.brains[role].save_checkpoint(self.root / f"{role}.brain.json")
         state = {
-            "seed": self.seed, "turn": self.turn, "private": self.private,
+            "seed": self.seed, "turn": self.turn,
+            "cognition_mode": self.cognition_mode,
+            "routing": self.routing, "route_audit": self.route_audit,
+            "private": self.private,
             "agreements": self.agreements, "faults": self.faults,
             "trace": self.trace, "reinterpretations": self.reinterpretations,
             "locations": self.locations,
@@ -585,6 +666,91 @@ class Trial:
             ))
         self.record(role, "spoken_" + intent, target=other, heard_by=visible)
 
+
+    async def g9_routed_intent(self, role, other, symbolic_intent, ids, trust,
+                               interest, doubt):
+        """Decision on private knowledge after authenticated world encounters.
+
+        This does NOT let the model issue an Evennia command. A chosen
+        symbolic social operator is subsequently translated into an ordinary
+        witnessed 'say' in the existing G8 world channel.
+        """
+        if self.cognition_mode != "decider" or self.turn % 7 != 0:
+            return symbolic_intent, None
+        agent = self.brains[role]
+        profile = agent.blueprint
+        if profile != g9_blueprint(role):
+            raise PermissionError("G9 decision has no matching authored person")
+        facts = {"together", "conversation_open", "heard_uncertainty"}
+        menu = []
+        mapped = {}
+        for name in G9_INTENTS:
+            planned = GOAP.plan(facts, {GOALS[name]}).actions
+            if not planned:
+                raise RuntimeError("Social alternative lacks a real GOAP operator")
+            op = planned[0]
+            if op.verb != "say":
+                raise PermissionError("Only nonphysical dialogue is offered")
+            spoken_name = ROLES[other][0]
+            menu.append(CommandOption(
+                f"Speaking with {spoken_name} ({other}): {name}: "
+                + next(action.line for action in SOCIAL_OPERATORS
+                       if action.name == op.name),
+                op.verb, op.target,
+            ))
+            mapped[(op.verb, op.target)] = name
+        if len(mapped) != len(menu):
+            raise RuntimeError("Ambiguous symbolic social menu")
+        boundary = f"g9.{role}.turn-{self.turn}.dialogue"
+        router = PersonalityRouter(
+            profile, ids[role], self.routing[role],
+            seed=f"ox-g9-routing-{self.seed}-{role}",
+        )
+        state = PersonalState(
+            stress=max(0., min(1., (55 - trust) / 80)),
+            social_pressure=max(0., min(1., interest / 110)),
+            uncertainty=0.9 if doubt else 0.35, fatigue=0.2,
+        )
+        controller = CharacterRouteController(
+            router, DecisionScheduler(
+                max_parallel=1, timeout_seconds=110),
+            role=role,
+        )
+        proposal = await controller.decide(
+            agent=agent, planner=GOAP, beliefs=frozenset(facts),
+            goals=frozenset({GOALS[symbolic_intent]}),
+            options=tuple(menu), boundary_id=boundary,
+            kind="social", state=state, persist=self.save,
+        )
+        key = (proposal.action.verb, proposal.action.target)
+        if key not in mapped:
+            raise PermissionError("Decider chose an unoffered social operator")
+        # The future speech itself is not a model claim of success.
+        if proposal.route.selected == "llm":
+            agent.record_outcome(ActionOutcome(
+                proposal.action.request_id, "succeeded",
+                "A dialogue intention was selected, not world-confirmed speech",
+            ))
+        active = [entry for entry in agent.temporal_memories.entries()
+                  if entry.kind in ("witnessed_speech", "world_receipt")
+                  and entry.learned_turn <= self.turn and entry.subject == other]
+        self.route_audit.append({
+            "turn": self.turn, "actor": role, "target": other,
+            "route": proposal.route.selected,
+            "model_calls": proposal.model_calls,
+            "baseline_intent": symbolic_intent,
+            "chosen_intent": mapped[key],
+            "deviated": mapped[key] != symbolic_intent,
+            "personal_memories": len(agent.temporal_memories),
+            "encountered_history_count": len(active),
+            "latest_encounter_ids": [entry.source_event_id for entry in active[-3:]],
+            "observation_revision": proposal.route.observation_revision,
+            "cognition_revision": proposal.route.cognition_revision,
+            "roll": proposal.route.roll,
+            "probability": proposal.route.probability_llm,
+        })
+        return mapped[key], self.route_audit[-1]
+
     async def social(self, role, clients, ids):
         pending = self.pending_for(role)
         if pending:
@@ -668,6 +834,9 @@ class Trial:
             8,
         )
         intent = rng.choices(options, weights=weights)[0]
+        intent, routed = await self.g9_routed_intent(
+            role, other, intent, ids, trust, score, uncertain,
+        )
         goal = GOALS[intent]
         plan = GOAP.plan({"together", "conversation_open", "heard_uncertainty"}, {goal})
         if not plan.actions:
@@ -729,6 +898,8 @@ class Trial:
         self.trace[-1]["remembered"] = sources
         self.trace[-1]["appraisal"] = [trust, score]
         self.trace[-1]["interpretation_views"] = active_views
+        if routed is not None:
+            self.trace[-1]["g9_route"] = routed.copy()
 
     async def run_phase(self, ids, start, end):
         if self.turn != start - 1:
@@ -779,7 +950,9 @@ class Trial:
         counts = dict(Counter(t["kind"] for t in self.trace))
         report = {"status": "verified_500_turns", "turns": self.turn,
                   "actors": list(ROSTER), "authenticated_client_sessions": 36,
-                  "world": "real_evennia", "model_calls": 0,
+                  "world": "real_evennia",
+                  "model_calls": sum(b.usage.total_calls for b in self.brains.values()),
+                  "route_audit": self.route_audit,
                   "faults": self.faults, "counts": counts,
                   "agreements": self.agreements, "trace": self.trace,
                   "reinterpretations": self.reinterpretations,
@@ -808,13 +981,15 @@ def main():
     p.add_argument("--start", type=int, required=True)
     p.add_argument("--end", type=int, required=True)
     p.add_argument("--seed", type=int, default=241)
+    p.add_argument("--cognition-mode", choices=("symbolic", "decider"),
+                   default="symbolic")
     p.add_argument("--root", type=Path, default=Path(".ox-state/g8"))
     args = p.parse_args()
     if os.environ.get("OX_G8_LIVE_CI") != "1":
         raise PermissionError("Disposable six-actor CI fixture only")
     if not (1 <= args.start <= args.end <= 500):
         raise ValueError("Bounded 500-decision trial required")
-    trial = Trial(args.seed, args.root)
+    trial = Trial(args.seed, args.root, cognition_mode=args.cognition_mode)
     ids = identities()
     trial.bind(ids)
     asyncio.run(trial.run_phase(ids, args.start, args.end))
