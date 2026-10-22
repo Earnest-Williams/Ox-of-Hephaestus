@@ -1,4 +1,4 @@
-name: Ox personality real Decider vs Qwen live pump
+name: Ox personality Decider Q4 live and motivation assay
 on:
   push:
     branches: [experiment/personality-goap-cognition-routing]
@@ -7,6 +7,8 @@ on:
       - "services/ai-handler/src/ox_ai/inference/decider_gguf_choice.py"
       - "services/ai-handler/src/ox_ai/scenarios/p4a_personality_gate.py"
       - "services/ai-handler/tests/test_personality_live_models.py"
+      - "services/ai-handler/src/ox_ai/scenarios/personality_dilemmas.py"
+      - "services/ai-handler/tests/test_personality_dilemmas.py"
   workflow_dispatch:
 permissions:
   contents: read
@@ -14,19 +16,13 @@ concurrency:
   group: ox-personality-models-live
   cancel-in-progress: true
 jobs:
-  matched-real-models:
-    name: Model ${{ matrix.model }} with one world-observed P4a choice
+  decider-live:
+    name: Decider Q4 one world choice and paired motives
     runs-on: ubuntu-24.04
     timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - {model: decider-q4, branch: decider}
-          - {model: qwen-q4, branch: qwen}
     env:
-      OX_MODEL: ${{ matrix.model }}
-      OX_BRANCH: ${{ matrix.branch }}
+      OX_MODEL: decider-q4
+      OX_BRANCH: decider
       MODEL_DIR: .ox-state/personality-model/weights
       OX_DECIDER_GGUF_PATH: .ox-state/personality-model/weights/decider-4b.Q4_K_M.gguf
       HF_HUB_DISABLE_TELEMETRY: "1"
@@ -47,19 +43,16 @@ jobs:
           set -euo pipefail
           python -m pip install .
           python -m pip install -e './services/ai-handler[concordia,transport]'
-          if [ "$OX_BRANCH" = "decider" ]; then
             python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
             python -m pip install 'transformers>=5,<6' 'numpy<3' 'huggingface_hub>=0.34,<2' jinja2 'llama-cpp-python>=0.3.35,<0.4'
             python -m pip install --no-deps 'decider-ai==1.10.0'
-          else
-            python -m pip install 'openai>=1,<3'
-          fi
+
       - name: Run scored-decision and coverage contracts
         run: |
           python -m unittest discover -s services/ai-handler/tests -p test_personality_live_models.py -v
           python -m unittest discover -s services/ai-handler/tests -p test_personality_routing.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_personality_dilemmas.py -v
       - name: Provision Q4 Decider GGUF pinned weights and publisher tokenizer
-        if: ${{ matrix.branch == 'decider' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -96,43 +89,6 @@ jobs:
           (d.parent/"model-manifest.json").write_text(json.dumps(m,indent=2))
           print(m)
           PY
-      - name: Fetch and verify Qwen3.5-4B Q4_K_M pinned GGUF
-        if: ${{ matrix.branch == 'qwen' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p "$MODEL_DIR"
-          curl -fL --retry 3 --output "$MODEL_DIR/Qwen3.5-4B-Q4_K_M.gguf" \
-            'https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/main/Qwen3.5-4B-Q4_K_M.gguf'
-          echo "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4  $MODEL_DIR/Qwen3.5-4B-Q4_K_M.gguf" | sha256sum -c -
-          sha256sum "$MODEL_DIR/Qwen3.5-4B-Q4_K_M.gguf" > "$MODEL_DIR/../model-sha256.txt"
-      - name: Start pinned CPU-only llama.cpp Qwen server
-        if: ${{ matrix.branch == 'qwen' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p .ox-state/personality-model/llama
-          curl -fL --retry 3 --output .ox-state/personality-model/llama.tar.gz \
-            'https://github.com/ggml-org/llama.cpp/releases/download/b11819/llama-b11819-bin-ubuntu-x64.tar.gz'
-          echo '98800bd7b1b7bd5f17ff32c0ee6ce2ea6dbcfe77eb58ff9fd96bdad967a4f286  .ox-state/personality-model/llama.tar.gz' | sha256sum -c -
-          tar -xzf .ox-state/personality-model/llama.tar.gz -C .ox-state/personality-model/llama
-          SERVER="$(find .ox-state/personality-model/llama -type f -name llama-server -print -quit)"
-          test -n "$SERVER"
-          LD_LIBRARY_PATH="$(dirname "$SERVER")" "$SERVER" \
-             --model "$MODEL_DIR/Qwen3.5-4B-Q4_K_M.gguf" \
-             --alias qwen3.5-4b --host 127.0.0.1 --port 8080 \
-             --ctx-size 4096 --threads 4 --parallel 1 --n-gpu-layers 0 --reasoning off \
-             > .ox-state/personality-model/llama-server.log 2>&1 &
-          echo $! > .ox-state/personality-model/llama-server.pid
-          for i in $(seq 1 120); do
-            if curl -fsS http://127.0.0.1:8080/health | grep -q '"status":"ok"'; then exit 0; fi
-            if ! kill -0 "$(cat .ox-state/personality-model/llama-server.pid)" 2>/dev/null; then
-              tail -n 120 .ox-state/personality-model/llama-server.log
-              exit 1
-            fi
-            sleep 2
-          done
-          exit 1
       - name: Create temporary world credentials
         shell: bash
         run: |
@@ -186,6 +142,23 @@ jobs:
           assert r["world_commands_sent"]==(1 if r["status"]=="isolated_verified" else 0),r
           print("OX_REAL_MODEL_WORLD_CHOICE_PASS",r["model"],r["status"])
           PY
+      - name: Paired private-memory motivation choices with real Decider Q4
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m ox_ai.scenarios.personality_dilemmas \\
+            --model decider-q4 \\
+            --gguf-path "$OX_DECIDER_GGUF_PATH" \\
+            --output .ox-state/personality-model/dilemmas-decider.json
+          python - <<'PY'
+          import json
+          r=json.load(open(".ox-state/personality-model/dilemmas-decider.json"))
+          assert r["model"]=="decider-q4" and len(r["rows"])==12 and len(r["paired"])==6,r
+          assert all(x["same_route_roll"] for x in r["paired"]),r
+          assert r["world_commands_sent"]==0,r
+          assert all(x["model_calls"]==1 and x["route"]=="llm" for x in r["rows"]),r
+          print("OX_DECIDER_PERSONALITY_ASSAY_PASS")
+          PY
       - name: Stop world for independent authoritative state inspection
         if: always()
         working-directory: game
@@ -198,14 +171,14 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ox-personality-real-${{ matrix.model }}
+          name: ox-personality-real-decider
           path: |
+            .ox-state/personality-model/dilemmas-decider.json
             .ox-state/personality-model/route.json
             .ox-state/personality-model/route.brain.json
             .ox-state/personality-model/verdict.json
             .ox-state/personality-model/trial.log
             .ox-state/personality-model/model-manifest.json
             .ox-state/personality-model/model-sha256.txt
-            .ox-state/personality-model/llama-server.log
           retention-days: 14
           if-no-files-found: ignore
