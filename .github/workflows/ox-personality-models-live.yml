@@ -133,7 +133,7 @@ jobs:
             sleep 2
           done
           exit 1
-      - name: Provision real Evennia accounts and cooling incident
+      - name: Create temporary world credentials
         shell: bash
         run: |
           set -euo pipefail
@@ -144,6 +144,10 @@ jobs:
           echo "EVENNIA_SUPERUSER_PASSWORD=$OWNER" >> "$GITHUB_ENV"
           echo "EVENNIA_SUPERUSER_USERNAME=OxModelTrialOwner" >> "$GITHUB_ENV"
           echo "EVENNIA_SUPERUSER_EMAIL=modeltrial@example.invalid" >> "$GITHUB_ENV"
+      - name: Provision real Evennia accounts and cooling incident
+        shell: bash
+        run: |
+          set -euo pipefail
           (cd game && evennia migrate --noinput)
           (cd game && evennia shell --command="from world.transport_probe import provision; provision(); from world.live_crew import fixture_setup; fixture_setup(); print('OX_MODEL_WORLD_READY')")
       - name: Start real Evennia process
