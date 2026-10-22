@@ -121,7 +121,7 @@ def run(model_id: str, repetitions: int, *, api_base: str) -> dict:
                 mode: OllayaChoiceModel(
                     model_id,
                     tuple(option.label for option in spec["options"]),
-                    endpoint,
+                    endpoint, timeout=(600 if model_id == "decider:4b" else 180),
                 ) for mode in (False, True)
             }
             agents = {mode: build(spec, mode, models[mode])
