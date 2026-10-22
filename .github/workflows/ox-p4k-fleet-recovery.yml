@@ -114,18 +114,20 @@ jobs:
           second=json.loads(Path(".ox-state/p4k/resume-verdict.json").read_text())
           assert first["actors"] == second["actors"] == 40
           assert len(first["per_actor"]) == len(second["per_actor"]) == 40
-          assert second["receipt_reconciled_without_resubmit"] is True
-          assert second["world_round_receipt_id"] == first["world_round_receipt_id"]
+          assert first["work_receipts"] == second["work_receipts"] == 40
+          assert second["receipts_reconciled_without_resubmit"] is True
+          assert first["world_round_receipt_ids"] == second["world_round_receipt_ids"]
+          assert len(set(second["world_round_receipt_ids"].values())) == 40
           print("OX_P4K_FORTY_WORLD_NATIVE_ATTESTED_RESTART_PASS")
           PY
       - name: Stop world before scoring authoritative receipt database
         if: always()
         working-directory: game
         run: evennia stop || true
-      - name: Verify one-and-only-one world-committed duty report
+      - name: Verify forty separately world-committed duty reports
         working-directory: game
         run: |
-          evennia shell --command="from world.models import WorkReceipt, CrewEvent; r=list(WorkReceipt.objects.filter(operation='round_report', target='ship')); assert len(r)==1 and r[0].outcome['status']=='succeeded'; assert CrewEvent.objects.filter(event_id=r[0].outcome['source_event_id'], kind='round_recorded').count()==1; assert CrewEvent.objects.filter(kind='fleet_duty_posted').count()==40; assert CrewEvent.objects.filter(kind='fleet_duty_updated').count()==40; print('OX_P4K_ONE_WORLD_RECEIPT_FORTY_PRIVATE_DUTIES_PASS')"
+          evennia shell --command="from world.models import WorkReceipt, CrewEvent; r=list(WorkReceipt.objects.filter(operation='round_report', target='ship')); assert len(r)==40 and len({x.actor_dbref for x in r})==40; assert all(x.outcome['status']=='succeeded' for x in r); assert CrewEvent.objects.filter(kind='round_recorded').count()==40; assert all(CrewEvent.objects.filter(event_id=x.outcome['source_event_id'], recipient_dbref=x.actor_dbref, kind='round_recorded').count()==1 for x in r); assert CrewEvent.objects.filter(kind='fleet_duty_posted').count()==40; assert CrewEvent.objects.filter(kind='fleet_duty_updated').count()==40; print('OX_P4L_FORTY_WORLD_RECEIPTS_AND_PRIVATE_DUTIES_PASS')"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

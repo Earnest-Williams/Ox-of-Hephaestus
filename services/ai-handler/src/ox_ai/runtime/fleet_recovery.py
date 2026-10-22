@@ -17,6 +17,7 @@ import os
 from pathlib import Path
 import re
 import tempfile
+import uuid
 
 from ox_ai.agents.crew import CrewAgent, CrewIdentity
 from ox_ai.agents.live_concordia import make_model
@@ -121,6 +122,17 @@ class FleetCrewBrain:
             self.agent.advance_game_time(float(game_time))
         return accepted
 
+    def observe_local(self, description: str, text: str) -> None:
+        """Admit only the actual locally returned instrument reading."""
+        timestamp = float(self.agent.snapshot()["last_game_time"] or 0.0)
+        self.agent.observe(WorldObservation(
+            observation_id="local-" + uuid.uuid4().hex,
+            character_id=self.character_id,
+            game_time=timestamp,
+            text=f"{description}: {text}",
+            kind="local_readout",
+        ))
+
     def save_checkpoint(self) -> None:
         self.agent.save_checkpoint(self.checkpoint_path)
 
@@ -199,6 +211,17 @@ class FleetRecoverySupervisor(CrewWatchSupervisor):
                 brain.save_checkpoint()
         else:
             self.brains[self._checkpoint_role].save_checkpoint()
+        atomic_json(self.state_path, self.state)
+
+    def checkpoint_actor(self, role: str) -> None:
+        """Persist one independently reconciled pending intent and ledger.
+
+        If interrupted, the previous checkpoint still contains the same
+        unresolved request ID, and the next run can query world truth again.
+        """
+        if role not in self.brains:
+            raise PermissionError("Cannot checkpoint an unknown fleet mind")
+        self.brains[role].save_checkpoint()
         atomic_json(self.state_path, self.state)
 
     async def read_inbox(self, role: str):
