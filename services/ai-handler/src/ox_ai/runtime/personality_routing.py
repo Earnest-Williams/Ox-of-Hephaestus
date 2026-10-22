@@ -136,7 +136,11 @@ class PersonalityRouter:
                            for k in ("probability_llm", "roll"))):
                 raise ValueError("Corrupt historical routing decision")
         for key, val in self.record["feedback"].items():
-            if not isinstance(key, str) or not _ID.fullmatch(key) or val not in ("success", "failure"):
+            if (not isinstance(key, str) or not _ID.fullmatch(key)
+                    or not isinstance(val, dict)
+                    or set(val) != {"boundary_id", "interpretation"}
+                    or val["boundary_id"] not in self.record["boundaries"]
+                    or val["interpretation"] not in ("success", "failure")):
                 raise ValueError("Corrupt perceived-consequence ledger")
 
     def probability(self, state: PersonalState, kind: str) -> float:
@@ -240,18 +244,27 @@ class PersonalityRouter:
         source_id = observation.source_event_id
         existing = self.record["feedback"].get(source_id)
         if existing is not None:
-            if existing != interpretation:
-                raise ValueError("Same evidence cannot silently reverse feedback")
+            if existing != {"boundary_id": boundary_id,
+                            "interpretation": interpretation}:
+                raise ValueError("Same evidence cannot be applied to a different strategy or interpretation")
             return
         if len(self.record["feedback"]) >= MAX_FEEDBACK:
             raise RuntimeError("Perceived-outcome ledger at capacity")
         prior = self.record["reliance_basis_points"]
-        # A successful improvisation reinforces future reliance; failure
-        # usually diminishes it. Authority-challengers may double down,
-        # but the update remains bounded and reversible.
+        # Reinforce whichever strategy the character actually used.
+        # A successful GOAP outcome discourages future improvisation;
+        # successful LLM reliance encourages it. Failure generally reverses
+        # that association; a highly authority-challenging character can
+        # defensively *increase* reliance after an LLM failure.
+        selected = self.record["boundaries"][boundary_id]["selected"]
         challenge = dict(self.profile.traits)["authority_challenge"]
-        step = 350 if interpretation == "success" else (-350 if challenge < 75 else 80)
-        self.record["feedback"][source_id] = interpretation
+        if selected == "llm":
+            step = 350 if interpretation == "success" else (-350 if challenge < 75 else 80)
+        else:
+            step = -350 if interpretation == "success" else 350
+        self.record["feedback"][source_id] = {
+            "boundary_id": boundary_id, "interpretation": interpretation,
+        }
         self.record["reliance_basis_points"] = max(
             -2000, min(2000, prior + step))
         try:
