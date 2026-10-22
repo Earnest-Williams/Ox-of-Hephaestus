@@ -1,11 +1,13 @@
 # Habitation pressure interfaces and mechanical recovery — v0.5 design continuation
 
-**Status: proposed operational arrangement for the actual Ox.** This is a
-play-facing hardware/operations specification, not a construction drawing or
-finite-element signoff. It preserves the user's two accepted requirements:
-**independent pressure-rated habitation arcs** and **40-person total design
-capacity**. The eight-arc layout, final sweep and actual member sizes remain
-engineering candidates until the 38°/41° geometry is reconciled.
+**Status: adopted B′ functional architecture, proposed component details.**
+This is a play-facing hardware/operations specification rather than a
+construction drawing or finite-element signoff. The adopted arrangement
+is **eight independent 38° pressure-rated habitation arcs**, at 45°
+pitch, supporting **40 people** with three saddles per arc. B′ has a
+keyed structural centre and independently sliding outer supports. Precise
+member sizes are still engineering candidates; the 41° preliminary CAD is
+not an alternative arrangement still awaiting selection.
 
 ## 1. Layout and pressure boundaries
 
@@ -25,14 +27,14 @@ must use the other direction around the arc ring, or an independently
 safe spine transfer path; a sealed bridge is not traversable simply
 because a route exists in the graph.
 
-The current model depicts 38° modules at 45° pitch, leaving 7° between
-schematic arc ends. At 73.15 m centreline radius that is about 8.93 m
-of chord-to-chord separation. The later v0.5 curved-shell/frame CAD trial
-used 41° arcs with a 4° gap, about 5.10 m on the same centreline.
-**Do not combine the trial 41° head/framework envelope with a 38°
-bridge without remodelling the end positions.** The v0.5 standalone
-wireframe correctly draws the current 38° schematic, but is not CAD
-evidence for either option.
+B′ uses **38° modules at 45° pitch**, leaving 7° between arc ends.
+At 73.15 m centreline radius, the nominal separation chord is about
+**8.93 m**. The earlier 41° curved-shell/frame trial would leave 4°
+and about 5.10 m, so it is unsuitable as a direct installed-geometry
+reference. **Remodel that trial's head, cradle and indexer interfaces
+to the chosen B′ 38° layout.** The standalone v0.4 wireframe correctly
+displays the currently selected schematic; it does not qualify the
+manufactured pressure closures.
 
 ## 2. Pressure-end closure at every bridge interface
 
@@ -137,15 +139,27 @@ was about 1.66 m for those members actually modelled.
 The hatch seat gap and unmodelled carrier hardware remain
 separate problems.
 
-**Proposed repair of the design, not a fraudulent correction of
-the old STEP file:** attach three cradle saddles per arc using
-conformal nonpenetrating reinforced pads/frame bands on the
-outside of the pressure shell. At each saddle, bifurcate the
-load transfer to independent lattice members leading toward
-the fore/aft bearing planes. Keep structural terminations
-and replaceable inspection shoes outside the nominal intact
-pressure membrane. No singular beam end is allowed to stand
-in for a certified pressure-hull hardpoint.
+**B′ selected load paths** supersede the old single-beam cradle
+precursor. The eight arcs each have three principal conformal saddles
+(24 total), connected to external nonpenetrating reinforcement at the
+pressure shell. Each of the **eight keyed central saddles** attaches
+through a real diaphragm-supported centre joint, establishing the
+circumferential and reference longitudinal datum. Each of the
+**sixteen outer saddles slides** to admit normal thermal growth
+rather than clamping the 38° shell. Every outer station uses
+**three spatially independent branches**, totalling **48 outer
+frame branches**, so a single member or node does not masquerade
+as the whole support.
+
+The developed B′ centre-joint screening geometry uses a 2.4 ×
+1.6 × 1.5 m diaphragm-reinforced box (50 mm principal plates,
+40 mm diaphragms), 300 × 35 mm capture retainers and 180 mm
+pins as candidate parts. Those are believable current-installation
+component sizes, not manufacturing qualifications. **Retainers
+must not seize or bottom out during normal thermal motion**;
+they provide exceptional-displacement capture and post-failure
+recovery. Keep all frame junctions outside intact pressure
+membranes with accessible inspection and replacement zones.
 
 The remaining path after a saddle/member defect need only
 support *safe spin-down, pressure containment and recovery*
@@ -155,12 +169,13 @@ movement, large vibration, unbalanced stowage or frame damage
 can require slowing/parking the hab rotor, informing command,
 preserving atmosphere and using alternate access routes.
 
-The candidate 41° framework cannot be silently scaled to the
-38° version because chord positions, saddle positions,
-bridge gap and indexer clearance all change. A dimensional
-correspondence check is next. That does not prevent choosing
-the above operational load-path and failure doctrine for
-the fictional ship.
+The earlier 41° framework must be **re-authored around B′ 38°**
+stations. The chosen support topology and load-path rules are not
+contingent on that re-authoring; detailed member footprints,
+seal contact and indexer clearance are still to be reconciled.
+The B′ loss-of-outer-station screen suggested ~179 mm
+movement as a particular failed-state displacement; that is
+not the allowed normal service travel.
 
 ## 5. The two independent spine–habitation indexers
 
@@ -231,8 +246,8 @@ The operational contract above selects credible hardware types,
 crew procedures and failure states. The complete 3D carrier
 rings, the pressure seat's precise section/contact, the dog
 mechanism, curved head support interactions, shell/stiffener
-materials and the exact 38°/41° dimensional resolution remain
-future physical-model design tasks.
+materials and the precise B′ 38° dimensional adaptation of
+earlier CAD remain future physical-model design tasks.
 
 The recovery report's 3°/6° beam screens and valid STEP
 imports are useful technical evidence; they do not alone

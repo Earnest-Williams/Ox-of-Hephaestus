@@ -42,7 +42,7 @@ unchanged.
   assumptions, balances, preserved decisions and remaining design work.
 - [Pressure ends, cradles and rotary access](HAB_PRESSURE_ACCESS_v0.5.md):
   the functional hatch/seal/indexer arrangement, failure/recovery and the
-  38°/41° dimensional mismatch to resolve before geometric promotion.
+  adopted B′ 38° geometry, with earlier 41° CAD treated as a superseded trial requiring dimensional adaptation.
 - [Major-system operating states](SYSTEM_OPERATING_STATES_v0.5.md):
   power, atmosphere, water, thermal, cargo, damage control and repair
   doctrine for a 40-person ship.

@@ -21,14 +21,16 @@ substantial fixed power/thermal plant, and central rotating habitation.
 people are established constraints.** The 40-person figure is neither the
 minimum safe operating crew nor the ordinary working complement.
 
-The v0.4 model gives a reference implementation of eight habitation arcs and
-a 38-degree tangent-ring/pressure-section schematic, with four ten-cabin
+The adopted **B′ (B-prime)** arrangement is eight independent **38-degree**
+pressure-rated habitation arcs at 45-degree pitch: four ten-cabin
 residential arcs (HAB-01, 03, 05 and 07), four specialist arcs, two indexed
-spine–habitation interfaces, and eight inter-arc pressure bridges. The
-recovered v0.5 pressure-head/frame study used a **different, provisional
-41-degree arc**, and its 3D CAD is not a direct geometric authority for the
-38-degree world model. Neither study proves a fabricated hull; the operator
-model may nevertheless select credible mechanisms and failure consequences.
+spine–habitation interfaces, and eight inter-arc pressure bridges. Each arc
+has three principal cradle saddles, a keyed diaphragm-supported centre,
+and sliding outer supports with three distinct load-path branches each.
+The earlier provisional **41-degree** pressure-head/frame trial is
+**superseded** as layout geometry; its component ideas require adaptation to
+the actual 38-degree B′ ship. This is an operational engineering selection
+for the fictional vessel, not fabrication certification.
 
 The Ox originally had comparatively standardised, orderly utility systems.
 Its *current installation* has mixed-generation panels, revised cable
@@ -104,12 +106,12 @@ unusable. Future atmosphere ledgers must enumerate pressure zones, actual
 free volume, stored gas, leakage and repressurisation costs. The current
 5.5 t arc-refill-gas allowance is not permission to fill the entire ship.
 
-At a 45-degree module pitch, the 38-degree schematic leaves a 7-degree
-angular gap. The 73.15 m centreline chord is approximately **8.93 m**;
-the 41-degree trial gap would be only 4 degrees and approximately **5.10 m**.
-The inter-arc bridge must therefore be sized against its actual adopted
-configuration. The v0.5 framework/hatch trial must not be dropped into the
-current model without this geometry reconciliation.
+At 45-degree pitch, the selected 38-degree B′ modules leave 7-degree
+gaps, or approximately **8.93 m** between nominal arc-end centreline
+positions at 73.15 m radius. The superseded 41-degree trial would
+have left 4 degrees and about **5.10 m**. Bridge design therefore uses
+the adopted 38-degree span; component and frame CAD is adapted to
+that span, not the other way around.
 
 See HAB_PRESSURE_ACCESS_v0.5.md for the mechanical and operating interfaces.
 
@@ -178,10 +180,11 @@ tasks.
 
 ## Remaining engineering work, in useful order
 
-1. **Resolve HAB physical envelope**: one arc sweep, true curved-shell
-   end/head geometry, bridge span, pressure-zone/free volume and the
-   two independent indexer swept envelopes. Select simulation geometry
-   without requiring fabrication certification.
+1. **Complete B′ geometry**: keep the selected 38-degree arc sweep and
+   three-saddle architecture; develop finished curved-shell heads,
+   7-degree-gap pressure bridge geometry, net zone volume, indexed
+   carrier swept envelopes, and access/maintenance reach. The old
+   41-degree trial must not silently change this decision.
 2. **Complete coupled physical access**: cradle-to-frame redundant
    attachments, paired pressure-head seals/dogs, rotary carrier movement,
    local emergency stops and recovery manoeuvres. Report what becomes

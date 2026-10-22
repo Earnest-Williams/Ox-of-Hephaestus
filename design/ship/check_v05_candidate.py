@@ -221,7 +221,46 @@ def validate(candidate: dict, baseline: dict) -> dict:
     require(expected_departure == mass["reference_departure_t"],
             "departure mass no longer balanced")
     require(candidate["principal"]["hab_tangent_ring_span_deg"] == 38,
-            "unreviewed 38 versus 41 degree selection")
+            "B-prime selected 38-degree arc geometry was changed")
+    hab = candidate.get("habitation_support_contract", {})
+    require(hab.get("selection", "").startswith("B-prime"),
+            "selected B-prime support architecture missing")
+    geometry = hab.get("geometry", {})
+    require(geometry.get("arc_count") == 8
+            and geometry.get("arc_sweep_deg") == 38
+            and geometry.get("arc_pitch_deg") == 45
+            and geometry.get("angular_gap_deg") == 7,
+            "B-prime requires eight independent 38-degree arcs at 45-degree pitch")
+    support = hab.get("load_path", {})
+    require(support.get("saddles_per_arc") == 3
+            and support.get("total_saddles") == 24
+            and support.get("keyed_centre_saddles") == 8
+            and support.get("sliding_outer_saddles") == 16
+            and support.get("outer_branches_per_saddle") == 3
+            and support.get("total_outer_branches") == 48,
+            "B-prime keyed centre / sliding multi-branch support count changed")
+    require("non-clamping" in support.get("retainer_rule", ""),
+            "B-prime outer retainers must not clamp ordinary thermal motion")
+    head = hab.get("arc_end", {})
+    require(head.get("leaf_opens", "").startswith("inward")
+            and head.get("dog_count") == 16
+            and head.get("seal", "").startswith("fitted")
+            and head.get("opening_motions") == [
+                "withdraw inward 0.120 m", "swing leaf inward through 90 degrees"
+            ], "B-prime pressure-seated inward hatch operating rule lost")
+    bridges = hab.get("interarc_bridges", {})
+    require(bridges.get("number") == 8
+            and bridges.get("independent_pressurised_bridge_volumes")
+            and bridges.get("normal_relative_service_travel_mm") == 125
+            and bridges.get("emergency_translation_envelope_mm") == 450,
+            "independent pressure bridge and failure travel boundaries lost")
+    require(hab.get("transfers", {}).get("habitation_indexer_count") == 2,
+            "dual independent habitation indexers missing")
+    require(isclose(geometry.get("gap_chord_m", 0),
+                    2*geometry["centreline_radius_m"] *
+                    sin(geometry["angular_gap_deg"]*pi/360),
+                    abs_tol=0.01),
+            "B-prime bridge geometric gap inconsistent")
     radius = candidate["principal"]["hab_shell_centreline_radius_m"]
     d_inner = candidate["principal"]["hab_pressure_section_internal_diameter_m"]
     arc_angle = candidate["principal"]["hab_tangent_ring_span_deg"]
@@ -238,6 +277,8 @@ def validate(candidate: dict, baseline: dict) -> dict:
             "gross tube geometry misrepresented as pressure gas inventory")
 
     return {
+        "habitation_support": "B-prime 38deg",
+        "outer_saddle_branches": 48,
         "food_departure_t": food["nominal_mass_t"],
         "normal_oxygen_generators": len(o2),
         "normal_CO2_regenerators": len(co2),
@@ -274,6 +315,12 @@ def negative_regressions(base: dict, source: dict) -> None:
         ("unbalanced water budget", lambda m: m["life_support_contract"]
          ["makeup_water_730day_planning_split_t"].update(
          cultivation_and_food_process_t=999)),
+        ("wrong arc selection", lambda m: m["habitation_support_contract"]
+         ["geometry"].update(arc_sweep_deg=41)),
+        ("lost redundant outer branches", lambda m: m["habitation_support_contract"]
+         ["load_path"].update(outer_branches_per_saddle=1)),
+        ("wrong pressure-hatch opening", lambda m: m["habitation_support_contract"]
+         ["arc_end"].update(leaf_opens="outward")),
     ]
     for title, inject in cases:
         mutated = deepcopy(base)
@@ -290,4 +337,4 @@ if __name__ == "__main__":
     candidate = load(CANDIDATE)
     print(json.dumps(validate(candidate, source), indent=2, sort_keys=True))
     negative_regressions(candidate, source)
-    print("OX_V05_DESIGN_CANDIDATE_AND_NINE_NEGATIVE_REGRESSIONS_PASS")
+    print("OX_V05_DESIGN_CANDIDATE_AND_TWELVE_NEGATIVE_REGRESSIONS_PASS")
