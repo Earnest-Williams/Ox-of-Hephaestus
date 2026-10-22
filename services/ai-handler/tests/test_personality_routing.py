@@ -312,7 +312,7 @@ class RealConcordiaRoutingTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_cross_person_or_unmatched_blueprint_is_denied(self):
         other=CrewAgent(
-            CrewIdentity("ox.person.other","#72","Other","Other","Other"),
+            CrewIdentity("ox.person.other","#72","Router Test Engineer","Other","Other"),
             SpyChoiceModel(),blueprint=blueprint("other"),
         )
         with self.assertRaises(PermissionError):
