@@ -32,6 +32,18 @@ class DecisionHeadTests(unittest.TestCase):
             OllayaChoiceModel("decider:2b-vision", ("a", "b"),
                               localhost_api("http://localhost"))
 
+    def test_extra_decision_models_have_same_bounded_choice_contract(self):
+        for name in ("decider:4b", "gliclass:large", "nli:deberta-v3-large"):
+            with self.subTest(name=name):
+                adapter = OllayaChoiceModel(
+                    name, ("Inspect evidence", "Await fresh evidence"),
+                    localhost_api("http://127.0.0.1:11435"),
+                )
+                self.assertEqual(adapter.model_id, name)
+                self.assertEqual(adapter.calls, 0)
+                with self.assertRaises(ValueError):
+                    adapter.sample_choice("prompt", ("a",))
+
     def test_reject_unknown_and_empty_menus(self):
         with self.assertRaises(ValueError):
             OllayaChoiceModel("unknown", ("a", "b"), localhost_api("http://localhost"))
