@@ -92,6 +92,18 @@ indexers, emergency gas replenishment and their neighbouring
 electrical/cooling sleeves. The eight-bridge utility-ring
 topology offers an alternate manifold path.
 
+The four pre-existing fixed-receiver feed edges also now carry explicit
+room-by-room **A/B fixed-spine service-raceway paths**, from WATER-FWD
+through the twelve applicable sectional personnel-trunk locations to
+ROTARY-UTIL-A/B. Lines run **beside**, not in the stated 3 m clear
+personnel-cart bore, so a closed crew pressure shutter does not
+automatically close the adjacent wet plumbing. The source and
+rotary-side isolation devices remain real and separate.
+A lost middle section of the wet line still requires physical
+isolation and repair; a nominal edge in the network graph is not a
+magically surviving tube. The checker rejects a missing or
+misordered route station.
+
 A single disabled rotary wet crossing leaves potential access
 through the other correctly isolated crossing. Losing *both*
 disconnects the fixed receiver despite the tank still existing:
@@ -163,7 +175,7 @@ The `check_waste_byproducts.py` regression proves no
 hydrogen/CO2 cross-connection, properly paired hull isolators,
 finite buffers and departure inventory, dual A/B alternate
 wastewater delivery, and failure of both rotary routes.
-It includes eight deliberate failure mutations. This is
+It includes nine deliberate failure mutations. This is
 network and accounting integrity, not a pressure-vessel
 qualification or actual live-world test.
 
