@@ -128,7 +128,8 @@ def matched(a, b):
     ))
 
 
-def run(provider="gemini", repetitions=1, *, api_base="http://127.0.0.1:8080/v1"):
+def run(provider="gemini", repetitions=1, *, api_base="http://127.0.0.1:8080/v1",
+        local_model="qwen3.5-0.8b"):
     if provider not in ("gemini", "capture", "qwen-local"):
         raise ValueError("Provider must be hosted Gemini, local Qwen or smoke capture")
     if type(repetitions) is not int or not 1 <= repetitions <= 3:
@@ -149,8 +150,10 @@ def run(provider="gemini", repetitions=1, *, api_base="http://127.0.0.1:8080/v1"
                 or parsed.path.rstrip("/") != "/v1"
                 or parsed.query or parsed.fragment):
             raise ValueError("Qwen G11 pilot must use localhost HTTP /v1 only")
+        if local_model not in ("qwen3.5-0.8b", "qwen3.5-4b"):
+            raise ValueError("Local G11 pilot requires an explicitly allowed model")
         make_trial_model = lambda: CompatibleChatModel(
-            "qwen3.5-0.8b", api_key="local-no-secret", api_base=api_base
+            local_model, api_key="local-no-secret", api_base=api_base
         )
     else:
         make_trial_model = CaptureModel
@@ -193,6 +196,7 @@ def run(provider="gemini", repetitions=1, *, api_base="http://127.0.0.1:8080/v1"
     return {"experiment": "g11_matched_evidence", "provider": provider,
             "real_hosted_model": provider == "gemini",
             "real_local_model": provider == "qwen-local",
+            "local_model_id": local_model if provider == "qwen-local" else None,
             "valid_quality_evidence": provider != "capture",
             "limitation": "Four synthetic cases; descriptive pilot, not statistical proof.",
             "repetitions": repetitions, "summary": groups, "decisions": rows}
@@ -202,10 +206,12 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--provider", choices=("gemini", "capture", "qwen-local"), default="gemini")
     p.add_argument("--api-base", default="http://127.0.0.1:8080/v1")
+    p.add_argument("--local-model", choices=("qwen3.5-0.8b", "qwen3.5-4b"), default="qwen3.5-0.8b")
     p.add_argument("--repetitions", type=int, default=1)
     p.add_argument("--output", type=Path, required=True)
     args = p.parse_args()
-    result = run(args.provider, args.repetitions, api_base=args.api_base)
+    result = run(args.provider, args.repetitions, api_base=args.api_base,
+                 local_model=args.local_model)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n",
                            encoding="utf-8")
