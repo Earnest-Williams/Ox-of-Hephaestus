@@ -36,13 +36,16 @@ The fixed-spine positions are intended to answer questions such as "where is the
 
 ## Integration status
 
-This model is **not loaded by the current `game/` bootstrap**. It is committed as the prepared physical-world source for a later, separately reviewed integration. The current seven-compartment Evennia proving ground remains authoritative at runtime until that work occurs.
+Stage-one runtime integration now loads the canonical spatial topology into persistent Evennia objects through `world.ship_model` and `world.ship_world`. The 421 spaces and 517 physical access links are materialised without resetting live conditions on reruns.
+
+Canonical access remains Developer-only while pressure, EVA, rotary/indexing, hard-lock and machinery interlocks are implemented. The seven-compartment proving ground remains temporary compatibility scaffolding for existing operational fixtures, crew markers and regression scenarios; it is no longer the target ship world. See `EVENNIA_INTEGRATION.md` for the staged migration boundary.
 
 ## Main files
 
 - `ox_full_ship.json` - canonical linked model.
 - `FIXED_SPINE_LAYOUT.md` - layout/transit/debris doctrine.
-- `Ox_Ship_Wire_Render_v0.2.html` - standalone interactive wire render.
+- `Ox_Ship_Wire_Render_v0.4.html` - standalone interactive wire render.
+- `EVENNIA_INTEGRATION.md` - staged Evennia integration status and authority boundary.
 
 ## v0.3 adjustable-gravity Engineering work rotor
 
