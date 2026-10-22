@@ -737,8 +737,13 @@ class Trial:
                 "A dialogue intention was selected, not world-confirmed speech",
             ))
         active = [entry for entry in agent.temporal_memories.entries()
-                  if entry.kind in ("witnessed_speech", "world_receipt")
+                  if entry.kind == "witnessed_speech"
                   and entry.learned_turn <= self.turn and entry.subject == other]
+        observed_contracts = [
+            entry for entry in agent.temporal_memories.entries()
+            if entry.kind == "world_receipt"
+            and entry.learned_turn <= self.turn and entry.subject == other
+        ]
         self.route_audit.append({
             "turn": self.turn, "actor": role, "target": other,
             "route": proposal.route.selected,
@@ -748,6 +753,7 @@ class Trial:
             "deviated": mapped[key] != symbolic_intent,
             "personal_memories": len(agent.temporal_memories),
             "encountered_history_count": len(active),
+            "world_receipt_memory_count": len(observed_contracts),
             "latest_encounter_ids": [entry.source_event_id for entry in active[-3:]],
             "observation_revision": proposal.route.observation_revision,
             "cognition_revision": proposal.route.cognition_revision,
