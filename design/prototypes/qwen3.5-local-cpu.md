@@ -61,8 +61,7 @@ world commands were sent. This single sample is not a throughput estimate.
 The branch-specific Qwen workflow now also runs the existing G11 pilot
 using `--provider qwen-local`: four synthetic fixtures (promise withdrawal,
 contradictory cargo evidence, confidentiality, and redundant refusal)
-under baseline and memory-augmented Concordia context, **eight genuine
-model calls** at one repetition. Both arms start with identical actor-visible
+under baseline and memory-augmented Concordia context, **24 genuine model calls** over three repetitions. Both arms start with identical actor-visible
 evidence; only the bounded memory projection differs. The pilot archives
 per-case choice, expected-label match, prompt size, and inference latency.
 Invalid responses fail rather than being counted as valid decisions.
@@ -70,3 +69,43 @@ Invalid responses fail rather than being counted as valid decisions.
 These results are **descriptive model-behaviour observations**, not reliable
 evidence that memory improves choices. Neither scoring nor model output
 authorises a world action. The original hosted G11 workflow remains manual.
+
+## Three-repetition G11 result (22 October 2026)
+
+[GitHub Actions #39808706470](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/39808706470)
+completed successfully at executable commit `c3d050c`. All 24
+model requests returned accepted finite choices; the same action
+was selected in each of the three repeats for a given case/arm.
+There were **12 decisions per arm**, across four authored cases
+repeated three times, not 12 independent evidence scenarios.
+
+| Fixture | Baseline action (3/3) | With memory projection (3/3) | Authored expected |
+| --- | --- | --- | --- |
+| Withdrawn watch-swap pledge | clarify | assume | clarify |
+| New contradictory cargo evidence | inspect | inspect | inspect |
+| Private letter without permission | disclose | withhold | withhold |
+| Previously refused identical request | repeat | repeat | investigate |
+
+Both arms matched authored expected actions **6/12 (50%)**. Baseline
+disclosed the private letter on three of three repeats, augmented on
+zero. Both repeated an unchanged refused request on all three repeats.
+Memory context helped confidentiality but hurt response to a recanted
+promise. This is **not** a reliable aggregate estimate of cognition
+quality, and no command was submitted to Evennia.
+
+Elapsed time per choice was **confounded by llama.cpp KV/prefix reuse**.
+The first augmented prompts in this run took around 2.0–2.4 seconds,
+whereas exact repeated augmented prompts fell to around 0.10 seconds.
+Baseline prompts were around 1.2 seconds in this run. Accordingly,
+neither aggregate median nor arm-to-arm latency comparison measures
+independent cold prompt processing. A dedicated performance experiment
+should control cache state and account for prompt and sampled tokens.
+
+## Disposition
+
+Local Qwen CPU inference is **proven viable** for integration testing and
+bounded model-behaviour probes. The smoke and G11 repeated trials
+passed. Do not make authored expected actions a hard CI gate: the
+model has exhibited stable poor choices despite correct integration.
+Keep MockModel deterministic regression gates and world-authority
+invariants separate from optional real-model observational experiments.
