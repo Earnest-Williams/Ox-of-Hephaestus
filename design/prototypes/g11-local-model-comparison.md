@@ -79,3 +79,28 @@ observational rather than a prerequisite for integration success.
 
 The common `MODELS` allowlist includes `decider:2b`, so future enlarged
 counterfactual runs can select the same ID without a new adapter.
+
+## Decider 2B verified G11 result and counterfactual extension
+
+[Decider G11 CPU workflow #39817607191](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/39817607191)
+completed successfully. Both baseline and augmented memory matched authored
+expected choices on **9/12** repeated cases (75%), with zero private-letter
+disclosures and **three unchanged-refusal repeats in each arm**. The median
+per-decision latency was approximately 4.63 seconds without memory projection
+and 6.85 seconds with it; these are observational CPU figures, not controlled
+cold-cache timings. This places Decider between the original Laya variants
+and JevK5 on this very small fixture set.
+
+The follow-up counterfactual harness in
+`scenarios/counterfactual_decision_trial.py` contains 24 distinct situations,
+each with two mutually exclusive actor-visible evidence states. It runs one
+augmented-memory native Concordia choice in each state (48 per selected
+model), preserving an identical finite menu and private seed across the
+pair. Evaluation reports **both-correct pairs**, individual authored-choice
+matches, and actual decision flips separately. The expected labels reverse
+across variants; the model's actual choice is never a world receipt.
+
+The dedicated Decider workflow runs these counterfactuals after its existing
+24-call G11 test and checks fixture/inference invariants offline first.
+The counterfactual result is not established until the expanded workflow
+completes successfully.
