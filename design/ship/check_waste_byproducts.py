@@ -142,6 +142,26 @@ def validate(ship):
             fixed=f"ROTARY-UTIL-{side}"
             valveF=f"ISO-WET-{prefix}-{side}-FIXED"
             valveR=f"ISO-WET-{prefix}-{side}-ROTOR"
+            # The fixed forward receiver must have an actual continuous
+            # service-raceway route to this rotating union. Personnel
+            # passage pressure doors are NOT the water-isolation valves.
+            feeder=edges[f"EDGE-FIXED-{prefix}-{side}"]
+            linear=[r for r in ship["spaces"]
+                    if r["kind"]=="personnel_service_trunk"
+                    and r["id"].startswith(f"TRUNK-{side}-")
+                    and r["location"]["x_m"][0]<465]
+            linear.sort(key=lambda r:r["location"]["x_m"][0])
+            expected_route=["WATER-FWD"]+[r["id"] for r in linear]+[fixed]
+            must(feeder["network"]==medium
+                 and feeder["from_node"]==f"NODE-FIXED-{'GREY' if medium=='greywater' else 'BLACK'}-HOLD"
+                 and feeder["to_node"]==f"NODE-ROT-{prefix}-{side}"
+                 and feeder["route_spaces"]==expected_route
+                 and feeder["capacity"]["L_day"]>=qty
+                 and linear[0]["location"]["x_m"][0]==0
+                 and linear[-1]["location"]["x_m"][1]>=465
+                 and all(linear[i]["location"]["x_m"][1]==linear[i+1]["location"]["x_m"][0]
+                         for i in range(len(linear)-1)),
+                 "fixed wet hold unphysical/undocumented path across segmented spine")
             must(e["network"]==medium and
                  e["from_node"]==f"NODE-ROT-{prefix}-{side}" and
                  e["to_node"]==f"NODE-{arc}-{prefix}-MAN" and
@@ -235,9 +255,11 @@ def negative_tests(ship):
            if e["id"]=="WASTE-RESIDUE-HOLD-A")["attributes"].update(capacity_t=0.1))
     reject(lambda s: next(e for e in s["inventories"]
            if e["id"]=="INV-WASTE-RESIDUE").update(nominal_mass_t=7.3))
+    reject(lambda s: next(e for e in s["service_edges"]
+           if e["id"]=="EDGE-FIXED-GREYWATER-A")["route_spaces"].pop())
 
 if __name__=="__main__":
     ship=load("ox_full_ship_v0.5_candidate.json")
     print(json.dumps(validate(ship),indent=2,sort_keys=True))
     negative_tests(ship)
-    print("OX_WASTE_BYPRODUCT_AND_EIGHT_NEGATIVE_TESTS_PASS")
+    print("OX_WASTE_BYPRODUCT_AND_NINE_NEGATIVE_TESTS_PASS")
