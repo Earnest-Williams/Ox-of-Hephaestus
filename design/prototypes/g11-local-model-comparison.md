@@ -12,8 +12,9 @@ Never treat a queued workflow as a completed model evaluation.
 | Laya English | Fast specialised decision head | Ollaya /api/decide | ModernBERT-large, 421M |
 | Laya typed-decisions | Specialised fine-tuned decision head | Ollaya /api/decide | ModernBERT-large, 421M |
 | JevK5-4B v0.3 Q8_0 | Qwen3.5-4B decision specialist | Ollaya /api/decide, llama.cpp | 4.48 GB |
+| Decider 2B | Purpose-trained decision head | Ollaya /api/decide | 3.76 GB (registry ONNX plus safetensors) |
 
-Laya and JevK5 are **not chat models**: they consume a state, an
+Laya, JevK5 and Decider are **not chat models**: they consume a state, an
 explicit question and a bounded menu, returning choice probabilities
 with no free text. The first native-entity adapter feeds Concordia's
 authored choice prompt to /api/decide; the action descriptions come
@@ -39,6 +40,7 @@ The follow-ups run from:
 
 - .github/workflows/ox-qwen-4b-cpu.yml
 - .github/workflows/ox-decision-models-cpu.yml
+- .github/workflows/ox-decider-2b-cpu.yml (isolated Decider pull/run)
 
 Qwen 4B weights use a verified upstream SHA-256:
 00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4.
@@ -63,3 +65,17 @@ models, so median wall-time is an observed run statistic, not a
 cold-prompt benchmark. Good results warrant more varied cases,
 repeated independent contexts and a separate real-world authority
 integration experiment.
+
+## Decider 2B addition (22 October 2026)
+
+The Ollaya `decider:2b` registry manifest names an ONNX inference graph,
+a 3,763,692,048-byte weight layer from `Mapika/decider-2b` at the
+publisher-pinned revision `9839cc9d908be16c5988c0d041034b5fdf82c7a2`, and
+tokenizer/decision/calibration layers with SHA-256 digests. The separate
+branch-scoped Decider workflow avoids re-downloading all three Laya/JevK5
+models. The same bounded Concordia adapter and existing G11 fixtures are
+used, with three repetitions (24 decisions). Model-choice accuracy is
+observational rather than a prerequisite for integration success.
+
+The common `MODELS` allowlist includes `decider:2b`, so future enlarged
+counterfactual runs can select the same ID without a new adapter.
