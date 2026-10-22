@@ -87,6 +87,70 @@ def new_selected_volume(s: dict) -> float:
         return pi * (g["clear_diameter_m"]/2) ** 2 * g["length_m"]
     raise ValueError("unknown new gas-space designation: " + s["id"])
 
+
+DRUM_LOCKS = {f"PZ-DR-{n:02d}-LOCK" for n in range(1, 7)}
+
+
+def indexed_drum_lock_volume(ship: dict, s: dict) -> float:
+    """Screen nominal fixed lock cylinders; ignore unmeasured station necks."""
+    q, loc = s["geometry"], s["location"]
+    need(s["id"].startswith("DR-") and s["id"].endswith("-SERVICE-LOCK")
+         and s["frame"] == "fixed" and q["shape"] == "transfer_lock"
+         and q["length_m"] == 5 and q["clear_diameter_m"] == 2.3,
+         "indexed service lock envelope or frame altered")
+    need(loc["x_m"][1]-loc["x_m"][0] == 5
+         and loc["y_m"] == 5.4 and loc["z_m"] == -3.7,
+         "unreviewed indexed lock centre position")
+    radius = q["clear_diameter_m"]/2
+    need(8-hypot(loc["y_m"],loc["z_m"])-radius >= .25,
+         "indexed lock intrudes into nominal fixed hull envelope")
+    station = s["id"][3:5]
+    spaces = {x["id"]: x for x in ship["spaces"]}
+    trunk = spaces[f"TRUNK-A-DR-{station}"]
+    dist = hypot(loc["y_m"]-trunk["location"]["y_m"],
+                 loc["z_m"]-trunk["location"]["z_m"])
+    neck = dist-radius-trunk["geometry"]["clear_diameter_m"]/2
+    need(.9 <= neck <= 1.4, "inboard station-side connector gap invalid")
+    doors = {x["id"]: x for x in ship["access_links"]}
+    fixed = doors[f"ACC-DR-{station}-LOCK-FIX"]
+    rotary = doors[f"ACC-DR-{station}-LOCK-ROT"]
+    need(fixed["from"] == f"TRUNK-A-DR-{station}" and fixed["to"] == s["id"]
+         and rotary["from"] == s["id"] and rotary["to"] == f"DR-{station}-HUB"
+         and fixed["pressure_boundary"] and rotary["pressure_boundary"]
+         and fixed["isolatable"] and rotary["isolatable"]
+         and fixed["normal_state"] == rotary["normal_state"] == "closed",
+         "indexed lock lacks two normally-shut rated boundaries")
+    for other in ship["spaces"]:
+        if other["id"] == s["id"] or other.get("pressure_zone") in (None,"VACUUM"):
+            continue
+        ol, og = other.get("location") or {}, other.get("geometry") or {}
+        x = ol.get("x_m")
+        if not isinstance(x,list):
+            if not isinstance(x,(int,float)) or "length_m" not in og:
+                continue
+            x = [x-og["length_m"]/2,x+og["length_m"]/2]
+        if min(loc["x_m"][1],x[1])-max(loc["x_m"][0],x[0]) <= 0:
+            continue
+        if "y_m" not in ol or "z_m" not in ol:
+            continue # Receiving drum galleries still require their own geometry.
+        clear = None
+        if og.get("shape") in ("tube","cylinder","capsule") or (
+           og.get("shape") == "transfer_lock" and "clear_diameter_m" in og):
+            dia = og.get("clear_diameter_m",og.get("diameter_m"))
+            if dia is not None:
+                clear = hypot(loc["y_m"]-ol["y_m"],loc["z_m"]-ol["z_m"])-radius-dia/2
+        elif og.get("shape") == "box" or (
+             og.get("shape") == "transfer_lock" and "clear_width_m" in og):
+            width=og.get("width_m",og.get("clear_width_m"))
+            height=og.get("height_m",og.get("clear_height_m"))
+            if width is not None and height is not None:
+                dy=max(ol["y_m"]-width/2-loc["y_m"],0,loc["y_m"]-ol["y_m"]-width/2)
+                dz=max(ol["z_m"]-height/2-loc["z_m"],0,loc["z_m"]-ol["z_m"]-height/2)
+                clear=hypot(dy,dz)-radius
+        if clear is not None:
+            need(clear >= .20, "indexed service lock overlaps "+other["id"])
+    return pi*radius*radius*q["length_m"]
+
 def validate(ship: dict, pressure: dict, gas: dict, audit: dict) -> dict:
     rooms = {x["id"]:x for x in ship["spaces"]}
     cells = {x["id"]:x for x in pressure["pressure_cells"]}
@@ -97,13 +161,14 @@ def validate(ship: dict, pressure: dict, gas: dict, audit: dict) -> dict:
     selected = set(audit["accepted_zone_ids"])
     need(len(prior)==48 and len(set(prior))==48
          and len(audit["cells"])==48
-         and len(selected)==16
+         and len(selected)==22
          and selected <= set(prior),
          "geometry audit omits or invents pressure cells")
     need(Counter(x["status"] for x in audit["cells"]) == {
         "accepted_nominal_envelope": 11,
         "selected_internal_pressure_geometry": 5,
-        "on_hold": 32
+        "selected_indexed_service_lock_envelope": 6,
+        "on_hold": 26
     }, "unreviewed geometric admission")
     need({x["pressure_zone_id"] for x in audit["cells"]
           if x["status"] == "selected_internal_pressure_geometry"} == NEW_SELECTED,
@@ -119,7 +184,10 @@ def validate(ship: dict, pressure: dict, gas: dict, audit: dict) -> dict:
                  "unreconciled geometry counted as spare air: "+zid)
             continue
         constituent=[rooms[k] for k in entry["space_ids"]]
-        if zid in NEW_SELECTED:
+        if zid in DRUM_LOCKS:
+            need(len(constituent)==1, "indexed lock contains other rooms")
+            volume=indexed_drum_lock_volume(ship,constituent[0])
+        elif zid in NEW_SELECTED:
             need(len(constituent)==1, "new passenger cabin has multiple geometries")
             volume=new_selected_volume(constituent[0])
         else:
@@ -185,15 +253,15 @@ def validate(ship: dict, pressure: dict, gas: dict, audit: dict) -> dict:
         a,b=rooms[edge["from"]].get("pressure_zone"),rooms[edge["to"]].get("pressure_zone")
         need(a is None or b is None or a==b or edge["pressure_boundary"],
              "unrated door between independently isolated pressure volumes: "+edge["id"])
-    need(sum(c["gross_reference_envelope_m3"] is not None for c in cells.values())==101,
+    need(sum(c["gross_reference_envelope_m3"] is not None for c in cells.values())==107,
          "incorrect pressure sizing count")
-    need(gas["totals"]["unsized_pressurized_cells"]==32
+    need(gas["totals"]["unsized_pressurized_cells"]==26
          and pressure["totals"]["pressure_boundary_doors"]==208,
          "gas/boundary totals stale")
     need(all(c["actual_usable_free_air_m3"] is None for c in cells.values()),
          "gas inventory has been falsely represented as measured")
     return {
-        "sized_pressure_cells":101, "unsized_pressure_cells":32,
+        "sized_pressure_cells":107, "unsized_pressure_cells":26,
         "rated_pressure_boundaries":208,
         "gross_reference_m3":pressure["totals"]["gross_reference_envelopes_m3"],
         "nested_arc_child_displacements_checked":3,
@@ -225,6 +293,14 @@ def negative_tests(ship, pressure, gas, audit):
            if x["pressure_zone_id"]=="PZ-AFT-STORES").update(status="accepted_nominal_envelope"))
     reject(lambda s,p,g,a: next(x for x in s["spaces"]
            if x["id"]=="ELEC-FWD")["location"].update(z_m=0))
+    reject(lambda s,p,g,a: next(x for x in s["spaces"]
+           if x["id"]=="DR-01-SERVICE-LOCK")["location"].update(y_m=4.5,z_m=-1.5))
+    reject(lambda s,p,g,a: next(x for x in s["spaces"]
+           if x["id"]=="DR-02-SERVICE-LOCK")["geometry"].update(clear_diameter_m=3.8))
+    reject(lambda s,p,g,a: next(x for x in s["access_links"]
+           if x["id"]=="ACC-DR-03-LOCK-ROT").update(normal_state="open"))
+    reject(lambda s,p,g,a: next(x for x in p["pressure_cells"]
+           if x["id"]=="PZ-DR-04-LOCK").update(gross_reference_envelope_m3=1))
 
 if __name__=="__main__":
     models=[load(n) for n in (
@@ -235,4 +311,4 @@ if __name__=="__main__":
     )]
     print(json.dumps(validate(*models),sort_keys=True,indent=2))
     negative_tests(*models)
-    print("OX_PRESSURE_GEOMETRY_AND_EIGHT_NEGATIVE_TESTS_PASS")
+    print("OX_PRESSURE_GEOMETRY_AND_TWELVE_NEGATIVE_TESTS_PASS")

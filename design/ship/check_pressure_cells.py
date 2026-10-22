@@ -130,7 +130,7 @@ def validate(ship: dict, ledger: dict) -> dict:
     gross = sum(cell["gross_reference_envelope_m3"] for cell in
                 pressure.values() if cell["gross_reference_envelope_m3"] is not None)
     require(isclose(gross, ledger["totals"]["gross_reference_envelopes_m3"],
-                    abs_tol=1e-4) and 68185 < gross < 68187,
+                    abs_tol=1e-4) and 68309 < gross < 68312,
             "gross geometric atmosphere envelope mass/volume mismatch")
     density = (ledger["gas_reference"]["pressure_Pa"] *
                ledger["gas_reference"]["gas_molar_mass_kg_mol"] /
@@ -144,7 +144,7 @@ def validate(ship: dict, ledger: dict) -> dict:
                     abs_tol=1e-3),
             "gas-envelope mass calculation inconsistent")
     require(len([c for c in pressure.values()
-                 if c["gross_reference_envelope_m3"] is not None]) == 101,
+                 if c["gross_reference_envelope_m3"] is not None]) == 107,
             "unaccounted numerical gross-envelope sections")
     return {
         "distinct_pressure_cells": len(pressure),

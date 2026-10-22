@@ -120,6 +120,15 @@ def validate(candidate: dict, baseline: dict) -> dict:
             centre = sum(original["location"]["x_m"]) / 2
             geom["length_m"] = 12
             original["location"]["x_m"] = [centre - 6, centre + 6]
+        elif sid.startswith("DR-") and sid.endswith("-SERVICE-LOCK"):
+            require(original["geometry"]["shape"] == "transfer_lock"
+                    and original["geometry"]["length_m"] == 5
+                    and original["geometry"]["clear_diameter_m"] == 2.3
+                    and original["location"]["y_m"] == 4.5
+                    and original["location"]["z_m"] == -1.5,
+                    "unreviewed inherited service-lock shape")
+            original["location"]["y_m"] = 5.4
+            original["location"]["z_m"] = -3.7
         elif sid == "HAB-04-MED-ISO":
             original["geometry"] = {"shape": "arc_cabin",
                 "tangential_length_m": 5, "axial_width_m": 5,
