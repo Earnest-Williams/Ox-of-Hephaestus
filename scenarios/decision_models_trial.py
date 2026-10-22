@@ -1,7 +1,7 @@
 """Compare native-Concordia choices using Ollaya decision models.
 
 This is a four-case synthetic G11 pilot, not live-world action execution.
-Laya / JevK5 are decision heads: they score a finite menu in one inference
+Laya / JevK5 / Decider are decision heads: they score a finite menu in one inference
 call rather than generating words. Their output is never world authority.
 """
 from __future__ import annotations
@@ -18,7 +18,7 @@ from urllib.request import Request, urlopen
 from scenarios.g11_memory_ab_trial import build, fixtures, matched
 
 
-MODELS = ("laya:en", "laya:typed-decisions", "jevk5:4b")
+MODELS = ("laya:en", "laya:typed-decisions", "jevk5:4b", "decider:2b")
 
 
 def localhost_api(base: str) -> str:
