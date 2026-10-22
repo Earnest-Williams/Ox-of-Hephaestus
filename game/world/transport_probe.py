@@ -72,3 +72,109 @@ def provision(*, include_specialists: bool = False,
             encoding="utf-8",
         )
     return mapping
+
+
+# P4k: strictly disposable forty-body recovery acceptance fixture. Not a
+# production roster API or a handler-accessible world mutation shortcut.
+FLEET_SIZE = 40
+FLEET_POSTS = (
+    ("cargo_hold", "cargo_officer", "cargo"),
+    ("environmental", "environment_tech", "scrubber"),
+    ("bridge", "bridge_officer", "operations"),
+    ("engineering", "watch_engineer", "pump"),
+)
+
+
+def provision_fleet() -> dict[str, dict[str, str]]:
+    """Create forty separate non-privileged accounts, bodies and duty events.
+
+    This operator command must run on an empty disposable fixture world.
+    Re-entry refuses to overwrite existing accounts or characters.
+    """
+    from evennia.utils import gametime
+    from evennia.utils.create import create_object
+    from world.bootstrap import FIXTURE_CATEGORY, find_fixture
+    from world.event_journal import emit
+    from world.independent_rounds import schedule_rounds, tick_rounds
+
+    password = os.environ["OX_PROBE_PASSWORD"]
+    if len(password) < 20:
+        raise ValueError("CI password too short")
+    ship = build_ship()
+    roster = {}
+    for ordinal in range(FLEET_SIZE):
+        role = f"fleet{ordinal:02d}"
+        username = f"OxFleet{ordinal:02d}"
+        marker = f"fleet-recovery-{ordinal:02d}"
+        if find_fixture(marker) is not None:
+            raise RuntimeError("Cannot overwrite a previously provisioned fleet body")
+        if AccountDB.objects.filter(username__iexact=username).exists():
+            raise RuntimeError("Cannot overwrite a previously provisioned fleet account")
+        room_key, crew_role, station = FLEET_POSTS[ordinal % len(FLEET_POSTS)]
+        name = f"Fleet Recovery Crew {ordinal:02d}"
+        room = ship[room_key]
+        person = create_object(
+            "typeclasses.ship.CrewCharacter", key=name,
+            location=room, home=room,
+            tags=[(marker, FIXTURE_CATEGORY)],
+        )
+        person.db.crew_role = crew_role
+        person.db.duty_title = f"Verified {station} station watch"
+        person.db.watch_window = "Fleet recovery acceptance"
+        account = create_account(
+            username, email=username.lower() + "@example.invalid",
+            password=password,
+        )
+        if account is None:
+            raise RuntimeError("Could not provision ordinary fleet account")
+        account.characters.add(person)
+        account.db._last_puppet = person
+        person.locks.add("puppet:pid(" + str(account.id) + ")")
+        roster[role] = {
+            "username": username,
+            "character_dbref": person.dbref,
+            "name": name,
+            "duty": f"Verify and report conditions at {station}",
+        }
+        emit(
+            ship["pump"], person, "fleet_duty_posted",
+            data={"station": station, "phase": "begin"},
+            text=f"You are posted to the {station} station for this duty interval.",
+        )
+    if len({entry["character_dbref"] for entry in roster.values()}) != FLEET_SIZE:
+        raise RuntimeError("Fleet must have forty different persistent bodies")
+    root = Path("../.ox-state/p4k")
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "roster.json").write_text(
+        json.dumps(roster, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    # This isolated test fixture advances an actual world-authoritative
+    # round cycle so a normal cargo officer can inspect and report via oxwork.
+    schedule_rounds(period_game_seconds=30)
+    now = float(gametime.gametime(absolute=True))
+    tick_rounds(now_game_time=now)
+    if not tick_rounds(now_game_time=now + 35):
+        raise RuntimeError("Disposable world round cycle was not opened")
+    return roster
+
+
+def advance_fleet_recovery() -> None:
+    """Write one *new* addressed duty update per body between process boots."""
+    from world.bootstrap import find_fixture
+    from world.event_journal import emit
+    from world.models import WorkReceipt
+
+    ship = build_ship()
+    if WorkReceipt.objects.filter(operation="round_report", target="ship").count() != 1:
+        raise RuntimeError("Expected exactly one committed lost-ACK round report")
+    for ordinal in range(FLEET_SIZE):
+        person = find_fixture(f"fleet-recovery-{ordinal:02d}")
+        if person is None:
+            raise RuntimeError("Cannot continue an incomplete forty-body world")
+        station = FLEET_POSTS[ordinal % len(FLEET_POSTS)][2]
+        emit(
+            ship["pump"], person, "fleet_duty_updated",
+            data={"station": station, "phase": "resume"},
+            text=f"The world confirms the next {station} duty interval update.",
+        )
