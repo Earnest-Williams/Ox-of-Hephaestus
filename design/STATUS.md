@@ -1,6 +1,6 @@
 # Ox implementation status
 
-**Snapshot: 21 October 2026.** This document is the current-state index for
+**Snapshot: 22 October 2026.** This document is the current-state index for
 Ox-specific documentation. Earlier ADRs and P2/P3 scenario documents preserve
 the design and acceptance criteria of those milestones; they are not live
 feature inventories.
@@ -64,6 +64,7 @@ feature inventories.
 | Handler attested archive reuse | Merged in PR #91 | [PR #91](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/91): recompute the complete local actor-specific hot/cold digest and open-obligation projection; require the matching world generation and original addressed prefix before resuming from the saved cursor. Crash-interrupted private checkpoints backfill without reproducing physical work. [Design](prototypes/p4f-attested-cache-reuse.md). |
 | Historical evidence restart profile | Merged in PR #92 | [PR #92](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/92): reproducible local profile across 1k/10k/40k addressed events and two payload sizes, measuring entire restart attestation and a lossless offline SQLite repack. No historical cutoff or evidence-weakening inference. [Measurements](prototypes/p4f-evidence-restart-profile.md). |
 | Periodic lossless SQLite repack | Merged and verified in PR #93 | [PR #93](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/93): transactionally reclaim SQLite B-tree allocation only after at least 2,048 demotions **and** demotions reaching 25% of the current cold archive; proportional cadence avoids repeatedly rewriting an ever-growing history. The archive seal, old events, private-source proofs, and unresolved obligations remain intact. 31/31 workflows passed. [Recovery contract](prototypes/p4f-lossless-repack.md). |
+| Full ship physical-world model | **Prepared; not runtime-integrated** | [`design/ship/`](ship/README.md) contains the v0.4 linked vessel model and inspection render. It is not loaded by `game/`; the seven-compartment proving ground remains the implemented runtime. |
 | P5 — browser observatory | **Deferred / not built** | No browser UI, joined handler/world API, or operator dashboard |
 
 **Naming note:** the original Prototype 1 plan used “P4” for the first
