@@ -8,7 +8,7 @@ situations**, each having two mutually exclusive actor-visible evidence states:
 not evidence of production-level cognition. All inputs are synthetic and
 contain no private user or live ship data.
 
-Five backends use the same `scenarios/counterfactual_decision_trial.py`
+Six backends use the same `scenarios/counterfactual_decision_trial.py`
 fixture collection through the native Concordia `CrewAgent`:
 
 - Qwen3.5-0.8B Q4_K_M (local llama.cpp chat)
