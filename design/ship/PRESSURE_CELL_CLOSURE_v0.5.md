@@ -124,8 +124,7 @@ increase the total.
 The existing 5.5 t *arc refill-gas* figure is larger than
 the **approximately 4.4 t full gross air mass per unoccupied
 B′ arc**, so it is plausible as a **single-arc replenishment
-allowance**, not enough to replenish the entire Ox. Exact
-gas cylinders/receiver accounts remain separately required.
+allowance**, not enough to replenish the entire Ox. The subsequent physical-design increment now identifies two independent 2.75 t compressed breathing-air stores and an isolatable refill distribution network; see `PRESSURE_GAS_RECOVERY_v0.5.md`.
 
 ## 5. Conservative uncertainty and current physical state
 
@@ -175,3 +174,7 @@ room dimensions and fit-out; identify cross-cell exchange,
 gas makeup, exhaust, pump and evacuation rates. This is a
 bounded simulation-engineering task, not a requirement for
 real spacecraft certification.
+
+## 7. Bounded free-volume and refill extension
+
+The follow-on `pressure_gas_recovery_v0.5.json` screens the 85 geometrically defined cells with explicit, class-specific occupancy fractions instead of treating entire gross cylinders as air. It calculates **52,609–59,898 m³** of *planning* free volume in those cells (approximately 63.35–72.12 t nominal dry air). **48 other pressurised cells remain unsized and all installed measured net volumes remain null.** The 5.5 t refill allowance is now physically split into two separately located banks feeding the 69 trunk taps and eight-arc makeup line; it does not provide whole-ship recharge. All 83 other cargo/industrial spaces without defined pressure zone receive conservative no-unsuited-access-by-default rules, not invented pressure volumes.

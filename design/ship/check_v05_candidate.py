@@ -48,9 +48,9 @@ def validate(candidate: dict, baseline: dict) -> dict:
             "spatial count changed")
     require(len(candidate["access_links"]) == len(baseline["access_links"]) == 517,
             "physical-link count changed")
-    require(len(candidate["equipment"]) == len(baseline["equipment"]) + 72 == 764,
-            "expected v0.5 equipment including Bprime structure/indexers/bridges")
-    require(len(candidate["maintenance_tasks"]) == 39, "maintenance package count changed")
+    require(len(candidate["equipment"]) == len(baseline["equipment"]) + 88 == 780,
+            "expected v0.5 equipment including Bprime supports and reserved atmosphere makeup distribution")
+    require(len(candidate["maintenance_tasks"]) == 42, "maintenance package count changed")
 
     spaces = ident_map(candidate["spaces"], "spaces")
     equips = ident_map(candidate["equipment"], "equipment")
@@ -62,7 +62,11 @@ def validate(candidate: dict, baseline: dict) -> dict:
     tasks = ident_map(candidate["maintenance_tasks"], "maintenance tasks")
 
     for section in ("service_nodes", "isolation_points"):
-        require(candidate[section] == baseline[section], f"unexpected {section} mutation")
+        require(candidate[section][:len(baseline[section])] == baseline[section],
+                f"original {section} unexpectedly mutated")
+        require(all(x["network"] == "repressurization_gas"
+                    for x in candidate[section][len(baseline[section]):]),
+                f"unexpected added {section} outside deliberate gas-refill network")
     # Only the explicitly justified pressure-cell corrections may alter the
     # 421 installed space records. Physical geometry and room IDs stay fixed.
     expected_spaces = deepcopy(baseline["spaces"])
@@ -121,8 +125,11 @@ def validate(candidate: dict, baseline: dict) -> dict:
 
     require(candidate["inventories"][:len(baseline["inventories"])] == baseline["inventories"],
             "v0.4 inventory stock unexpectedly rewritten")
-    require(len(candidate["inventories"]) == len(baseline["inventories"]) + 1,
-            "missing or duplicated new food stock")
+    require(len(candidate["inventories"]) == len(baseline["inventories"]) + 3,
+            "missing food or independent gas-bank inventories")
+    require({x["id"] for x in candidate["inventories"][len(baseline["inventories"]):]} ==
+            {"INV-FOOD-LONG-LEG", "INV-GAS-REFILL-A", "INV-GAS-REFILL-B"},
+            "unknown newly invented stores or missing gas-bank inventory")
     food = next((i for i in candidate["inventories"]
                  if i["id"] == "INV-FOOD-LONG-LEG"), None)
     require(food is not None and food["nominal_mass_t"] == 32 and
@@ -256,6 +263,19 @@ def validate(candidate: dict, baseline: dict) -> dict:
                 and e["attributes"]["requires_regeneration_or_receiving_route"]
                 for e in co2),
             "CO2 regeneration/disposal insufficient or unverified")
+    refill = ls.get("repressurization_reserve", {})
+    require(refill.get("network_id") == "repressurization_gas"
+            and refill.get("bank_equipment_ids") ==
+            ["GAS-REFILL-BANK-A", "GAS-REFILL-BANK-B"]
+            and isclose(refill.get("nominal_total_storage_t", 0), 5.5, abs_tol=1e-8)
+            and refill.get("not_protected_refuge_oxygen") is True,
+            "reserve-gas contract absent or confused with emergency O2")
+    require([x["id"] for x in candidate["networks"]].count("repressurization_gas") == 1,
+            "missing independent stored atmosphere gas distribution")
+    require(sum(x["network"] == "repressurization_gas" for x in candidate["service_nodes"]) == 131
+            and sum(x["network"] == "repressurization_gas" for x in candidate["service_edges"]) == 132
+            and sum(x["network"] == "repressurization_gas" for x in candidate["isolation_points"]) == 143,
+            "stage-one physical repressurization network incomplete")
     water_budget = ls["makeup_water_730day_planning_split_t"]
     require(isclose(sum(water_budget.values()), 162.0, abs_tol=0.002),
             "normal 162 t makeup water allocations do not balance")

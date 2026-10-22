@@ -37,7 +37,7 @@ unchanged.
 
 - [v0.5 candidate JSON](ox_full_ship_v0.5_candidate.json): a full copy
   of the linked ship world with corrected freight geometry, physical
-  bridge/hatch equipment, repaired references and 39 maintenance groups.
+  bridge/hatch equipment, repaired references and 42 maintenance groups.
 - [Design reconciliation](DESIGN_CLOSURE_v0.5.md): the findings, changed
   assumptions, balances, preserved decisions and remaining design work.
 - [B′ 38° installed mechanical interfaces](BPRIME_HAB38_MECHANICAL_CLOSURE.md):
@@ -62,6 +62,15 @@ unchanged.
 - [Pressure-cell machine-readable register](pressure_zone_topology_v0.5.json):
   133 elementary pressurised cells with 198 pressure-rated boundaries; includes
   gross reference envelopes where dimensions are defined.
+- [Atmosphere reserve / bounded free-volume and gas-recovery design](PRESSURE_GAS_RECOVERY_v0.5.md):
+  the 5.5 t two-bank gas reserve, sectional refill plumbing, 69 fixed-spine
+  taps, 8 bridge crossings and honest 85/48 cell volume uncertainty.
+- [Atmosphere gas reference and room-safety roles](pressure_gas_recovery_v0.5.json):
+  engineering free-volume ranges, all 83 unresolved-space roles and the
+  independent refill-gas topology linked to installed objects.
+- [Pressure-gas casualty validator](check_pressure_gas.py):
+  independent stock, pressure, valve, two-bridge outage and eight
+  negative-mutation tests.
 - [Pressure-cell validation](check_pressure_cells.py): independent geometric
   and pressure-boundary verification with six deliberate negative cases.
 - [B′ mechanical and casualty validator](check_bprime_mechanics.py):
@@ -71,7 +80,7 @@ unchanged.
   geometry, mass/O2 and negative-regression checks; runnable without Evennia.
 
 Run `python design/ship/check_v05_candidate.py` and `python design/ship/check_bprime_mechanics.py`, plus
-`python design/ship/check_pressure_cells.py`, from the repository root.
+`python design/ship/check_pressure_cells.py` and `python design/ship/check_pressure_gas.py`, from the repository root.
 The v0.5 candidate is a *simulation-operational* engineering proposal,
 not real-world construction or certification data. No Evennia or dashboard
 code is changed in this branch. The earlier full-ship integration

@@ -47,7 +47,7 @@ the measured present-day physical ship.
 | Bridge maintenance | Eight BR-nn **rooms** misidentified as equipment IDs | Eight new BR-nn-UTILITY-SLEEVE equipment assemblies and corrected maintenance targets |
 | Arc-end closures | Sixteen bridge-facing pressure hatches were only graph edges | Sixteen individually identified end-hatch equipment assemblies linked to those graph edges |
 | Modification provenance | Three modification records used undefined ERA-LIFE-EXTENSION | Remapped to existing ERA-LIFE, retaining the modification histories |
-| Maintenance coverage | No grouped maintenance procedures for much of the principal plant | 39 grouped procedures cover every one of the candidate's 764 installed equipment IDs |
+| Maintenance coverage | No grouped maintenance procedures for much of the principal plant | 42 grouped procedures cover every one of the candidate's 780 installed equipment IDs |
 
 An additional B′ mechanical increment now materialises eight isolatable pressure-bridge spool assemblies; the eight centre keyed and sixteen outer sliding saddles, with 48 physically separate outer branch identifiers; six main habitation rotor bearing/drive/brake machines; and two independent 30 t reference indexer carriers with four retracting pressure collars. The mechanical reference is `hab_bprime_mechanical_interfaces_v0.5.json`; details and failure consequences are in `BPRIME_HAB38_MECHANICAL_CLOSURE.md`.
 
@@ -55,7 +55,7 @@ The earlier endurance increment also gives the ship two oxygen-production
 subassemblies and two regenerable CO2-removal subassemblies, plus an
 explicit 32 t long-voyage food inventory. These serve the existing
 A/B ECLSS trains rather than fabricating a third full-capacity train.
-There are now 764 installed modeled equipment objects, 39 maintenance
+There are now 780 installed modeled equipment objects, 42 maintenance
 groups and eight explicit inventory accounts. See ENDURANCE_LEDGER_v0.5.md.
 
 No physical compartment or access-link identities were renamed, and no
@@ -164,9 +164,9 @@ misapplied as propulsion power.
 ## What the maintenance expansion actually means
 
 The original fourteen group definitions were useful but incomplete, and
-some named the wrong object class. The candidate now has 39 procedures
-whose combined target sets cover all **764 modeled equipment IDs**.
-These are grouped schedules, not 764 individually hand-authored manuals.
+some named the wrong object class. The candidate now has 42 procedures
+whose combined target sets cover all **780 modeled equipment IDs**.
+These are grouped schedules, not 780 individually hand-authored manuals.
 Each carries representative intervention time, skills, parts and a
 verification predicate. A passed checklist is not automatically
 a repaired machine. Actual spares, access, isolation, elapsed work time,
@@ -212,3 +212,11 @@ by accident.**
 The full B′ candidate now separates the 23 sections in **each** of the two 950 m, 3 m-clear personnel trunks into **46 genuine elementary pressure cells** rather than two all-ship gas identities. The original 44 inter-section pressure doors can therefore actually isolate atmosphere when shut, without changing any room/exits. The HAB-04 medical isolation space and the A/B final indexer lifts each gain independent pressure-zone IDs, while F1/F2 flywheel service bays are classified as vacuum machinery beyond pressure airlocks. HAB-04 and HAB-08 **entire arc pressure volumes** serve as the two 40-person/72 h refuge spaces; their 40 m² REFUGE rooms contain equipment only.
 
 The new `pressure_zone_topology_v0.5.json` identifies **133 independently sealable pressurised cells**, 198 pressure-rated links, 26 known vacuum spaces and 83 still-unclassified machinery/cargo spaces. Geometric source dimensions give **85 cells with known gross envelopes** totalling approximately **65,549 m³**, but there is no claim that these are net breathable/free-gas volumes. See `PRESSURE_CELL_CLOSURE_v0.5.md` and the pressure validation suite; net displacement/pressure-gas inventory is the next physical closure target.
+
+## B′ pressure-gas reserve and refill-availability closure
+
+The next increment puts the 5.5 t single-arc breathing-air refill allowance into **two real 2.75 t banks** in separated forward/aft stores, including source/regulator, two axial fixed-spine supply headers, 69 normally shut local trunk taps, independent A/B rotary unions and an eight-arc gas makeup ring crossing all eight isolatable BR utility sleeves. The candidate now has **780 installed equipment items, 42 maintenance groups, 1,172 service nodes, 1,168 service edges and 1,235 isolation points**; all old room/link identities survive.
+
+For the 85 geometrically sized pressure cells, the bounded free-volume reference is **52,609–59,898 m³**, containing approximately **63.35–72.12 t dry air** at the chosen nominal reference state; the 48 other known pressurised cells remain **unsized**. All 83 spaces with unassigned normal pressure have a conservative hazard/access role, not a magically breathable default. A single inhabited arc requires about **3.09–3.71 t** of gas after complete evacuation under these assumptions. Both banks can refill one intact arc if the real gas path and pressure integrity are available, but two fully depressurised arcs cannot be restored from 5.5 t.
+
+The compressed stock is separate from the existing **249.2 kg** protected refuge/local oxygen and the ship's initial charged atmosphere; it is included within the established **1,500 t mission allowance**, not added to departure mass. Reference regulators supply at most 100 kg/h each, with slower real recovery as conditions require. The independent gas-line valve graph has explicit failure consequences; two adjacent bridge-sleeve losses can deny HAB-07 refill even with both gas banks intact. See `PRESSURE_GAS_RECOVERY_v0.5.md` and `pressure_gas_recovery_v0.5.json`; unlike the gross geometry survey, these are **planning displacement intervals**, not accepted measurements of net gas volume. The next pressure work is sizing the 48 currently unsized cells and resolving the actual exhaust/receiver plant.

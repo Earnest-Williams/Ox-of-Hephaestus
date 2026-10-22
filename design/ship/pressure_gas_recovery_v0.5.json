@@ -1,0 +1,3946 @@
+{
+  "schema_version": "ox.ship.pressure-gas-reference/0.1",
+  "ship_model_version": "0.5-candidate",
+  "pressure_cell_model_version": "0.5-BPRIME",
+  "geometry_source": "pressure_zone_topology_v0.5.json",
+  "status": "BOUNDED_DESIGN_REFERENCE_NOT_MEASURED_LIVE_GAS_STATE",
+  "reference_gas": {
+    "temperature_K": 293.15,
+    "pressure_Pa": 101325,
+    "density_kg_m3": 1.204118,
+    "oxygen_mole_fraction": 0.21,
+    "oxygen_mass_fraction_approx": 0.232,
+    "reference_status": "dry air ideal-gas approximation; operational contamination/temperature/pressure not inferred"
+  },
+  "void_fraction_policy": {
+    "sectional_personnel_trunk": {
+      "bounds": [
+        0.93,
+        0.98
+      ],
+      "basis": "3 m clear corridor, cart rails and variable cart/crew displacement"
+    },
+    "sectional_heavy_logistics_trunk": {
+      "bounds": [
+        0.86,
+        0.97
+      ],
+      "basis": "5.5 m clear cargo route, sled and stowage displacement varies with load"
+    },
+    "habitation_arc_with_two_ellipsoidal_halfheads": {
+      "bounds": [
+        0.7,
+        0.84
+      ],
+      "basis": "multi-level floors, cabin structures, service galleries and equipment occupying circular/ellipsoidal tube volume"
+    },
+    "independent_interarc_pressure_bridge": {
+      "bounds": [
+        0.8,
+        0.93
+      ],
+      "basis": "3 m clear bridge bore with pressure collar, fixed head and service-penetration allowances"
+    },
+    "note": "Planning engineering fraction intervals, not as-installed volumetric survey, not fixed gas pressure or verified life-support atmosphere."
+  },
+  "sized_and_unsized_pressure_cells": [
+    {
+      "pressure_zone_id": "PZ-AFT-CTRL",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-AFT-EVA",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-AFT-RESCUE",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-AFT-STORES",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-BOW-CMD",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-BOW-DOCK",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-BOW-EVA",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-BOW-RESCUE",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-BOW-SVC",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-BR-01",
+      "classification": "independent_interarc_pressure_bridge",
+      "source_gross_envelope_m3": 30.266499,
+      "planning_void_fraction_lower": 0.8,
+      "planning_void_fraction_upper": 0.93,
+      "design_free_gas_lower_m3": 24.213,
+      "design_free_gas_upper_m3": 28.148,
+      "reference_gas_mass_lower_kg": 29.156,
+      "reference_gas_mass_upper_kg": 33.893,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Pipe/bridge connectors and seals displace some gross bore volume."
+    },
+    {
+      "pressure_zone_id": "PZ-BR-02",
+      "classification": "independent_interarc_pressure_bridge",
+      "source_gross_envelope_m3": 30.266499,
+      "planning_void_fraction_lower": 0.8,
+      "planning_void_fraction_upper": 0.93,
+      "design_free_gas_lower_m3": 24.213,
+      "design_free_gas_upper_m3": 28.148,
+      "reference_gas_mass_lower_kg": 29.156,
+      "reference_gas_mass_upper_kg": 33.893,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Pipe/bridge connectors and seals displace some gross bore volume."
+    },
+    {
+      "pressure_zone_id": "PZ-BR-03",
+      "classification": "independent_interarc_pressure_bridge",
+      "source_gross_envelope_m3": 30.266499,
+      "planning_void_fraction_lower": 0.8,
+      "planning_void_fraction_upper": 0.93,
+      "design_free_gas_lower_m3": 24.213,
+      "design_free_gas_upper_m3": 28.148,
+      "reference_gas_mass_lower_kg": 29.156,
+      "reference_gas_mass_upper_kg": 33.893,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Pipe/bridge connectors and seals displace some gross bore volume."
+    },
+    {
+      "pressure_zone_id": "PZ-BR-04",
+      "classification": "independent_interarc_pressure_bridge",
+      "source_gross_envelope_m3": 30.266499,
+      "planning_void_fraction_lower": 0.8,
+      "planning_void_fraction_upper": 0.93,
+      "design_free_gas_lower_m3": 24.213,
+      "design_free_gas_upper_m3": 28.148,
+      "reference_gas_mass_lower_kg": 29.156,
+      "reference_gas_mass_upper_kg": 33.893,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Pipe/bridge connectors and seals displace some gross bore volume."
+    },
+    {
+      "pressure_zone_id": "PZ-BR-05",
+      "classification": "independent_interarc_pressure_bridge",
+      "source_gross_envelope_m3": 30.266499,
+      "planning_void_fraction_lower": 0.8,
+      "planning_void_fraction_upper": 0.93,
+      "design_free_gas_lower_m3": 24.213,
+      "design_free_gas_upper_m3": 28.148,
+      "reference_gas_mass_lower_kg": 29.156,
+      "reference_gas_mass_upper_kg": 33.893,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Pipe/bridge connectors and seals displace some gross bore volume."
+    },
+    {
+      "pressure_zone_id": "PZ-BR-06",
+      "classification": "independent_interarc_pressure_bridge",
+      "source_gross_envelope_m3": 30.266499,
+      "planning_void_fraction_lower": 0.8,
+      "planning_void_fraction_upper": 0.93,
+      "design_free_gas_lower_m3": 24.213,
+      "design_free_gas_upper_m3": 28.148,
+      "reference_gas_mass_lower_kg": 29.156,
+      "reference_gas_mass_upper_kg": 33.893,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Pipe/bridge connectors and seals displace some gross bore volume."
+    },
+    {
+      "pressure_zone_id": "PZ-BR-07",
+      "classification": "independent_interarc_pressure_bridge",
+      "source_gross_envelope_m3": 30.266499,
+      "planning_void_fraction_lower": 0.8,
+      "planning_void_fraction_upper": 0.93,
+      "design_free_gas_lower_m3": 24.213,
+      "design_free_gas_upper_m3": 28.148,
+      "reference_gas_mass_lower_kg": 29.156,
+      "reference_gas_mass_upper_kg": 33.893,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Pipe/bridge connectors and seals displace some gross bore volume."
+    },
+    {
+      "pressure_zone_id": "PZ-BR-08",
+      "classification": "independent_interarc_pressure_bridge",
+      "source_gross_envelope_m3": 30.266499,
+      "planning_void_fraction_lower": 0.8,
+      "planning_void_fraction_upper": 0.93,
+      "design_free_gas_lower_m3": 24.213,
+      "design_free_gas_upper_m3": 28.148,
+      "reference_gas_mass_lower_kg": 29.156,
+      "reference_gas_mass_upper_kg": 33.893,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Pipe/bridge connectors and seals displace some gross bore volume."
+    },
+    {
+      "pressure_zone_id": "PZ-DR-01-FREIGHT",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-DR-01-LOCK",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-DR-01-SVC",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-DR-02-FREIGHT",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-DR-02-LOCK",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-DR-02-SVC",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-DR-03-FREIGHT",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-DR-03-LOCK",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-DR-03-SVC",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-DR-04-FREIGHT",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-DR-04-LOCK",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-DR-04-SVC",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-DR-05-FREIGHT",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-DR-05-LOCK",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-DR-05-SVC",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-DR-06-FREIGHT",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-DR-06-LOCK",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-DR-06-SVC",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-HAB-01",
+      "classification": "habitation_arc_with_two_ellipsoidal_halfheads",
+      "source_gross_envelope_m3": 3663.303551,
+      "planning_void_fraction_lower": 0.7,
+      "planning_void_fraction_upper": 0.84,
+      "design_free_gas_lower_m3": 2564.312,
+      "design_free_gas_upper_m3": 3077.175,
+      "reference_gas_mass_lower_kg": 3087.735,
+      "reference_gas_mass_upper_kg": 3705.282,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Whole arc gas volume includes fitted room divisions if connecting doors open; sectional internal doors do not create extra volume."
+    },
+    {
+      "pressure_zone_id": "PZ-HAB-02",
+      "classification": "habitation_arc_with_two_ellipsoidal_halfheads",
+      "source_gross_envelope_m3": 3663.303551,
+      "planning_void_fraction_lower": 0.7,
+      "planning_void_fraction_upper": 0.84,
+      "design_free_gas_lower_m3": 2564.312,
+      "design_free_gas_upper_m3": 3077.175,
+      "reference_gas_mass_lower_kg": 3087.735,
+      "reference_gas_mass_upper_kg": 3705.282,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Whole arc gas volume includes fitted room divisions if connecting doors open; sectional internal doors do not create extra volume."
+    },
+    {
+      "pressure_zone_id": "PZ-HAB-03",
+      "classification": "habitation_arc_with_two_ellipsoidal_halfheads",
+      "source_gross_envelope_m3": 3663.303551,
+      "planning_void_fraction_lower": 0.7,
+      "planning_void_fraction_upper": 0.84,
+      "design_free_gas_lower_m3": 2564.312,
+      "design_free_gas_upper_m3": 3077.175,
+      "reference_gas_mass_lower_kg": 3087.735,
+      "reference_gas_mass_upper_kg": 3705.282,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Whole arc gas volume includes fitted room divisions if connecting doors open; sectional internal doors do not create extra volume."
+    },
+    {
+      "pressure_zone_id": "PZ-HAB-04",
+      "classification": "habitation_arc_with_two_ellipsoidal_halfheads",
+      "source_gross_envelope_m3": 3663.303551,
+      "planning_void_fraction_lower": 0.7,
+      "planning_void_fraction_upper": 0.84,
+      "design_free_gas_lower_m3": 2564.312,
+      "design_free_gas_upper_m3": 3077.175,
+      "reference_gas_mass_lower_kg": 3087.735,
+      "reference_gas_mass_upper_kg": 3705.282,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Whole arc gas volume includes fitted room divisions if connecting doors open; sectional internal doors do not create extra volume."
+    },
+    {
+      "pressure_zone_id": "PZ-HAB-04-MED-ISO",
+      "classification": "isolated_medical_cabin",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-HAB-05",
+      "classification": "habitation_arc_with_two_ellipsoidal_halfheads",
+      "source_gross_envelope_m3": 3663.303551,
+      "planning_void_fraction_lower": 0.7,
+      "planning_void_fraction_upper": 0.84,
+      "design_free_gas_lower_m3": 2564.312,
+      "design_free_gas_upper_m3": 3077.175,
+      "reference_gas_mass_lower_kg": 3087.735,
+      "reference_gas_mass_upper_kg": 3705.282,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Whole arc gas volume includes fitted room divisions if connecting doors open; sectional internal doors do not create extra volume."
+    },
+    {
+      "pressure_zone_id": "PZ-HAB-06",
+      "classification": "habitation_arc_with_two_ellipsoidal_halfheads",
+      "source_gross_envelope_m3": 3663.303551,
+      "planning_void_fraction_lower": 0.7,
+      "planning_void_fraction_upper": 0.84,
+      "design_free_gas_lower_m3": 2564.312,
+      "design_free_gas_upper_m3": 3077.175,
+      "reference_gas_mass_lower_kg": 3087.735,
+      "reference_gas_mass_upper_kg": 3705.282,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Whole arc gas volume includes fitted room divisions if connecting doors open; sectional internal doors do not create extra volume."
+    },
+    {
+      "pressure_zone_id": "PZ-HAB-07",
+      "classification": "habitation_arc_with_two_ellipsoidal_halfheads",
+      "source_gross_envelope_m3": 3663.303551,
+      "planning_void_fraction_lower": 0.7,
+      "planning_void_fraction_upper": 0.84,
+      "design_free_gas_lower_m3": 2564.312,
+      "design_free_gas_upper_m3": 3077.175,
+      "reference_gas_mass_lower_kg": 3087.735,
+      "reference_gas_mass_upper_kg": 3705.282,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Whole arc gas volume includes fitted room divisions if connecting doors open; sectional internal doors do not create extra volume."
+    },
+    {
+      "pressure_zone_id": "PZ-HAB-08",
+      "classification": "habitation_arc_with_two_ellipsoidal_halfheads",
+      "source_gross_envelope_m3": 3663.303551,
+      "planning_void_fraction_lower": 0.7,
+      "planning_void_fraction_upper": 0.84,
+      "design_free_gas_lower_m3": 2564.312,
+      "design_free_gas_upper_m3": 3077.175,
+      "reference_gas_mass_lower_kg": 3087.735,
+      "reference_gas_mass_upper_kg": 3705.282,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Whole arc gas volume includes fitted room divisions if connecting doors open; sectional internal doors do not create extra volume."
+    },
+    {
+      "pressure_zone_id": "PZ-HUB-A",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-HUB-B",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-HUB-SVC",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-IX-A",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-IX-A-FINAL-LIFT",
+      "classification": "isolated_indexer_final_lift",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-IX-B",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-IX-B-FINAL-LIFT",
+      "classification": "isolated_indexer_final_lift",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-LOGI-AFT",
+      "classification": "sectional_heavy_logistics_trunk",
+      "source_gross_envelope_m3": 3088.578278,
+      "planning_void_fraction_lower": 0.86,
+      "planning_void_fraction_upper": 0.97,
+      "design_free_gas_lower_m3": 2656.177,
+      "design_free_gas_upper_m3": 2995.921,
+      "reference_gas_mass_lower_kg": 3198.351,
+      "reference_gas_mass_upper_kg": 3607.442,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Loading and parked sled occupancy alter void fraction; pressure section is not a volume of solid freight."
+    },
+    {
+      "pressure_zone_id": "PZ-LOGI-AFT-RESERVE",
+      "classification": "sectional_heavy_logistics_trunk",
+      "source_gross_envelope_m3": 296.978681,
+      "planning_void_fraction_lower": 0.86,
+      "planning_void_fraction_upper": 0.97,
+      "design_free_gas_lower_m3": 255.402,
+      "design_free_gas_upper_m3": 288.069,
+      "reference_gas_mass_lower_kg": 307.534,
+      "reference_gas_mass_upper_kg": 346.869,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Loading and parked sled occupancy alter void fraction; pressure section is not a volume of solid freight."
+    },
+    {
+      "pressure_zone_id": "PZ-LOGI-BE-06-ENVELOPE",
+      "classification": "sectional_heavy_logistics_trunk",
+      "source_gross_envelope_m3": 118.791472,
+      "planning_void_fraction_lower": 0.86,
+      "planning_void_fraction_upper": 0.97,
+      "design_free_gas_lower_m3": 102.161,
+      "design_free_gas_upper_m3": 115.228,
+      "reference_gas_mass_lower_kg": 123.013,
+      "reference_gas_mass_upper_kg": 138.748,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Loading and parked sled occupancy alter void fraction; pressure section is not a volume of solid freight."
+    },
+    {
+      "pressure_zone_id": "PZ-LOGI-BE-07-ENVELOPE",
+      "classification": "sectional_heavy_logistics_trunk",
+      "source_gross_envelope_m3": 118.791472,
+      "planning_void_fraction_lower": 0.86,
+      "planning_void_fraction_upper": 0.97,
+      "design_free_gas_lower_m3": 102.161,
+      "design_free_gas_upper_m3": 115.228,
+      "reference_gas_mass_lower_kg": 123.013,
+      "reference_gas_mass_upper_kg": 138.748,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Loading and parked sled occupancy alter void fraction; pressure section is not a volume of solid freight."
+    },
+    {
+      "pressure_zone_id": "PZ-LOGI-BOW",
+      "classification": "sectional_heavy_logistics_trunk",
+      "source_gross_envelope_m3": 2138.2465,
+      "planning_void_fraction_lower": 0.86,
+      "planning_void_fraction_upper": 0.97,
+      "design_free_gas_lower_m3": 1838.892,
+      "design_free_gas_upper_m3": 2074.099,
+      "reference_gas_mass_lower_kg": 2214.243,
+      "reference_gas_mass_upper_kg": 2497.46,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Loading and parked sled occupancy alter void fraction; pressure section is not a volume of solid freight."
+    },
+    {
+      "pressure_zone_id": "PZ-LOGI-DR-01",
+      "classification": "sectional_heavy_logistics_trunk",
+      "source_gross_envelope_m3": 1781.872083,
+      "planning_void_fraction_lower": 0.86,
+      "planning_void_fraction_upper": 0.97,
+      "design_free_gas_lower_m3": 1532.41,
+      "design_free_gas_upper_m3": 1728.416,
+      "reference_gas_mass_lower_kg": 1845.202,
+      "reference_gas_mass_upper_kg": 2081.217,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Loading and parked sled occupancy alter void fraction; pressure section is not a volume of solid freight."
+    },
+    {
+      "pressure_zone_id": "PZ-LOGI-DR-02",
+      "classification": "sectional_heavy_logistics_trunk",
+      "source_gross_envelope_m3": 1781.872083,
+      "planning_void_fraction_lower": 0.86,
+      "planning_void_fraction_upper": 0.97,
+      "design_free_gas_lower_m3": 1532.41,
+      "design_free_gas_upper_m3": 1728.416,
+      "reference_gas_mass_lower_kg": 1845.202,
+      "reference_gas_mass_upper_kg": 2081.217,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Loading and parked sled occupancy alter void fraction; pressure section is not a volume of solid freight."
+    },
+    {
+      "pressure_zone_id": "PZ-LOGI-DR-03",
+      "classification": "sectional_heavy_logistics_trunk",
+      "source_gross_envelope_m3": 1781.872083,
+      "planning_void_fraction_lower": 0.86,
+      "planning_void_fraction_upper": 0.97,
+      "design_free_gas_lower_m3": 1532.41,
+      "design_free_gas_upper_m3": 1728.416,
+      "reference_gas_mass_lower_kg": 1845.202,
+      "reference_gas_mass_upper_kg": 2081.217,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Loading and parked sled occupancy alter void fraction; pressure section is not a volume of solid freight."
+    },
+    {
+      "pressure_zone_id": "PZ-LOGI-DR-04",
+      "classification": "sectional_heavy_logistics_trunk",
+      "source_gross_envelope_m3": 1781.872083,
+      "planning_void_fraction_lower": 0.86,
+      "planning_void_fraction_upper": 0.97,
+      "design_free_gas_lower_m3": 1532.41,
+      "design_free_gas_upper_m3": 1728.416,
+      "reference_gas_mass_lower_kg": 1845.202,
+      "reference_gas_mass_upper_kg": 2081.217,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Loading and parked sled occupancy alter void fraction; pressure section is not a volume of solid freight."
+    },
+    {
+      "pressure_zone_id": "PZ-LOGI-DR-05",
+      "classification": "sectional_heavy_logistics_trunk",
+      "source_gross_envelope_m3": 1781.872083,
+      "planning_void_fraction_lower": 0.86,
+      "planning_void_fraction_upper": 0.97,
+      "design_free_gas_lower_m3": 1532.41,
+      "design_free_gas_upper_m3": 1728.416,
+      "reference_gas_mass_lower_kg": 1845.202,
+      "reference_gas_mass_upper_kg": 2081.217,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Loading and parked sled occupancy alter void fraction; pressure section is not a volume of solid freight."
+    },
+    {
+      "pressure_zone_id": "PZ-LOGI-DR-06",
+      "classification": "sectional_heavy_logistics_trunk",
+      "source_gross_envelope_m3": 1781.872083,
+      "planning_void_fraction_lower": 0.86,
+      "planning_void_fraction_upper": 0.97,
+      "design_free_gas_lower_m3": 1532.41,
+      "design_free_gas_upper_m3": 1728.416,
+      "reference_gas_mass_lower_kg": 1845.202,
+      "reference_gas_mass_upper_kg": 2081.217,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Loading and parked sled occupancy alter void fraction; pressure section is not a volume of solid freight."
+    },
+    {
+      "pressure_zone_id": "PZ-LOGI-F1",
+      "classification": "sectional_heavy_logistics_trunk",
+      "source_gross_envelope_m3": 653.353097,
+      "planning_void_fraction_lower": 0.86,
+      "planning_void_fraction_upper": 0.97,
+      "design_free_gas_lower_m3": 561.884,
+      "design_free_gas_upper_m3": 633.753,
+      "reference_gas_mass_lower_kg": 676.574,
+      "reference_gas_mass_upper_kg": 763.113,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Loading and parked sled occupancy alter void fraction; pressure section is not a volume of solid freight."
+    },
+    {
+      "pressure_zone_id": "PZ-LOGI-F1-DRUM-BUFFER",
+      "classification": "sectional_heavy_logistics_trunk",
+      "source_gross_envelope_m3": 237.582944,
+      "planning_void_fraction_lower": 0.86,
+      "planning_void_fraction_upper": 0.97,
+      "design_free_gas_lower_m3": 204.321,
+      "design_free_gas_upper_m3": 230.455,
+      "reference_gas_mass_lower_kg": 246.027,
+      "reference_gas_mass_upper_kg": 277.496,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Loading and parked sled occupancy alter void fraction; pressure section is not a volume of solid freight."
+    },
+    {
+      "pressure_zone_id": "PZ-LOGI-F1-HAB-BUFFER",
+      "classification": "sectional_heavy_logistics_trunk",
+      "source_gross_envelope_m3": 237.582944,
+      "planning_void_fraction_lower": 0.86,
+      "planning_void_fraction_upper": 0.97,
+      "design_free_gas_lower_m3": 204.321,
+      "design_free_gas_upper_m3": 230.455,
+      "reference_gas_mass_lower_kg": 246.027,
+      "reference_gas_mass_upper_kg": 277.496,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Loading and parked sled occupancy alter void fraction; pressure section is not a volume of solid freight."
+    },
+    {
+      "pressure_zone_id": "PZ-LOGI-F2",
+      "classification": "sectional_heavy_logistics_trunk",
+      "source_gross_envelope_m3": 653.353097,
+      "planning_void_fraction_lower": 0.86,
+      "planning_void_fraction_upper": 0.97,
+      "design_free_gas_lower_m3": 561.884,
+      "design_free_gas_upper_m3": 633.753,
+      "reference_gas_mass_lower_kg": 676.574,
+      "reference_gas_mass_upper_kg": 763.113,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Loading and parked sled occupancy alter void fraction; pressure section is not a volume of solid freight."
+    },
+    {
+      "pressure_zone_id": "PZ-LOGI-F2-DRUM-BUFFER",
+      "classification": "sectional_heavy_logistics_trunk",
+      "source_gross_envelope_m3": 237.582944,
+      "planning_void_fraction_lower": 0.86,
+      "planning_void_fraction_upper": 0.97,
+      "design_free_gas_lower_m3": 204.321,
+      "design_free_gas_upper_m3": 230.455,
+      "reference_gas_mass_lower_kg": 246.027,
+      "reference_gas_mass_upper_kg": 277.496,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Loading and parked sled occupancy alter void fraction; pressure section is not a volume of solid freight."
+    },
+    {
+      "pressure_zone_id": "PZ-LOGI-F2-HAB-BUFFER",
+      "classification": "sectional_heavy_logistics_trunk",
+      "source_gross_envelope_m3": 237.582944,
+      "planning_void_fraction_lower": 0.86,
+      "planning_void_fraction_upper": 0.97,
+      "design_free_gas_lower_m3": 204.321,
+      "design_free_gas_upper_m3": 230.455,
+      "reference_gas_mass_lower_kg": 246.027,
+      "reference_gas_mass_upper_kg": 277.496,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Loading and parked sled occupancy alter void fraction; pressure section is not a volume of solid freight."
+    },
+    {
+      "pressure_zone_id": "PZ-LOGI-FWD-RESERVE",
+      "classification": "sectional_heavy_logistics_trunk",
+      "source_gross_envelope_m3": 296.978681,
+      "planning_void_fraction_lower": 0.86,
+      "planning_void_fraction_upper": 0.97,
+      "design_free_gas_lower_m3": 255.402,
+      "design_free_gas_upper_m3": 288.069,
+      "reference_gas_mass_lower_kg": 307.534,
+      "reference_gas_mass_upper_kg": 346.869,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Loading and parked sled occupancy alter void fraction; pressure section is not a volume of solid freight."
+    },
+    {
+      "pressure_zone_id": "PZ-LOGI-GAP-12",
+      "classification": "sectional_heavy_logistics_trunk",
+      "source_gross_envelope_m3": 237.582944,
+      "planning_void_fraction_lower": 0.86,
+      "planning_void_fraction_upper": 0.97,
+      "design_free_gas_lower_m3": 204.321,
+      "design_free_gas_upper_m3": 230.455,
+      "reference_gas_mass_lower_kg": 246.027,
+      "reference_gas_mass_upper_kg": 277.496,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Loading and parked sled occupancy alter void fraction; pressure section is not a volume of solid freight."
+    },
+    {
+      "pressure_zone_id": "PZ-LOGI-GAP-23",
+      "classification": "sectional_heavy_logistics_trunk",
+      "source_gross_envelope_m3": 237.582944,
+      "planning_void_fraction_lower": 0.86,
+      "planning_void_fraction_upper": 0.97,
+      "design_free_gas_lower_m3": 204.321,
+      "design_free_gas_upper_m3": 230.455,
+      "reference_gas_mass_lower_kg": 246.027,
+      "reference_gas_mass_upper_kg": 277.496,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Loading and parked sled occupancy alter void fraction; pressure section is not a volume of solid freight."
+    },
+    {
+      "pressure_zone_id": "PZ-LOGI-GAP-45",
+      "classification": "sectional_heavy_logistics_trunk",
+      "source_gross_envelope_m3": 237.582944,
+      "planning_void_fraction_lower": 0.86,
+      "planning_void_fraction_upper": 0.97,
+      "design_free_gas_lower_m3": 204.321,
+      "design_free_gas_upper_m3": 230.455,
+      "reference_gas_mass_lower_kg": 246.027,
+      "reference_gas_mass_upper_kg": 277.496,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Loading and parked sled occupancy alter void fraction; pressure section is not a volume of solid freight."
+    },
+    {
+      "pressure_zone_id": "PZ-LOGI-GAP-56",
+      "classification": "sectional_heavy_logistics_trunk",
+      "source_gross_envelope_m3": 237.582944,
+      "planning_void_fraction_lower": 0.86,
+      "planning_void_fraction_upper": 0.97,
+      "design_free_gas_lower_m3": 204.321,
+      "design_free_gas_upper_m3": 230.455,
+      "reference_gas_mass_lower_kg": 246.027,
+      "reference_gas_mass_upper_kg": 277.496,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Loading and parked sled occupancy alter void fraction; pressure section is not a volume of solid freight."
+    },
+    {
+      "pressure_zone_id": "PZ-LOGI-HAB-HUB-SERVICES",
+      "classification": "sectional_heavy_logistics_trunk",
+      "source_gross_envelope_m3": 2613.412389,
+      "planning_void_fraction_lower": 0.86,
+      "planning_void_fraction_upper": 0.97,
+      "design_free_gas_lower_m3": 2247.535,
+      "design_free_gas_upper_m3": 2535.01,
+      "reference_gas_mass_lower_kg": 2706.297,
+      "reference_gas_mass_upper_kg": 3052.451,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Loading and parked sled occupancy alter void fraction; pressure section is not a volume of solid freight."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-A-AFT",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 918.915851,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 854.592,
+      "design_free_gas_upper_m3": 900.538,
+      "reference_gas_mass_lower_kg": 1029.029,
+      "reference_gas_mass_upper_kg": 1084.353,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-A-AFT-RESERVE",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 88.357293,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 82.172,
+      "design_free_gas_upper_m3": 86.59,
+      "reference_gas_mass_lower_kg": 98.945,
+      "reference_gas_mass_upper_kg": 104.265,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-A-BE-06-ENVELOPE",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 35.342917,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 32.869,
+      "design_free_gas_upper_m3": 34.636,
+      "reference_gas_mass_lower_kg": 39.578,
+      "reference_gas_mass_upper_kg": 41.706,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-A-BE-07-ENVELOPE",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 35.342917,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 32.869,
+      "design_free_gas_upper_m3": 34.636,
+      "reference_gas_mass_lower_kg": 39.578,
+      "reference_gas_mass_upper_kg": 41.706,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-A-BOW",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 636.172512,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 591.64,
+      "design_free_gas_upper_m3": 623.449,
+      "reference_gas_mass_lower_kg": 712.405,
+      "reference_gas_mass_upper_kg": 750.706,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-A-DR-01",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 530.14376,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 493.034,
+      "design_free_gas_upper_m3": 519.541,
+      "reference_gas_mass_lower_kg": 593.671,
+      "reference_gas_mass_upper_kg": 625.589,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-A-DR-02",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 530.14376,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 493.034,
+      "design_free_gas_upper_m3": 519.541,
+      "reference_gas_mass_lower_kg": 593.671,
+      "reference_gas_mass_upper_kg": 625.589,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-A-DR-03",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 530.14376,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 493.034,
+      "design_free_gas_upper_m3": 519.541,
+      "reference_gas_mass_lower_kg": 593.671,
+      "reference_gas_mass_upper_kg": 625.589,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-A-DR-04",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 530.14376,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 493.034,
+      "design_free_gas_upper_m3": 519.541,
+      "reference_gas_mass_lower_kg": 593.671,
+      "reference_gas_mass_upper_kg": 625.589,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-A-DR-05",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 530.14376,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 493.034,
+      "design_free_gas_upper_m3": 519.541,
+      "reference_gas_mass_lower_kg": 593.671,
+      "reference_gas_mass_upper_kg": 625.589,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-A-DR-06",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 530.14376,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 493.034,
+      "design_free_gas_upper_m3": 519.541,
+      "reference_gas_mass_lower_kg": 593.671,
+      "reference_gas_mass_upper_kg": 625.589,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-A-F1",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 194.386045,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 180.779,
+      "design_free_gas_upper_m3": 190.498,
+      "reference_gas_mass_lower_kg": 217.679,
+      "reference_gas_mass_upper_kg": 229.382,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-A-F1-DRUM-BUFFER",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 70.685835,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 65.738,
+      "design_free_gas_upper_m3": 69.272,
+      "reference_gas_mass_lower_kg": 79.156,
+      "reference_gas_mass_upper_kg": 83.412,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-A-F1-HAB-BUFFER",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 70.685835,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 65.738,
+      "design_free_gas_upper_m3": 69.272,
+      "reference_gas_mass_lower_kg": 79.156,
+      "reference_gas_mass_upper_kg": 83.412,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-A-F2",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 194.386045,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 180.779,
+      "design_free_gas_upper_m3": 190.498,
+      "reference_gas_mass_lower_kg": 217.679,
+      "reference_gas_mass_upper_kg": 229.382,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-A-F2-DRUM-BUFFER",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 70.685835,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 65.738,
+      "design_free_gas_upper_m3": 69.272,
+      "reference_gas_mass_lower_kg": 79.156,
+      "reference_gas_mass_upper_kg": 83.412,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-A-F2-HAB-BUFFER",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 70.685835,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 65.738,
+      "design_free_gas_upper_m3": 69.272,
+      "reference_gas_mass_lower_kg": 79.156,
+      "reference_gas_mass_upper_kg": 83.412,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-A-FWD-RESERVE",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 88.357293,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 82.172,
+      "design_free_gas_upper_m3": 86.59,
+      "reference_gas_mass_lower_kg": 98.945,
+      "reference_gas_mass_upper_kg": 104.265,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-A-GAP-12",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 70.685835,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 65.738,
+      "design_free_gas_upper_m3": 69.272,
+      "reference_gas_mass_lower_kg": 79.156,
+      "reference_gas_mass_upper_kg": 83.412,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-A-GAP-23",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 70.685835,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 65.738,
+      "design_free_gas_upper_m3": 69.272,
+      "reference_gas_mass_lower_kg": 79.156,
+      "reference_gas_mass_upper_kg": 83.412,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-A-GAP-45",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 70.685835,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 65.738,
+      "design_free_gas_upper_m3": 69.272,
+      "reference_gas_mass_lower_kg": 79.156,
+      "reference_gas_mass_upper_kg": 83.412,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-A-GAP-56",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 70.685835,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 65.738,
+      "design_free_gas_upper_m3": 69.272,
+      "reference_gas_mass_lower_kg": 79.156,
+      "reference_gas_mass_upper_kg": 83.412,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-A-HAB-HUB-SERVICES",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 777.544182,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 723.116,
+      "design_free_gas_upper_m3": 761.993,
+      "reference_gas_mass_lower_kg": 870.717,
+      "reference_gas_mass_upper_kg": 917.53,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-B-AFT",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 918.915851,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 854.592,
+      "design_free_gas_upper_m3": 900.538,
+      "reference_gas_mass_lower_kg": 1029.029,
+      "reference_gas_mass_upper_kg": 1084.353,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-B-AFT-RESERVE",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 88.357293,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 82.172,
+      "design_free_gas_upper_m3": 86.59,
+      "reference_gas_mass_lower_kg": 98.945,
+      "reference_gas_mass_upper_kg": 104.265,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-B-BE-06-ENVELOPE",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 35.342917,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 32.869,
+      "design_free_gas_upper_m3": 34.636,
+      "reference_gas_mass_lower_kg": 39.578,
+      "reference_gas_mass_upper_kg": 41.706,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-B-BE-07-ENVELOPE",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 35.342917,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 32.869,
+      "design_free_gas_upper_m3": 34.636,
+      "reference_gas_mass_lower_kg": 39.578,
+      "reference_gas_mass_upper_kg": 41.706,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-B-BOW",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 636.172512,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 591.64,
+      "design_free_gas_upper_m3": 623.449,
+      "reference_gas_mass_lower_kg": 712.405,
+      "reference_gas_mass_upper_kg": 750.706,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-B-DR-01",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 530.14376,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 493.034,
+      "design_free_gas_upper_m3": 519.541,
+      "reference_gas_mass_lower_kg": 593.671,
+      "reference_gas_mass_upper_kg": 625.589,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-B-DR-02",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 530.14376,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 493.034,
+      "design_free_gas_upper_m3": 519.541,
+      "reference_gas_mass_lower_kg": 593.671,
+      "reference_gas_mass_upper_kg": 625.589,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-B-DR-03",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 530.14376,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 493.034,
+      "design_free_gas_upper_m3": 519.541,
+      "reference_gas_mass_lower_kg": 593.671,
+      "reference_gas_mass_upper_kg": 625.589,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-B-DR-04",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 530.14376,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 493.034,
+      "design_free_gas_upper_m3": 519.541,
+      "reference_gas_mass_lower_kg": 593.671,
+      "reference_gas_mass_upper_kg": 625.589,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-B-DR-05",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 530.14376,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 493.034,
+      "design_free_gas_upper_m3": 519.541,
+      "reference_gas_mass_lower_kg": 593.671,
+      "reference_gas_mass_upper_kg": 625.589,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-B-DR-06",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 530.14376,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 493.034,
+      "design_free_gas_upper_m3": 519.541,
+      "reference_gas_mass_lower_kg": 593.671,
+      "reference_gas_mass_upper_kg": 625.589,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-B-F1",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 194.386045,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 180.779,
+      "design_free_gas_upper_m3": 190.498,
+      "reference_gas_mass_lower_kg": 217.679,
+      "reference_gas_mass_upper_kg": 229.382,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-B-F1-DRUM-BUFFER",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 70.685835,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 65.738,
+      "design_free_gas_upper_m3": 69.272,
+      "reference_gas_mass_lower_kg": 79.156,
+      "reference_gas_mass_upper_kg": 83.412,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-B-F1-HAB-BUFFER",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 70.685835,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 65.738,
+      "design_free_gas_upper_m3": 69.272,
+      "reference_gas_mass_lower_kg": 79.156,
+      "reference_gas_mass_upper_kg": 83.412,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-B-F2",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 194.386045,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 180.779,
+      "design_free_gas_upper_m3": 190.498,
+      "reference_gas_mass_lower_kg": 217.679,
+      "reference_gas_mass_upper_kg": 229.382,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-B-F2-DRUM-BUFFER",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 70.685835,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 65.738,
+      "design_free_gas_upper_m3": 69.272,
+      "reference_gas_mass_lower_kg": 79.156,
+      "reference_gas_mass_upper_kg": 83.412,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-B-F2-HAB-BUFFER",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 70.685835,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 65.738,
+      "design_free_gas_upper_m3": 69.272,
+      "reference_gas_mass_lower_kg": 79.156,
+      "reference_gas_mass_upper_kg": 83.412,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-B-FWD-RESERVE",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 88.357293,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 82.172,
+      "design_free_gas_upper_m3": 86.59,
+      "reference_gas_mass_lower_kg": 98.945,
+      "reference_gas_mass_upper_kg": 104.265,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-B-GAP-12",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 70.685835,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 65.738,
+      "design_free_gas_upper_m3": 69.272,
+      "reference_gas_mass_lower_kg": 79.156,
+      "reference_gas_mass_upper_kg": 83.412,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-B-GAP-23",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 70.685835,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 65.738,
+      "design_free_gas_upper_m3": 69.272,
+      "reference_gas_mass_lower_kg": 79.156,
+      "reference_gas_mass_upper_kg": 83.412,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-B-GAP-45",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 70.685835,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 65.738,
+      "design_free_gas_upper_m3": 69.272,
+      "reference_gas_mass_lower_kg": 79.156,
+      "reference_gas_mass_upper_kg": 83.412,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-B-GAP-56",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 70.685835,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 65.738,
+      "design_free_gas_upper_m3": 69.272,
+      "reference_gas_mass_lower_kg": 79.156,
+      "reference_gas_mass_upper_kg": 83.412,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-TRUNK-B-HAB-HUB-SERVICES",
+      "classification": "sectional_personnel_trunk",
+      "source_gross_envelope_m3": 777.544182,
+      "planning_void_fraction_lower": 0.93,
+      "planning_void_fraction_upper": 0.98,
+      "design_free_gas_lower_m3": 723.116,
+      "design_free_gas_upper_m3": 761.993,
+      "reference_gas_mass_lower_kg": 870.717,
+      "reference_gas_mass_upper_kg": 917.53,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "rough_displacement_screen_needs_survey",
+      "dependencies": [
+        "actual isolated pressure cell",
+        "rated valve integrity",
+        "inventory and contamination",
+        "temperature and pressure"
+      ],
+      "note": "Clear 3 m tube, cart occupancy and distributed guideway reduce void slightly."
+    },
+    {
+      "pressure_zone_id": "PZ-WR-HUB",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-WR-IX",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-WR-SHOP",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-WR-SHOP-PASS",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-WR-STORES",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-WR-STORES-PASS",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-XCON-AFT",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-XCON-BOW",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-XCON-GAP-12",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-XCON-GAP-23",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-XCON-GAP-45",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-XCON-GAP-56",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    },
+    {
+      "pressure_zone_id": "PZ-XCON-HAB-HUB-SERVICES",
+      "classification": "unsized_occupied_or_special",
+      "source_gross_envelope_m3": null,
+      "planning_void_fraction_lower": null,
+      "planning_void_fraction_upper": null,
+      "design_free_gas_lower_m3": null,
+      "design_free_gas_upper_m3": null,
+      "reference_gas_mass_lower_kg": null,
+      "reference_gas_mass_upper_kg": null,
+      "verified_as_installed_free_gas_m3": null,
+      "accounting_status": "gross_geometry_not_specified_no_volume_assumed",
+      "dependencies": [],
+      "note": "No fabricated volume for this cell; entry/repressurization blocked until survey or proven local capacity."
+    }
+  ],
+  "unclassified_nonbreathable_by_default": [
+    {
+      "space_id": "GEN-M-ROOM",
+      "environment_role": "high_energy_industrial_plant",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "serviceable engineering room does not prove breathable; pressure tested and machinery isolated before unsuited entry",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "GEN-A-ROOM",
+      "environment_role": "high_energy_industrial_plant",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "serviceable engineering room does not prove breathable; pressure tested and machinery isolated before unsuited entry",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "GEN-B-ROOM",
+      "environment_role": "high_energy_industrial_plant",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "serviceable engineering room does not prove breathable; pressure tested and machinery isolated before unsuited entry",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "THERM-HT",
+      "environment_role": "high_energy_industrial_plant",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "serviceable engineering room does not prove breathable; pressure tested and machinery isolated before unsuited entry",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "PROP-SVC",
+      "environment_role": "high_energy_industrial_plant",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "serviceable engineering room does not prove breathable; pressure tested and machinery isolated before unsuited entry",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "FTL-SVC",
+      "environment_role": "high_energy_industrial_plant",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "serviceable engineering room does not prove breathable; pressure tested and machinery isolated before unsuited entry",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "FUEL-SVC",
+      "environment_role": "high_energy_industrial_plant",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "serviceable engineering room does not prove breathable; pressure tested and machinery isolated before unsuited entry",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "REACTION-SVC",
+      "environment_role": "high_energy_industrial_plant",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "serviceable engineering room does not prove breathable; pressure tested and machinery isolated before unsuited entry",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-01-SEC-01",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-01-SEC-02",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-01-SEC-03",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-01-SEC-04",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-01-SEC-05",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-01-SEC-06",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-01-SEC-07",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-01-SEC-08",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-01-P1",
+      "environment_role": "commercial_cargo_portal",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "potential vacuum/port-mated, verified stopped/hardlocked handling only; no unsuited access inferred",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-01-P2",
+      "environment_role": "commercial_cargo_portal",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "potential vacuum/port-mated, verified stopped/hardlocked handling only; no unsuited access inferred",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "BE-01-SVC",
+      "environment_role": "bearing_service_annulus",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "rotor mechanical exposure, pressure not confirmed; suited and mechanically locked work until local survey",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "BE-02-SVC",
+      "environment_role": "bearing_service_annulus",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "rotor mechanical exposure, pressure not confirmed; suited and mechanically locked work until local survey",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-02-SEC-01",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-02-SEC-02",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-02-SEC-03",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-02-SEC-04",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-02-SEC-05",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-02-SEC-06",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-02-SEC-07",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-02-SEC-08",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-02-P1",
+      "environment_role": "commercial_cargo_portal",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "potential vacuum/port-mated, verified stopped/hardlocked handling only; no unsuited access inferred",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-02-P2",
+      "environment_role": "commercial_cargo_portal",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "potential vacuum/port-mated, verified stopped/hardlocked handling only; no unsuited access inferred",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "BE-03-SVC",
+      "environment_role": "bearing_service_annulus",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "rotor mechanical exposure, pressure not confirmed; suited and mechanically locked work until local survey",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "BE-04-SVC",
+      "environment_role": "bearing_service_annulus",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "rotor mechanical exposure, pressure not confirmed; suited and mechanically locked work until local survey",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-03-SEC-01",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-03-SEC-02",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-03-SEC-03",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-03-SEC-04",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-03-SEC-05",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-03-SEC-06",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-03-SEC-07",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-03-SEC-08",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-03-P1",
+      "environment_role": "commercial_cargo_portal",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "potential vacuum/port-mated, verified stopped/hardlocked handling only; no unsuited access inferred",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-03-P2",
+      "environment_role": "commercial_cargo_portal",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "potential vacuum/port-mated, verified stopped/hardlocked handling only; no unsuited access inferred",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "BE-05-SVC",
+      "environment_role": "bearing_service_annulus",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "rotor mechanical exposure, pressure not confirmed; suited and mechanically locked work until local survey",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "BE-06-SVC",
+      "environment_role": "bearing_service_annulus",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "rotor mechanical exposure, pressure not confirmed; suited and mechanically locked work until local survey",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-04-SEC-01",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-04-SEC-02",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-04-SEC-03",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-04-SEC-04",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-04-SEC-05",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-04-SEC-06",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-04-SEC-07",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-04-SEC-08",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-04-P1",
+      "environment_role": "commercial_cargo_portal",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "potential vacuum/port-mated, verified stopped/hardlocked handling only; no unsuited access inferred",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-04-P2",
+      "environment_role": "commercial_cargo_portal",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "potential vacuum/port-mated, verified stopped/hardlocked handling only; no unsuited access inferred",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "BE-07-SVC",
+      "environment_role": "bearing_service_annulus",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "rotor mechanical exposure, pressure not confirmed; suited and mechanically locked work until local survey",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "BE-08-SVC",
+      "environment_role": "bearing_service_annulus",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "rotor mechanical exposure, pressure not confirmed; suited and mechanically locked work until local survey",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-05-SEC-01",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-05-SEC-02",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-05-SEC-03",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-05-SEC-04",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-05-SEC-05",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-05-SEC-06",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-05-SEC-07",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-05-SEC-08",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-05-P1",
+      "environment_role": "commercial_cargo_portal",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "potential vacuum/port-mated, verified stopped/hardlocked handling only; no unsuited access inferred",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-05-P2",
+      "environment_role": "commercial_cargo_portal",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "potential vacuum/port-mated, verified stopped/hardlocked handling only; no unsuited access inferred",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "BE-09-SVC",
+      "environment_role": "bearing_service_annulus",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "rotor mechanical exposure, pressure not confirmed; suited and mechanically locked work until local survey",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "BE-10-SVC",
+      "environment_role": "bearing_service_annulus",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "rotor mechanical exposure, pressure not confirmed; suited and mechanically locked work until local survey",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-06-SEC-01",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-06-SEC-02",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-06-SEC-03",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-06-SEC-04",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-06-SEC-05",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-06-SEC-06",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-06-SEC-07",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-06-SEC-08",
+      "environment_role": "manifest_dependent_cargo_sector",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not_crew_breathable_by_default; local cargo gas pack and manifest control separate from inhabited ECLSS",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-06-P1",
+      "environment_role": "commercial_cargo_portal",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "potential vacuum/port-mated, verified stopped/hardlocked handling only; no unsuited access inferred",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "DR-06-P2",
+      "environment_role": "commercial_cargo_portal",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "potential vacuum/port-mated, verified stopped/hardlocked handling only; no unsuited access inferred",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "BE-11-SVC",
+      "environment_role": "bearing_service_annulus",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "rotor mechanical exposure, pressure not confirmed; suited and mechanically locked work until local survey",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "BE-12-SVC",
+      "environment_role": "bearing_service_annulus",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "rotor mechanical exposure, pressure not confirmed; suited and mechanically locked work until local survey",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "BOW-SHIELD-FOREPEAK",
+      "environment_role": "unoccupied_shield_or_trim_bay",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not occupied atmosphere, no implicit pressure inventory, access by task-specific isolation and protective equipment",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "WATER-SHIELD-FWD",
+      "environment_role": "unoccupied_shield_or_trim_bay",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not occupied atmosphere, no implicit pressure inventory, access by task-specific isolation and protective equipment",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    },
+    {
+      "space_id": "WR-TRIM-TANK-BAY",
+      "environment_role": "unoccupied_shield_or_trim_bay",
+      "pressure_zone_id": null,
+      "normal_breathability_unverified": true,
+      "crew_unsuited_access_permitted_by_default": false,
+      "entry_doctrine": "not occupied atmosphere, no implicit pressure inventory, access by task-specific isolation and protective equipment",
+      "gas_volume_reference_m3": null,
+      "environment_truth_requires_in_world_evidence": true
+    }
+  ],
+  "reserve_gas": {
+    "nominal_total_mass_t": 5.5,
+    "banks": [
+      {
+        "equipment_id": "GAS-REFILL-BANK-A",
+        "inventory_id": "INV-GAS-REFILL-A",
+        "mass_t": 2.75,
+        "location_id": "WATER-SHIELD-FWD",
+        "default_valve": "closed"
+      },
+      {
+        "equipment_id": "GAS-REFILL-BANK-B",
+        "inventory_id": "INV-GAS-REFILL-B",
+        "mass_t": 2.75,
+        "location_id": "STORE-FLUID-AFT",
+        "default_valve": "closed"
+      }
+    ],
+    "belongs_to_existing_departure_mission_allowance_t": 1500,
+    "protected_refuge_oxygen_mass_kg_SEPARATE": 249.2,
+    "nominal_composition": "dry breathable air stored preblended and purity-verified; actual bank composition must be tested before refill",
+    "refilling_is_not_oxygen_metabolism_credits": true,
+    "one_2p75t_bank_may_not_complete_one_arc": true,
+    "maximum_simultaneous_controlled_flow_kg_h_from_two_banks": 200,
+    "reserve_recharge_sources": [
+      "qualified port gas supply",
+      "refill from compatible service plant with source purity and mass verified"
+    ]
+  },
+  "distribution": {
+    "network_id": "repressurization_gas",
+    "trunk_cell_taps": [
+      {
+        "space_id": "LOGI-AFT",
+        "pressure_zone_id": "PZ-LOGI-AFT",
+        "service_node_id": "NODE-GAS-TAP-LOGI-AFT",
+        "bank_header_id": "GAS-REFILL-HEADER-A",
+        "valve_id": "ISO-GAS-TAP-LOGI-AFT",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "LOGI-AFT-RESERVE",
+        "pressure_zone_id": "PZ-LOGI-AFT-RESERVE",
+        "service_node_id": "NODE-GAS-TAP-LOGI-AFT-RESERVE",
+        "bank_header_id": "GAS-REFILL-HEADER-B",
+        "valve_id": "ISO-GAS-TAP-LOGI-AFT-RESERVE",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "LOGI-BE-06-ENVELOPE",
+        "pressure_zone_id": "PZ-LOGI-BE-06-ENVELOPE",
+        "service_node_id": "NODE-GAS-TAP-LOGI-BE-06-ENVELOPE",
+        "bank_header_id": "GAS-REFILL-HEADER-A",
+        "valve_id": "ISO-GAS-TAP-LOGI-BE-06-ENVELOPE",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "LOGI-BE-07-ENVELOPE",
+        "pressure_zone_id": "PZ-LOGI-BE-07-ENVELOPE",
+        "service_node_id": "NODE-GAS-TAP-LOGI-BE-07-ENVELOPE",
+        "bank_header_id": "GAS-REFILL-HEADER-A",
+        "valve_id": "ISO-GAS-TAP-LOGI-BE-07-ENVELOPE",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "LOGI-BOW",
+        "pressure_zone_id": "PZ-LOGI-BOW",
+        "service_node_id": "NODE-GAS-TAP-LOGI-BOW",
+        "bank_header_id": "GAS-REFILL-HEADER-A",
+        "valve_id": "ISO-GAS-TAP-LOGI-BOW",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "LOGI-DR-01",
+        "pressure_zone_id": "PZ-LOGI-DR-01",
+        "service_node_id": "NODE-GAS-TAP-LOGI-DR-01",
+        "bank_header_id": "GAS-REFILL-HEADER-B",
+        "valve_id": "ISO-GAS-TAP-LOGI-DR-01",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "LOGI-DR-02",
+        "pressure_zone_id": "PZ-LOGI-DR-02",
+        "service_node_id": "NODE-GAS-TAP-LOGI-DR-02",
+        "bank_header_id": "GAS-REFILL-HEADER-B",
+        "valve_id": "ISO-GAS-TAP-LOGI-DR-02",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "LOGI-DR-03",
+        "pressure_zone_id": "PZ-LOGI-DR-03",
+        "service_node_id": "NODE-GAS-TAP-LOGI-DR-03",
+        "bank_header_id": "GAS-REFILL-HEADER-B",
+        "valve_id": "ISO-GAS-TAP-LOGI-DR-03",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "LOGI-DR-04",
+        "pressure_zone_id": "PZ-LOGI-DR-04",
+        "service_node_id": "NODE-GAS-TAP-LOGI-DR-04",
+        "bank_header_id": "GAS-REFILL-HEADER-B",
+        "valve_id": "ISO-GAS-TAP-LOGI-DR-04",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "LOGI-DR-05",
+        "pressure_zone_id": "PZ-LOGI-DR-05",
+        "service_node_id": "NODE-GAS-TAP-LOGI-DR-05",
+        "bank_header_id": "GAS-REFILL-HEADER-B",
+        "valve_id": "ISO-GAS-TAP-LOGI-DR-05",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "LOGI-DR-06",
+        "pressure_zone_id": "PZ-LOGI-DR-06",
+        "service_node_id": "NODE-GAS-TAP-LOGI-DR-06",
+        "bank_header_id": "GAS-REFILL-HEADER-B",
+        "valve_id": "ISO-GAS-TAP-LOGI-DR-06",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "LOGI-F1",
+        "pressure_zone_id": "PZ-LOGI-F1",
+        "service_node_id": "NODE-GAS-TAP-LOGI-F1",
+        "bank_header_id": "GAS-REFILL-HEADER-A",
+        "valve_id": "ISO-GAS-TAP-LOGI-F1",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "LOGI-F1-DRUM-BUFFER",
+        "pressure_zone_id": "PZ-LOGI-F1-DRUM-BUFFER",
+        "service_node_id": "NODE-GAS-TAP-LOGI-F1-DRUM-BUFFER",
+        "bank_header_id": "GAS-REFILL-HEADER-B",
+        "valve_id": "ISO-GAS-TAP-LOGI-F1-DRUM-BUFFER",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "LOGI-F1-HAB-BUFFER",
+        "pressure_zone_id": "PZ-LOGI-F1-HAB-BUFFER",
+        "service_node_id": "NODE-GAS-TAP-LOGI-F1-HAB-BUFFER",
+        "bank_header_id": "GAS-REFILL-HEADER-A",
+        "valve_id": "ISO-GAS-TAP-LOGI-F1-HAB-BUFFER",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "LOGI-F2",
+        "pressure_zone_id": "PZ-LOGI-F2",
+        "service_node_id": "NODE-GAS-TAP-LOGI-F2",
+        "bank_header_id": "GAS-REFILL-HEADER-A",
+        "valve_id": "ISO-GAS-TAP-LOGI-F2",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "LOGI-F2-DRUM-BUFFER",
+        "pressure_zone_id": "PZ-LOGI-F2-DRUM-BUFFER",
+        "service_node_id": "NODE-GAS-TAP-LOGI-F2-DRUM-BUFFER",
+        "bank_header_id": "GAS-REFILL-HEADER-B",
+        "valve_id": "ISO-GAS-TAP-LOGI-F2-DRUM-BUFFER",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "LOGI-F2-HAB-BUFFER",
+        "pressure_zone_id": "PZ-LOGI-F2-HAB-BUFFER",
+        "service_node_id": "NODE-GAS-TAP-LOGI-F2-HAB-BUFFER",
+        "bank_header_id": "GAS-REFILL-HEADER-A",
+        "valve_id": "ISO-GAS-TAP-LOGI-F2-HAB-BUFFER",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "LOGI-FWD-RESERVE",
+        "pressure_zone_id": "PZ-LOGI-FWD-RESERVE",
+        "service_node_id": "NODE-GAS-TAP-LOGI-FWD-RESERVE",
+        "bank_header_id": "GAS-REFILL-HEADER-B",
+        "valve_id": "ISO-GAS-TAP-LOGI-FWD-RESERVE",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "LOGI-GAP-12",
+        "pressure_zone_id": "PZ-LOGI-GAP-12",
+        "service_node_id": "NODE-GAS-TAP-LOGI-GAP-12",
+        "bank_header_id": "GAS-REFILL-HEADER-A",
+        "valve_id": "ISO-GAS-TAP-LOGI-GAP-12",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "LOGI-GAP-23",
+        "pressure_zone_id": "PZ-LOGI-GAP-23",
+        "service_node_id": "NODE-GAS-TAP-LOGI-GAP-23",
+        "bank_header_id": "GAS-REFILL-HEADER-A",
+        "valve_id": "ISO-GAS-TAP-LOGI-GAP-23",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "LOGI-GAP-45",
+        "pressure_zone_id": "PZ-LOGI-GAP-45",
+        "service_node_id": "NODE-GAS-TAP-LOGI-GAP-45",
+        "bank_header_id": "GAS-REFILL-HEADER-A",
+        "valve_id": "ISO-GAS-TAP-LOGI-GAP-45",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "LOGI-GAP-56",
+        "pressure_zone_id": "PZ-LOGI-GAP-56",
+        "service_node_id": "NODE-GAS-TAP-LOGI-GAP-56",
+        "bank_header_id": "GAS-REFILL-HEADER-A",
+        "valve_id": "ISO-GAS-TAP-LOGI-GAP-56",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "LOGI-HAB-HUB-SERVICES",
+        "pressure_zone_id": "PZ-LOGI-HAB-HUB-SERVICES",
+        "service_node_id": "NODE-GAS-TAP-LOGI-HAB-HUB-SERVICES",
+        "bank_header_id": "GAS-REFILL-HEADER-B",
+        "valve_id": "ISO-GAS-TAP-LOGI-HAB-HUB-SERVICES",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-A-AFT",
+        "pressure_zone_id": "PZ-TRUNK-A-AFT",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-A-AFT",
+        "bank_header_id": "GAS-REFILL-HEADER-A",
+        "valve_id": "ISO-GAS-TAP-TRUNK-A-AFT",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-A-AFT-RESERVE",
+        "pressure_zone_id": "PZ-TRUNK-A-AFT-RESERVE",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-A-AFT-RESERVE",
+        "bank_header_id": "GAS-REFILL-HEADER-A",
+        "valve_id": "ISO-GAS-TAP-TRUNK-A-AFT-RESERVE",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-A-BE-06-ENVELOPE",
+        "pressure_zone_id": "PZ-TRUNK-A-BE-06-ENVELOPE",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-A-BE-06-ENVELOPE",
+        "bank_header_id": "GAS-REFILL-HEADER-A",
+        "valve_id": "ISO-GAS-TAP-TRUNK-A-BE-06-ENVELOPE",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-A-BE-07-ENVELOPE",
+        "pressure_zone_id": "PZ-TRUNK-A-BE-07-ENVELOPE",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-A-BE-07-ENVELOPE",
+        "bank_header_id": "GAS-REFILL-HEADER-A",
+        "valve_id": "ISO-GAS-TAP-TRUNK-A-BE-07-ENVELOPE",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-A-BOW",
+        "pressure_zone_id": "PZ-TRUNK-A-BOW",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-A-BOW",
+        "bank_header_id": "GAS-REFILL-HEADER-A",
+        "valve_id": "ISO-GAS-TAP-TRUNK-A-BOW",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-A-DR-01",
+        "pressure_zone_id": "PZ-TRUNK-A-DR-01",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-A-DR-01",
+        "bank_header_id": "GAS-REFILL-HEADER-A",
+        "valve_id": "ISO-GAS-TAP-TRUNK-A-DR-01",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-A-DR-02",
+        "pressure_zone_id": "PZ-TRUNK-A-DR-02",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-A-DR-02",
+        "bank_header_id": "GAS-REFILL-HEADER-A",
+        "valve_id": "ISO-GAS-TAP-TRUNK-A-DR-02",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-A-DR-03",
+        "pressure_zone_id": "PZ-TRUNK-A-DR-03",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-A-DR-03",
+        "bank_header_id": "GAS-REFILL-HEADER-A",
+        "valve_id": "ISO-GAS-TAP-TRUNK-A-DR-03",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-A-DR-04",
+        "pressure_zone_id": "PZ-TRUNK-A-DR-04",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-A-DR-04",
+        "bank_header_id": "GAS-REFILL-HEADER-A",
+        "valve_id": "ISO-GAS-TAP-TRUNK-A-DR-04",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-A-DR-05",
+        "pressure_zone_id": "PZ-TRUNK-A-DR-05",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-A-DR-05",
+        "bank_header_id": "GAS-REFILL-HEADER-A",
+        "valve_id": "ISO-GAS-TAP-TRUNK-A-DR-05",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-A-DR-06",
+        "pressure_zone_id": "PZ-TRUNK-A-DR-06",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-A-DR-06",
+        "bank_header_id": "GAS-REFILL-HEADER-A",
+        "valve_id": "ISO-GAS-TAP-TRUNK-A-DR-06",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-A-F1",
+        "pressure_zone_id": "PZ-TRUNK-A-F1",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-A-F1",
+        "bank_header_id": "GAS-REFILL-HEADER-A",
+        "valve_id": "ISO-GAS-TAP-TRUNK-A-F1",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-A-F1-DRUM-BUFFER",
+        "pressure_zone_id": "PZ-TRUNK-A-F1-DRUM-BUFFER",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-A-F1-DRUM-BUFFER",
+        "bank_header_id": "GAS-REFILL-HEADER-A",
+        "valve_id": "ISO-GAS-TAP-TRUNK-A-F1-DRUM-BUFFER",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-A-F1-HAB-BUFFER",
+        "pressure_zone_id": "PZ-TRUNK-A-F1-HAB-BUFFER",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-A-F1-HAB-BUFFER",
+        "bank_header_id": "GAS-REFILL-HEADER-A",
+        "valve_id": "ISO-GAS-TAP-TRUNK-A-F1-HAB-BUFFER",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-A-F2",
+        "pressure_zone_id": "PZ-TRUNK-A-F2",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-A-F2",
+        "bank_header_id": "GAS-REFILL-HEADER-A",
+        "valve_id": "ISO-GAS-TAP-TRUNK-A-F2",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-A-F2-DRUM-BUFFER",
+        "pressure_zone_id": "PZ-TRUNK-A-F2-DRUM-BUFFER",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-A-F2-DRUM-BUFFER",
+        "bank_header_id": "GAS-REFILL-HEADER-A",
+        "valve_id": "ISO-GAS-TAP-TRUNK-A-F2-DRUM-BUFFER",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-A-F2-HAB-BUFFER",
+        "pressure_zone_id": "PZ-TRUNK-A-F2-HAB-BUFFER",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-A-F2-HAB-BUFFER",
+        "bank_header_id": "GAS-REFILL-HEADER-A",
+        "valve_id": "ISO-GAS-TAP-TRUNK-A-F2-HAB-BUFFER",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-A-FWD-RESERVE",
+        "pressure_zone_id": "PZ-TRUNK-A-FWD-RESERVE",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-A-FWD-RESERVE",
+        "bank_header_id": "GAS-REFILL-HEADER-A",
+        "valve_id": "ISO-GAS-TAP-TRUNK-A-FWD-RESERVE",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-A-GAP-12",
+        "pressure_zone_id": "PZ-TRUNK-A-GAP-12",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-A-GAP-12",
+        "bank_header_id": "GAS-REFILL-HEADER-A",
+        "valve_id": "ISO-GAS-TAP-TRUNK-A-GAP-12",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-A-GAP-23",
+        "pressure_zone_id": "PZ-TRUNK-A-GAP-23",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-A-GAP-23",
+        "bank_header_id": "GAS-REFILL-HEADER-A",
+        "valve_id": "ISO-GAS-TAP-TRUNK-A-GAP-23",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-A-GAP-45",
+        "pressure_zone_id": "PZ-TRUNK-A-GAP-45",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-A-GAP-45",
+        "bank_header_id": "GAS-REFILL-HEADER-A",
+        "valve_id": "ISO-GAS-TAP-TRUNK-A-GAP-45",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-A-GAP-56",
+        "pressure_zone_id": "PZ-TRUNK-A-GAP-56",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-A-GAP-56",
+        "bank_header_id": "GAS-REFILL-HEADER-A",
+        "valve_id": "ISO-GAS-TAP-TRUNK-A-GAP-56",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-A-HAB-HUB-SERVICES",
+        "pressure_zone_id": "PZ-TRUNK-A-HAB-HUB-SERVICES",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-A-HAB-HUB-SERVICES",
+        "bank_header_id": "GAS-REFILL-HEADER-A",
+        "valve_id": "ISO-GAS-TAP-TRUNK-A-HAB-HUB-SERVICES",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-B-AFT",
+        "pressure_zone_id": "PZ-TRUNK-B-AFT",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-B-AFT",
+        "bank_header_id": "GAS-REFILL-HEADER-B",
+        "valve_id": "ISO-GAS-TAP-TRUNK-B-AFT",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-B-AFT-RESERVE",
+        "pressure_zone_id": "PZ-TRUNK-B-AFT-RESERVE",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-B-AFT-RESERVE",
+        "bank_header_id": "GAS-REFILL-HEADER-B",
+        "valve_id": "ISO-GAS-TAP-TRUNK-B-AFT-RESERVE",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-B-BE-06-ENVELOPE",
+        "pressure_zone_id": "PZ-TRUNK-B-BE-06-ENVELOPE",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-B-BE-06-ENVELOPE",
+        "bank_header_id": "GAS-REFILL-HEADER-B",
+        "valve_id": "ISO-GAS-TAP-TRUNK-B-BE-06-ENVELOPE",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-B-BE-07-ENVELOPE",
+        "pressure_zone_id": "PZ-TRUNK-B-BE-07-ENVELOPE",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-B-BE-07-ENVELOPE",
+        "bank_header_id": "GAS-REFILL-HEADER-B",
+        "valve_id": "ISO-GAS-TAP-TRUNK-B-BE-07-ENVELOPE",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-B-BOW",
+        "pressure_zone_id": "PZ-TRUNK-B-BOW",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-B-BOW",
+        "bank_header_id": "GAS-REFILL-HEADER-B",
+        "valve_id": "ISO-GAS-TAP-TRUNK-B-BOW",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-B-DR-01",
+        "pressure_zone_id": "PZ-TRUNK-B-DR-01",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-B-DR-01",
+        "bank_header_id": "GAS-REFILL-HEADER-B",
+        "valve_id": "ISO-GAS-TAP-TRUNK-B-DR-01",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-B-DR-02",
+        "pressure_zone_id": "PZ-TRUNK-B-DR-02",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-B-DR-02",
+        "bank_header_id": "GAS-REFILL-HEADER-B",
+        "valve_id": "ISO-GAS-TAP-TRUNK-B-DR-02",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-B-DR-03",
+        "pressure_zone_id": "PZ-TRUNK-B-DR-03",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-B-DR-03",
+        "bank_header_id": "GAS-REFILL-HEADER-B",
+        "valve_id": "ISO-GAS-TAP-TRUNK-B-DR-03",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-B-DR-04",
+        "pressure_zone_id": "PZ-TRUNK-B-DR-04",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-B-DR-04",
+        "bank_header_id": "GAS-REFILL-HEADER-B",
+        "valve_id": "ISO-GAS-TAP-TRUNK-B-DR-04",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-B-DR-05",
+        "pressure_zone_id": "PZ-TRUNK-B-DR-05",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-B-DR-05",
+        "bank_header_id": "GAS-REFILL-HEADER-B",
+        "valve_id": "ISO-GAS-TAP-TRUNK-B-DR-05",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-B-DR-06",
+        "pressure_zone_id": "PZ-TRUNK-B-DR-06",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-B-DR-06",
+        "bank_header_id": "GAS-REFILL-HEADER-B",
+        "valve_id": "ISO-GAS-TAP-TRUNK-B-DR-06",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-B-F1",
+        "pressure_zone_id": "PZ-TRUNK-B-F1",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-B-F1",
+        "bank_header_id": "GAS-REFILL-HEADER-B",
+        "valve_id": "ISO-GAS-TAP-TRUNK-B-F1",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-B-F1-DRUM-BUFFER",
+        "pressure_zone_id": "PZ-TRUNK-B-F1-DRUM-BUFFER",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-B-F1-DRUM-BUFFER",
+        "bank_header_id": "GAS-REFILL-HEADER-B",
+        "valve_id": "ISO-GAS-TAP-TRUNK-B-F1-DRUM-BUFFER",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-B-F1-HAB-BUFFER",
+        "pressure_zone_id": "PZ-TRUNK-B-F1-HAB-BUFFER",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-B-F1-HAB-BUFFER",
+        "bank_header_id": "GAS-REFILL-HEADER-B",
+        "valve_id": "ISO-GAS-TAP-TRUNK-B-F1-HAB-BUFFER",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-B-F2",
+        "pressure_zone_id": "PZ-TRUNK-B-F2",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-B-F2",
+        "bank_header_id": "GAS-REFILL-HEADER-B",
+        "valve_id": "ISO-GAS-TAP-TRUNK-B-F2",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-B-F2-DRUM-BUFFER",
+        "pressure_zone_id": "PZ-TRUNK-B-F2-DRUM-BUFFER",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-B-F2-DRUM-BUFFER",
+        "bank_header_id": "GAS-REFILL-HEADER-B",
+        "valve_id": "ISO-GAS-TAP-TRUNK-B-F2-DRUM-BUFFER",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-B-F2-HAB-BUFFER",
+        "pressure_zone_id": "PZ-TRUNK-B-F2-HAB-BUFFER",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-B-F2-HAB-BUFFER",
+        "bank_header_id": "GAS-REFILL-HEADER-B",
+        "valve_id": "ISO-GAS-TAP-TRUNK-B-F2-HAB-BUFFER",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-B-FWD-RESERVE",
+        "pressure_zone_id": "PZ-TRUNK-B-FWD-RESERVE",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-B-FWD-RESERVE",
+        "bank_header_id": "GAS-REFILL-HEADER-B",
+        "valve_id": "ISO-GAS-TAP-TRUNK-B-FWD-RESERVE",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-B-GAP-12",
+        "pressure_zone_id": "PZ-TRUNK-B-GAP-12",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-B-GAP-12",
+        "bank_header_id": "GAS-REFILL-HEADER-B",
+        "valve_id": "ISO-GAS-TAP-TRUNK-B-GAP-12",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-B-GAP-23",
+        "pressure_zone_id": "PZ-TRUNK-B-GAP-23",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-B-GAP-23",
+        "bank_header_id": "GAS-REFILL-HEADER-B",
+        "valve_id": "ISO-GAS-TAP-TRUNK-B-GAP-23",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-B-GAP-45",
+        "pressure_zone_id": "PZ-TRUNK-B-GAP-45",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-B-GAP-45",
+        "bank_header_id": "GAS-REFILL-HEADER-B",
+        "valve_id": "ISO-GAS-TAP-TRUNK-B-GAP-45",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-B-GAP-56",
+        "pressure_zone_id": "PZ-TRUNK-B-GAP-56",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-B-GAP-56",
+        "bank_header_id": "GAS-REFILL-HEADER-B",
+        "valve_id": "ISO-GAS-TAP-TRUNK-B-GAP-56",
+        "normal_state": "closed"
+      },
+      {
+        "space_id": "TRUNK-B-HAB-HUB-SERVICES",
+        "pressure_zone_id": "PZ-TRUNK-B-HAB-HUB-SERVICES",
+        "service_node_id": "NODE-GAS-TAP-TRUNK-B-HAB-HUB-SERVICES",
+        "bank_header_id": "GAS-REFILL-HEADER-B",
+        "valve_id": "ISO-GAS-TAP-TRUNK-B-HAB-HUB-SERVICES",
+        "normal_state": "closed"
+      }
+    ],
+    "independent_supply_inputs": [
+      {
+        "bank": "A",
+        "rotary_union": "GAS-ROTARY-A",
+        "arc": "HAB-06"
+      },
+      {
+        "bank": "B",
+        "rotary_union": "GAS-ROTARY-B",
+        "arc": "HAB-08"
+      }
+    ],
+    "hab_manifolds": [
+      "GAS-HAB-01-MAN",
+      "GAS-HAB-02-MAN",
+      "GAS-HAB-03-MAN",
+      "GAS-HAB-04-MAN",
+      "GAS-HAB-05-MAN",
+      "GAS-HAB-06-MAN",
+      "GAS-HAB-07-MAN",
+      "GAS-HAB-08-MAN"
+    ],
+    "bridge_crossings": [
+      "EDGE-GAS-BR-01",
+      "EDGE-GAS-BR-02",
+      "EDGE-GAS-BR-03",
+      "EDGE-GAS-BR-04",
+      "EDGE-GAS-BR-05",
+      "EDGE-GAS-BR-06",
+      "EDGE-GAS-BR-07",
+      "EDGE-GAS-BR-08"
+    ],
+    "normaltaps_closed": true,
+    "cross_tie_id": "EDGE-GAS-CROSS-TIE",
+    "conditional_use": "Only permitted when local valves, gas purity, receiving-zone pressure, leak limits and thermal control all satisfy operational safeguards",
+    "route_policy": "A path in a service graph conveys possible plumbing only. Normally closed isolation points must be operated in a safe sequence and mechanically verified.",
+    "overpressure_policy": "Pressure ramp limit and nominal target pressure must be enforced; bulk refill not allowed until containment proven",
+    "accessibility": "A remote bank in an unoccupied tank bay may require suited/isolated work; opening a bank valve does not grant crew access."
+  },
+  "totals": {
+    "sized_pressure_cells": 85,
+    "unsized_pressurized_cells": 48,
+    "pressure_unclassified_spaces": 83,
+    "sized_gross_m3": 65549.249,
+    "sized_free_lower_m3": 52608.918,
+    "sized_free_upper_m3": 59897.55,
+    "dry_air_mass_lower_t": 63.347,
+    "dry_air_mass_upper_t": 72.124,
+    "one_hab_arc_air_lower_t": 3.088,
+    "one_hab_arc_air_upper_t": 3.705,
+    "two_hab_arc_air_minimum_t": 6.175,
+    "two_bank_reserve_t": 5.5,
+    "full_950m_spine_unknown_extra_pressure_rooms_not_counted": true
+  },
+  "rulebook": [
+    "Atmospheric air within the ship's pressurised spaces is physical initial inventory; never treat it as the 5.5 t compressed reserve twice.",
+    "Normal metabolic oxygen generation and regenerable CO2 scrubbing do not restore inert-buffer pressure lost in a breach.",
+    "One full arc refill is budgeted; two complete arcs cannot both be fully restored from the 5.5 t nominal reserve alone.",
+    "No invisible atmosphere or simulated crew breathability for the 83 unclassified industrial/cargo spaces.",
+    "Local gas rescue and pressure equalisation require safe receiving containment, route valves and time; neither a schematic nor a work receipt is proof of repair."
+  ]
+}
