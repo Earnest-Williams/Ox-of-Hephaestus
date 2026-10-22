@@ -94,3 +94,38 @@ This is still **one world decision per real model**, not an operational
 quality estimate or evidence for believable character mistakes across
 a long voyage. The live supervisor stays unchanged until a separate
 recovery-aware activation is accepted.
+
+### First real local 4B model choices (verified)
+
+[CPU-only P4a world model workflow #39846130944](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/39846130944)
+**passed both independently provisioned jobs**. The model choices were
+genuine, not scripted, and both used the exact same person profile, route
+probability 0.6138, stable route roll 0.3159028547, observations and
+offered action menu. Each used one model call.
+
+| Engine | Model-chosen action | Evennia physical result | World isolation events |
+| --- | --- | --- | ---: |
+| Decider 4B Q4_K_M via native option logits | isolate | verified isolated | 1 |
+| Qwen3.5-4B Q4_K_M via local llama.cpp chat choice | isolate | verified isolated | 1 |
+
+The Decider probability distribution was
+`isolate=0.7463, defer=0.2537`. These probabilities are a
+diagnostic, not a certified confidence measure. Both actor-private
+checkpoints include exactly one route and one durable world WorkReceipt.
+
+The first Qwen attempt in an earlier workflow used a 20-second cold CPU
+deadline and was correctly rejected by the scheduler without physical
+effects. The corrected **experiment-only** deadline was 110 seconds;
+the production scheduler was not modified. An unrelated CI provisioning
+error from placing credential export and database migration in the same
+step was also fixed before the successful run.
+
+These two choices are **not** evidence that Decider is psychologically
+more or less credible than Qwen. They shared a plainly justified
+operational decision, and both followed it. Next behavioural work
+should present genuine competing personal commitments, ambiguous
+interpretation, colleagues' disputed authority and the possibility
+of acting against a *known* procedural preference. Quality metrics
+must distinguish inconsistent model mistakes from attributable
+character mistakes, while preserving native GOAP and world authority.
+
