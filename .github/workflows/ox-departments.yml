@@ -56,6 +56,18 @@ jobs:
         run: |
           evennia migrate --noinput
           python -m world.test_runner world.tests.test_departments world.tests.test_ship world.tests.test_ship_model world.tests.test_ship_world world.tests.test_ship_telemetry world.tests.test_ox_terminal world.tests.test_autonomy --verbosity=2
+      - name: Materialise all 421 canonical spaces and 517 bidirectional physical links
+        working-directory: game
+        run: |
+          evennia shell --command="from world.ship_world import build_canonical_ship; b=build_canonical_ship(); assert len(b['spaces']) == 421; assert len(b['access']) == 1034; assert b['root'].db.ox_topology_complete; print('OX_CANONICAL_421_SPACES_1034_EXITS_BUILT')"
+      - name: Inspect full-ship read-only telemetry and modify one persisted room
+        working-directory: game
+        run: |
+          evennia shell --command="from time import perf_counter; from world.ship_world import ensure_canonical_ship, find_ship_space; from world.ship_telemetry import read_spatial_telemetry; assert ensure_canonical_ship()['skipped']; start=perf_counter(); s=read_spatial_telemetry(); elapsed_ms=round((perf_counter()-start)*1000, 1); assert s['topology_complete'] and s['coverage']['spaces_reporting']==421; assert s['model_version']=='0.4'; r=find_ship_space('CMD-PRIMARY'); assert r.db.ox_current_condition=='serviceable'; r.db.ox_current_condition='under_inspection'; print('OX_CANONICAL_TELEMETRY_READ_MS', elapsed_ms)"
+      - name: Verify restart-safe spatial state in another Evennia process
+        working-directory: game
+        run: |
+          evennia shell --command="from world.ship_world import ensure_canonical_ship, find_ship_space; from world.ship_telemetry import read_spatial_telemetry; assert ensure_canonical_ship()['skipped']; s=read_spatial_telemetry(); conditions={r['id']:r['condition'] for r in s['space_states']}; assert conditions['CMD-PRIMARY']=='under_inspection'; find_ship_space('CMD-PRIMARY').db.ox_current_condition='serviceable'; print('OX_CANONICAL_PERSISTED_TELEMETRY_PASS')"
       - name: Seed independent departmental faults in persistent game database
         working-directory: game
         run: |
