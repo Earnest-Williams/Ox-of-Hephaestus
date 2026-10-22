@@ -64,9 +64,23 @@ def validate(candidate: dict, baseline: dict) -> dict:
     for section in ("service_nodes", "isolation_points"):
         require(candidate[section][:len(baseline[section])] == baseline[section],
                 f"original {section} unexpectedly mutated")
-        require(all(x["network"] in ("repressurization_gas", "byproduct_exhaust")
-                    for x in candidate[section][len(baseline[section]):]),
-                f"unexpected added {section} outside reviewed gas/byproduct services")
+        approved_networks = {"repressurization_gas", "byproduct_exhaust"}
+        if section == "isolation_points":
+            approved_networks.update({"greywater", "blackwater"})
+        added = candidate[section][len(baseline[section]):]
+        require(all(x["network"] in approved_networks for x in added),
+                f"unexpected added {section} outside reviewed gas/wet-byproduct services")
+        if section == "isolation_points":
+            added_wet = {x["id"] for x in added
+                         if x["network"] in ("greywater", "blackwater")}
+            expected_wet = {
+                f"ISO-WET-{medium}-{side}-{location}"
+                for medium in ("GREYWATER", "BLACKWATER")
+                for side in ("A", "B")
+                for location in ("FIXED", "ROTOR")
+            }
+            require(added_wet == expected_wet,
+                    "unreviewed additions to historic wet-service isolation")
     # Only the explicitly justified pressure-cell corrections may alter the
     # 421 installed space records. Physical geometry and room IDs stay fixed.
     expected_spaces = deepcopy(baseline["spaces"])
