@@ -146,3 +146,6 @@ The fixed spine now carries two sectionalised fire mains alongside its separated
 Major machinery now has local-control capability independent of the ordinary central display path. The central Engineering complex remains the primary work-coordination point, but loss of Engineering Control or of a data route does not make a healthy local plant physically unmanageable.
 
 Forward and aft spine atmosphere plants, local habitation emergency scrubbers, the two habitat refuges and the two survival craft form increasingly deep backup-life-support layers.
+## v0.5 candidate pressure-zone refinement
+
+The full-span `PZ-TRUNK-A` / `PZ-TRUNK-B` identities describe the old v0.4 source, not an indivisible installed atmosphere in the v0.5 ship design. Each of the 23 physical sections per personnel trunk is now a separate pressure cell named from its existing room ID, with all 44 original sectional pressure doors retained. These cells can exchange gas through actual open doors but remain independently isolatable on fault. F1/F2 flywheel machine bays are vacuum behind service locks; see `PRESSURE_CELL_CLOSURE_v0.5.md`. The v0.4 JSON and wire render have not been silently overwritten.

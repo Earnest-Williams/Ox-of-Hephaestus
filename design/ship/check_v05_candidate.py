@@ -61,8 +61,64 @@ def validate(candidate: dict, baseline: dict) -> dict:
     era = ident_map(candidate["eras"], "refit eras")
     tasks = ident_map(candidate["maintenance_tasks"], "maintenance tasks")
 
-    for section in ("spaces", "service_nodes", "isolation_points"):
+    for section in ("service_nodes", "isolation_points"):
         require(candidate[section] == baseline[section], f"unexpected {section} mutation")
+    # Only the explicitly justified pressure-cell corrections may alter the
+    # 421 installed space records. Physical geometry and room IDs stay fixed.
+    expected_spaces = deepcopy(baseline["spaces"])
+    protected_cells = {
+        "HAB-04-MED-ISO": "PZ-HAB-04-MED-ISO",
+        "IX-A-FINAL-LIFT": "PZ-IX-A-FINAL-LIFT",
+        "IX-B-FINAL-LIFT": "PZ-IX-B-FINAL-LIFT",
+    }
+    for base_space in expected_spaces:
+        sid = base_space["id"]
+        if base_space["kind"] == "personnel_service_trunk":
+            base_space["pressure_zone"] = "PZ-" + sid
+        elif sid in protected_cells:
+            base_space["pressure_zone"] = protected_cells[sid]
+            base_space["tags"] = [*base_space.get("tags", []),
+                                  "independent_pressure_cell"]
+        elif sid in {"F1-BAY", "F2-BAY"}:
+            base_space["pressure_zone"] = "VACUUM"
+            base_space["tags"] = [
+                *base_space.get("tags", []),
+                "unpressurised_machinery", "flywheel_safety_enclosure"
+            ]
+            base_space["notes"] = [
+                *base_space.get("notes", []),
+                "F1/F2 fixed flywheel equipment bay normally vacuum/unpressurised; service through pressure airlock with rotor isolation and suited entry."
+            ]
+    require(candidate["spaces"] == expected_spaces,
+            "unauthorised spatial mutation outside reviewed pressure-cell corrections")
+    zone_of = {room["id"]: room["pressure_zone"] for room in candidate["spaces"]}
+    trunk = [room for room in candidate["spaces"]
+             if room["kind"] == "personnel_service_trunk"]
+    require(len(trunk) == 46 and
+            len({room["pressure_zone"] for room in trunk}) == 46,
+            "A/B personnel trunks must have 23 independently sealable pressure sections each")
+    trunk_enddoors = [
+        edge for edge in candidate["access_links"]
+        if edge["from"] in {r["id"] for r in trunk}
+        and edge["to"] in {r["id"] for r in trunk}
+    ]
+    require(len(trunk_enddoors) == 44 and
+            all(edge["pressure_boundary"] for edge in trunk_enddoors),
+            "pressure doors missing between 46 A/B trunk segments")
+    require(all(zone_of[edge["from"]] != zone_of[edge["to"]]
+                for edge in candidate["access_links"]
+                if edge["pressure_boundary"]
+                and zone_of[edge["from"]] is not None
+                and zone_of[edge["to"]] is not None),
+            "a rated pressure boundary cannot connect two rooms of one elementary gas cell")
+    refuge = candidate["life_support_contract"]["refuge_occupancy_contract"]
+    require(refuge["protected_refuge_zone_ids"] == ["PZ-HAB-04", "PZ-HAB-08"]
+            and refuge["whole_arc_used_for_people"]
+            and refuge["cupboards_are_not_forty_person_habitable_refuges"],
+            "refuge equipment cupboard mistaken for forty-person pressure refuge")
+    require(zone_of["F1-BAY"] == zone_of["F2-BAY"] == "VACUUM",
+            "main flywheel airlocks must isolate vacuum machinery");
+
     require(candidate["inventories"][:len(baseline["inventories"])] == baseline["inventories"],
             "v0.4 inventory stock unexpectedly rewritten")
     require(len(candidate["inventories"]) == len(baseline["inventories"]) + 1,
@@ -336,6 +392,11 @@ def negative_regressions(base: dict, source: dict) -> None:
          ["geometry"].update(arc_sweep_deg=41)),
         ("lost redundant outer branches", lambda m: m["habitation_support_contract"]
          ["load_path"].update(outer_branches_per_saddle=1)),
+        ("trunk zones collapsed", lambda m: m["spaces"][next(i for i, space
+         in enumerate(m["spaces"]) if space["id"] == "TRUNK-A-DR-01")]
+         .update(pressure_zone="PZ-TRUNK-A-BOW")),
+        ("refuge cupboard mistaken for refuge", lambda m: m["life_support_contract"]
+         ["refuge_occupancy_contract"].update(whole_arc_used_for_people=False)),
         ("wrong pressure-hatch opening", lambda m: m["habitation_support_contract"]
          ["arc_end"].update(leaf_opens="outward")),
     ]
@@ -354,4 +415,4 @@ if __name__ == "__main__":
     candidate = load(CANDIDATE)
     print(json.dumps(validate(candidate, source), indent=2, sort_keys=True))
     negative_regressions(candidate, source)
-    print("OX_V05_DESIGN_CANDIDATE_AND_TWELVE_NEGATIVE_REGRESSIONS_PASS")
+    print("OX_V05_DESIGN_CANDIDATE_AND_FOURTEEN_NEGATIVE_REGRESSIONS_PASS")

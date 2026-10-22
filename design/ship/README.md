@@ -55,14 +55,23 @@ unchanged.
 - [730-day, 40-person endurance ledger](ENDURANCE_LEDGER_v0.5.md):
   explicit 32 t stored food, oxygen electrolysis, CO2 regeneration,
   water-makeup balance and actual chemical byproducts.
+- [Pressure-cell separation and gas envelope](PRESSURE_CELL_CLOSURE_v0.5.md):
+  46 sectional personnel-trunk cells, 8 independently isolatable HAB bridges,
+  40-person whole-arc refuge interpretation, rated hatches, vacuum flywheel bays
+  and material/gas volume limitations.
+- [Pressure-cell machine-readable register](pressure_zone_topology_v0.5.json):
+  133 elementary pressurised cells with 198 pressure-rated boundaries; includes
+  gross reference envelopes where dimensions are defined.
+- [Pressure-cell validation](check_pressure_cells.py): independent geometric
+  and pressure-boundary verification with six deliberate negative cases.
 - [B′ mechanical and casualty validator](check_bprime_mechanics.py):
   independent port geometry, equipment, load-path, movement/reachability and
   eight deliberate mutation checks.
 - [Focused design validator](check_v05_candidate.py): stdlib model-reference,
   geometry, mass/O2 and negative-regression checks; runnable without Evennia.
 
-Run `python design/ship/check_v05_candidate.py` and
-`python design/ship/check_bprime_mechanics.py` from the repository root.
+Run `python design/ship/check_v05_candidate.py` and `python design/ship/check_bprime_mechanics.py`, plus
+`python design/ship/check_pressure_cells.py`, from the repository root.
 The v0.5 candidate is a *simulation-operational* engineering proposal,
 not real-world construction or certification data. No Evennia or dashboard
 code is changed in this branch. The earlier full-ship integration

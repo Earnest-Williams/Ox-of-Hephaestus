@@ -206,3 +206,9 @@ After the remaining physical interfaces and ledgers agree, we should promote the
 regenerate the wire-render snapshot and rebase the presently unmerged
 Evennia integration PR. **Do not turn unfinished design into game rules
 by accident.**
+
+## Additional pressure-cell closure
+
+The full B′ candidate now separates the 23 sections in **each** of the two 950 m, 3 m-clear personnel trunks into **46 genuine elementary pressure cells** rather than two all-ship gas identities. The original 44 inter-section pressure doors can therefore actually isolate atmosphere when shut, without changing any room/exits. The HAB-04 medical isolation space and the A/B final indexer lifts each gain independent pressure-zone IDs, while F1/F2 flywheel service bays are classified as vacuum machinery beyond pressure airlocks. HAB-04 and HAB-08 **entire arc pressure volumes** serve as the two 40-person/72 h refuge spaces; their 40 m² REFUGE rooms contain equipment only.
+
+The new `pressure_zone_topology_v0.5.json` identifies **133 independently sealable pressurised cells**, 198 pressure-rated links, 26 known vacuum spaces and 83 still-unclassified machinery/cargo spaces. Geometric source dimensions give **85 cells with known gross envelopes** totalling approximately **65,549 m³**, but there is no claim that these are net breathable/free-gas volumes. See `PRESSURE_CELL_CLOSURE_v0.5.md` and the pressure validation suite; net displacement/pressure-gas inventory is the next physical closure target.
