@@ -182,3 +182,7 @@ long-leg accumulation are the next endurance-model closure.
 The design can now support meaningful causality and
 work with actual consumables. It is not yet a completed
 physical utility-graph implementation.
+
+## 8. Updated B′ gross geometric volume reference
+
+A 38°/73.15 m-centreline/9.5 m pressure tube has approximately 27,511 m³ eight-arc tube envelope. Adding a schematic pair of 2:1 ellipsoidal half-head volumes per arc gives approximately **29,306 m³** gross habitation module envelope. Eight pressure bridges add approximately **242 m³** gross bore envelope at the selected port spacings. The fixed spine's three nominal full-length tubes add approximately 36,001 m³, yielding roughly **65,549 m³ gross geometric envelopes before fixed rooms, partial pressurisation and displaced fit-out**. This does **not** mean all this gas is carried at once or that it belongs in one pressure zone. Inventory/refill planning still requires actual net volumes and pressure boundaries; see `BPRIME_HAB38_MECHANICAL_CLOSURE.md`.

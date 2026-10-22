@@ -47,13 +47,15 @@ the measured present-day physical ship.
 | Bridge maintenance | Eight BR-nn **rooms** misidentified as equipment IDs | Eight new BR-nn-UTILITY-SLEEVE equipment assemblies and corrected maintenance targets |
 | Arc-end closures | Sixteen bridge-facing pressure hatches were only graph edges | Sixteen individually identified end-hatch equipment assemblies linked to those graph edges |
 | Modification provenance | Three modification records used undefined ERA-LIFE-EXTENSION | Remapped to existing ERA-LIFE, retaining the modification histories |
-| Maintenance coverage | No grouped maintenance procedures for much of the principal plant | 36 grouped procedures cover every one of the candidate's 720 installed equipment IDs |
+| Maintenance coverage | No grouped maintenance procedures for much of the principal plant | 39 grouped procedures cover every one of the candidate's 764 installed equipment IDs |
 
-The next incremental addition also gives the ship two oxygen-production
+An additional B′ mechanical increment now materialises eight isolatable pressure-bridge spool assemblies; the eight centre keyed and sixteen outer sliding saddles, with 48 physically separate outer branch identifiers; six main habitation rotor bearing/drive/brake machines; and two independent 30 t reference indexer carriers with four retracting pressure collars. The mechanical reference is `hab_bprime_mechanical_interfaces_v0.5.json`; details and failure consequences are in `BPRIME_HAB38_MECHANICAL_CLOSURE.md`.
+
+The earlier endurance increment also gives the ship two oxygen-production
 subassemblies and two regenerable CO2-removal subassemblies, plus an
 explicit 32 t long-voyage food inventory. These serve the existing
 A/B ECLSS trains rather than fabricating a third full-capacity train.
-There are now 720 installed modeled equipment objects, 36 maintenance
+There are now 764 installed modeled equipment objects, 39 maintenance
 groups and eight explicit inventory accounts. See ENDURANCE_LEDGER_v0.5.md.
 
 No physical compartment or access-link identities were renamed, and no
@@ -113,7 +115,7 @@ have left 4 degrees and about **5.10 m**. Bridge design therefore uses
 the adopted 38-degree span; component and frame CAD is adapted to
 that span, not the other way around.
 
-See HAB_PRESSURE_ACCESS_v0.5.md for the mechanical and operating interfaces.
+The fitted B′ 38° ellipsoidal head port datum separation is approximately **4.281834 m**, leaving approximately **3.581834 m** for a replaceable centre bridge spool with two 0.35 m end interfaces. These port-to-port figures do not replace a net pressure-volume or gasket-contact survey. See `BPRIME_HAB38_MECHANICAL_CLOSURE.md` and `HAB_PRESSURE_ACCESS_v0.5.md` for details.
 
 ## Life support and food: 40 people, no fictitious third train
 
@@ -162,9 +164,9 @@ misapplied as propulsion power.
 ## What the maintenance expansion actually means
 
 The original fourteen group definitions were useful but incomplete, and
-some named the wrong object class. The candidate now has 36 procedures
-whose combined target sets cover all **720 modeled equipment IDs**.
-These are grouped schedules, not 720 individually hand-authored manuals.
+some named the wrong object class. The candidate now has 39 procedures
+whose combined target sets cover all **764 modeled equipment IDs**.
+These are grouped schedules, not 764 individually hand-authored manuals.
 Each carries representative intervention time, skills, parts and a
 verification predicate. A passed checklist is not automatically
 a repaired machine. Actual spares, access, isolation, elapsed work time,
@@ -180,9 +182,9 @@ tasks.
 
 ## Remaining engineering work, in useful order
 
-1. **Complete B′ geometry**: keep the selected 38-degree arc sweep and
+1. **Finish B′ solid interfaces**: keep the selected 38-degree arc sweep and
    three-saddle architecture; develop finished curved-shell heads,
-   7-degree-gap pressure bridge geometry, net zone volume, indexed
+   current pressure bridge datums, net zone volume, indexed
    carrier swept envelopes, and access/maintenance reach. The old
    41-degree trial must not silently change this decision.
 2. **Complete coupled physical access**: cradle-to-frame redundant

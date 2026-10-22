@@ -254,3 +254,7 @@ simulate random catastrophe solely to add drama.
 These are **future world acceptance** scenarios. They do not
 assert that the unmerged Evennia prototype already simulates
 the full physical ship.
+
+## J. B′ physical habitation authority
+
+The selected design has eight keyed centre saddles, sixteen sliding outer saddles and three physically distinct frame branches at each outer station. A seized outer slide and a failed centre key produce different faults; neither may be represented as a generic bearing off/on switch. Eight flexible pressure bridges allow about 125 mm normal relative service travel but should isolate and potentially block passage at the 450 mm exceptional excursion. Their pressure-spool IDs and independently isolatable wet/electrical sleeves are separate equipment objects. The habitation main drive/bearing/brake assemblies are also separate from the two phase-indexing **30 t** passenger carriers and their four capture collars. See `BPRIME_HAB38_MECHANICAL_CLOSURE.md`; this is a design-only contract, not gameplay implementation.

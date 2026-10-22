@@ -34,4 +34,6 @@ jobs:
         with:
           python-version: "3.12"
       - name: Validate candidate vs immutable v0.4 published model
-        run: python design/ship/check_v05_candidate.py
+        run: |
+          python design/ship/check_v05_candidate.py
+          python design/ship/check_bprime_mechanics.py

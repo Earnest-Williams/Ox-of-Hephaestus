@@ -38,7 +38,7 @@ manufactured pressure closures.
 
 ## 2. Pressure-end closure at every bridge interface
 
-Sixteen assembled hatch IDs are proposed:
+Sixteen pressure-head hatch assembly equipment IDs are present in the v0.5 design candidate:
 HAB-nn-END-HATCH-CW and HAB-nn-END-HATCH-CCW.
 Each belongs to the corresponding HAB-nn-VEST-CW/CCW compartment,
 and refers to the existing access-link ID so the closure and passage
@@ -169,8 +169,7 @@ movement, large vibration, unbalanced stowage or frame damage
 can require slowing/parking the hab rotor, informing command,
 preserving atmosphere and using alternate access routes.
 
-The earlier 41° framework must be **re-authored around B′ 38°**
-stations. The chosen support topology and load-path rules are not
+The earlier 41° framework still requires full **B′ 38°** mechanical lattice re-topology; its 48 physically distinct outer branch datums and keyed/sliding stations are now specified in `hab_bprime_mechanical_interfaces_v0.5.json`. The chosen support topology and load-path rules are not
 contingent on that re-authoring; detailed member footprints,
 seal contact and indexer clearance are still to be reconciled.
 The B′ loss-of-outer-station screen suggested ~179 mm
@@ -255,3 +254,7 @@ qualify a passenger hatch. This simulation is not required to
 wait for real spacecraft certification, but it **is** required
 to have internally coherent serviceable equipment and
 physically meaningful failure consequences.
+
+## 8. Explicit machine-readable installed interface follow-on
+
+The B′ mechanical continuation is now in [BPRIME_HAB38_MECHANICAL_CLOSURE.md](BPRIME_HAB38_MECHANICAL_CLOSURE.md), with the corresponding proposed equipment identities in `ox_full_ship_v0.5_candidate.json`. The installed proposal comprises 8 centre keyed assemblies, 16 outer sliding assemblies, 48 individual outer structural branch references, 8 pressure bridge spools, 6 main rotor bearing/drive/brake assemblies and 2 independent 30-tonne reference indexers with 4 distinct capture collars. For the selected 38° geometry the head-port datums lie roughly 4.282 m apart, and the removable pressure bridge spans roughly 3.582 m after nominal collar reservations. This is not a rerun structural qualification of the superseded 41° trial.

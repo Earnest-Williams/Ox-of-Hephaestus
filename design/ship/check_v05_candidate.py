@@ -48,9 +48,9 @@ def validate(candidate: dict, baseline: dict) -> dict:
             "spatial count changed")
     require(len(candidate["access_links"]) == len(baseline["access_links"]) == 517,
             "physical-link count changed")
-    require(len(candidate["equipment"]) == len(baseline["equipment"]) + 28 == 720,
-            "expected 16 hatches, 8 sleeves and 4 ECLSS chemical modules")
-    require(len(candidate["maintenance_tasks"]) == 36, "maintenance package count changed")
+    require(len(candidate["equipment"]) == len(baseline["equipment"]) + 72 == 764,
+            "expected v0.5 equipment including Bprime structure/indexers/bridges")
+    require(len(candidate["maintenance_tasks"]) == 39, "maintenance package count changed")
 
     spaces = ident_map(candidate["spaces"], "spaces")
     equips = ident_map(candidate["equipment"], "equipment")
@@ -239,6 +239,23 @@ def validate(candidate: dict, baseline: dict) -> dict:
             and support.get("outer_branches_per_saddle") == 3
             and support.get("total_outer_branches") == 48,
             "B-prime keyed centre / sliding multi-branch support count changed")
+    equipment_registry = hab.get("equipment_realisation", {})
+    require(len(equipment_registry.get("keyed_centre_ids", [])) == 8
+            and len(equipment_registry.get("sliding_outer_ids", [])) == 16
+            and len(equipment_registry.get("bridge_spool_ids", [])) == 8
+            and len(equipment_registry.get("indexer_carriers", [])) == 2
+            and len(equipment_registry.get("pressure_capture_collars", [])) == 4,
+            "B-prime installed equipment registry incomplete")
+    require(all(e in equips for ids in equipment_registry.values()
+                for e in ids), "B-prime registry points to missing equipment")
+    require(candidate["design_closure_v05"]["maintenance_coverage"]
+            ["equipment_with_at_least_one_task"] == len(equips),
+            "B-prime maintenance coverage record does not match installed equipment")
+    require(isclose(geometry.get("head_pressure_port_to_port_distance_m", 0),
+                    4.281834, abs_tol=0.01)
+            and isclose(geometry.get("replaceable_bridge_spool_length_m", 0),
+                        3.581834, abs_tol=0.01),
+            "B-prime 38-degree bridge-head mechanical datums inconsistent")
     require("non-clamping" in support.get("retainer_rule", ""),
             "B-prime outer retainers must not clamp ordinary thermal motion")
     head = hab.get("arc_end", {})

@@ -37,9 +37,15 @@ unchanged.
 
 - [v0.5 candidate JSON](ox_full_ship_v0.5_candidate.json): a full copy
   of the linked ship world with corrected freight geometry, physical
-  bridge/hatch equipment, repaired references and 36 maintenance groups.
+  bridge/hatch equipment, repaired references and 39 maintenance groups.
 - [Design reconciliation](DESIGN_CLOSURE_v0.5.md): the findings, changed
   assumptions, balances, preserved decisions and remaining design work.
+- [B′ 38° installed mechanical interfaces](BPRIME_HAB38_MECHANICAL_CLOSURE.md):
+  8 keyed centres, 16 thermally sliding outer saddles, 48 separated outer branches,
+  8 isolatable flexible bridge spools, 2 main rotor bearing/drive/brake stations,
+  and 2 independently indexed 30 t reference carriers.
+- [Machine-readable B′ interfaces](hab_bprime_mechanical_interfaces_v0.5.json):
+  stable coordinates and individual assembly identities for the selected ship.
 - [Pressure ends, cradles and rotary access](HAB_PRESSURE_ACCESS_v0.5.md):
   the functional hatch/seal/indexer arrangement, failure/recovery and the
   adopted B′ 38° geometry, with earlier 41° CAD treated as a superseded trial requiring dimensional adaptation.
@@ -49,10 +55,14 @@ unchanged.
 - [730-day, 40-person endurance ledger](ENDURANCE_LEDGER_v0.5.md):
   explicit 32 t stored food, oxygen electrolysis, CO2 regeneration,
   water-makeup balance and actual chemical byproducts.
+- [B′ mechanical and casualty validator](check_bprime_mechanics.py):
+  independent port geometry, equipment, load-path, movement/reachability and
+  eight deliberate mutation checks.
 - [Focused design validator](check_v05_candidate.py): stdlib model-reference,
   geometry, mass/O2 and negative-regression checks; runnable without Evennia.
 
-Run `python design/ship/check_v05_candidate.py` from the repository root.
+Run `python design/ship/check_v05_candidate.py` and
+`python design/ship/check_bprime_mechanics.py` from the repository root.
 The v0.5 candidate is a *simulation-operational* engineering proposal,
 not real-world construction or certification data. No Evennia or dashboard
 code is changed in this branch. The earlier full-ship integration
