@@ -29,6 +29,19 @@ A later implementation PR should add a loader/adapter and migrate gameplay incre
 
 ## v0.5 ship-completion candidate (design-only)
 
+> **Latest v0.5 increment — 22 October 2026:** 101 of 133 pressure cells
+> have selected nominal gross dimensions; 32 remain unsized. All ten
+> previously unprotected intercell doors now have rated boundary status,
+> bringing the count to 208. Six freight locks have 12 m clear
+> length around the unchanged 8 m full sled. HAB-04 medical isolation and
+> two final-lift volumes are carved out of the respective existing arc
+> shell gross, not added to it. Reference free air 54,021–62,390 m³
+> (65.047–75.125 tonnes). See
+> [pressure-access closure](PRESSURE_ACCESS_CLOSURE_v0.5.md).
+> Earlier volume/count figures below are retained as design history.
+
+
+
 The next ship-design increment is tracked on branch **ship-design-closure-v05**.
 It does **not** overwrite or silently promote v0.4. Until the physical
 configuration is reconciled, `ox_full_ship.json` remains the current
@@ -68,6 +81,12 @@ unchanged.
 - [Atmosphere gas reference and room-safety roles](pressure_gas_recovery_v0.5.json):
   engineering free-volume ranges, all 83 unresolved-space roles and the
   independent refill-gas topology linked to installed objects.
+- [Pressure access and freight-lock closure](PRESSURE_ACCESS_CLOSURE_v0.5.md):
+  12 m six-drum locks, 4-seat indexer/medical/final-lift volumes, 10 newly rated intercell doors and no double-counted parent gas.
+- [Geometry audit](PRESSURE_GEOMETRY_RECONCILIATION_v0.5.md):
+  the admitted/held compartments and recorded spatial intersections.
+- [Geometry admission validator](check_pressure_geometry.py):
+  sourced volume, host-arc conservation, indexer swept guard, door and freight-lock regressions.
 - [Pressure-gas casualty validator](check_pressure_gas.py):
   independent stock, pressure, valve, two-bridge outage and eight
   negative-mutation tests.
@@ -80,7 +99,7 @@ unchanged.
   geometry, mass/O2 and negative-regression checks; runnable without Evennia.
 
 Run `python design/ship/check_v05_candidate.py` and `python design/ship/check_bprime_mechanics.py`, plus
-`python design/ship/check_pressure_cells.py` and `python design/ship/check_pressure_gas.py`, from the repository root.
+`python design/ship/check_pressure_cells.py` and `python design/ship/check_pressure_gas.py` and `python design/ship/check_pressure_geometry.py`, from the repository root.
 The v0.5 candidate is a *simulation-operational* engineering proposal,
 not real-world construction or certification data. No Evennia or dashboard
 code is changed in this branch. The earlier full-ship integration

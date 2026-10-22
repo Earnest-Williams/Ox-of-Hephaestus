@@ -1,5 +1,17 @@
 # Ox of Hephaestus — atmosphere volume, refill reserve and casualty delivery v0.5
 
+> **Latest v0.5 increment — 22 October 2026:** 101 of 133 pressure cells
+> have selected nominal gross dimensions; 32 remain unsized. All ten
+> previously unprotected intercell doors now have rated boundary status,
+> bringing the count to 208. Six freight locks have 12 m clear
+> length around the unchanged 8 m full sled. HAB-04 medical isolation and
+> two final-lift volumes are carved out of the respective existing arc
+> shell gross, not added to it. Reference free air 54,021–62,390 m³
+> (65.047–75.125 tonnes). See
+> [pressure-access closure](PRESSURE_ACCESS_CLOSURE_v0.5.md).
+> Earlier volume/count figures below are retained as design history.
+
+
 **22 October 2026 · B′ 38° working ship · Engineering design candidate, not runtime**
 
 **Source files:** `pressure_zone_topology_v0.5.json` (133 independent
