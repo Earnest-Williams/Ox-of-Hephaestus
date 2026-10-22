@@ -104,3 +104,55 @@ The dedicated Decider workflow runs these counterfactuals after its existing
 24-call G11 test and checks fixture/inference invariants offline first.
 The counterfactual result is not established until the expanded workflow
 completes successfully.
+
+## Larger Decider and encoder comparisons (22 October 2026)
+
+The shared finite-choice adapter now additionally permits
+`decider:4b`, `gliclass:large` and `nli:deberta-v3-large`,
+all via Ollaya's native `/api/decide` interface.
+
+Decider 4B is Mapika's Qwen3.5-4B decision fine-tune and uses an
+**8,411,558,400-byte** verified weight layer, distinct from the
+**2.74 GB Q4** weights of ordinary generative Qwen3.5-4B.
+Ollaya warns its CPU working set can reach about **21 GiB**. The
+separate Decider-4B job therefore enables bounded extra swap before
+loading, and has a 105-minute maximum. Its G11 run uses one
+repetition (8 decisions), followed by all 48 counterfactual states;
+a G11 single repetition must not be equated with 12 decisions per
+arm in the earlier three-repetition runs. GitHub's initial execution
+failed during swap setup because `/swapfile` already existed.
+The corrected job allocates `/mnt/ox-decider4b.swap` instead.
+No Decider-4B model-accuracy result is claimed until it succeeds.
+
+The encoders use a separate, cheaper workflow and the same native
+Concordia boundary, with 24 G11 requests and 48 changed-evidence
+choices for each model. Both completed and recorded these
+counterfactual scores:
+
+| Model | Individual correct | Both-correct pairs | Changed choices | Median CPU request |
+| --- | ---: | ---: | ---: | ---: |
+| Qwen3.5-0.8B Q4_K_M | 32/48 | 8/24 | 8/24 | 1.18 s |
+| Qwen3.5-4B Q4_K_M | 43/48 | 19/24 | 19/24 | 4.60 s |
+| GLiClass large | 24/48 | 0/24 | 0/24 | 0.34 s |
+| NLI DeBERTa-v3-large | 25/48 | 1/24 | 1/24 | 0.67 s |
+
+Sources:
+[Qwen0.8B CPU counterfactual run](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/39818631375);
+[Qwen4B CPU counterfactual run](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/39818559826);
+[GLiClass and NLI CPU run](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/39820171454).
+
+**Important:** This compares the existing Concordia decision prompt
+mapped through two DIFFERENT serving interfaces, not native-purpose
+benchmarks for each architecture. The GLiClass model produced no
+choice reversals across paired evidence; NLI produced one. NLI's
+option distributions were generally near ties, while GLiClass
+often preferred the same option by a wider margin. For example,
+in the coolant-pressure pair GLiClass chose `investigate` regardless
+of whether pressure was normal or low. These failures may reflect
+the models' inability to map *imperative actions* to classification
+hypotheses using this prompt format. A future protocol should test
+task-native hypothesis phrasing and option-order permutations before
+interpreting them as intrinsic model-quality limitations.
+
+All model scores are *descriptive*, with only 24 manually authored,
+binary counterfactual pairs. None authorise an actual world action.
