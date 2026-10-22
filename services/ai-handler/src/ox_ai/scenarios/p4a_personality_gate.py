@@ -202,7 +202,12 @@ async def run(*, persona: str, expect_route: str,
             boundary=state["boundary"]
             if state["phase"]=="observed":
                 controller=CharacterRouteController(
-                    router,DecisionScheduler(max_parallel=1,timeout_seconds=20),
+                    router,DecisionScheduler(
+                        max_parallel=1,
+                        # Dedicated cold CPU 4B + Evennia test runner only;
+                        # production scheduler settings remain unchanged.
+                        timeout_seconds=(110 if model_name!="scripted-defer" else 20),
+                    ),
                     role="ari",
                 )
                 result=await controller.decide(
