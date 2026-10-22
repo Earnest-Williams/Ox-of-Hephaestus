@@ -6,6 +6,9 @@ on:
     branches: [experiment/qwen3.5-0.8b-ci]
     paths:
       - ".github/workflows/ox-decider-gguf-quants.yml"
+      - "scenarios/prepare_decider_gguf.py"
+      - "scenarios/decider_gguf_quant_trial.py"
+      - "services/ai-handler/tests/test_decider_gguf_quant_trial.py"
 permissions:
   contents: read
 concurrency:
