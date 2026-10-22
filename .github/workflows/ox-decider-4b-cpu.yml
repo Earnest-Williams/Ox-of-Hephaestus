@@ -37,10 +37,12 @@ jobs:
           nproc
           # Ollaya's full-weight CPU 4B model has been measured near 21 GiB RAM.
           # Standard hosted CPUs may have less; fail if swap cannot be supplied.
-          sudo fallocate -l 16G /swapfile
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
+          # GitHub's image already has /swapfile (3 GiB) enabled.
+          # Use a distinct swapfile to avoid "Text file busy".
+          sudo fallocate -l 16G /mnt/ox-decider4b.swap
+          sudo chmod 600 /mnt/ox-decider4b.swap
+          sudo mkswap /mnt/ox-decider4b.swap
+          sudo swapon /mnt/ox-decider4b.swap
           free -h
       - name: Install pinned native Concordia
         run: python -m pip install -e './services/ai-handler[concordia]'
