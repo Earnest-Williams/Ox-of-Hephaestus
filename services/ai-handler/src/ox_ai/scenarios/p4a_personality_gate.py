@@ -64,6 +64,22 @@ class DeferChoiceModel:
         raise AssertionError("Model has only bounded choice output")
 
 
+def _model(name: str):
+    if name=="scripted-defer":
+        return DeferChoiceModel()
+    if name=="decider-q4":
+        from ox_ai.inference.decider_gguf_choice import DeciderGGUFChoiceModel
+        path=os.environ.get("OX_DECIDER_GGUF_PATH","")
+        return DeciderGGUFChoiceModel(path,[o.label for o in CHOICES])
+    if name=="qwen-q4":
+        from ox_ai.inference.compatible_chat import CompatibleChatModel
+        return CompatibleChatModel(
+            "qwen3.5-4b",api_key="local-no-secret",
+            api_base="http://127.0.0.1:8080/v1",
+        )
+    raise ValueError("Unsupported cognition provider")
+
+
 def _profile(persona: str):
     if persona not in TRAITS:
         raise ValueError("Only authored trial personalities allowed")
@@ -109,30 +125,34 @@ def _outcome(report, *, state: dict, brain: LiveCrewBrain, route,
 
 async def run(*, persona: str, expect_route: str,
               checkpoint: Path, verdict: Path,
+              model_name: str = "scripted-defer",
               interrupt_at: str | None = None) -> dict:
     ids=json.loads(IDS.read_text(encoding="utf-8"))
     if set(ids)!={"lin","ari","iona"}:
         raise ValueError("P4a world fixture requires exactly three identities")
     profile=_profile(persona)
     actor=ids["ari"]
+    model=_model(model_name)
     trial_name=f"p4a-personality.{persona}"
     if checkpoint.is_file():
         state=json.loads(checkpoint.read_text(encoding="utf-8"))
         if (state.get("version") != 1 or
                 state.get("persona") != persona or
+                state.get("model_name") != model_name or
                 state.get("actor") != actor or
                 state.get("experiment") != trial_name):
             raise PermissionError("Recovered routing world actor or trial changed")
         brain=LiveCrewBrain.from_checkpoint(
-            "ari",actor,DeferChoiceModel(),checkpoint.with_suffix(".brain.json"),
+            "ari",actor,model,checkpoint.with_suffix(".brain.json"),
         )
         if brain.agent.blueprint != profile:
             raise PermissionError("Checkpoint psychology changed")
     else:
         state={"version":1, "experiment":trial_name, "persona":persona,
-               "actor":actor, "phase":"new", "route_ledger":{},
+               "actor":actor, "model_name":model_name,
+               "phase":"new", "route_ledger":{},
                "work_steps":{}}
-        brain=LiveCrewBrain("ari",actor,DeferChoiceModel(),blueprint=profile)
+        brain=LiveCrewBrain("ari",actor,model,blueprint=profile)
 
     def persist():
         brain.save_checkpoint(checkpoint.with_suffix(".brain.json"))
@@ -145,7 +165,7 @@ async def run(*, persona: str, expect_route: str,
             URL,name,password,ids[role],timeout=15,
         )
     report={"experiment":trial_name,"persona":persona,
-            "model":"native_concordia_scripted_defer_fixture",
+            "model":model_name,
             "goap_planner":"GoapPlanner/pump_action_model",
             "world_authority":"Evennia",
             "route_seed_provenance":"CI branch coverage; NOT empirical personality frequency",
@@ -196,6 +216,7 @@ async def run(*, persona: str, expect_route: str,
                 if result.route.selected!=expect_route:
                     raise AssertionError("Coverage seed did not produce requested route")
                 state["chosen_verb"]=result.action.verb
+                state["model_choice_details"]=getattr(model,"last",None)
                 state["phase"]="chosen"
                 state["model_calls_at_choice"]=result.model_calls
                 if result.route.selected=="llm":
@@ -265,6 +286,8 @@ async def run(*, persona: str, expect_route: str,
 def main():
     p=argparse.ArgumentParser()
     p.add_argument("--persona",choices=tuple(TRAITS),required=True)
+    p.add_argument("--model",choices=("scripted-defer","decider-q4","qwen-q4"),
+                   default="scripted-defer")
     p.add_argument("--expect-route",choices=("goap","llm"),required=True)
     p.add_argument("--checkpoint",type=Path,required=True)
     p.add_argument("--verdict",type=Path,required=True)
@@ -273,7 +296,7 @@ def main():
     print(json.dumps(asyncio.run(run(
         persona=args.persona,expect_route=args.expect_route,
         checkpoint=args.checkpoint,verdict=args.verdict,
-        interrupt_at=args.interrupt_at,
+        model_name=args.model,interrupt_at=args.interrupt_at,
     )),sort_keys=True))
 
 
