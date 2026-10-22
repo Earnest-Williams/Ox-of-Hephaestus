@@ -38,10 +38,24 @@ class MatchedEvidenceTests(unittest.TestCase):
             CrewAgent(baseline.identity, CaptureModel(),
                       memory_projection_enabled="yes")
 
+    def test_local_probe_refuses_hosted_or_non_api_endpoints(self):
+        from scenarios.g11_memory_ab_trial import run
+        for target in (
+            "https://api.example.test/v1",
+            "http://localhost.evil.test/v1",
+            "http://localhost:8080/other",
+            "http://user:pass@localhost:8080/v1",
+            "http://127.0.0.1:8080/v1?redirect=elsewhere",
+        ):
+            with self.subTest(target=target):
+                with self.assertRaisesRegex(ValueError, "localhost HTTP"):
+                    run("qwen-local", 1, api_base=target)
+
     def test_smoke_cannot_be_mistaken_for_real_quality_data(self):
         from scenarios.g11_memory_ab_trial import run
         data = run("capture", 1)
         self.assertFalse(data["real_hosted_model"])
+        self.assertFalse(data["real_local_model"])
         self.assertFalse(data["valid_quality_evidence"])
         self.assertEqual(len(data["decisions"]), 8)
         self.assertEqual(data["summary"]["augmented"]["samples"], 4)
