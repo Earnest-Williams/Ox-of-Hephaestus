@@ -6,7 +6,7 @@ directory is the inherited Evennia manual, not the Ox implementation guide.
 **CI workflow and path-filter policy:** [CI.md](CI.md). Documentation-only changes should never trigger gameplay integration suites.
 
 **Authoritative current-state index:** [STATUS.md](STATUS.md), updated
-through **G12 and merged PostgreSQL PRs #82–83 (21 October 2026)**. The
+through **authenticated 40-character recovery PR #97 (22 October 2026)**. The
 [ROADMAP](ROADMAP.md) separates completed gates from pending implementation.
 Earlier ADRs, P2 scenarios and milestone plans retain their original
 historical framing; an old “not yet implemented” in one of those documents
@@ -57,6 +57,10 @@ is not a description of today's `main`. P5 is postponed.
   [G10b authenticated read](prototypes/g10b-world-clock-read.md)
 - [G11 matched evidence](prototypes/g11-model-memory-ab.md) ·
   [G12 profiler](prototypes/g12-concordia-profile.md)
+
+## Prepared ship-world source
+
+The current non-integrated physical vessel model lives in [`design/ship/`](ship/README.md). It defines the 950 m freighter at play-facing granularity: fixed-spine compartments, cargo drums, eight habitation arcs, utilities and isolation, internal transit and heavy logistics, the variable-gravity Engineering work rotor, damage control, external maintenance, local controls and layered backup life support. It is **design/data only in this revision**; no current `game/` bootstrap, command or handler path consumes it.
 
 ## Retained early scenarios
 
