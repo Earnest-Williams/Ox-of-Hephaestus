@@ -146,9 +146,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -m ox_ai.scenarios.personality_dilemmas \\
-            --model decider-q4 \\
-            --gguf-path "$OX_DECIDER_GGUF_PATH" \\
+          python -m ox_ai.scenarios.personality_dilemmas \
+            --model decider-q4 \
+            --gguf-path "$OX_DECIDER_GGUF_PATH" \
             --output .ox-state/personality-model/dilemmas-decider.json
           python - <<'PY'
           import json
