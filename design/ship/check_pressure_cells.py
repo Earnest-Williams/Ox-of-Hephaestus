@@ -90,7 +90,7 @@ def validate(ship: dict, ledger: dict) -> dict:
     actual_doors = {door["id"]: door for door in ship["access_links"]
                     if door.get("pressure_boundary")}
     projected = {door["id"]: door for door in ledger["pressure_boundary_doors"]}
-    require(len(actual_doors) == len(projected) == 198,
+    require(len(actual_doors) == len(projected) == 208,
             "pressure-boundary count/reference mismatch")
     for id, door in actual_doors.items():
         record = projected[id]
@@ -100,6 +100,16 @@ def validate(ship: dict, ledger: dict) -> dict:
                 record["from_pressure_zone_id"] == from_zone and
                 record["to_pressure_zone_id"] == to_zone,
                 f"pressure-rated hatch has no actual isolation boundary: {id}")
+
+
+    # A separate pressure zone requires an actual rated isolation closure;
+    # this includes the nominally vacuum F1/F2 machinery enclosures.
+    for door in ship["access_links"]:
+        za = space[door["from"]].get("pressure_zone")
+        zb = space[door["to"]].get("pressure_zone")
+        if za is not None and zb is not None and za != zb:
+            require(door.get("pressure_boundary") is True,
+                    f"unrated door between pressure zones: {door['id']}")
 
     # Emergency refuge capacity occupies entire pressure arc, not cupboard.
     refuge = ship["life_support_contract"]["refuge_occupancy_contract"]
@@ -120,7 +130,7 @@ def validate(ship: dict, ledger: dict) -> dict:
     gross = sum(cell["gross_reference_envelope_m3"] for cell in
                 pressure.values() if cell["gross_reference_envelope_m3"] is not None)
     require(isclose(gross, ledger["totals"]["gross_reference_envelopes_m3"],
-                    abs_tol=1e-4) and 67628 < gross < 67631,
+                    abs_tol=1e-4) and 68185 < gross < 68187,
             "gross geometric atmosphere envelope mass/volume mismatch")
     density = (ledger["gas_reference"]["pressure_Pa"] *
                ledger["gas_reference"]["gas_molar_mass_kg_mol"] /
@@ -134,7 +144,7 @@ def validate(ship: dict, ledger: dict) -> dict:
                     abs_tol=1e-3),
             "gas-envelope mass calculation inconsistent")
     require(len([c for c in pressure.values()
-                 if c["gross_reference_envelope_m3"] is not None]) == 96,
+                 if c["gross_reference_envelope_m3"] is not None]) == 101,
             "unaccounted numerical gross-envelope sections")
     return {
         "distinct_pressure_cells": len(pressure),

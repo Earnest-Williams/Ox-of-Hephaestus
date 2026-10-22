@@ -93,6 +93,36 @@ def validate(candidate: dict, baseline: dict) -> dict:
                 *base_space.get("notes", []),
                 "F1/F2 fixed flywheel equipment bay normally vacuum/unpressurised; service through pressure airlock with rotor isolation and suited entry."
             ]
+
+    # The reviewed geometry closure changes exactly six freight locks,
+    # one medical isolation room, two indexer capsules and two final lifts.
+    # Construct the permitted differences independently of the candidate.
+    for original in expected_spaces:
+        sid = original["id"]
+        if sid.startswith("DR-") and sid.endswith("-FREIGHT-LOCK"):
+            geom = original["geometry"]
+            require(geom["shape"] == "transfer_lock" and geom["length_m"] == 8,
+                    "unexpected inherited freight lock")
+            centre = sum(original["location"]["x_m"]) / 2
+            geom["length_m"] = 12
+            original["location"]["x_m"] = [centre - 6, centre + 6]
+        elif sid == "HAB-04-MED-ISO":
+            original["geometry"] = {"shape": "arc_cabin",
+                "tangential_length_m": 5, "axial_width_m": 5,
+                "clear_height_m": 2.7, "radius_m": 73.15,
+                "includes_host_arc_gross_envelope": True}
+        elif sid in ("IX-A-CAPSULE", "IX-B-CAPSULE"):
+            original["geometry"] = {"shape": "capsule",
+                "length_m": 4.6, "diameter_m": 2.6,
+                "nominal_seated_occupants": 4,
+                "reference_orbit_radius_m": 10.5,
+                "hardware_envelope_x_halfwidth_m": 3.9}
+        elif sid in ("IX-A-FINAL-LIFT", "IX-B-FINAL-LIFT"):
+            original["geometry"] = {"shape": "pressure_lift_car",
+                "length_m": 3, "clear_diameter_m": 2.6,
+                "nominal_seated_occupants": 4,
+                "belongs_within_host_arc_gross_envelope": True}
+
     require(candidate["spaces"] == expected_spaces,
             "unauthorised spatial mutation outside reviewed pressure-cell corrections")
     zone_of = {room["id"]: room["pressure_zone"] for room in candidate["spaces"]}
@@ -115,6 +145,31 @@ def validate(candidate: dict, baseline: dict) -> dict:
                 and zone_of[edge["from"]] is not None
                 and zone_of[edge["to"]] is not None),
             "a rated pressure boundary cannot connect two rooms of one elementary gas cell")
+
+    required_new_rated = {
+        "ACC-IX-A-FINAL", "ACC-IX-B-FINAL",
+        "ACC-LOGI-AFT-STORES-LONGLIFE",
+        "ACC-LOGI-AFT-STORE-FOOD-AFT",
+        "ACC-LOGI-AFT-STORE-FLUID-AFT",
+        "ACC-LOGI-AFT-STORE-CRIT-SPARES",
+        "ACC-LOGI-AFT-GEN-CART-MAG",
+        "ACC-LOGI-F1-BAY", "ACC-LOGI-F2-BAY",
+        "ACC-WR-FREIGHT-STAGING"
+    }
+    baseline_rated = {x["id"] for x in baseline["access_links"]
+                      if x["pressure_boundary"]}
+    added_rated = {x["id"] for x in candidate["access_links"]
+                   if x["pressure_boundary"]} - baseline_rated
+    require(added_rated == required_new_rated,
+            "wrong or missing independently rated intercell access")
+    for link in candidate["access_links"]:
+        a, b = zone_of[link["from"]], zone_of[link["to"]]
+        require(a is None or b is None or a == b or link["pressure_boundary"],
+                f"unrated passage between distinct gas cells: {link['id']}")
+    require(all(links[d]["normal_state"] == "closed"
+                for d in ("ACC-IX-A-FINAL", "ACC-IX-B-FINAL")),
+            "final-lift isolated entrance cannot default open")
+
     refuge = candidate["life_support_contract"]["refuge_occupancy_contract"]
     require(refuge["protected_refuge_zone_ids"] == ["PZ-HAB-04", "PZ-HAB-08"]
             and refuge["whole_arc_used_for_people"]
