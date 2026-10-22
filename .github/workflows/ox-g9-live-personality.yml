@@ -6,6 +6,7 @@ on:
     paths:
       - "scenarios/g8_soap_opera/live_trial.py"
       - "scenarios/g8_soap_opera/g9_evaluate.py"
+      - "scenarios/g8_soap_opera/g9_memory_counterfactual.py"
       - "services/ai-handler/src/ox_ai/runtime/personality_routing.py"
       - "services/ai-handler/src/ox_ai/inference/decider_gguf_choice.py"
       - "services/ai-handler/tests/test_g9_longitudinal.py"
@@ -180,6 +181,25 @@ jobs:
           python "$run" --start 138 --end 205 $options
           python scenarios/g8_soap_opera/g9_evaluate.py --root .ox-state/g9 --turns 205 | tee .ox-state/g9/summary.txt
           grep -Fq OX_G9_REAL_LONGITUDINAL_PASS .ox-state/g9/summary.txt
+      - name: No-world paired Decider memory projection ablation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scenarios/g8_soap_opera/g9_memory_counterfactual.py \
+            --root .ox-state/g9 \
+            --gguf-path "$OX_DECIDER_GGUF_PATH" \
+            | tee .ox-state/g9/memory-ablation-summary.txt
+          grep -Fq OX_G9_REAL_MEMORY_ABLATION_PASS .ox-state/g9/memory-ablation-summary.txt
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path(".ox-state/g9/g9-memory-ablation.json").read_text())
+          assert data["world_commands_sent"] == 0, data
+          assert len(data["rows"]) == 12 and len(data["pairs"]) == 6, data
+          assert all(p["remembered_episodes_eligible"] >= 1 for p in data["pairs"]), data
+          assert all(r["model_calls"] == 1 for r in data["rows"]), data
+          print("OX_G9_MEMORY_ABLATION_CONTRACT_PASS")
+          PY
       - name: Stop Evennia
         if: always()
         working-directory: game
@@ -198,6 +218,8 @@ jobs:
           path: |
             .ox-state/g9/state.json
             .ox-state/g9/g9-report.json
+            .ox-state/g9/g9-memory-ablation.json
+            .ox-state/g9/memory-ablation-summary.txt
             .ox-state/g9/*.brain.json
             .ox-state/g9/model-manifest.json
             .ox-state/g9/summary.txt
