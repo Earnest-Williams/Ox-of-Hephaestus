@@ -114,6 +114,24 @@ production operations. See [status](design/STATUS.md) and
 [next acceptance gates](design/ROADMAP.md) rather than inferring features
 from the long-term design or historical prototype documents.
 
+## Ox project documentation
+
+The three core Ox-specific documents on ship design and AI crew
+simulation:
+
+- [Full-ship physical model](design/ship/README.md) — the prepared
+  v0.4 full-ship design source (421 spaces, equipment, utilities,
+  maintenance and survivability), not yet integrated into the runnable
+  Evennia world.
+- [AI handler guide](services/ai-handler/README.md) — the external AI
+  crew simulation: separately authenticated Concordia characters, GOAP
+  planning, WebSocket transport, durable checkpoints and restart
+  recovery, with per-milestone scope and limits.
+- [Architecture and authority](ARCHITECTURE.md) — how the Evennia world
+  and the external handler split responsibility: the world owns
+  physical truth, equipment and receipts, while the handler owns each
+  character's private observations, memory and decisions.
+
 ## Repository map
 
 | Path | Purpose |
