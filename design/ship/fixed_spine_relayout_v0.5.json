@@ -1,0 +1,1380 @@
+{
+  "schema_version": "ox.ship.fixed-spine-relayout/0.5",
+  "date": "2026-10-23",
+  "design_status": "physical_candidate_only_not_measured",
+  "original_fixed_spine_diameter_m": 16,
+  "clear_boreshield_m": {
+    "personnel_A": 3,
+    "personnel_B": 3,
+    "heavy_logistics": 5.5
+  },
+  "reference_corrections": "No six freight lock sizes reduced; 16m axial spine retained; fixed room envelopes no longer intersect.",
+  "external_pods": {
+    "y_range_m": [
+      7.1,
+      14.6
+    ],
+    "role": "aft dry stores and aft command/rescue refit pods",
+    "axial_span_m": [
+      820,
+      900
+    ],
+    "status": "selected external pressure-pod refit; short rated connectors still require individual detail",
+    "mass_assumption": "already within current equipment/dry-mass allocation; do not mint new departure mass"
+  },
+  "rail_stops": "activity/sled clearances within logistics bore; not separate gas volume",
+  "cross_connectors": "independent pressurised exterior bypass arches with end isolation; no passage through centreline logistics bore",
+  "placements": {
+    "CMD-PRIMARY": {
+      "location": {
+        "x_m": [
+          26,
+          40
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.57
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 14,
+        "width_m": 6.6,
+        "height_m": 3.2
+      }
+    },
+    "COMMS-FWD": {
+      "location": {
+        "x_m": [
+          50,
+          60
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.47
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 10,
+        "width_m": 6,
+        "height_m": 3
+      }
+    },
+    "RESCUE-FWD": {
+      "location": {
+        "x_m": [
+          66,
+          87
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": -4.67
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 21,
+        "width_m": 6.6,
+        "height_m": 3.4
+      }
+    },
+    "CARGO-CTRL-FWD": {
+      "location": {
+        "x_m": [
+          26,
+          40
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": -4.47
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 14,
+        "width_m": 6.4,
+        "height_m": 3
+      }
+    },
+    "ELEC-FWD": {
+      "location": {
+        "x_m": [
+          40,
+          52
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": -4.47
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 12,
+        "width_m": 6,
+        "height_m": 3
+      }
+    },
+    "WATER-FWD": {
+      "location": {
+        "x_m": [
+          52,
+          66
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": -4.47
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 14,
+        "width_m": 6.2,
+        "height_m": 3
+      }
+    },
+    "ENG-CONTROL": {
+      "location": {
+        "x_m": [
+          414,
+          430
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.47
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 16,
+        "width_m": 6.4,
+        "height_m": 3
+      }
+    },
+    "SHOP-ELEC": {
+      "location": {
+        "x_m": [
+          480,
+          493
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.57
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 13,
+        "width_m": 6.4,
+        "height_m": 3.2
+      }
+    },
+    "NDT-BAY": {
+      "location": {
+        "x_m": [
+          493,
+          507
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.57
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 14,
+        "width_m": 6.2,
+        "height_m": 3.2
+      }
+    },
+    "ROTARY-UTIL-A": {
+      "location": {
+        "x_m": [
+          445,
+          455
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": -4.7
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 10,
+        "width_m": 5.8,
+        "height_m": 3
+      }
+    },
+    "ROTARY-UTIL-B": {
+      "location": {
+        "x_m": [
+          455,
+          465
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": -4.7
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 10,
+        "width_m": 5.8,
+        "height_m": 3
+      }
+    },
+    "GEN-M-ROOM": {
+      "location": {
+        "x_m": [
+          840,
+          861
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": -4.87
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 21,
+        "width_m": 7,
+        "height_m": 3.8
+      }
+    },
+    "GEN-A-ROOM": {
+      "location": {
+        "x_m": [
+          824,
+          840
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": -4.77
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 16,
+        "width_m": 6.5,
+        "height_m": 3.6
+      }
+    },
+    "GEN-B-ROOM": {
+      "location": {
+        "x_m": [
+          861,
+          876
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": -4.77
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 15,
+        "width_m": 6.5,
+        "height_m": 3.6
+      }
+    },
+    "PWR-AFT": {
+      "location": {
+        "x_m": [
+          824,
+          838
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.57
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 14,
+        "width_m": 6.2,
+        "height_m": 3.2
+      }
+    },
+    "THERM-HT": {
+      "location": {
+        "x_m": [
+          838,
+          855
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.67
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 17,
+        "width_m": 6.4,
+        "height_m": 3.4
+      }
+    },
+    "PROP-CTRL": {
+      "location": {
+        "x_m": [
+          875,
+          888
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.47
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 13,
+        "width_m": 6.2,
+        "height_m": 3
+      }
+    },
+    "PROP-SVC": {
+      "location": {
+        "x_m": [
+          900,
+          948
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": -4.87
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 48,
+        "width_m": 7,
+        "height_m": 3.8
+      }
+    },
+    "FTL-SVC": {
+      "location": {
+        "x_m": [
+          888,
+          912
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.67
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 24,
+        "width_m": 6.3,
+        "height_m": 3.4
+      }
+    },
+    "FUEL-SVC": {
+      "location": {
+        "x_m": [
+          912,
+          932
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.67
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 20,
+        "width_m": 6.3,
+        "height_m": 3.4
+      }
+    },
+    "REACTION-SVC": {
+      "location": {
+        "x_m": [
+          932,
+          948
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.67
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 16,
+        "width_m": 6.3,
+        "height_m": 3.4
+      }
+    },
+    "BOW-SHIELD-FOREPEAK": {
+      "location": {
+        "x_m": [
+          0,
+          12
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 5.72
+      },
+      "geometry": {
+        "shape": "penetrated_forepeak_shield",
+        "outer_diameter_m": 15.8,
+        "length_m": 12,
+        "service_bores": [
+          {
+            "y_m": 0,
+            "z_m": 0,
+            "diameter_m": 5.5
+          },
+          {
+            "y_m": 4.6,
+            "z_m": 0,
+            "diameter_m": 3
+          },
+          {
+            "y_m": -4.6,
+            "z_m": 0,
+            "diameter_m": 3
+          }
+        ],
+        "nonbreathable_solid": true
+      }
+    },
+    "SENSOR-FWD": {
+      "location": {
+        "x_m": [
+          16,
+          26
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.47
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 10,
+        "width_m": 6,
+        "height_m": 3
+      }
+    },
+    "NAV-PLANNING": {
+      "location": {
+        "x_m": [
+          40,
+          50
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.47
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 10,
+        "width_m": 6,
+        "height_m": 3
+      }
+    },
+    "CMD-BRIEF": {
+      "location": {
+        "x_m": [
+          60,
+          70
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.47
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 10,
+        "width_m": 6,
+        "height_m": 3
+      }
+    },
+    "HEAD-FWD": {
+      "location": {
+        "x_m": [
+          70,
+          77
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.47
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 7,
+        "width_m": 5.5,
+        "height_m": 3
+      }
+    },
+    "ENV-FWD": {
+      "location": {
+        "x_m": [
+          77,
+          88
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.47
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 11,
+        "width_m": 6,
+        "height_m": 3
+      }
+    },
+    "ENG-LOCKER": {
+      "location": {
+        "x_m": [
+          402,
+          414
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.47
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 12,
+        "width_m": 6,
+        "height_m": 3
+      }
+    },
+    "HEAD-CENTRAL": {
+      "location": {
+        "x_m": [
+          402,
+          412
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": -4.47
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 10,
+        "width_m": 5.6,
+        "height_m": 3
+      }
+    },
+    "HUB-MAINT-BAY": {
+      "location": {
+        "x_m": [
+          430,
+          440
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": -4.57
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 10,
+        "width_m": 6.4,
+        "height_m": 3.2
+      }
+    },
+    "HEAD-AFT": {
+      "location": {
+        "x_m": [
+          855,
+          864
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.47
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 9,
+        "width_m": 5.2,
+        "height_m": 3
+      }
+    },
+    "GEN-CART-MAG": {
+      "location": {
+        "x_m": [
+          876,
+          888
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": -4.57
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 12,
+        "width_m": 6,
+        "height_m": 3.2
+      }
+    },
+    "WR-ROTOR-MACHINERY": {
+      "location": {
+        "x_m": [
+          480,
+          498
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": -4.77
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 18,
+        "width_m": 7,
+        "height_m": 3.6
+      }
+    },
+    "WR-FREIGHT-STAGING": {
+      "location": {
+        "x_m": [
+          498,
+          508
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": -4.77
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 10,
+        "width_m": 7,
+        "height_m": 3.6
+      }
+    },
+    "DOCK-FWD": {
+      "location": {
+        "x_m": [
+          12,
+          24
+        ],
+        "theta_deg": null,
+        "y_m": 4.4,
+        "z_m": -3.4
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 12,
+        "width_m": 3.5,
+        "height_m": 3
+      }
+    },
+    "EVA-FWD": {
+      "location": {
+        "x_m": [
+          10,
+          25
+        ],
+        "theta_deg": null,
+        "y_m": -4.3,
+        "z_m": -3.4
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 15,
+        "width_m": 3.5,
+        "height_m": 3.2
+      }
+    },
+    "ENV-AFT": {
+      "location": {
+        "x_m": [
+          810,
+          822
+        ],
+        "theta_deg": null,
+        "y_m": -4,
+        "z_m": -3.4
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 12,
+        "width_m": 4,
+        "height_m": 3
+      }
+    },
+    "EVA-AFT": {
+      "location": {
+        "x_m": [
+          855,
+          872
+        ],
+        "theta_deg": null,
+        "y_m": -4.4,
+        "z_m": 3.25
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 17,
+        "width_m": 3.5,
+        "height_m": 3.2
+      }
+    },
+    "CMD-EMERG": {
+      "location": {
+        "x_m": [
+          875,
+          890
+        ],
+        "theta_deg": null,
+        "y_m": 9.8,
+        "z_m": 2
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 15,
+        "width_m": 3.4,
+        "height_m": 3
+      }
+    },
+    "COMMS-AFT": {
+      "location": {
+        "x_m": [
+          890,
+          900
+        ],
+        "theta_deg": null,
+        "y_m": 9.8,
+        "z_m": 2
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 10,
+        "width_m": 3.4,
+        "height_m": 3
+      }
+    },
+    "RESCUE-AFT": {
+      "location": {
+        "x_m": [
+          872,
+          895
+        ],
+        "theta_deg": null,
+        "y_m": 9.8,
+        "z_m": -2
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 23,
+        "width_m": 3.8,
+        "height_m": 3.3
+      }
+    },
+    "HUB-FIXED-A": {
+      "location": {
+        "x_m": [
+          439,
+          451
+        ],
+        "theta_deg": null,
+        "y_m": 4.15,
+        "z_m": 3.4
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 12,
+        "width_m": 3.6,
+        "height_m": 3
+      }
+    },
+    "HUB-FIXED-B": {
+      "location": {
+        "x_m": [
+          459,
+          471
+        ],
+        "theta_deg": null,
+        "y_m": -4.15,
+        "z_m": 3.4
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 12,
+        "width_m": 3.6,
+        "height_m": 3
+      }
+    },
+    "WR-FIXED-TRANSFER": {
+      "location": {
+        "x_m": [
+          472,
+          479
+        ],
+        "theta_deg": null,
+        "y_m": -4.35,
+        "z_m": 3.3
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 7,
+        "width_m": 3,
+        "height_m": 3
+      }
+    },
+    "STORES-LONGLIFE": {
+      "location": {
+        "x_m": [
+          820,
+          850
+        ],
+        "theta_deg": null,
+        "y_m": 8.9,
+        "z_m": -2
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 30,
+        "width_m": 3.6,
+        "height_m": 3.2
+      }
+    },
+    "STORE-FOOD-AFT": {
+      "location": {
+        "x_m": [
+          820,
+          835
+        ],
+        "theta_deg": null,
+        "y_m": 12.8,
+        "z_m": -2
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 15,
+        "width_m": 3.6,
+        "height_m": 3
+      }
+    },
+    "STORE-FLUID-AFT": {
+      "location": {
+        "x_m": [
+          835,
+          850
+        ],
+        "theta_deg": null,
+        "y_m": 12.8,
+        "z_m": -2
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 15,
+        "width_m": 3.6,
+        "height_m": 3
+      }
+    },
+    "STORE-CRIT-SPARES": {
+      "location": {
+        "x_m": [
+          850,
+          864
+        ],
+        "theta_deg": null,
+        "y_m": 12.8,
+        "z_m": -2
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 14,
+        "width_m": 3.6,
+        "height_m": 3
+      }
+    },
+    "BE-01-SVC": {
+      "location": {
+        "x_m": [
+          90.5,
+          96.5
+        ],
+        "theta_deg": null,
+        "y_m": -4.4,
+        "z_m": -3.35
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 6,
+        "width_m": 3.4,
+        "height_m": 3
+      }
+    },
+    "BE-02-SVC": {
+      "location": {
+        "x_m": [
+          158.5,
+          164.5
+        ],
+        "theta_deg": null,
+        "y_m": -4.4,
+        "z_m": -3.35
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 6,
+        "width_m": 3.4,
+        "height_m": 3
+      }
+    },
+    "BE-03-SVC": {
+      "location": {
+        "x_m": [
+          175.5,
+          181.5
+        ],
+        "theta_deg": null,
+        "y_m": -4.4,
+        "z_m": -3.35
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 6,
+        "width_m": 3.4,
+        "height_m": 3
+      }
+    },
+    "BE-04-SVC": {
+      "location": {
+        "x_m": [
+          243.5,
+          249.5
+        ],
+        "theta_deg": null,
+        "y_m": -4.4,
+        "z_m": -3.35
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 6,
+        "width_m": 3.4,
+        "height_m": 3
+      }
+    },
+    "BE-05-SVC": {
+      "location": {
+        "x_m": [
+          260.5,
+          266.5
+        ],
+        "theta_deg": null,
+        "y_m": -4.4,
+        "z_m": -3.35
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 6,
+        "width_m": 3.4,
+        "height_m": 3
+      }
+    },
+    "BE-06-SVC": {
+      "location": {
+        "x_m": [
+          328.5,
+          334.5
+        ],
+        "theta_deg": null,
+        "y_m": -4.4,
+        "z_m": -3.35
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 6,
+        "width_m": 3.4,
+        "height_m": 3
+      }
+    },
+    "BE-07-SVC": {
+      "location": {
+        "x_m": [
+          575.5,
+          581.5
+        ],
+        "theta_deg": null,
+        "y_m": -4.4,
+        "z_m": -3.35
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 6,
+        "width_m": 3.4,
+        "height_m": 3
+      }
+    },
+    "BE-08-SVC": {
+      "location": {
+        "x_m": [
+          643.5,
+          649.5
+        ],
+        "theta_deg": null,
+        "y_m": -4.4,
+        "z_m": -3.35
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 6,
+        "width_m": 3.4,
+        "height_m": 3
+      }
+    },
+    "BE-09-SVC": {
+      "location": {
+        "x_m": [
+          660.5,
+          666.5
+        ],
+        "theta_deg": null,
+        "y_m": -4.4,
+        "z_m": -3.35
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 6,
+        "width_m": 3.4,
+        "height_m": 3
+      }
+    },
+    "BE-10-SVC": {
+      "location": {
+        "x_m": [
+          728.5,
+          734.5
+        ],
+        "theta_deg": null,
+        "y_m": -4.4,
+        "z_m": -3.35
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 6,
+        "width_m": 3.4,
+        "height_m": 3
+      }
+    },
+    "BE-11-SVC": {
+      "location": {
+        "x_m": [
+          745.5,
+          751.5
+        ],
+        "theta_deg": null,
+        "y_m": -4.4,
+        "z_m": -3.35
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 6,
+        "width_m": 3.4,
+        "height_m": 3
+      }
+    },
+    "BE-12-SVC": {
+      "location": {
+        "x_m": [
+          813.5,
+          819.5
+        ],
+        "theta_deg": null,
+        "y_m": -4.4,
+        "z_m": 3.35
+      },
+      "geometry": {
+        "shape": "box",
+        "length_m": 6,
+        "width_m": 3.4,
+        "height_m": 3
+      }
+    },
+    "LOGI-STOP-BOW": {
+      "location": {
+        "x_m": [
+          42.5,
+          47.5
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 0
+      },
+      "geometry": {
+        "shape": "rail_stop_activity",
+        "length_m": 5,
+        "width_m": 5,
+        "height_m": 2.5,
+        "activity_only_no_additive_volume": true,
+        "complete_sled_envelope_m": [
+          3.8,
+          3.4,
+          8
+        ]
+      }
+    },
+    "LOGI-STOP-DR-01": {
+      "location": {
+        "x_m": [
+          125,
+          130
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 0
+      },
+      "geometry": {
+        "shape": "rail_stop_activity",
+        "length_m": 5,
+        "width_m": 5,
+        "height_m": 2.5,
+        "activity_only_no_additive_volume": true,
+        "complete_sled_envelope_m": [
+          3.8,
+          3.4,
+          8
+        ]
+      }
+    },
+    "LOGI-STOP-DR-02": {
+      "location": {
+        "x_m": [
+          210,
+          215
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 0
+      },
+      "geometry": {
+        "shape": "rail_stop_activity",
+        "length_m": 5,
+        "width_m": 5,
+        "height_m": 2.5,
+        "activity_only_no_additive_volume": true,
+        "complete_sled_envelope_m": [
+          3.8,
+          3.4,
+          8
+        ]
+      }
+    },
+    "LOGI-STOP-DR-03": {
+      "location": {
+        "x_m": [
+          295,
+          300
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 0
+      },
+      "geometry": {
+        "shape": "rail_stop_activity",
+        "length_m": 5,
+        "width_m": 5,
+        "height_m": 2.5,
+        "activity_only_no_additive_volume": true,
+        "complete_sled_envelope_m": [
+          3.8,
+          3.4,
+          8
+        ]
+      }
+    },
+    "LOGI-STOP-F1": {
+      "location": {
+        "x_m": [
+          361.25,
+          366.25
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 0
+      },
+      "geometry": {
+        "shape": "rail_stop_activity",
+        "length_m": 5,
+        "width_m": 5,
+        "height_m": 2.5,
+        "activity_only_no_additive_volume": true,
+        "complete_sled_envelope_m": [
+          3.8,
+          3.4,
+          8
+        ]
+      }
+    },
+    "LOGI-STOP-HAB-HUB-SERVICES": {
+      "location": {
+        "x_m": [
+          452.5,
+          457.5
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 0
+      },
+      "geometry": {
+        "shape": "rail_stop_activity",
+        "length_m": 5,
+        "width_m": 5,
+        "height_m": 2.5,
+        "activity_only_no_additive_volume": true,
+        "complete_sled_envelope_m": [
+          3.8,
+          3.4,
+          8
+        ]
+      }
+    },
+    "LOGI-STOP-F2": {
+      "location": {
+        "x_m": [
+          543.75,
+          548.75
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 0
+      },
+      "geometry": {
+        "shape": "rail_stop_activity",
+        "length_m": 5,
+        "width_m": 5,
+        "height_m": 2.5,
+        "activity_only_no_additive_volume": true,
+        "complete_sled_envelope_m": [
+          3.8,
+          3.4,
+          8
+        ]
+      }
+    },
+    "LOGI-STOP-DR-04": {
+      "location": {
+        "x_m": [
+          610,
+          615
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 0
+      },
+      "geometry": {
+        "shape": "rail_stop_activity",
+        "length_m": 5,
+        "width_m": 5,
+        "height_m": 2.5,
+        "activity_only_no_additive_volume": true,
+        "complete_sled_envelope_m": [
+          3.8,
+          3.4,
+          8
+        ]
+      }
+    },
+    "LOGI-STOP-DR-05": {
+      "location": {
+        "x_m": [
+          695,
+          700
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 0
+      },
+      "geometry": {
+        "shape": "rail_stop_activity",
+        "length_m": 5,
+        "width_m": 5,
+        "height_m": 2.5,
+        "activity_only_no_additive_volume": true,
+        "complete_sled_envelope_m": [
+          3.8,
+          3.4,
+          8
+        ]
+      }
+    },
+    "LOGI-STOP-DR-06": {
+      "location": {
+        "x_m": [
+          780,
+          785
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 0
+      },
+      "geometry": {
+        "shape": "rail_stop_activity",
+        "length_m": 5,
+        "width_m": 5,
+        "height_m": 2.5,
+        "activity_only_no_additive_volume": true,
+        "complete_sled_envelope_m": [
+          3.8,
+          3.4,
+          8
+        ]
+      }
+    },
+    "LOGI-STOP-AFT": {
+      "location": {
+        "x_m": [
+          882.5,
+          887.5
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 0
+      },
+      "geometry": {
+        "shape": "rail_stop_activity",
+        "length_m": 5,
+        "width_m": 5,
+        "height_m": 2.5,
+        "activity_only_no_additive_volume": true,
+        "complete_sled_envelope_m": [
+          3.8,
+          3.4,
+          8
+        ]
+      }
+    },
+    "XCON-BOW": {
+      "location": {
+        "x_m": [
+          43.5,
+          46.5
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 0
+      },
+      "geometry": {
+        "shape": "external_pressure_bypass",
+        "clear_diameter_m": 2.5,
+        "arch_centerline_radius_m": 9.6,
+        "arc_span_deg": 180,
+        "station_necks_each_m": 3.5,
+        "nominal_external_hull_inner_clearance_m": 0.35,
+        "pressure_cell_independent": true
+      }
+    },
+    "XCON-AFT": {
+      "location": {
+        "x_m": [
+          866,
+          869
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 0
+      },
+      "geometry": {
+        "shape": "external_pressure_bypass",
+        "clear_diameter_m": 2.5,
+        "arch_centerline_radius_m": 9.6,
+        "arc_span_deg": 180,
+        "station_necks_each_m": 3.5,
+        "nominal_external_hull_inner_clearance_m": 0.35,
+        "pressure_cell_independent": true
+      }
+    },
+    "XCON-HAB-HUB-SERVICES": {
+      "location": {
+        "x_m": [
+          453.5,
+          456.5
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 0
+      },
+      "geometry": {
+        "shape": "external_pressure_bypass",
+        "clear_diameter_m": 2.5,
+        "arch_centerline_radius_m": 9.6,
+        "arc_span_deg": 180,
+        "station_necks_each_m": 3.5,
+        "nominal_external_hull_inner_clearance_m": 0.35,
+        "pressure_cell_independent": true
+      }
+    }
+  },
+  "count": 74
+}

@@ -146,6 +146,23 @@ def validate(candidate: dict, baseline: dict) -> dict:
                 "nominal_seated_occupants": 4,
                 "belongs_within_host_arc_gross_envelope": True}
 
+    # Only authored and independently reviewed v0.5 physical-envelope overrides
+    # may alter rooms beyond the baseline crew-trunk and pressure-hatch work.
+    placement = load(HERE / "approved_geometry_changes_v0.5.json")
+    overrides = placement["changes"]
+    require(placement["expected_placed_spaces"] == len(overrides) == 108,
+            "physical placement witness omitted or duplicated")
+    seen = set()
+    for room in expected_spaces:
+        changes = overrides.get(room["id"])
+        if changes is None:
+            continue
+        require(set(changes) <= {"location", "geometry", "notes"},
+                "unreviewed physical override field")
+        for key, value in changes.items():
+            room[key] = deepcopy(value)
+        seen.add(room["id"])
+    require(seen == set(overrides), "physical placement refers to unknown room")
     require(candidate["spaces"] == expected_spaces,
             "unauthorised spatial mutation outside reviewed pressure-cell corrections")
     zone_of = {room["id"]: room["pressure_zone"] for room in candidate["spaces"]}

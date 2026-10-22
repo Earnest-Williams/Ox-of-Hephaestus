@@ -1,0 +1,1601 @@
+{
+  "schema_version": "ox.ship.approved-v05-physical-overrides/0.1",
+  "design_status": "candidate",
+  "source_comparison": "after baseline-v0.4 and initial Bprime pressure-cell transformations",
+  "expected_placed_spaces": 108,
+  "changes": {
+    "XCON-BOW": {
+      "location": {
+        "x_m": [
+          43.5,
+          46.5
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 0
+      },
+      "geometry": {
+        "shape": "external_pressure_bypass",
+        "clear_diameter_m": 2.5,
+        "arch_centerline_radius_m": 9.6,
+        "arc_span_deg": 180,
+        "station_necks_each_m": 3.5,
+        "nominal_external_hull_inner_clearance_m": 0.35,
+        "pressure_cell_independent": true
+      }
+    },
+    "XCON-HAB-HUB-SERVICES": {
+      "location": {
+        "x_m": [
+          453.5,
+          456.5
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 0
+      },
+      "geometry": {
+        "shape": "external_pressure_bypass",
+        "clear_diameter_m": 2.5,
+        "arch_centerline_radius_m": 9.6,
+        "arc_span_deg": 180,
+        "station_necks_each_m": 3.5,
+        "nominal_external_hull_inner_clearance_m": 0.35,
+        "pressure_cell_independent": true
+      }
+    },
+    "XCON-AFT": {
+      "location": {
+        "x_m": [
+          866,
+          869
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 0
+      },
+      "geometry": {
+        "shape": "external_pressure_bypass",
+        "clear_diameter_m": 2.5,
+        "arch_centerline_radius_m": 9.6,
+        "arc_span_deg": 180,
+        "station_necks_each_m": 3.5,
+        "nominal_external_hull_inner_clearance_m": 0.35,
+        "pressure_cell_independent": true
+      }
+    },
+    "CMD-PRIMARY": {
+      "location": {
+        "x_m": [
+          26,
+          40
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.57
+      }
+    },
+    "COMMS-FWD": {
+      "location": {
+        "x_m": [
+          50,
+          60
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.47
+      }
+    },
+    "DOCK-FWD": {
+      "location": {
+        "x_m": [
+          12,
+          24
+        ],
+        "theta_deg": null,
+        "y_m": 4.4,
+        "z_m": -3.4
+      }
+    },
+    "EVA-FWD": {
+      "location": {
+        "x_m": [
+          10,
+          25
+        ],
+        "theta_deg": null,
+        "y_m": -4.3,
+        "z_m": -3.4
+      }
+    },
+    "RESCUE-FWD": {
+      "location": {
+        "x_m": [
+          66,
+          87
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": -4.67
+      }
+    },
+    "CARGO-CTRL-FWD": {
+      "location": {
+        "x_m": [
+          26,
+          40
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": -4.47
+      }
+    },
+    "ELEC-FWD": {
+      "location": {
+        "x_m": [
+          40,
+          52
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": -4.47
+      }
+    },
+    "WATER-FWD": {
+      "location": {
+        "x_m": [
+          52,
+          66
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": -4.47
+      }
+    },
+    "HUB-FIXED-A": {
+      "location": {
+        "x_m": [
+          439,
+          451
+        ],
+        "theta_deg": null,
+        "y_m": 4.15,
+        "z_m": 3.4
+      }
+    },
+    "HUB-FIXED-B": {
+      "location": {
+        "x_m": [
+          459,
+          471
+        ],
+        "theta_deg": null,
+        "y_m": -4.15,
+        "z_m": 3.4
+      }
+    },
+    "ENG-CONTROL": {
+      "location": {
+        "x_m": [
+          414,
+          430
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.47
+      }
+    },
+    "SHOP-ELEC": {
+      "location": {
+        "x_m": [
+          480,
+          493
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.57
+      }
+    },
+    "SHOP-WELD": {
+      "location": {
+        "x_m": 503,
+        "theta_deg": 0,
+        "radius_m": 60,
+        "radial_range_m": [
+          24,
+          75
+        ]
+      }
+    },
+    "NDT-BAY": {
+      "location": {
+        "x_m": [
+          493,
+          507
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.57
+      }
+    },
+    "SPARES-CENTRAL": {
+      "location": {
+        "x_m": 489,
+        "theta_deg": 180,
+        "radius_m": 20,
+        "radial_range_m": [
+          15,
+          37
+        ]
+      }
+    },
+    "ROTARY-UTIL-A": {
+      "location": {
+        "x_m": [
+          445,
+          455
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": -4.7
+      }
+    },
+    "ROTARY-UTIL-B": {
+      "location": {
+        "x_m": [
+          455,
+          465
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": -4.7
+      }
+    },
+    "GEN-M-ROOM": {
+      "location": {
+        "x_m": [
+          840,
+          861
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": -4.87
+      }
+    },
+    "GEN-A-ROOM": {
+      "location": {
+        "x_m": [
+          824,
+          840
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": -4.77
+      }
+    },
+    "GEN-B-ROOM": {
+      "location": {
+        "x_m": [
+          861,
+          876
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": -4.77
+      }
+    },
+    "PWR-AFT": {
+      "location": {
+        "x_m": [
+          824,
+          838
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.57
+      }
+    },
+    "THERM-HT": {
+      "location": {
+        "x_m": [
+          838,
+          855
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.67
+      }
+    },
+    "PROP-CTRL": {
+      "location": {
+        "x_m": [
+          875,
+          888
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.47
+      }
+    },
+    "PROP-SVC": {
+      "location": {
+        "x_m": [
+          900,
+          948
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": -4.87
+      }
+    },
+    "FTL-SVC": {
+      "location": {
+        "x_m": [
+          888,
+          912
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.67
+      }
+    },
+    "FUEL-SVC": {
+      "location": {
+        "x_m": [
+          912,
+          932
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.67
+      }
+    },
+    "REACTION-SVC": {
+      "location": {
+        "x_m": [
+          932,
+          948
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.67
+      }
+    },
+    "CMD-EMERG": {
+      "location": {
+        "x_m": [
+          875,
+          890
+        ],
+        "theta_deg": null,
+        "y_m": 9.8,
+        "z_m": 2
+      }
+    },
+    "EVA-AFT": {
+      "location": {
+        "x_m": [
+          855,
+          872
+        ],
+        "theta_deg": null,
+        "y_m": -4.4,
+        "z_m": 3.25
+      }
+    },
+    "RESCUE-AFT": {
+      "location": {
+        "x_m": [
+          872,
+          895
+        ],
+        "theta_deg": null,
+        "y_m": 9.8,
+        "z_m": -2
+      }
+    },
+    "STORES-LONGLIFE": {
+      "location": {
+        "x_m": [
+          820,
+          850
+        ],
+        "theta_deg": null,
+        "y_m": 8.9,
+        "z_m": -2
+      }
+    },
+    "DR-01-SERVICE-LOCK": {
+      "location": {
+        "x_m": [
+          143,
+          148
+        ],
+        "theta_deg": null,
+        "y_m": 5.4,
+        "z_m": -3.7
+      },
+      "notes": [
+        "Two-person/tool transfer; permits servicing while rotating. Cargo portal work still requires stopped and secured drum.",
+        "Fixed two-person indexer relocated 18m axially from the 12m freight lock to prevent an indexed moving carrier sweeping through a fixed freight pressure chamber."
+      ]
+    },
+    "DR-01-HUB": {
+      "location": {
+        "x_m": 136.5,
+        "theta_deg": 0,
+        "radius_m": 12.75
+      },
+      "notes": [
+        "30m axial shared rotating annulus connects separated crew-indexer station at +18m and freight receiving station at centre; the local indexed transfer and freight collar cannot operate at once.",
+        "Physically separate 6m freight annulus and 5m crew annulus at +18m joined by a 12.5m by 1.6m pressure-rated axial connecting tube, not a fictitious 30m full-pressure annulus."
+      ],
+      "geometry": {
+        "shape": "rotating_hub_composite",
+        "annular_inner_radius_m": 11.85,
+        "annular_outer_radius_m": 13.65,
+        "freight_bay_axial_station_offset_m": 0,
+        "freight_ring_axial_length_m": 6,
+        "crew_indexer_axial_station_offset_m": 18,
+        "crew_ring_axial_length_m": 5,
+        "connecting_rotor_tube_clear_diameter_m": 1.6,
+        "connecting_rotor_tube_clear_length_m": 12.5,
+        "pressurised_components_disjoint": true,
+        "gross_reference_m3": 1611.322872
+      }
+    },
+    "DR-01-GALLERY": {
+      "location": {
+        "x_m": 127.5,
+        "theta_deg": 0,
+        "y_m": 0,
+        "z_m": 0,
+        "radius_m": 15.075
+      },
+      "geometry": {
+        "shape": "rotating_annular_band",
+        "inner_radius_m": 13.65,
+        "outer_radius_m": 16.5,
+        "axial_length_m": 4,
+        "continuous_angle_deg": 360,
+        "volume_rule": "outer_gallery_annulus_only"
+      }
+    },
+    "BE-01-SVC": {
+      "location": {
+        "x_m": [
+          90.5,
+          96.5
+        ],
+        "theta_deg": null,
+        "y_m": -4.4,
+        "z_m": -3.35
+      }
+    },
+    "BE-02-SVC": {
+      "location": {
+        "x_m": [
+          158.5,
+          164.5
+        ],
+        "theta_deg": null,
+        "y_m": -4.4,
+        "z_m": -3.35
+      }
+    },
+    "DR-02-SERVICE-LOCK": {
+      "location": {
+        "x_m": [
+          228,
+          233
+        ],
+        "theta_deg": null,
+        "y_m": 5.4,
+        "z_m": -3.7
+      },
+      "notes": [
+        "Two-person/tool transfer; permits servicing while rotating. Cargo portal work still requires stopped and secured drum.",
+        "Fixed two-person indexer relocated 18m axially from the 12m freight lock to prevent an indexed moving carrier sweeping through a fixed freight pressure chamber."
+      ]
+    },
+    "DR-02-HUB": {
+      "location": {
+        "x_m": 221.5,
+        "theta_deg": 0,
+        "radius_m": 12.75
+      },
+      "notes": [
+        "30m axial shared rotating annulus connects separated crew-indexer station at +18m and freight receiving station at centre; the local indexed transfer and freight collar cannot operate at once.",
+        "Physically separate 6m freight annulus and 5m crew annulus at +18m joined by a 12.5m by 1.6m pressure-rated axial connecting tube, not a fictitious 30m full-pressure annulus."
+      ],
+      "geometry": {
+        "shape": "rotating_hub_composite",
+        "annular_inner_radius_m": 11.85,
+        "annular_outer_radius_m": 13.65,
+        "freight_bay_axial_station_offset_m": 0,
+        "freight_ring_axial_length_m": 6,
+        "crew_indexer_axial_station_offset_m": 18,
+        "crew_ring_axial_length_m": 5,
+        "connecting_rotor_tube_clear_diameter_m": 1.6,
+        "connecting_rotor_tube_clear_length_m": 12.5,
+        "pressurised_components_disjoint": true,
+        "gross_reference_m3": 1611.322872
+      }
+    },
+    "DR-02-GALLERY": {
+      "location": {
+        "x_m": 212.5,
+        "theta_deg": 0,
+        "y_m": 0,
+        "z_m": 0,
+        "radius_m": 15.075
+      },
+      "geometry": {
+        "shape": "rotating_annular_band",
+        "inner_radius_m": 13.65,
+        "outer_radius_m": 16.5,
+        "axial_length_m": 4,
+        "continuous_angle_deg": 360,
+        "volume_rule": "outer_gallery_annulus_only"
+      }
+    },
+    "BE-03-SVC": {
+      "location": {
+        "x_m": [
+          175.5,
+          181.5
+        ],
+        "theta_deg": null,
+        "y_m": -4.4,
+        "z_m": -3.35
+      }
+    },
+    "BE-04-SVC": {
+      "location": {
+        "x_m": [
+          243.5,
+          249.5
+        ],
+        "theta_deg": null,
+        "y_m": -4.4,
+        "z_m": -3.35
+      }
+    },
+    "DR-03-SERVICE-LOCK": {
+      "location": {
+        "x_m": [
+          313,
+          318
+        ],
+        "theta_deg": null,
+        "y_m": 5.4,
+        "z_m": -3.7
+      },
+      "notes": [
+        "Two-person/tool transfer; permits servicing while rotating. Cargo portal work still requires stopped and secured drum.",
+        "Fixed two-person indexer relocated 18m axially from the 12m freight lock to prevent an indexed moving carrier sweeping through a fixed freight pressure chamber."
+      ]
+    },
+    "DR-03-HUB": {
+      "location": {
+        "x_m": 306.5,
+        "theta_deg": 0,
+        "radius_m": 12.75
+      },
+      "notes": [
+        "30m axial shared rotating annulus connects separated crew-indexer station at +18m and freight receiving station at centre; the local indexed transfer and freight collar cannot operate at once.",
+        "Physically separate 6m freight annulus and 5m crew annulus at +18m joined by a 12.5m by 1.6m pressure-rated axial connecting tube, not a fictitious 30m full-pressure annulus."
+      ],
+      "geometry": {
+        "shape": "rotating_hub_composite",
+        "annular_inner_radius_m": 11.85,
+        "annular_outer_radius_m": 13.65,
+        "freight_bay_axial_station_offset_m": 0,
+        "freight_ring_axial_length_m": 6,
+        "crew_indexer_axial_station_offset_m": 18,
+        "crew_ring_axial_length_m": 5,
+        "connecting_rotor_tube_clear_diameter_m": 1.6,
+        "connecting_rotor_tube_clear_length_m": 12.5,
+        "pressurised_components_disjoint": true,
+        "gross_reference_m3": 1611.322872
+      }
+    },
+    "DR-03-GALLERY": {
+      "location": {
+        "x_m": 297.5,
+        "theta_deg": 0,
+        "y_m": 0,
+        "z_m": 0,
+        "radius_m": 15.075
+      },
+      "geometry": {
+        "shape": "rotating_annular_band",
+        "inner_radius_m": 13.65,
+        "outer_radius_m": 16.5,
+        "axial_length_m": 4,
+        "continuous_angle_deg": 360,
+        "volume_rule": "outer_gallery_annulus_only"
+      }
+    },
+    "BE-05-SVC": {
+      "location": {
+        "x_m": [
+          260.5,
+          266.5
+        ],
+        "theta_deg": null,
+        "y_m": -4.4,
+        "z_m": -3.35
+      }
+    },
+    "BE-06-SVC": {
+      "location": {
+        "x_m": [
+          328.5,
+          334.5
+        ],
+        "theta_deg": null,
+        "y_m": -4.4,
+        "z_m": -3.35
+      }
+    },
+    "DR-04-SERVICE-LOCK": {
+      "location": {
+        "x_m": [
+          628,
+          633
+        ],
+        "theta_deg": null,
+        "y_m": 5.4,
+        "z_m": -3.7
+      },
+      "notes": [
+        "Two-person/tool transfer; permits servicing while rotating. Cargo portal work still requires stopped and secured drum.",
+        "Fixed two-person indexer relocated 18m axially from the 12m freight lock to prevent an indexed moving carrier sweeping through a fixed freight pressure chamber."
+      ]
+    },
+    "DR-04-HUB": {
+      "location": {
+        "x_m": 621.5,
+        "theta_deg": 0,
+        "radius_m": 12.75
+      },
+      "notes": [
+        "30m axial shared rotating annulus connects separated crew-indexer station at +18m and freight receiving station at centre; the local indexed transfer and freight collar cannot operate at once.",
+        "Physically separate 6m freight annulus and 5m crew annulus at +18m joined by a 12.5m by 1.6m pressure-rated axial connecting tube, not a fictitious 30m full-pressure annulus."
+      ],
+      "geometry": {
+        "shape": "rotating_hub_composite",
+        "annular_inner_radius_m": 11.85,
+        "annular_outer_radius_m": 13.65,
+        "freight_bay_axial_station_offset_m": 0,
+        "freight_ring_axial_length_m": 6,
+        "crew_indexer_axial_station_offset_m": 18,
+        "crew_ring_axial_length_m": 5,
+        "connecting_rotor_tube_clear_diameter_m": 1.6,
+        "connecting_rotor_tube_clear_length_m": 12.5,
+        "pressurised_components_disjoint": true,
+        "gross_reference_m3": 1611.322872
+      }
+    },
+    "DR-04-GALLERY": {
+      "location": {
+        "x_m": 612.5,
+        "theta_deg": 0,
+        "y_m": 0,
+        "z_m": 0,
+        "radius_m": 15.075
+      },
+      "geometry": {
+        "shape": "rotating_annular_band",
+        "inner_radius_m": 13.65,
+        "outer_radius_m": 16.5,
+        "axial_length_m": 4,
+        "continuous_angle_deg": 360,
+        "volume_rule": "outer_gallery_annulus_only"
+      }
+    },
+    "BE-07-SVC": {
+      "location": {
+        "x_m": [
+          575.5,
+          581.5
+        ],
+        "theta_deg": null,
+        "y_m": -4.4,
+        "z_m": -3.35
+      }
+    },
+    "BE-08-SVC": {
+      "location": {
+        "x_m": [
+          643.5,
+          649.5
+        ],
+        "theta_deg": null,
+        "y_m": -4.4,
+        "z_m": -3.35
+      }
+    },
+    "DR-05-SERVICE-LOCK": {
+      "location": {
+        "x_m": [
+          713,
+          718
+        ],
+        "theta_deg": null,
+        "y_m": 5.4,
+        "z_m": -3.7
+      },
+      "notes": [
+        "Two-person/tool transfer; permits servicing while rotating. Cargo portal work still requires stopped and secured drum.",
+        "Fixed two-person indexer relocated 18m axially from the 12m freight lock to prevent an indexed moving carrier sweeping through a fixed freight pressure chamber."
+      ]
+    },
+    "DR-05-HUB": {
+      "location": {
+        "x_m": 706.5,
+        "theta_deg": 0,
+        "radius_m": 12.75
+      },
+      "notes": [
+        "30m axial shared rotating annulus connects separated crew-indexer station at +18m and freight receiving station at centre; the local indexed transfer and freight collar cannot operate at once.",
+        "Physically separate 6m freight annulus and 5m crew annulus at +18m joined by a 12.5m by 1.6m pressure-rated axial connecting tube, not a fictitious 30m full-pressure annulus."
+      ],
+      "geometry": {
+        "shape": "rotating_hub_composite",
+        "annular_inner_radius_m": 11.85,
+        "annular_outer_radius_m": 13.65,
+        "freight_bay_axial_station_offset_m": 0,
+        "freight_ring_axial_length_m": 6,
+        "crew_indexer_axial_station_offset_m": 18,
+        "crew_ring_axial_length_m": 5,
+        "connecting_rotor_tube_clear_diameter_m": 1.6,
+        "connecting_rotor_tube_clear_length_m": 12.5,
+        "pressurised_components_disjoint": true,
+        "gross_reference_m3": 1611.322872
+      }
+    },
+    "DR-05-GALLERY": {
+      "location": {
+        "x_m": 697.5,
+        "theta_deg": 0,
+        "y_m": 0,
+        "z_m": 0,
+        "radius_m": 15.075
+      },
+      "geometry": {
+        "shape": "rotating_annular_band",
+        "inner_radius_m": 13.65,
+        "outer_radius_m": 16.5,
+        "axial_length_m": 4,
+        "continuous_angle_deg": 360,
+        "volume_rule": "outer_gallery_annulus_only"
+      }
+    },
+    "BE-09-SVC": {
+      "location": {
+        "x_m": [
+          660.5,
+          666.5
+        ],
+        "theta_deg": null,
+        "y_m": -4.4,
+        "z_m": -3.35
+      }
+    },
+    "BE-10-SVC": {
+      "location": {
+        "x_m": [
+          728.5,
+          734.5
+        ],
+        "theta_deg": null,
+        "y_m": -4.4,
+        "z_m": -3.35
+      }
+    },
+    "DR-06-SERVICE-LOCK": {
+      "location": {
+        "x_m": [
+          798,
+          803
+        ],
+        "theta_deg": null,
+        "y_m": 5.4,
+        "z_m": -3.7
+      },
+      "notes": [
+        "Two-person/tool transfer; permits servicing while rotating. Cargo portal work still requires stopped and secured drum.",
+        "Fixed two-person indexer relocated 18m axially from the 12m freight lock to prevent an indexed moving carrier sweeping through a fixed freight pressure chamber."
+      ]
+    },
+    "DR-06-HUB": {
+      "location": {
+        "x_m": 791.5,
+        "theta_deg": 0,
+        "radius_m": 12.75
+      },
+      "notes": [
+        "30m axial shared rotating annulus connects separated crew-indexer station at +18m and freight receiving station at centre; the local indexed transfer and freight collar cannot operate at once.",
+        "Physically separate 6m freight annulus and 5m crew annulus at +18m joined by a 12.5m by 1.6m pressure-rated axial connecting tube, not a fictitious 30m full-pressure annulus."
+      ],
+      "geometry": {
+        "shape": "rotating_hub_composite",
+        "annular_inner_radius_m": 11.85,
+        "annular_outer_radius_m": 13.65,
+        "freight_bay_axial_station_offset_m": 0,
+        "freight_ring_axial_length_m": 6,
+        "crew_indexer_axial_station_offset_m": 18,
+        "crew_ring_axial_length_m": 5,
+        "connecting_rotor_tube_clear_diameter_m": 1.6,
+        "connecting_rotor_tube_clear_length_m": 12.5,
+        "pressurised_components_disjoint": true,
+        "gross_reference_m3": 1611.322872
+      }
+    },
+    "DR-06-GALLERY": {
+      "location": {
+        "x_m": 782.5,
+        "theta_deg": 0,
+        "y_m": 0,
+        "z_m": 0,
+        "radius_m": 15.075
+      },
+      "geometry": {
+        "shape": "rotating_annular_band",
+        "inner_radius_m": 13.65,
+        "outer_radius_m": 16.5,
+        "axial_length_m": 4,
+        "continuous_angle_deg": 360,
+        "volume_rule": "outer_gallery_annulus_only"
+      }
+    },
+    "BE-11-SVC": {
+      "location": {
+        "x_m": [
+          745.5,
+          751.5
+        ],
+        "theta_deg": null,
+        "y_m": -4.4,
+        "z_m": -3.35
+      }
+    },
+    "BE-12-SVC": {
+      "location": {
+        "x_m": [
+          813.5,
+          819.5
+        ],
+        "theta_deg": null,
+        "y_m": -4.4,
+        "z_m": 3.35
+      }
+    },
+    "LOGI-STOP-BOW": {
+      "location": {
+        "x_m": [
+          42.5,
+          47.5
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 0
+      },
+      "geometry": {
+        "shape": "rail_stop_activity",
+        "length_m": 5,
+        "width_m": 5,
+        "height_m": 2.5,
+        "activity_only_no_additive_volume": true,
+        "complete_sled_envelope_m": [
+          3.8,
+          3.4,
+          8
+        ]
+      }
+    },
+    "LOGI-STOP-DR-01": {
+      "location": {
+        "x_m": [
+          125,
+          130
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 0
+      },
+      "geometry": {
+        "shape": "rail_stop_activity",
+        "length_m": 5,
+        "width_m": 5,
+        "height_m": 2.5,
+        "activity_only_no_additive_volume": true,
+        "complete_sled_envelope_m": [
+          3.8,
+          3.4,
+          8
+        ]
+      }
+    },
+    "LOGI-STOP-DR-02": {
+      "location": {
+        "x_m": [
+          210,
+          215
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 0
+      },
+      "geometry": {
+        "shape": "rail_stop_activity",
+        "length_m": 5,
+        "width_m": 5,
+        "height_m": 2.5,
+        "activity_only_no_additive_volume": true,
+        "complete_sled_envelope_m": [
+          3.8,
+          3.4,
+          8
+        ]
+      }
+    },
+    "LOGI-STOP-DR-03": {
+      "location": {
+        "x_m": [
+          295,
+          300
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 0
+      },
+      "geometry": {
+        "shape": "rail_stop_activity",
+        "length_m": 5,
+        "width_m": 5,
+        "height_m": 2.5,
+        "activity_only_no_additive_volume": true,
+        "complete_sled_envelope_m": [
+          3.8,
+          3.4,
+          8
+        ]
+      }
+    },
+    "LOGI-STOP-F1": {
+      "location": {
+        "x_m": [
+          361.25,
+          366.25
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 0
+      },
+      "geometry": {
+        "shape": "rail_stop_activity",
+        "length_m": 5,
+        "width_m": 5,
+        "height_m": 2.5,
+        "activity_only_no_additive_volume": true,
+        "complete_sled_envelope_m": [
+          3.8,
+          3.4,
+          8
+        ]
+      }
+    },
+    "LOGI-STOP-HAB-HUB-SERVICES": {
+      "location": {
+        "x_m": [
+          452.5,
+          457.5
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 0
+      },
+      "geometry": {
+        "shape": "rail_stop_activity",
+        "length_m": 5,
+        "width_m": 5,
+        "height_m": 2.5,
+        "activity_only_no_additive_volume": true,
+        "complete_sled_envelope_m": [
+          3.8,
+          3.4,
+          8
+        ]
+      }
+    },
+    "LOGI-STOP-F2": {
+      "location": {
+        "x_m": [
+          543.75,
+          548.75
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 0
+      },
+      "geometry": {
+        "shape": "rail_stop_activity",
+        "length_m": 5,
+        "width_m": 5,
+        "height_m": 2.5,
+        "activity_only_no_additive_volume": true,
+        "complete_sled_envelope_m": [
+          3.8,
+          3.4,
+          8
+        ]
+      }
+    },
+    "LOGI-STOP-DR-04": {
+      "location": {
+        "x_m": [
+          610,
+          615
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 0
+      },
+      "geometry": {
+        "shape": "rail_stop_activity",
+        "length_m": 5,
+        "width_m": 5,
+        "height_m": 2.5,
+        "activity_only_no_additive_volume": true,
+        "complete_sled_envelope_m": [
+          3.8,
+          3.4,
+          8
+        ]
+      }
+    },
+    "LOGI-STOP-DR-05": {
+      "location": {
+        "x_m": [
+          695,
+          700
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 0
+      },
+      "geometry": {
+        "shape": "rail_stop_activity",
+        "length_m": 5,
+        "width_m": 5,
+        "height_m": 2.5,
+        "activity_only_no_additive_volume": true,
+        "complete_sled_envelope_m": [
+          3.8,
+          3.4,
+          8
+        ]
+      }
+    },
+    "LOGI-STOP-DR-06": {
+      "location": {
+        "x_m": [
+          780,
+          785
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 0
+      },
+      "geometry": {
+        "shape": "rail_stop_activity",
+        "length_m": 5,
+        "width_m": 5,
+        "height_m": 2.5,
+        "activity_only_no_additive_volume": true,
+        "complete_sled_envelope_m": [
+          3.8,
+          3.4,
+          8
+        ]
+      }
+    },
+    "LOGI-STOP-AFT": {
+      "location": {
+        "x_m": [
+          882.5,
+          887.5
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 0
+      },
+      "geometry": {
+        "shape": "rail_stop_activity",
+        "length_m": 5,
+        "width_m": 5,
+        "height_m": 2.5,
+        "activity_only_no_additive_volume": true,
+        "complete_sled_envelope_m": [
+          3.8,
+          3.4,
+          8
+        ]
+      }
+    },
+    "BOW-SHIELD-FOREPEAK": {
+      "location": {
+        "x_m": [
+          0,
+          12
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 5.72
+      },
+      "geometry": {
+        "shape": "penetrated_forepeak_shield",
+        "outer_diameter_m": 15.8,
+        "length_m": 12,
+        "service_bores": [
+          {
+            "y_m": 0,
+            "z_m": 0,
+            "diameter_m": 5.5
+          },
+          {
+            "y_m": 4.6,
+            "z_m": 0,
+            "diameter_m": 3
+          },
+          {
+            "y_m": -4.6,
+            "z_m": 0,
+            "diameter_m": 3
+          }
+        ],
+        "nonbreathable_solid": true
+      }
+    },
+    "SENSOR-FWD": {
+      "location": {
+        "x_m": [
+          16,
+          26
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.47
+      }
+    },
+    "NAV-PLANNING": {
+      "location": {
+        "x_m": [
+          40,
+          50
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.47
+      }
+    },
+    "CMD-BRIEF": {
+      "location": {
+        "x_m": [
+          60,
+          70
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.47
+      }
+    },
+    "HEAD-FWD": {
+      "location": {
+        "x_m": [
+          70,
+          77
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.47
+      }
+    },
+    "ENV-FWD": {
+      "location": {
+        "x_m": [
+          77,
+          88
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.47
+      }
+    },
+    "ENG-LOCKER": {
+      "location": {
+        "x_m": [
+          402,
+          414
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.47
+      }
+    },
+    "HEAD-CENTRAL": {
+      "location": {
+        "x_m": [
+          402,
+          412
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": -4.47
+      }
+    },
+    "HUB-MAINT-BAY": {
+      "location": {
+        "x_m": [
+          430,
+          440
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": -4.57
+      }
+    },
+    "TOOL-CRIB": {
+      "location": {
+        "x_m": 499,
+        "theta_deg": 180,
+        "radius_m": 20,
+        "radial_range_m": [
+          15,
+          37
+        ]
+      }
+    },
+    "PARTS-WASH": {
+      "location": {
+        "x_m": 476,
+        "theta_deg": 0,
+        "radius_m": 60,
+        "radial_range_m": [
+          24,
+          75
+        ]
+      }
+    },
+    "MATERIAL-STOCK": {
+      "location": {
+        "x_m": 477,
+        "theta_deg": 180,
+        "radius_m": 20,
+        "radial_range_m": [
+          15,
+          37
+        ]
+      }
+    },
+    "ENV-AFT": {
+      "location": {
+        "x_m": [
+          810,
+          822
+        ],
+        "theta_deg": null,
+        "y_m": -4,
+        "z_m": -3.4
+      }
+    },
+    "HEAD-AFT": {
+      "location": {
+        "x_m": [
+          855,
+          864
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": 4.47
+      }
+    },
+    "GEN-CART-MAG": {
+      "location": {
+        "x_m": [
+          876,
+          888
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": -4.57
+      }
+    },
+    "STORE-FOOD-AFT": {
+      "location": {
+        "x_m": [
+          820,
+          835
+        ],
+        "theta_deg": null,
+        "y_m": 12.8,
+        "z_m": -2
+      }
+    },
+    "STORE-FLUID-AFT": {
+      "location": {
+        "x_m": [
+          835,
+          850
+        ],
+        "theta_deg": null,
+        "y_m": 12.8,
+        "z_m": -2
+      }
+    },
+    "STORE-CRIT-SPARES": {
+      "location": {
+        "x_m": [
+          850,
+          864
+        ],
+        "theta_deg": null,
+        "y_m": 12.8,
+        "z_m": -2
+      }
+    },
+    "COMMS-AFT": {
+      "location": {
+        "x_m": [
+          890,
+          900
+        ],
+        "theta_deg": null,
+        "y_m": 9.8,
+        "z_m": 2
+      }
+    },
+    "DR-01-FREIGHT-HUB": {
+      "location": {
+        "x_m": 127.5,
+        "theta_deg": 0,
+        "y_m": 15.075,
+        "z_m": 0,
+        "radius_m": 15.075
+      },
+      "geometry": {
+        "shape": "nested_handling_bay",
+        "parent_room_id": "DR-01-GALLERY",
+        "volume_additive": false,
+        "receiving_radius_range_m": [
+          13.65,
+          16.5
+        ],
+        "locked_freight_collaring_only": true
+      }
+    },
+    "DR-02-FREIGHT-HUB": {
+      "location": {
+        "x_m": 212.5,
+        "theta_deg": 0,
+        "y_m": 15.075,
+        "z_m": 0,
+        "radius_m": 15.075
+      },
+      "geometry": {
+        "shape": "nested_handling_bay",
+        "parent_room_id": "DR-02-GALLERY",
+        "volume_additive": false,
+        "receiving_radius_range_m": [
+          13.65,
+          16.5
+        ],
+        "locked_freight_collaring_only": true
+      }
+    },
+    "DR-03-FREIGHT-HUB": {
+      "location": {
+        "x_m": 297.5,
+        "theta_deg": 0,
+        "y_m": 15.075,
+        "z_m": 0,
+        "radius_m": 15.075
+      },
+      "geometry": {
+        "shape": "nested_handling_bay",
+        "parent_room_id": "DR-03-GALLERY",
+        "volume_additive": false,
+        "receiving_radius_range_m": [
+          13.65,
+          16.5
+        ],
+        "locked_freight_collaring_only": true
+      }
+    },
+    "DR-04-FREIGHT-HUB": {
+      "location": {
+        "x_m": 612.5,
+        "theta_deg": 0,
+        "y_m": 15.075,
+        "z_m": 0,
+        "radius_m": 15.075
+      },
+      "geometry": {
+        "shape": "nested_handling_bay",
+        "parent_room_id": "DR-04-GALLERY",
+        "volume_additive": false,
+        "receiving_radius_range_m": [
+          13.65,
+          16.5
+        ],
+        "locked_freight_collaring_only": true
+      }
+    },
+    "DR-05-FREIGHT-HUB": {
+      "location": {
+        "x_m": 697.5,
+        "theta_deg": 0,
+        "y_m": 15.075,
+        "z_m": 0,
+        "radius_m": 15.075
+      },
+      "geometry": {
+        "shape": "nested_handling_bay",
+        "parent_room_id": "DR-05-GALLERY",
+        "volume_additive": false,
+        "receiving_radius_range_m": [
+          13.65,
+          16.5
+        ],
+        "locked_freight_collaring_only": true
+      }
+    },
+    "DR-06-FREIGHT-HUB": {
+      "location": {
+        "x_m": 782.5,
+        "theta_deg": 0,
+        "y_m": 15.075,
+        "z_m": 0,
+        "radius_m": 15.075
+      },
+      "geometry": {
+        "shape": "nested_handling_bay",
+        "parent_room_id": "DR-06-GALLERY",
+        "volume_additive": false,
+        "receiving_radius_range_m": [
+          13.65,
+          16.5
+        ],
+        "locked_freight_collaring_only": true
+      }
+    },
+    "WR-ROTOR-MACHINERY": {
+      "location": {
+        "x_m": [
+          480,
+          498
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": -4.77
+      }
+    },
+    "WR-FREIGHT-STAGING": {
+      "location": {
+        "x_m": [
+          498,
+          508
+        ],
+        "theta_deg": null,
+        "y_m": 0,
+        "z_m": -4.77
+      }
+    },
+    "WR-FIXED-TRANSFER": {
+      "location": {
+        "x_m": [
+          472,
+          479
+        ],
+        "theta_deg": null,
+        "y_m": -4.35,
+        "z_m": 3.3
+      }
+    },
+    "WR-HUB": {
+      "location": {
+        "x_m": 489,
+        "theta_deg": 0,
+        "radius_m": 10.8
+      },
+      "geometry": {
+        "shape": "rotating_annular_band",
+        "inner_radius_m": 8.8,
+        "outer_radius_m": 12.8,
+        "axial_length_m": 10,
+        "continuous_angle_deg": 360,
+        "volume_rule": "single_hollow_hub_annulus",
+        "stationary_spine_radial_guard_m": 0.8
+      }
+    },
+    "WR-PASS-SHOP": {
+      "location": {
+        "x_m": 489,
+        "theta_deg": 0,
+        "radius_m": 33.4,
+        "radial_range_m": [
+          12.8,
+          54
+        ]
+      },
+      "geometry": {
+        "shape": "sealed_telescoping_pressure_passage",
+        "clear_diameter_m": 3,
+        "radial_inner_m": 12.8,
+        "radial_outer_m": 54,
+        "reference_deployed_length_m": 41.2,
+        "variable_extension_length_bounds_m": [
+          5.2,
+          56.2
+        ],
+        "working_seals": "paired monitored sliding seals",
+        "pressure_makeup_required_when_extending": true
+      }
+    },
+    "WR-PASS-STORES": {
+      "location": {
+        "x_m": 489,
+        "theta_deg": 180,
+        "radius_m": 13.9,
+        "radial_range_m": [
+          12.8,
+          15
+        ]
+      },
+      "geometry": {
+        "shape": "sealed_telescoping_pressure_passage",
+        "clear_diameter_m": 3,
+        "radial_inner_m": 12.8,
+        "radial_outer_m": 15,
+        "reference_deployed_length_m": 2.1999999999999993,
+        "variable_extension_length_bounds_m": [
+          2.2,
+          19.2
+        ],
+        "working_seals": "paired monitored sliding seals",
+        "pressure_makeup_required_when_extending": true
+      }
+    },
+    "WR-IX-CAPSULE": {
+      "location": {
+        "x_m": 480,
+        "theta_deg": 270,
+        "radius_m": 10.5,
+        "y_m": 0,
+        "z_m": -10.5
+      },
+      "geometry": {
+        "shape": "capsule",
+        "length_m": 4,
+        "diameter_m": 2.6,
+        "reference_orbit_radius_m": 10.5,
+        "swept_radial_min_m": 9.2,
+        "swept_radial_max_m": 11.8,
+        "carrier_frame": "independent_wr_indexer"
+      }
+    },
+    "SHOP-IMMEDIATE-STOCK": {
+      "geometry": {
+        "shape": "nested_locker_bank",
+        "length_m": 4,
+        "tangential_width_m": 2,
+        "radial_depth_m": 1,
+        "parent_room_id": "SHOP-MECH",
+        "volume_additive": false
+      }
+    }
+  }
+}

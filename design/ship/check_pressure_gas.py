@@ -120,7 +120,7 @@ def validate(ship: dict, pressure: dict, gas: dict) -> dict:
         lo_kg += gross*lower*density
         hi_kg += gross*upper*density
 
-    check(sized == 107 and len(lines) - sized == 26,
+    check(sized == 133 and len(lines) - sized == 0,
           "gross/geometric data scope altered")
     totals = gas["totals"]
     checks = {
@@ -157,7 +157,7 @@ def validate(ship: dict, pressure: dict, gas: dict) -> dict:
         check(room[policy["space_id"]]["pressure_zone"] is None,
               f"unclassified room silently pressurised: {policy['space_id']}")
     check(totals["pressure_unclassified_spaces"] == len(policies) and
-          totals["unsized_pressurized_cells"] == 26,
+          totals["unsized_pressurized_cells"] == 0,
           "incomplete uncertainty accounting")
 
     equipment = unique(ship["equipment"], "ship equipment")

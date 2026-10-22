@@ -1,3 +1,5 @@
+**CURRENT DESIGN CLOSURE (23 October 2026): 133/133 geometrically referenced pressure cells; none held unsized; 208 rated pressure boundaries; 100,772.940 m³ nominal gross and 65,832.797–88,021.802 m³ estimated free air (79.270–105.989 tonnes reference gas).** The 83 unclassified cargo/machinery spaces remain nonbreathable by default; as-installed air/pressure is unmeasured. All figures from older dated subsections are incremental historical notes. See [full physical closure](PHYSICAL_CLOSURE_v0.5.md).
+
 # Ox of Hephaestus — atmosphere volume, refill reserve and casualty delivery v0.5
 
 > **Latest v0.5 increment — 22 October 2026:** 101 of 133 pressure cells

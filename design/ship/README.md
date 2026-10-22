@@ -1,3 +1,5 @@
+**CURRENT DESIGN CLOSURE (23 October 2026): 133/133 geometrically referenced pressure cells; none held unsized; 208 rated pressure boundaries; 100,772.940 m³ nominal gross and 65,832.797–88,021.802 m³ estimated free air (79.270–105.989 tonnes reference gas).** The 83 unclassified cargo/machinery spaces remain nonbreathable by default; as-installed air/pressure is unmeasured. All figures from older dated subsections are incremental historical notes. See [full physical closure](PHYSICAL_CLOSURE_v0.5.md).
+
 # Full ship preparation baseline
 
 This directory contains the current **Ox of Hephaestus full-ship physical world model, v0.4**.
@@ -112,3 +114,5 @@ The v0.5 candidate is a *simulation-operational* engineering proposal,
 not real-world construction or certification data. No Evennia or dashboard
 code is changed in this branch. The earlier full-ship integration
 PR #101 remains separate and unmerged pending design completion.
+
+- [Complete selected pressure reference and full fixed/rotary layout](PHYSICAL_CLOSURE_v0.5.md): 133 pressure cells, nonintersecting fixed envelopes, drum station separation and telescoping WR-01 references.

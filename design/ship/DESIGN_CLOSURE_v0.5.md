@@ -1,3 +1,5 @@
+**CURRENT DESIGN CLOSURE (23 October 2026): 133/133 geometrically referenced pressure cells; none held unsized; 208 rated pressure boundaries; 100,772.940 m³ nominal gross and 65,832.797–88,021.802 m³ estimated free air (79.270–105.989 tonnes reference gas).** The 83 unclassified cargo/machinery spaces remain nonbreathable by default; as-installed air/pressure is unmeasured. All figures from older dated subsections are incremental historical notes. See [full physical closure](PHYSICAL_CLOSURE_v0.5.md).
+
 # Ox of Hephaestus — full-ship design reconciliation v0.5 (candidate)
 
 **23 October 2026 — indexed drum locks:** Six separately pressurised DR-01–DR-06 fixed service-lock cylinders have been moved off the personnel-trunk bores. There are now **107/133 sized pressure cells**, **26 held**, **208 rated boundaries**, **68,310.657 m³ nominal gross** and **54,101.591–62,502.553 m³ design free-air screen**. The short station connectors and moving indexed collars remain survey items; measured free air and actual safe access remain unknown. The two independent 2.75 t air reserves remain unchanged.
