@@ -38,6 +38,8 @@ jobs:
           python -m unittest discover -s services/ai-handler/tests -p test_compatible_chat.py -v
           python -m unittest discover -s services/ai-handler/tests -p test_qwen_local_smoke.py -v
           python -m unittest discover -s services/ai-handler/tests -p test_concordia_memory_ab.py -v
+      - name: Check counterfactual fixtures offline
+        run: python -m unittest discover -s services/ai-handler/tests -p test_counterfactual_decision_trial.py -v
       - name: Restore model cache
         uses: actions/cache@v4
         with:
@@ -99,6 +101,12 @@ jobs:
         run: |
           python scenarios/g11_memory_ab_trial.py --provider qwen-local \
             --repetitions 3 --output .ox-state/qwen/memory-ab-results.json
+      - name: Qwen 0.8B 48 changed-evidence choices
+        run: |
+          python -m scenarios.counterfactual_decision_trial \
+            --provider qwen-local --model qwen3.5-0.8b \
+            --api-base http://127.0.0.1:8080/v1 --max-pairs 24 \
+            --output .ox-state/qwen/counterfactual-results.json
       - name: Upload bounded diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -107,6 +115,7 @@ jobs:
           path: |
             .ox-state/qwen/probe.json
             .ox-state/qwen/memory-ab-results.json
+            .ox-state/qwen/counterfactual-results.json
             .ox-state/qwen/model-sha256.txt
             .ox-state/qwen/llama-server.log
           if-no-files-found: ignore
