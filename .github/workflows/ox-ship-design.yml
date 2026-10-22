@@ -39,3 +39,4 @@ jobs:
           python design/ship/check_bprime_mechanics.py
           python design/ship/check_pressure_cells.py
           python design/ship/check_pressure_gas.py
+          python design/ship/check_pressure_geometry.py
