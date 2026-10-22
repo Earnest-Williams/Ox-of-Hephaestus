@@ -173,7 +173,8 @@ PERSONAS = {
 
 class FixtureFirstChoice:
     """Only a no-download integration fixture. Not a behavioural model."""
-    prompts: list[str] = []
+    def __init__(self):
+        self.prompts: list[str] = []
 
     def sample_choice(self, prompt, responses, *, seed=None):
         self.prompts.append(prompt)
@@ -279,6 +280,15 @@ async def run_dossier(*, model_name: str = "fixture",
                     persist=lambda: checkpoints.append(
                         json.loads(json.dumps(record))),
                 )
+                # Verify that private memory reached the finite choice prompt
+                # without exposing the character's private text in the report.
+                # Real Decider uses the identical native Concordia prompt path.
+                if model_name == "fixture":
+                    if len(model.prompts) != 1:
+                        raise RuntimeError("Expected exactly one native model prompt")
+                    visible = description["memories"][case.key] in model.prompts[0]
+                    if visible != (arm == "remembered"):
+                        raise RuntimeError("Paired memory was absent or leaked between arms")
                 if (proposal.route.selected != "llm" or
                         proposal.model_calls != 1 or len(checkpoints) != 1 or
                         len(agent.pending_requests) != 1 or
@@ -308,6 +318,7 @@ async def run_dossier(*, model_name: str = "fixture",
                     "routing_roll": proposal.route.roll,
                     "route": proposal.route.selected,
                     "model_calls": proposal.model_calls,
+                    "fixture_private_memory_visible": (visible if model_name == "fixture" else None),
                     "native_option_logits": getattr(model, "last", None),
                     "world_commands_sent": 0,
                 })
