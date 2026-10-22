@@ -100,3 +100,61 @@ excluded and a warmup request per model load, and records the actual GGUF
 header identifiers and per-phase latency. Do not treat the raw first
 matrix medians as a confirmed quantisation performance ranking until
 the same-runner audit finishes.
+
+## Same-runner audit: completed
+
+[Same-runner ABBA workflow #39835670525](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/39835670525)
+**passed** on a four-vCPU Intel Xeon Platinum 8370C
+(AVX2/AVX-512/VNNI), 15 GiB physical RAM. The exact original
+Q2_K and Q4_K_M SHA-256-pinned GGUF weights were loaded on one runner.
+Prompt corpus: eight G11 states and four counterfactual states, 12
+identical native Concordia requests per model per two phase repetitions.
+Execution order was Q2_K -> Q4_K_M -> Q4_K_M -> Q2_K.
+Warmup and load time were excluded; each model was cold-reloaded for
+its own phase, but native GGUF code did not reuse a prompt-prefix cache.
+
+| Phase/metric | Q2_K | Q4_K_M |
+| --- | ---: | ---: |
+| First median (seconds) | 9.09946 | 7.88274 |
+| Second median (seconds) | 8.94983 | 7.61481 |
+| Pooled median, 24 calls each | **9.00920** | **7.71423** |
+
+Q4_K_M was ~14.4% faster in these controlled *prompt-scoring*
+requests. The result is repeatable across both execution orders
+on the same machine. This supersedes the earlier caveat that
+cross-runner CPU heterogeneity could alone explain the inversion.
+It does **not** prove Q4 is faster under all CPUs, accelerators,
+prompt lengths, inference-engine builds or batching strategies.
+
+GGUF header audit:
+
+- Both files: GGUF v3, `qwen35` architecture, `Decider 4b` name,
+  `decider` basename, source URL `Mapika/decider-4b`,
+  quantization_version 2, **426 tensors**, 48 metadata fields.
+- Q2_K `general.file_type=10` and Q4_K_M `general.file_type=15`.
+- Matching fields support a shared model architecture but do not
+  cryptographically prove identical source fine-tune revision.
+
+The same-runner outputs were repeatable: each model chose the
+same label on each of the 12 prompts in both phases. The two
+quantisations disagreed on 7/12 labels (including withdrawn
+commitments, private letter cases and prior refusals). The original
+Q2_K counterfactual probabilities were within 0.10 absolute
+difference on 27/48 binary decisions versus only 2/48 for Q4_K_M.
+This is actual loss of separation, not merely a need to ignore a
+confidence threshold.
+
+**Likely mechanism, not a verified kernel profile:** low-bit
+Q2_K requires more involved unpacking/dequantisation per block.
+Decider scores a complete input prompt each time instead of
+generating long text. On CPU, quantisation complexity and SIMD
+kernel implementation can dominate the nominal saving in
+model bytes; llama.cpp's published prompt-processing tables
+also contain configurations where Q4_K_M exceeds Q2_K.
+Proving the exact kernel-level cause requires
+`llama-bench`/sampling-profiler counters on the same CPU.
+
+Do not use this small authored choice set as a model-quality
+ranking, but the same-machine speed inversion itself is
+reproduced and is no longer plausibly explained just by
+independent GitHub runners.
