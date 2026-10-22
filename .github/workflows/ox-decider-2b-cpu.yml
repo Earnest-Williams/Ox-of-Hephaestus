@@ -33,6 +33,8 @@ jobs:
         run: python -m pip install -e './services/ai-handler[concordia]'
       - name: Verify bounded decision adapter (offline)
         run: python -m unittest discover -s services/ai-handler/tests -p test_decision_models_trial.py -v
+      - name: Verify 24 counterfactual pairs offline
+        run: python -m unittest discover -s services/ai-handler/tests -p test_counterfactual_decision_trial.py -v
       - name: Install checksum-verified Ollaya v0.16.0 CPU binary
         shell: bash
         run: |
@@ -78,6 +80,11 @@ jobs:
         run: |
           python -m scenarios.decision_models_trial --model decider:2b \
             --repetitions 3 --output .ox-state/decider/g11-results.json
+      - name: Run 48 counterfactual Decider choices
+        run: |
+          python -m scenarios.counterfactual_decision_trial \
+            --provider ollaya --model decider:2b --max-pairs 24 \
+            --output .ox-state/decider/counterfactual-results.json
       - name: Archive bounded results and server diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -85,6 +92,7 @@ jobs:
           name: ox-decider-2b-g11-three-pairs
           path: |
             .ox-state/decider/g11-results.json
+            .ox-state/decider/counterfactual-results.json
             .ox-state/decider/server.log
           if-no-files-found: ignore
           retention-days: 7
