@@ -129,3 +129,46 @@ of acting against a *known* procedural preference. Quality metrics
 must distinguish inconsistent model mistakes from attributable
 character mistakes, while preserving native GOAP and world authority.
 
+
+
+## Chosen decision head and next behavioural assay (2026-10-22)
+
+**Decision fixed:** Decider 4B Q4_K_M is the single selected finite-action
+consultation model. Qwen is historical comparative evidence, not an ongoing
+selection candidate. The optional real-model workflow now runs Decider only.
+
+`ox_ai.scenarios.personality_dilemmas` defines two **authored, actor-scoped**
+dilemmas: an engineer deciding how to respond to a low-pressure pump when Mara
+asks for a favour, and an engineer responding to a red cargo-restraint gauge
+when Jon asks for leniency. Three characters are methodical, personally loyal,
+and authority-challenging. Each character receives the same perceived situation
+and the same four available actions, once without and once with a relevant
+private recollection. The GOAP reference is a real planner result, not a
+hard-coded outcome; Decider may agree, recheck, escalate, or defer.
+
+This is a **12-decision / 6-pair assay**; it does not imply 12 independent
+samples of psychological behaviour. Each private-memory pairing shares the
+identical actor, observation, trait blueprint, boundary ID, routing seed and
+finite action menu. Routing seeds intentionally cover the LLM branch for
+measurement; the natural routing-frequency tests remain separate.
+
+The output records the chosen option, the GOAP baseline, native Decider option
+probabilities, changed choices after memory, and stable route draws. Because
+Decider is an option scorer, **it does not generate reasons**. Inferences
+such as loyalty or mistrust being causal are hypotheses to investigate, not
+assertions of access to the character's internal reasoning.
+
+All evidence in this assay is authored experiment fixture material, not
+world-authenticated Evennia observations. There is **no world port, no physical
+command, no receipt, and no modification to production supervisor activation**.
+The existing independent live-pump test retains the authoritative Evennia and
+work-receipt checks. Fixture-only test results must never be reported as
+Decider outcomes.
+
+Validation: `python -m unittest discover -s services/ai-handler/tests -p
+test_personality_dilemmas.py -v` and `python -m ox_ai.scenarios.personality_dilemmas
+--model fixture --output .ox-state/personality-routing/dilemmas-fixture.json`
+run in the regular personality CI. A separate opt-in Decider CPU workflow runs
+the corresponding real GGUF assay and archives the individual decision records.
+Interpret the data before expanding to actual longitudinal interaction,
+staggered information, contradictory testimony, or action consequences.
