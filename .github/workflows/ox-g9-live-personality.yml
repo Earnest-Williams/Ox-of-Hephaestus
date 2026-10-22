@@ -193,6 +193,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ox-g9-real-decider-205-turns
-          path: .ox-state/g9/
+          # Intentionally never archive the multi-GB Decider GGUF/tokenizer.
+          # Only reproducible model metadata and private behavioural evidence.
+          path: |
+            .ox-state/g9/state.json
+            .ox-state/g9/g9-report.json
+            .ox-state/g9/*.brain.json
+            .ox-state/g9/model-manifest.json
+            .ox-state/g9/summary.txt
+            .ox-state/g9/*.log
           retention-days: 14
           if-no-files-found: ignore
