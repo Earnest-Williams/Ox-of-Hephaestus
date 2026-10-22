@@ -1,0 +1,70 @@
+"""Native one-pass Decider GGUF choice adapter for a bounded Concordia menu.
+
+The GGUF file and its exact tokenizer/config must already be installed
+locally. No downloading, remote inference, or ability to issue world actions.
+Only Decider option-token logits count; never use generated chat text.
+"""
+from __future__ import annotations
+
+from collections.abc import Sequence
+import math
+from pathlib import Path
+from typing import Any
+
+
+class DeciderGGUFChoiceModel:
+    def __init__(self, gguf_path: str | Path, descriptions: Sequence[str],
+                 *, engine: Any | None = None, n_threads: int = 4):
+        self.descriptions=tuple(descriptions)
+        if not 2<=len(self.descriptions)<=16 or any(
+            not isinstance(x,str) or not x.strip() for x in self.descriptions
+        ):
+            raise ValueError("Model needs two to sixteen nonempty choices")
+        if engine is None:
+            from decider.infer import Decider
+            path=Path(gguf_path)
+            if not path.is_file() or path.suffix!=".gguf":
+                raise FileNotFoundError("Native Decider GGUF was not provisioned")
+            engine=Decider(
+                str(path),gguf_options={
+                    "n_gpu_layers":0, "n_threads":n_threads,
+                    "n_ctx":4096, "n_batch":4096,"n_seq_max":1,
+                },
+            )
+        self.engine=engine
+        self.last=None
+
+    def sample_choice(self, prompt: str, responses: Sequence[str], *, seed=None):
+        del seed
+        codes=tuple(responses)
+        if (not isinstance(prompt,str) or not prompt.strip() or
+                len(codes)!=len(self.descriptions) or len(set(codes))!=len(codes)
+                or any(not isinstance(x,str) or not x for x in codes)):
+            raise ValueError("Invalid Concordia finite decision menu")
+        # The publisher's System One API scores option letters natively.
+        result=self.engine.system_one(prompt,{
+            "next_action":{
+                "type":"choice",
+                "instructions":(
+                    "Which action should this specific crewmember attempt next "
+                    "given their private beliefs, personality and currently "
+                    "observed circumstances? Select an offered action, without "
+                    "asserting that any action has already succeeded."
+                ),
+                "criteria":dict(zip(codes,self.descriptions)),
+            },
+        })
+        answer=result.get("answers",{}).get("next_action",{})
+        chosen=answer.get("choice")
+        probabilities=answer.get("probabilities")
+        if (chosen not in codes or not isinstance(probabilities,dict)
+                or set(probabilities)!=set(codes)
+                or any(type(p) not in (int,float) or not math.isfinite(p)
+                       or not 0<=p<=1 for p in probabilities.values())
+                or not math.isclose(sum(probabilities.values()),1,abs_tol=.02)):
+            raise ValueError("Invalid native GGUF option-logit decision")
+        self.last={"choice":chosen, "probabilities":probabilities}
+        return codes.index(chosen),chosen,{"decider_native_choice":self.last}
+
+    def sample_text(self,*args,**kwargs):
+        raise RuntimeError("Decider cannot generate text; only native choices are supported")
