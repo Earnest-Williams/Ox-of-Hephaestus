@@ -1,0 +1,106 @@
+# Branch-only CPU benchmark: GLiClass and NLI share one Ollaya server.
+name: Ox GLiClass NLI CPU decision comparison
+on:
+  workflow_dispatch:
+  push:
+    branches: [experiment/qwen3.5-0.8b-ci]
+    paths:
+      - ".github/workflows/ox-encoder-comparison-cpu.yml"
+permissions:
+  contents: read
+concurrency:
+  group: ox-gliclass-nli-cpu
+  cancel-in-progress: false
+jobs:
+  encoder-comparison:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      OLLAYA_HOST: 127.0.0.1:11435
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            services/ai-handler/pyproject.toml
+            uv.lock
+            .github/ci/cache-profiles/concordia.txt
+      - name: Install pinned native Concordia
+        run: python -m pip install -e './services/ai-handler[concordia]'
+      - name: Offline decision and counterfactual invariants
+        run: |
+          python -m unittest discover -s services/ai-handler/tests -p test_decision_models_trial.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_counterfactual_decision_trial.py -v
+      - name: Install checksum-verified Ollaya v0.16.0 CPU binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .ox-state/encoders/bin
+          curl --fail --location --retry 3 --output .ox-state/encoders/ollaya.tar.zst \
+            'https://github.com/ollaya-dev/ollaya/releases/download/v0.16.0/ollaya-linux-amd64.tar.zst'
+          echo '2b99e7d2fec0bd0d05d77b74df43a84e0f0171a33fc7a1494f79b18702f15f32  .ox-state/encoders/ollaya.tar.zst' | sha256sum -c -
+          if ! command -v zstd >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq zstd
+          fi
+          tar --zstd -xf .ox-state/encoders/ollaya.tar.zst -C .ox-state/encoders/bin
+          BIN="$(find .ox-state/encoders/bin -type f -name ollaya -print -quit)"
+          test -n "$BIN"
+          chmod +x "$BIN"
+          echo "$PWD/$(dirname "$BIN")" >> "$GITHUB_PATH"
+          "$BIN" --version
+      - name: Start localhost decision service
+        shell: bash
+        run: |
+          set -euo pipefail
+          ollaya serve > .ox-state/encoders/server.log 2>&1 &
+          echo $! > .ox-state/encoders/server.pid
+          for i in $(seq 1 50); do
+            if curl --silent --fail http://127.0.0.1:11435/api/version; then exit 0; fi
+            if ! kill -0 "$(cat .ox-state/encoders/server.pid)" 2>/dev/null; then
+              tail -n 100 .ox-state/encoders/server.log
+              exit 1
+            fi
+            sleep 2
+          done
+          tail -n 100 .ox-state/encoders/server.log
+          exit 1
+      - name: Pull GLiClass and NLI from official pinned manifests
+        run: |
+          ollaya pull gliclass:large
+          ollaya pull nli:deberta-v3-large
+          ollaya list
+          df -h .
+      - name: GLiClass native Concordia 24-call G11
+        run: |
+          python -m scenarios.decision_models_trial --model gliclass:large \
+            --repetitions 3 --output .ox-state/encoders/g11-gliclass.json
+      - name: GLiClass 48 counterfactual evidence choices
+        run: |
+          python -m scenarios.counterfactual_decision_trial \
+            --provider ollaya --model gliclass:large --max-pairs 24 \
+            --output .ox-state/encoders/counterfactual-gliclass.json
+      - name: NLI native Concordia 24-call G11
+        run: |
+          python -m scenarios.decision_models_trial --model nli:deberta-v3-large \
+            --repetitions 3 --output .ox-state/encoders/g11-nli.json
+      - name: NLI 48 counterfactual evidence choices
+        run: |
+          python -m scenarios.counterfactual_decision_trial \
+            --provider ollaya --model nli:deberta-v3-large --max-pairs 24 \
+            --output .ox-state/encoders/counterfactual-nli.json
+      - name: Upload model scores and bounded diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-gliclass-nli-g11-counterfactual
+          path: |
+            .ox-state/encoders/g11-gliclass.json
+            .ox-state/encoders/g11-nli.json
+            .ox-state/encoders/counterfactual-gliclass.json
+            .ox-state/encoders/counterfactual-nli.json
+            .ox-state/encoders/server.log
+          if-no-files-found: ignore
+          retention-days: 7
