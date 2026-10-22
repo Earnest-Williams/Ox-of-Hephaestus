@@ -40,3 +40,57 @@ The offline pilot runs three different authored personalities through 48 synthet
 This change does NOT turn personality routing on in the production three/five-crew supervisor. The live supervisor's WorkStepLedger and interrupted-command recovery need a distinct incident-level checkpoint integration before action submission can be enabled. It also does not add an actual Decider/Qwen provider: the comparative local model adapter remains on separate experimental PR #99.
 
 Next: integrate one reversible, real-world decision boundary with durable world receipts; run model-free versus persona-routed Decider Q4_K_M and generative Qwen with identical actor-scoped evidence. Measure story-relevant mistakes and character consistency separately from incoherent provider mistakes. No world permissions or approved procedures are waived by model delegation.
+
+## Live-world validation, not merely a mock choice
+
+The opt-in P4a scene in
+`ox_ai.scenarios.p4a_personality_gate` starts from a genuine world
+cooling alarm. Lin's authenticated character sends the shipboard radio
+alert; Ari receives its addressed world event, physically inspects the
+pump and only then encounters an incident-level choice. The GOAP branch
+runs the actual pump action model over Ari's beliefs. The other branch
+uses native Concordia with actor personality and subjective state.
+
+The selected alternative can leave the fault unresolved. Any actual
+isolation travels through the existing `WorkStepLedger` and
+`DurableEvenniaPort.submit_work`, with an original request ID
+checkpointed before sending. The restart fixture simulates an
+interruption **after Evennia commits the physical isolation**, then
+restores the brain, routing ledger and original WorkReceipt in a fresh
+Python process, without repeating the world operation.
+
+[Live world CI #39844286854](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/39844286854)
+passed all three isolated cases:
+
+| Case | Chosen route and effect | World assertion |
+| --- | --- | --- |
+| Methodical character | GOAP, isolate P-01 | P-01 isolated, exactly one isolate event |
+| Independent character | Concordia mock chooses to defer | P-01 still low-pressure; no isolate |
+| GOAP crash and restart | Same saved route and exact work ID | Isolate committed once; reconnected process reconciles |
+
+The synthetic branch-coverage harness deliberately searches for stable
+seeds selecting each branch, so these three outcomes are **not evidence
+of empirical routing rates**. They prove the actual actor/world/receipt
+wiring under each route. Prior 48-decision-per-person smoke tests are
+the separate personality-rate distribution fixture, still with a
+deterministic MockModel.
+
+A further optional workflow at
+`.github/workflows/ox-personality-models-live.yml` tests the **same
+world-observed boundary and same independent blueprint** with two
+genuine Q4_K_M models on separate independently provisioned worlds:
+
+- Decider 4B Q4_K_M uses the real `decider-ai` native
+  `system_one` option-logit readout from pinned GGUF weights,
+  with zero generated text.
+- Qwen3.5-4B Q4_K_M uses the previous pinned Unsloth SHA-256 and
+  pinned llama.cpp CPU server with the strict local chat-choice API.
+
+Each model's choice is allowed to be `isolate` or `defer`: no
+benchmark expected label is secretly substituted. Evennia's independent
+state and event-count verification establishes what really occurred.
+
+This is still **one world decision per real model**, not an operational
+quality estimate or evidence for believable character mistakes across
+a long voyage. The live supervisor stays unchanged until a separate
+recovery-aware activation is accepted.
