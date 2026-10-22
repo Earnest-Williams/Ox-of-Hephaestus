@@ -233,3 +233,29 @@ resolve existing byproduct discharge and waste receivers;
 record as-found sensor fidelity and condition for the
 old, mixed-generation plumbing. Then the candidate can
 be promoted on its merits before revisiting Evennia/UI.
+
+## 8. Survey of the 48 still-unsized pressure cells
+
+The next room-by-room audit of the source model found that **37 of these 48
+cells already contain a `geometry` entry for every constituent room**;
+only eleven cells lack geometry on one or more rooms (six cargo-drum
+freight/service galleries, the isolated medical room and four habitation
+indexer/capsule/final-lift cells).
+
+That does **not** make all 37 reliable gross-volume sums. Two variable-length
+WR telescoping passages have a known 3 m clear bore but no fixed deployed
+length. Multi-room `box` groups can overlap: in
+`PZ-AFT-STORES`, the `STORES-LONGLIFE` extent contains 162 m³ of each
+of the `STORE-FLUID-AFT` and `STORE-FOOD-AFT` rectangles. Summing
+the three as separate empty rooms would double-count their common geometry.
+`PZ-AFT-CTRL` also has two smaller box intersections (~2.73 m³ and
+27.04 m³), which require surveying whether nominal envelopes are shared
+or improperly placed. Some workshop pods may similarly share clearance
+zones.
+
+**Next closure rule:** derive free volumes from a non-overlapping union of
+occupied-pressure envelopes, after confirming which rooms are subspaces,
+which are genuinely separate bounded compartments, and which service
+passages vary with radius. Do not promote a bare sum of nominal room boxes
+to verified compartment air. The present 48-cell `null` accounting
+remains deliberate until that geometry review is complete.
