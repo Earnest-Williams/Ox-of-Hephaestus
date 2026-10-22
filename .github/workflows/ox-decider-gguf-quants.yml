@@ -13,7 +13,7 @@ permissions:
   contents: read
 concurrency:
   group: ox-decider-gguf-quants
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   resolve:
     runs-on: ubuntu-latest
