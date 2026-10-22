@@ -1,13 +1,8 @@
-# Expensive real-model branch integration: source changes only, or explicit dispatch.
-# Unit test / workflow / documentation edits use the fast PR gate instead.
+# Expensive real Decider Q4 and live-world acceptance is deliberately opt-in.
+# The fast personality CI runs automatically for routing code and fixtures.
+# A model release/revision is explicitly retested with workflow_dispatch.
 name: Ox personality Decider Q4 live and motivation assay
 on:
-  push:
-    branches: [experiment/personality-goap-cognition-routing]
-    paths:
-      - "services/ai-handler/src/ox_ai/inference/decider_gguf_choice.py"
-      - "services/ai-handler/src/ox_ai/scenarios/p4a_personality_gate.py"
-      - "services/ai-handler/src/ox_ai/scenarios/personality_dilemmas.py"
   workflow_dispatch:
 permissions:
   contents: read
