@@ -63,6 +63,45 @@ class LongitudinalPersonalityTests(unittest.TestCase):
             self.assertEqual(t2.cognition_mode, "symbolic")
             self.assertEqual(len(t2.brains), 6)
 
+    def test_cognition_window_persists_without_erasing_actor_history(self):
+        if find_spec("concordia") is None:
+            self.skipTest("Native Concordia optional extra not installed")
+        from concordia.testing.mock_model import MockModel
+        from ox_ai.agents.crew import CrewAgent, CrewIdentity
+        from ox_ai.ports.base import WorldObservation
+        identity = CrewIdentity(
+            "ox.g9.window", "#90", "Window Test",
+            "Watch and listen", "Remember valid observations"
+        )
+        with tempfile.TemporaryDirectory() as d:
+            agent = CrewAgent(
+                identity, MockModel(), observation_history_length=8,
+            )
+            for i in range(13):
+                self.assertTrue(agent.observe(
+                    WorldObservation(f"world.g9.{i}", "#90", float(i),
+                                     f"Received speech {i}", kind="heard_speech")
+                ))
+            self.assertEqual(agent.revision, 13)
+            self.assertEqual(agent.observation_history_length, 8)
+            checkpoint = Path(d) / "character.brain.json"
+            agent.save_checkpoint(checkpoint)
+            restored = CrewAgent.from_checkpoint(checkpoint, MockModel())
+            self.assertEqual(restored.observation_history_length, 8)
+            self.assertEqual(restored.revision, 13)
+            fork = restored.fork_for_inference()
+            self.assertEqual(fork.observation_history_length, 8)
+            self.assertEqual(fork.snapshot()["seen_observations"],
+                             restored.snapshot()["seen_observations"])
+            with self.assertRaises(ValueError):
+                CrewAgent(identity, MockModel(), observation_history_length=0)
+            # Older snapshots default to the original full 32 observations.
+            raw = json.loads(checkpoint.read_text())
+            raw.pop("observation_history_length")
+            checkpoint.write_text(json.dumps(raw))
+            older = CrewAgent.from_checkpoint(checkpoint, MockModel())
+            self.assertEqual(older.observation_history_length, 32)
+
     def test_verifier_rejects_authored_only_or_incomplete_world(self):
         evaluation = load_g9_evaluator().evaluate
         with tempfile.TemporaryDirectory() as d:
