@@ -1,0 +1,57 @@
+# No hosted cognition, no world migrations, no full Evennia acceptance.
+# PR path executes only a 4-actor smoke; realistic 40-actor run is opt-in.
+name: Ox P4f fleet evidence restart comparison
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - "scenarios/profiling/fleet_evidence_restart.py"
+      - "services/ai-handler/tests/test_fleet_evidence_restart.py"
+      - ".github/workflows/ox-p4f-fleet-restart.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p4f-fleet-restart-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  fleet-profile:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: services/ai-handler/pyproject.toml
+      - name: Install exact production archive and transport dependencies
+        run: python -m pip install -e './services/ai-handler[transport]'
+      - name: Test fleet archive, scope and fail-closed behavior
+        run: python -m unittest discover -s services/ai-handler/tests -p 'test_fleet_evidence_restart.py' -v
+      - name: PR-only four-character profiler smoke
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          python scenarios/profiling/fleet_evidence_restart.py \
+            --actors 4 --events-per-actor 800 --payload-chars 160 \
+            --stagger-width 2 --widths 1,2,4 --trials 2 \
+            --output .ox-state/profiles/p4f-fleet-smoke.json
+      - name: Manual forty-character realistic archive comparison
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          python scenarios/profiling/fleet_evidence_restart.py \
+            --actors 40 --events-per-actor 40000 --payload-chars 1200 \
+            --stagger-width 4 --widths 1,2,4,8,16,40 --trials 2 \
+            --output .ox-state/profiles/p4f-fleet-forty.json
+      - name: Archive machine-readable restart evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-p4f-fleet-evidence-restart
+          path: .ox-state/profiles/p4f-fleet-*.json
+          retention-days: 30
+          if-no-files-found: ignore
