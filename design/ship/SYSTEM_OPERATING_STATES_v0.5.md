@@ -1,6 +1,6 @@
 # Ox of Hephaestus — major-system operating and casualty doctrine v0.5
 
-**CURRENT v0.5 DESIGN STATE (22 October 2026):** 421 rooms, 517 access links, 786 equipment units, 1,180 service nodes, 1,176 service links, 1,251 isolation points, 11 inventory accounts and 42 maintenance groups. 133 independently isolatable pressure cells include 101 dimensioned references, 32 unsized, and 208 pressure boundaries. Nominal counted gross air envelope 68,186.014 m³; design free-air screen 54,020.573–62,390.375 m³. Earlier numbers later in the document describe interim v0.5 increments only. [Pressure access](PRESSURE_ACCESS_CLOSURE_v0.5.md) and [byproduct/waste closure](BYPRODUCT_AND_WASTE_CLOSURE_v0.5.md) are the newer physical references; v0.4 canonical and Evennia are unchanged.
+**23 October 2026 — indexed drum locks:** Six separately pressurised DR-01–DR-06 fixed service-lock cylinders have been moved off the personnel-trunk bores. There are now **107/133 sized pressure cells**, **26 held**, **208 rated boundaries**, **68,310.657 m³ nominal gross** and **54,101.591–62,502.553 m³ design free-air screen**. The short station connectors and moving indexed collars remain survey items; measured free air and actual safe access remain unknown. The two independent 2.75 t air reserves remain unchanged.
 
 
 **Design-stage functional closure; not Evennia code.**
