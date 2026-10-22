@@ -280,6 +280,10 @@ historical two-argument `oxaction`/`oxreceipt` forms still target P-01.
 five-client test showed safe recovery from a lost cartridge-replacement
 acknowledgment alongside coolant, cargo, hails and world-owned handover.
 
+## Full-ship preparation boundary
+
+A play-facing 950 m vessel model is now retained under [`design/ship/`](../design/ship/README.md). It is **not yet the runnable Evennia world**. The commands and bootstrap documented below continue to operate the seven-compartment proving ground until a later integration PR adds an explicit adapter/migration and corresponding world-authority tests.
+
 ## Start the game
 
 With Python 3.12+ and a virtual environment, run from the repository root:

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/ox.ship-world.schema.json",
+  "title": "Ox ship world model",
+  "type": "object",
+  "required": ["schema_version","model_version","principal","spaces","access_links","equipment","service_nodes","service_edges","isolation_points","modifications","documentation_records","maintenance_tasks","inventories"],
+  "properties": {
+    "schema_version": {"const": "ox.ship-world/0.1"},
+    "model_version": {"type": "string"},
+    "principal": {"type": "object"},
+    "spaces": {"type":"array","items":{"type":"object","required":["id","name","kind","frame","zone","current_condition"],"properties":{"id":{"type":"string"},"name":{"type":"string"},"kind":{"type":"string"},"frame":{"type":"string"},"zone":{"type":"string"},"current_condition":{"type":"string"}}}},
+    "access_links": {"type":"array","items":{"type":"object","required":["id","from","to","kind"],"properties":{"id":{"type":"string"},"from":{"type":"string"},"to":{"type":"string"},"kind":{"type":"string"}}}},
+    "equipment": {"type":"array","items":{"type":"object","required":["id","name","kind","space_id","current_condition","equipment_generation"],"properties":{"id":{"type":"string"},"space_id":{"type":"string"}}}},
+    "service_nodes": {"type":"array","items":{"type":"object","required":["id","network","owner_type","owner_id","role"]}},
+    "service_edges": {"type":"array","items":{"type":"object","required":["id","network","from_node","to_node","isolator_ids","reroute_class"]}},
+    "isolation_points": {"type":"array","items":{"type":"object","required":["id","network","space_id","kind","current_state"]}},
+    "modifications": {"type":"array","items":{"type":"object","required":["id","title","era","affected_ids","current_effect"]}},
+    "documentation_records": {"type":"array","items":{"type":"object","required":["id","title","type","reliability"]}},
+    "maintenance_tasks": {"type":"array","items":{"type":"object","required":["id","title","equipment_ids"]}},
+    "inventories": {"type":"array","items":{"type":"object","required":["id","name","location_ids"]}}
+  }
+}

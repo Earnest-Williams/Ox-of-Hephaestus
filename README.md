@@ -2,7 +2,7 @@
 
 **An autonomous spaceship MUD/simulation prototype built on [Evennia](https://www.evennia.com/).**
 
-> **Current state — 21 October 2026 (through G12 and PostgreSQL PRs #82–83).**
+> **Current state — 22 October 2026 (through authenticated 40-character recovery PR #97).**
 > The primary proving-ground ship has seven compartments, three physical
 > systems, five independently authenticated technical crew and an optional
 > sixth captain. Evennia remains authoritative for their work, skills,
@@ -16,6 +16,7 @@
 > of generally capable autonomous people.
 
 **Start here:** [verified implementation and limitations](design/STATUS.md) ·
+[prepared full-ship physical model](design/ship/README.md) ·
 [install and tests](INSTALL.md) · [in-world ship guide](game/README.md) ·
 [external AI handler](services/ai-handler/README.md) ·
 [architecture and authority](ARCHITECTURE.md) · [roadmap](design/ROADMAP.md).
@@ -106,8 +107,8 @@ and captain-obligation contention. G11's opt-in hosted-model harness and
 G12's native dispatch profiler answer **different** questions from this
 integration testing. See [status and limits](design/STATUS.md).
 
-P5 (operator observatory) is postponed. Still unimplemented are a full ship,
-propulsion, freight trading/economics, graded real physical task attempts,
+P5 (operator observatory) is postponed. A full-ship physical world model is now **prepared but not runtime-integrated** under [`design/ship/`](design/ship/README.md); the runnable Evennia world remains the smaller proving ground. Still unimplemented are full-ship runtime integration,
+freight trading/economics, graded real physical task attempts,
 an acquired-attribute engine, autonomous education agendas and comprehensive
 production operations. See [status](design/STATUS.md) and
 [next acceptance gates](design/ROADMAP.md) rather than inferring features
