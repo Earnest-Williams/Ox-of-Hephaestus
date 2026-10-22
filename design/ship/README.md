@@ -6,7 +6,7 @@ It is deliberately **not integrated into the runnable Evennia world in this chan
 
 ## Current files
 
-- [`ox_full_ship.json`](ox_full_ship.json) — canonical current-installation world data.
+- [`ox_full_ship.json`](ox_full_ship.json) — canonical current-installation world data. It is stored minified in Git to keep the prepared source compact; whitespace is not semantically significant.
 - [`ox_ship_world.schema.json`](ox_ship_world.schema.json) — structural schema for the prepared model.
 - [`Ox_Ship_Wire_Render_v0.4.html`](Ox_Ship_Wire_Render_v0.4.html) — standalone interactive inspection render.
 - [`MODEL_GUIDE.md`](MODEL_GUIDE.md) — modelling boundaries and future integration rules.
