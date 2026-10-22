@@ -107,6 +107,7 @@ class DecisionScheduler:
 
     async def decide(
         self, role: str, agent: CrewAgent, options: Sequence[CommandOption],
+        *, decision_context: str | None = None,
     ):
         """Infer off-thread, then synchronously validate and adopt on the loop."""
         if not isinstance(role, str) or not role or len(role) > 64:
@@ -128,6 +129,11 @@ class DecisionScheduler:
             not x.label or not x.verb for x in offered
         ):
             raise ValueError("Duplicate/empty offered option")
+        if decision_context is not None and (
+            not isinstance(decision_context, str)
+            or not 1 <= len(decision_context) <= 1200
+        ):
+            raise ValueError("Decision context must be bounded nonempty text")
         revision = agent.revision
         cognition_revision = agent.cognition_revision
         shadow = agent.fork_for_inference()
@@ -143,6 +149,7 @@ class DecisionScheduler:
                     raise CognitionTimedOut("Queued inference expired before execution")
                 return await asyncio.to_thread(
                     shadow.decide, offered, expected_revision=revision,
+                    decision_context=decision_context,
                 )
 
         task = asyncio.create_task(infer(), name="ox-infer-" + role)
