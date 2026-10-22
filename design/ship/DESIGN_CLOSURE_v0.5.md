@@ -1,5 +1,8 @@
 # Ox of Hephaestus — full-ship design reconciliation v0.5 (candidate)
 
+**CURRENT v0.5 DESIGN STATE (22 October 2026):** 421 rooms, 517 access links, 786 equipment units, 1,180 service nodes, 1,176 service links, 1,251 isolation points, 11 inventory accounts and 42 maintenance groups. 133 independently isolatable pressure cells include 101 dimensioned references, 32 unsized, and 208 pressure boundaries. Nominal counted gross air envelope 68,186.014 m³; design free-air screen 54,020.573–62,390.375 m³. Earlier numbers later in the document describe interim v0.5 increments only. [Pressure access](PRESSURE_ACCESS_CLOSURE_v0.5.md) and [byproduct/waste closure](BYPRODUCT_AND_WASTE_CLOSURE_v0.5.md) are the newer physical references; v0.4 canonical and Evennia are unchanged.
+
+
 **22 October 2026 · Design-only branch · Simulation-level engineering**
 
 This is the first constructive ship-completion increment after putting Evennia/UI

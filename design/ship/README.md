@@ -27,6 +27,10 @@ The source artifact was checked before import with 132/132 core reference/topolo
 
 A later implementation PR should add a loader/adapter and migrate gameplay incrementally. Do not replace the existing world bootstrap merely by deserialising this file. Runtime integration must preserve the established Ox authority rules: Evennia owns physical state, access, inventory, time and action consequences; the external handler owns private cognition and never receives hidden world truth merely because it exists in this JSON.
 
+### Latest design candidate engineering totals
+
+**CURRENT v0.5 DESIGN STATE (22 October 2026):** 421 rooms, 517 access links, 786 equipment units, 1,180 service nodes, 1,176 service links, 1,251 isolation points, 11 inventory accounts and 42 maintenance groups. 133 independently isolatable pressure cells include 101 dimensioned references, 32 unsized, and 208 pressure boundaries. Nominal counted gross air envelope 68,186.014 m³; design free-air screen 54,020.573–62,390.375 m³. Earlier numbers later in the document describe interim v0.5 increments only. [Pressure access](PRESSURE_ACCESS_CLOSURE_v0.5.md) and [byproduct/waste closure](BYPRODUCT_AND_WASTE_CLOSURE_v0.5.md) are the newer physical references; v0.4 canonical and Evennia are unchanged.
+
 ## v0.5 ship-completion candidate (design-only)
 
 > **Latest v0.5 increment — 22 October 2026:** 101 of 133 pressure cells
@@ -83,6 +87,10 @@ unchanged.
   independent refill-gas topology linked to installed objects.
 - [Pressure access and freight-lock closure](PRESSURE_ACCESS_CLOSURE_v0.5.md):
   12 m six-drum locks, 4-seat indexer/medical/final-lift volumes, 10 newly rated intercell doors and no double-counted parent gas.
+- [Mass-balanced byproducts and finite waste](BYPRODUCT_AND_WASTE_CLOSURE_v0.5.md):
+  dedicated H2/CO2 vents, finite sanitation receivers, four dual-isolated wet rotary links and consequences of single/double valve loss.
+- [Waste / byproduct casualty validator](check_waste_byproducts.py):
+  physical route, generated-mass, stored-residue and eight negative regression cases.
 - [Geometry audit](PRESSURE_GEOMETRY_RECONCILIATION_v0.5.md):
   the admitted/held compartments and recorded spatial intersections.
 - [Geometry admission validator](check_pressure_geometry.py):
@@ -99,7 +107,7 @@ unchanged.
   geometry, mass/O2 and negative-regression checks; runnable without Evennia.
 
 Run `python design/ship/check_v05_candidate.py` and `python design/ship/check_bprime_mechanics.py`, plus
-`python design/ship/check_pressure_cells.py` and `python design/ship/check_pressure_gas.py` and `python design/ship/check_pressure_geometry.py`, from the repository root.
+`python design/ship/check_pressure_cells.py` and `python design/ship/check_pressure_gas.py` and `python design/ship/check_pressure_geometry.py` and `python design/ship/check_waste_byproducts.py`, from the repository root.
 The v0.5 candidate is a *simulation-operational* engineering proposal,
 not real-world construction or certification data. No Evennia or dashboard
 code is changed in this branch. The earlier full-ship integration
