@@ -102,10 +102,15 @@ class RouterPersistenceTests(unittest.TestCase):
         record={}
         profile=blueprint("feedback.test",authority_challenge=20)
         router=make_router(profile,record=record)
-        router.select(
-            boundary_id="world.job.1",kind="routine",state=PersonalState(),
+        llm_boundary=next(
+            f"world.job.{i}" for i in range(100)
+            if router._draw(f"world.job.{i}") < router.probability(PersonalState(),"routine")
+        )
+        selected=router.select(
+            boundary_id=llm_boundary,kind="routine",state=PersonalState(),
             observation_revision=1,cognition_revision=0,persist=lambda: None,
         )
+        self.assertEqual(selected.selected,"llm")
         before=router.probability(PersonalState(),"routine")
         observation=WorldObservation(
             "observation-2","#71",12.0,
@@ -114,24 +119,24 @@ class RouterPersistenceTests(unittest.TestCase):
         )
         saved=[]
         router.perceived_consequence(
-            boundary_id="world.job.1",observation=observation,
+            boundary_id=llm_boundary,observation=observation,
             interpretation="success",persist=lambda: saved.append(deepcopy(record)),
         )
         self.assertEqual(len(saved),1)
         self.assertGreater(router.probability(PersonalState(),"routine"),before)
         router.perceived_consequence(
-            boundary_id="world.job.1",observation=observation,
+            boundary_id=llm_boundary,observation=observation,
             interpretation="success",persist=lambda: self.fail("No duplicate feedback"),
         )
         self.assertEqual(len(saved),1)
         with self.assertRaises(ValueError):
             router.perceived_consequence(
-                boundary_id="world.job.1",observation=observation,
+                boundary_id=llm_boundary,observation=observation,
                 interpretation="failure",persist=lambda: None,
             )
         with self.assertRaises(PermissionError):
             router.perceived_consequence(
-                boundary_id="world.job.1",
+                boundary_id=llm_boundary,
                 observation=WorldObservation(
                     "wrong-agent","#72",12.0,"I thought it worked.",
                     source_event_id="world.consequence.3",
@@ -141,6 +146,53 @@ class RouterPersistenceTests(unittest.TestCase):
         self.assertEqual(router.record["reliance_basis_points"],350)
         recovered=make_router(profile,record=deepcopy(saved[0]))
         self.assertEqual(recovered.record["reliance_basis_points"],350)
+
+    def test_goap_success_reinforces_procedural_reliance_and_failure_weakens(self):
+        profile=blueprint("feedback.goap")
+        record={}
+        router=make_router(profile,record=record)
+        keys=[]
+        for i in range(100):
+            boundary=f"world.procedure.{i}"
+            if router._draw(boundary)>router.probability(PersonalState(),"routine"):
+                keys.append(boundary)
+            if len(keys)==2:
+                break
+        self.assertEqual(len(keys),2)
+        for boundary in keys:
+            route=router.select(
+                boundary_id=boundary,kind="routine",state=PersonalState(),
+                observation_revision=1,cognition_revision=0,persist=lambda: None,
+            )
+            self.assertEqual(route.selected,"goap")
+        before=router.probability(PersonalState(),"routine")
+        router.perceived_consequence(
+            boundary_id=keys[0],
+            observation=WorldObservation(
+                "watch.1","#71",10.0,"I perceived success",
+                source_event_id="world.goap.success",
+            ),interpretation="success",persist=lambda: None,
+        )
+        self.assertLess(router.probability(PersonalState(),"routine"),before)
+        after=router.probability(PersonalState(),"routine")
+        router.perceived_consequence(
+            boundary_id=keys[1],
+            observation=WorldObservation(
+                "watch.2","#71",11.0,"I perceived failure",
+                source_event_id="world.goap.failure",
+            ),interpretation="failure",persist=lambda: None,
+        )
+        self.assertGreater(router.probability(PersonalState(),"routine"),after)
+        recovered=make_router(profile,record=deepcopy(record))
+        self.assertEqual(len(recovered.record["feedback"]),2)
+        with self.assertRaises(ValueError):
+            recovered.perceived_consequence(
+                boundary_id=keys[0],
+                observation=WorldObservation(
+                    "watch.2","#71",11.0,"Duplicated against another boundary",
+                    source_event_id="world.goap.failure",
+                ),interpretation="failure",persist=lambda: None,
+            )
 
     def test_checkpoint_failure_rolls_back_personal_state(self):
         record={}
