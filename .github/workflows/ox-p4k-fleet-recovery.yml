@@ -1,0 +1,137 @@
+# Real forty-account Evennia + forty native Concordia actor acceptance.
+# Kept path-scoped: a new unrelated memory or ship PR does not automatically
+# incur forty logins and two full process/world boots.
+name: Ox P4k forty authenticated crew recovery
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - "game/world/transport_probe.py"
+      - "services/ai-handler/src/ox_ai/runtime/fleet_recovery.py"
+      - "services/ai-handler/src/ox_ai/scenarios/p4k_fleet_recovery.py"
+      - "services/ai-handler/tests/test_p4k_fleet_recovery.py"
+      - "services/ai-handler/tests/test_forty_native_recovery.py"
+      - ".github/workflows/ox-p4k-fleet-recovery.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  forty-actual-world-sessions:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      OX_COGNITION_PROVIDER: mock
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            services/ai-handler/pyproject.toml
+            uv.lock
+            .github/ci/cache-profiles/concordia.txt
+      - name: Install world and native Concordia transport
+        run: |
+          python -m pip install .
+          python -m pip install -e './services/ai-handler[concordia,transport]'
+      - name: Check forty native checkpoints and identity contract
+        run: |
+          python -m unittest discover -s services/ai-handler/tests -p 'test_forty_native_recovery.py' -v
+          python -m unittest discover -s services/ai-handler/tests -p 'test_p4k_fleet_recovery.py' -v
+      - name: Prepare ephemeral unprivileged credentials
+        shell: bash
+        run: |
+          PASS="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          OWNER="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          echo "::add-mask::$PASS"
+          echo "::add-mask::$OWNER"
+          echo "OX_PROBE_PASSWORD=$PASS" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_PASSWORD=$OWNER" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_USERNAME=OxTrialOwner" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_EMAIL=owner@example.invalid" >> "$GITHUB_ENV"
+      - name: Migrate and provision forty real isolated world characters
+        working-directory: game
+        run: |
+          evennia migrate --noinput
+          evennia shell --command="from world.transport_probe import provision_fleet; p=provision_fleet(); assert len(p)==40 and len({v['character_dbref'] for v in p.values()})==40; print('OX_P4K_WORLD_FORTY_PROVISIONED')"
+      - name: Start original Evennia world and authenticate forty accounts
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd game && evennia start)
+          python - <<'PY'
+          import socket, time
+          for i in range(90):
+              try:
+                  with socket.create_connection(("127.0.0.1", 4002), timeout=1):
+                      break
+              except OSError:
+                  time.sleep(1)
+          else:
+              raise RuntimeError("World WebSocket port unavailable")
+          PY
+          sleep 5
+          python -m ox_ai.scenarios.p4k_fleet_recovery begin
+      - name: Stop Evennia between independent recovery processes
+        working-directory: game
+        run: evennia stop
+      - name: Advance forty individually addressed events inside world
+        working-directory: game
+        run: |
+          evennia shell --command="from world.transport_probe import advance_fleet_recovery; advance_fleet_recovery(); print('OX_P4K_WORLD_POST_RESTART_DUTIES')"
+      - name: Restart world, authenticate, attest and reconcile on fresh handler
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd game && evennia start)
+          python - <<'PY'
+          import socket, time
+          for i in range(90):
+              try:
+                  with socket.create_connection(("127.0.0.1", 4002), timeout=1):
+                      break
+              except OSError:
+                  time.sleep(1)
+          else:
+              raise RuntimeError("Restarted world WebSocket port unavailable")
+          PY
+          sleep 5
+          python -m ox_ai.scenarios.p4k_fleet_recovery resume
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          first=json.loads(Path(".ox-state/p4k/begin-verdict.json").read_text())
+          second=json.loads(Path(".ox-state/p4k/resume-verdict.json").read_text())
+          assert first["actors"] == second["actors"] == 40
+          assert len(first["per_actor"]) == len(second["per_actor"]) == 40
+          assert second["receipt_reconciled_without_resubmit"] is True
+          assert second["world_round_receipt_id"] == first["world_round_receipt_id"]
+          print("OX_P4K_FORTY_WORLD_NATIVE_ATTESTED_RESTART_PASS")
+          PY
+      - name: Stop world before scoring authoritative receipt database
+        if: always()
+        working-directory: game
+        run: evennia stop || true
+      - name: Verify one-and-only-one world-committed duty report
+        working-directory: game
+        run: |
+          evennia shell --command="from world.models import WorkReceipt, CrewEvent; r=list(WorkReceipt.objects.filter(operation='round_report', target='ship')); assert len(r)==1 and r[0].outcome['status']=='succeeded'; assert CrewEvent.objects.filter(event_id=r[0].outcome['source_event_id'], kind='round_recorded').count()==1; assert CrewEvent.objects.filter(kind='fleet_duty_posted').count()==40; assert CrewEvent.objects.filter(kind='fleet_duty_updated').count()==40; print('OX_P4K_ONE_WORLD_RECEIPT_FORTY_PRIVATE_DUTIES_PASS')"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ox-p4k-forty-authenticated-crew-recovery
+          path: |
+            .ox-state/p4k/begin-verdict.json
+            .ox-state/p4k/resume-verdict.json
+          if-no-files-found: ignore
+          retention-days: 14
