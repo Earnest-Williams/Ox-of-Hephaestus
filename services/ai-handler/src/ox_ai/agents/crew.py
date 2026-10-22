@@ -515,6 +515,7 @@ class CrewAgent:
         choices: Sequence[CommandOption],
         *,
         expected_revision: int | None = None,
+        decision_context: str | None = None,
     ) -> ActionRequest:
         """Ask Concordia to choose a validated command attempt, not an outcome.
 
@@ -522,6 +523,7 @@ class CrewAgent:
             choices: The caller's currently offered commands; not a grant of
                 authority to execute them.
             expected_revision: Optional optimistic observation revision.
+            decision_context: Optional ephemeral actor-local state. Never a world fact.
 
         Raises:
             StaleAgentRevision: If knowledge changed before or during choice.
@@ -531,6 +533,11 @@ class CrewAgent:
 
         if expected_revision is not None and expected_revision != self._revision:
             raise StaleAgentRevision("Observation revision changed")
+        if decision_context is not None and (
+            not isinstance(decision_context, str)
+            or not 1 <= len(decision_context) <= 1200
+        ):
+            raise ValueError("Decision context must be bounded nonempty text")
         if not choices:
             raise ValueError("A choice requires at least one command option")
         by_label = {option.label: option for option in choices}
@@ -560,6 +567,8 @@ class CrewAgent:
                         "What should {name} attempt next on watch? "
                         "Choose one of the supplied commands. "
                         "Your choice is a request, not a completed action."
+                        + (" Actor-local current self-assessment: "
+                           + decision_context if decision_context else "")
                     ),
                     options=tuple(by_label),
                     tag="ox_command_attempt",
