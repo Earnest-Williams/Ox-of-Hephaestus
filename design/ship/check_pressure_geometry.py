@@ -224,7 +224,7 @@ def negative_tests(ship, pressure, gas, audit):
     reject(lambda s,p,g,a: next(x for x in a["cells"]
            if x["pressure_zone_id"]=="PZ-AFT-STORES").update(status="accepted_nominal_envelope"))
     reject(lambda s,p,g,a: next(x for x in s["spaces"]
-           if x["id"]=="ELEC-FWD")["location"].update(y_m=0))
+           if x["id"]=="ELEC-FWD")["location"].update(z_m=0))
 
 if __name__=="__main__":
     models=[load(n) for n in (
