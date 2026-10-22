@@ -26,3 +26,31 @@ The source artifact was checked before import with 132/132 core reference/topolo
 ## Integration boundary
 
 A later implementation PR should add a loader/adapter and migrate gameplay incrementally. Do not replace the existing world bootstrap merely by deserialising this file. Runtime integration must preserve the established Ox authority rules: Evennia owns physical state, access, inventory, time and action consequences; the external handler owns private cognition and never receives hidden world truth merely because it exists in this JSON.
+
+## v0.5 ship-completion candidate (design-only)
+
+The next ship-design increment is tracked on branch **ship-design-closure-v05**.
+It does **not** overwrite or silently promote v0.4. Until the physical
+configuration is reconciled, `ox_full_ship.json` remains the current
+published canonical source; the existing v0.4 standalone wire renderer is
+unchanged.
+
+- [v0.5 candidate JSON](ox_full_ship_v0.5_candidate.json): a full copy
+  of the linked ship world with corrected freight geometry, physical
+  bridge/hatch equipment, repaired references and 35 maintenance groups.
+- [Design reconciliation](DESIGN_CLOSURE_v0.5.md): the findings, changed
+  assumptions, balances, preserved decisions and remaining design work.
+- [Pressure ends, cradles and rotary access](HAB_PRESSURE_ACCESS_v0.5.md):
+  the functional hatch/seal/indexer arrangement, failure/recovery and the
+  38°/41° dimensional mismatch to resolve before geometric promotion.
+- [Major-system operating states](SYSTEM_OPERATING_STATES_v0.5.md):
+  power, atmosphere, water, thermal, cargo, damage control and repair
+  doctrine for a 40-person ship.
+- [Focused design validator](check_v05_candidate.py): stdlib model-reference,
+  geometry, mass/O2 and negative-regression checks; runnable without Evennia.
+
+Run `python design/ship/check_v05_candidate.py` from the repository root.
+The v0.5 candidate is a *simulation-operational* engineering proposal,
+not real-world construction or certification data. No Evennia or dashboard
+code is changed in this branch. The earlier full-ship integration
+PR #101 remains separate and unmerged pending design completion.

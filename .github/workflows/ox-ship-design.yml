@@ -1,0 +1,33 @@
+name: Ox v0.5 ship design integrity
+
+on:
+  pull_request:
+    paths:
+      - "design/ship/**"
+      - ".github/workflows/ox-ship-design.yml"
+  push:
+    branches: [main]
+    paths:
+      - "design/ship/**"
+      - ".github/workflows/ox-ship-design.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ox-ship-design-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  design:
+    name: Candidate geometry, reference and 40-person capacity checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate candidate vs immutable v0.4 published model
+        run: python design/ship/check_v05_candidate.py
