@@ -8,6 +8,8 @@ on:
       - ".github/workflows/ox-qwen-local-cpu.yml"
       - "scenarios/qwen_local_smoke.py"
       - "services/ai-handler/tests/test_qwen_local_smoke.py"
+      - "services/ai-handler/tests/test_concordia_memory_ab.py"
+      - "scenarios/g11_memory_ab_trial.py"
 permissions:
   contents: read
 concurrency:
@@ -35,6 +37,7 @@ jobs:
         run: |
           python -m unittest discover -s services/ai-handler/tests -p test_compatible_chat.py -v
           python -m unittest discover -s services/ai-handler/tests -p test_qwen_local_smoke.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_concordia_memory_ab.py -v
       - name: Restore model cache
         uses: actions/cache@v4
         with:
@@ -51,6 +54,7 @@ jobs:
               'https://huggingface.co/notschmee/Qwen3.5-0.8B-GGUF/resolve/main/Qwen3.5-0.8B-Q4_K_M.gguf'
           fi
           test "$(stat -c '%s' "$MODEL_PATH")" -gt 400000000
+          echo "be5b3cb8c2f3ebd791349c9c775ea38950f23a2b9e792ca2f0411597dd172988  $MODEL_PATH" | sha256sum -c -
           sha256sum "$MODEL_PATH" | tee .ox-state/qwen/model-sha256.txt
       - name: Install pinned CPU-only llama.cpp
         shell: bash
@@ -91,6 +95,10 @@ jobs:
           exit 1
       - name: Native Concordia single-choice inference
         run: python scenarios/qwen_local_smoke.py --output .ox-state/qwen/probe.json
+      - name: Matched-evidence Qwen memory A/B (8 real CPU model calls)
+        run: |
+          python scenarios/g11_memory_ab_trial.py --provider qwen-local \
+            --repetitions 1 --output .ox-state/qwen/memory-ab-results.json
       - name: Upload bounded diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -98,6 +106,7 @@ jobs:
           name: ox-qwen3-5-0-8b-cpu-probe
           path: |
             .ox-state/qwen/probe.json
+            .ox-state/qwen/memory-ab-results.json
             .ox-state/qwen/model-sha256.txt
             .ox-state/qwen/llama-server.log
           if-no-files-found: ignore
