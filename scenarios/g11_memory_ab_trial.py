@@ -128,21 +128,38 @@ def matched(a, b):
     ))
 
 
-def run(provider="gemini", repetitions=1):
-    if provider not in ("gemini", "capture"):
-        raise ValueError("Provider must be explicit hosted Gemini or smoke capture")
+def run(provider="gemini", repetitions=1, *, api_base="http://127.0.0.1:8080/v1"):
+    if provider not in ("gemini", "capture", "qwen-local"):
+        raise ValueError("Provider must be hosted Gemini, local Qwen or smoke capture")
     if type(repetitions) is not int or not 1 <= repetitions <= 3:
-        raise ValueError("Hosted probe caps repetitions at 3")
+        raise ValueError("G11 pilot caps repetitions at 3")
     if provider == "gemini" and not os.getenv("GEMINI_API_KEY"):
         raise RuntimeError("Missing GEMINI_API_KEY; no mock fallback allowed")
     if provider == "gemini":
         from ox_ai.agents.live_concordia import make_model
+        make_trial_model = lambda: make_model("gemini")
+    elif provider == "qwen-local":
+        from urllib.parse import urlsplit
+        from ox_ai.inference.compatible_chat import CompatibleChatModel
+
+        parsed = urlsplit(api_base)
+        if (parsed.scheme != "http"
+                or parsed.hostname not in ("127.0.0.1", "localhost")
+                or parsed.username is not None or parsed.password is not None
+                or parsed.path.rstrip("/") != "/v1"
+                or parsed.query or parsed.fragment):
+            raise ValueError("Qwen G11 pilot must use localhost HTTP /v1 only")
+        make_trial_model = lambda: CompatibleChatModel(
+            "qwen3.5-0.8b", api_key="local-no-secret", api_base=api_base
+        )
+    else:
+        make_trial_model = CaptureModel
     rows = []
     for repeat in range(repetitions):
         for i, spec in enumerate(fixtures()):
             models = {
                 mode: PromptMeasuredModel(
-                    make_model("gemini") if provider == "gemini" else CaptureModel()
+                    make_trial_model()
                 ) for mode in (False, True)
             }
             agents = {mode: build(spec, mode, models[mode]) for mode in (False, True)}
@@ -175,22 +192,25 @@ def run(provider="gemini", repetitions=1):
         }
     return {"experiment": "g11_matched_evidence", "provider": provider,
             "real_hosted_model": provider == "gemini",
-            "valid_quality_evidence": provider == "gemini",
+            "real_local_model": provider == "qwen-local",
+            "valid_quality_evidence": provider != "capture",
             "limitation": "Four synthetic cases; descriptive pilot, not statistical proof.",
             "repetitions": repetitions, "summary": groups, "decisions": rows}
 
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--provider", choices=("gemini", "capture"), default="gemini")
+    p.add_argument("--provider", choices=("gemini", "capture", "qwen-local"), default="gemini")
+    p.add_argument("--api-base", default="http://127.0.0.1:8080/v1")
     p.add_argument("--repetitions", type=int, default=1)
     p.add_argument("--output", type=Path, required=True)
     args = p.parse_args()
-    result = run(args.provider, args.repetitions)
+    result = run(args.provider, args.repetitions, api_base=args.api_base)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n",
                            encoding="utf-8")
     print(json.dumps({"real_hosted_model": result["real_hosted_model"],
+                      "real_local_model": result["real_local_model"],
                       "summary": result["summary"]}, sort_keys=True))
 
 
