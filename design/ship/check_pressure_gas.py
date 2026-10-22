@@ -321,6 +321,10 @@ def negative_tests(ship:dict, pressure:dict, gas:dict)->None:
         ("impossible free fraction",
          lambda s,g: g["void_fraction_policy"]["sectional_heavy_logistics_trunk"]
                     .update(bounds=[0.96,1.08])),
+        ("unverified overlapping aft store boxes counted twice",
+         lambda s,g: next(r for r in g["sized_and_unsized_pressure_cells"]
+                          if r["pressure_zone_id"]=="PZ-AFT-STORES")
+                    .update(source_gross_envelope_m3=1051)),
     ]
     for name,mutate in cases:
         s,g=deepcopy(ship),deepcopy(gas)
@@ -338,4 +342,4 @@ if __name__ == "__main__":
     gas=read("pressure_gas_recovery_v0.5.json")
     print(json.dumps(validate(world,pc,gas),indent=2,sort_keys=True))
     negative_tests(world,pc,gas)
-    print("OX_PRESSURE_GAS_RECOVERY_AND_EIGHT_NEGATIVE_TESTS_PASS")
+    print("OX_PRESSURE_GAS_RECOVERY_AND_NINE_NEGATIVE_TESTS_PASS")
