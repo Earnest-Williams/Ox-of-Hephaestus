@@ -31,6 +31,8 @@ def main():
     parser.add_argument("--quant", required=True, choices=("Q2_K", "Q4_K_M"))
     parser.add_argument("--model-dir", required=True, type=Path)
     parser.add_argument("--manifest", required=True, type=Path)
+    parser.add_argument("--quant-revision", required=True)
+    parser.add_argument("--tokenizer-revision", required=True)
     args = parser.parse_args()
 
     api = HfApi()
@@ -38,6 +40,8 @@ def main():
     # Use an explicit resolved commit for both variants; never download from
     # a moving branch after resolving the listed filenames.
     qsha = quant_info.sha
+    if qsha != args.quant_revision:
+        raise ValueError("Quant-source commit changed; refusing to mix revisions")
     options = [
         item.rfilename for item in quant_info.siblings
         if item.rfilename.lower().endswith(".gguf")
@@ -51,6 +55,8 @@ def main():
         raise ValueError("Expected a single-file GGUF at repository root")
     tokenizer_info = api.model_info(TOKENIZER_REPO)
     tsha = tokenizer_info.sha
+    if tsha != args.tokenizer_revision:
+        raise ValueError("Tokenizer/config commit changed; refusing to mix revisions")
 
     args.model_dir.mkdir(parents=True, exist_ok=True)
     snapshot_download(
