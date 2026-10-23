@@ -121,12 +121,27 @@ def validate():
     fan = "NODE-PWR-HAB-03-CAB-07-FANCOIL"
     insist(refit.has_power_path(panel) and refit.has_power_path(fan),
            "real cabin electrical paths unavailable")
-    refit.change_valve("power", "ISO-HAB-03-CAB-07-LP", "closed",
-                       local_authority=True)
+    refit.sample_local("PZ-HAB-03", qualified_local_probe=True)
+    refit.stage_worker("HAB-03-CAB-07")
+    try:
+        refit.queue_valve_command("power", "ISO-HAB-03-CAB-07-LP", "closed",
+                                  control_mode="remote", local_authority=True)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("refit manual-only cabin panel obeyed remote actuation")
+    refit.queue_valve_command("power", "ISO-HAB-03-CAB-07-LP", "closed",
+                              control_mode="manual", local_authority=True,
+                              worker_space="HAB-03-CAB-07", delay_s=2)
+    refit.advance(3)
     insist(not refit.has_power_path(panel) and refit.has_power_path(fan),
            "patched cabin 07 fan-coil circuit incorrectly on cabin panel")
-    refit.change_valve("power", "ISO-HAB-03-SG2-DB", "closed",
-                       local_authority=True)
+    refit.sample_local("PZ-HAB-03", qualified_local_probe=True)
+    refit.stage_worker("HAB-03-SG2-CUPBOARD")
+    refit.queue_valve_command("power", "ISO-HAB-03-SG2-DB", "closed",
+                              control_mode="manual", local_authority=True,
+                              worker_space="HAB-03-SG2-CUPBOARD", delay_s=2)
+    refit.advance(3)
     insist(not refit.has_power_path(fan),
            "refit corridor service-group breaker fails to disconnect fan coil")
     report["ship_of_theseus_wiring"] = {
@@ -245,8 +260,12 @@ def validate():
     insist(indication.fire_detector_report(3)["report"] == "alarm"
            and indication.fire_detector_report(3)["credible_fire_truth"] is False,
            "panel readout incorrectly supplies certain world-hidden truth")
-    indication.change_valve("power", "ISO-HAB-03-FIRE-DETECT", "closed",
-                            local_authority=True)
+    indication.sample_local("PZ-HAB-03", qualified_local_probe=True)
+    indication.stage_worker("HAB-03-COR")
+    indication.queue_valve_command(
+        "power", "ISO-HAB-03-FIRE-DETECT", "closed", control_mode="manual",
+        local_authority=True, worker_space="HAB-03-COR", delay_s=0.1)
+    indication.advance(2)
     insist(indication.fire_detector_report(3)["report"] == "unavailable"
            and indication.assured_power("NODE-HAB-03-EMERGENCY-LIGHT"),
            "isolated detector wrongly takes down independent emergency light")
