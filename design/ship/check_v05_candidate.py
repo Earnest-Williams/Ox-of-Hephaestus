@@ -48,7 +48,7 @@ def validate(candidate: dict, baseline: dict) -> dict:
             "spatial count changed")
     require(len(candidate["access_links"]) == len(baseline["access_links"]) == 517,
             "physical-link count changed")
-    require(len(candidate["equipment"]) == len(baseline["equipment"]) + 110 == 802,
+    require(len(candidate["equipment"]) == len(baseline["equipment"]) + 116 == 808,
             "expected v0.5 equipment including Bprime supports and reserved atmosphere makeup distribution")
     require(len(candidate["maintenance_tasks"]) == 42, "maintenance package count changed")
 
@@ -64,7 +64,7 @@ def validate(candidate: dict, baseline: dict) -> dict:
     for section in ("service_nodes", "isolation_points"):
         require(candidate[section][:len(baseline[section])] == baseline[section],
                 f"original {section} unexpectedly mutated")
-        approved_networks = {"repressurization_gas", "byproduct_exhaust"}
+        approved_networks = {"repressurization_gas", "byproduct_exhaust", "inert_makeup"}
         if section == "isolation_points":
             approved_networks.update({"greywater", "blackwater"})
         added = candidate[section][len(baseline[section]):]
@@ -237,19 +237,25 @@ def validate(candidate: dict, baseline: dict) -> dict:
 
     require(candidate["inventories"][:len(baseline["inventories"])] == baseline["inventories"],
             "v0.4 inventory stock unexpectedly rewritten")
-    require(len(candidate["inventories"]) == len(baseline["inventories"]) + 6,
+    require(len(candidate["inventories"]) == len(baseline["inventories"]) + 8,
             "missing food or independent gas-bank inventories")
     require({x["id"] for x in candidate["inventories"][len(baseline["inventories"]):]} ==
             {"INV-FOOD-LONG-LEG", "INV-GAS-REFILL-A", "INV-GAS-REFILL-B", "INV-WASTE-RESIDUE",
-              "INV-INDUSTRIAL-SCRAP", "INV-HAZARDOUS-RESIDUE"},
+              "INV-INDUSTRIAL-SCRAP", "INV-HAZARDOUS-RESIDUE",
+              "INV-INERT-MAKEUP-A", "INV-INERT-MAKEUP-B"},
             "unknown newly invented stores or missing gas-bank inventory")
     food = next((i for i in candidate["inventories"]
                  if i["id"] == "INV-FOOD-LONG-LEG"), None)
-    require(food is not None and food["nominal_mass_t"] == 32 and
-            all(room in spaces for room in food["location_ids"]),
-            "missing or misplaced 32 t long-leg provisions")
-    require(40 * 0.85 * 730 / 1000 <= food["nominal_mass_t"],
-            "food stock cannot support reference edible provision demand")
+    require(food is not None and isclose(food["nominal_mass_t"], 56.79, abs_tol=1e-8)
+            and all(room in spaces for room in food["location_ids"])
+            and isclose(sum(food["location_allocations_t"].values()), 56.79, abs_tol=1e-8),
+            "missing or misplaced 56.79 t long-leg provisions")
+    food_policy = candidate["life_support_contract"]["long_leg_food"]
+    require(isclose(food_policy["departure_dehydrated_staple_t"], 24.82, abs_tol=1e-8)
+            and food_policy["productive_growing_area_m2"] == 450
+            and food_policy["normal_crop_power_kW_total"] == 90
+            and isclose(food_policy["departure_stock_t"], food["nominal_mass_t"], abs_tol=1e-8),
+            "B-prime food/cultivation departure stock inconsistent")
     for row in baseline["access_links"]:
         other = links[row["id"]]
         require((row["from"], row["to"], row["kind"]) ==
@@ -389,6 +395,11 @@ def validate(candidate: dict, baseline: dict) -> dict:
             and sum(x["network"] == "repressurization_gas" for x in candidate["service_edges"]) == 132
             and sum(x["network"] == "repressurization_gas" for x in candidate["isolation_points"]) == 143,
             "stage-one physical repressurization network incomplete")
+    require([x["id"] for x in candidate["networks"]].count("inert_makeup") == 1
+            and sum(x["network"] == "inert_makeup" for x in candidate["service_nodes"]) == 6
+            and sum(x["network"] == "inert_makeup" for x in candidate["service_edges"]) == 5
+            and sum(x["network"] == "inert_makeup" for x in candidate["isolation_points"]) == 5,
+            "routine inert gas sources and metered ECLSS mixer paths absent")
     # Escaping oxygen-generation hydrogen and regenerating CO2 sorbents
     # require distinct, finite discharge services, not indefinite invisible
     # storage or uncontrolled vents into occupied rooms.
