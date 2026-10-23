@@ -15,7 +15,7 @@
 
 ## Current scope versus optional trials
 
-The instructions below bring up the **seven-room primary ship** and the
+The instructions below bring up the **seven-room operational proving ground** and the
 normal authenticated external handler. The G6 terminal-loss scenario,
 G7 social GOAP apartment, G8 six-client 500-decision memory experiment,
 G11 manually dispatched hosted-model A/B trial, and G12 6/20/40
