@@ -1,5 +1,13 @@
 **CURRENT 23 OCTOBER 2026 v0.5 CANDIDATE:** 133/133 physically bounded nominal pressure cells, 339 rated isolation boundaries (208 previously rated plus 131 unknown-environment thresholds), 100,772.940 m³ gross / 65,832.797–88,021.802 m³ planned free-air reference; **802 maintained equipment objects, 13 inventory accounts, 42 maintenance groups**. The six cargo-drums now have individual passenger indexers and freight docking collars; the four separate, finite industrial/hazardous bins begin empty. Read [machinery/industrial disposal closure](MACHINERY_AND_FINITE_DISPOSAL_CLOSURE_v0.5.md) and [physical closure](PHYSICAL_CLOSURE_v0.5.md). Earlier dates/counts later in these files refer to earlier v0.5 milestones only. All source volumes are design geometry, not as-installed measurements or certified safe access.
 
+> **Ship design standard — VERISIMILITUDE, NOT NASA APPROVAL.**
+> [Read the binding ship engineering design philosophy](SHIP_ENGINEERING_DESIGN_STANDARD.md).
+> The Ox is a fictional, repeatedly repaired working freighter. We require
+> believable layout, causal systems, imperfect evidence, operational tradeoffs
+> and meaningful damage/repair consequences, **not** construction-ready plans,
+> fabrication qualification, agency approval or certification-level analysis.
+> Finish the playable design when these criteria are met.
+
 # Full ship preparation baseline
 
 This directory contains the current **Ox of Hephaestus full-ship physical world model, v0.4**.
