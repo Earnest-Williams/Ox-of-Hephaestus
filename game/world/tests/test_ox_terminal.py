@@ -59,6 +59,24 @@ class TerminalAccessTests(SimpleTestCase):
         self.assertIn('/ox/console/live.js', html)
         self.assertIn('/ox/console/theme.css', html)
 
+    def test_future_model_without_matching_verified_wire_is_rejected(self):
+        with patch("web.ox_terminal.load_ship_model",
+                   return_value=SimpleNamespace(model_version="0.5-candidate")):
+            response = terminal(self._request("/ox/console/", developer=True))
+        self.assertEqual(response.status_code, 409)
+        self.assertIn(b"No verified wire renderer", response.content)
+        self.assertNotIn(b'"ship-data"', response.content)
+
+    def test_missing_model_matched_renderer_fails_closed(self):
+        from pathlib import Path
+        with patch("web.ox_terminal.load_ship_model",
+                   return_value=SimpleNamespace(model_version="0.4")):
+            with patch("web.ox_terminal.canonical_model_path",
+                       return_value=Path("/nonexistent-ox-wire-source/ox_full_ship.json")):
+                response = terminal(self._request("/ox/console/", developer=True))
+        self.assertEqual(response.status_code, 503)
+        self.assertIn(b"wire renderer is missing", response.content)
+
     def test_authorised_projection_is_read_only(self):
         snapshot = {
             "schema": "ox.telemetry.spatial/0.1",
