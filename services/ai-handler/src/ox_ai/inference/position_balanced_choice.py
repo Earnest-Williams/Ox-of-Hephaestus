@@ -132,7 +132,8 @@ class PositionBalancedDeciderChoiceModel:
         # Stable semantic-key tie break, never first displayed option or
         # first option-token index. Returning only a caller-offered response
         # preserves the finite typed command boundary.
-        winner = min(canonical_keys, key=lambda key: (-mean[key], key))
+        best = max(mean.values())
+        winner = next(key for key in canonical_keys if mean[key] >= best - 1e-9)
         caller_keys = tuple(key for key, _ in self.options)
         selected_code = codes[caller_keys.index(winner)]
         record = {
