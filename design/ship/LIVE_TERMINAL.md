@@ -36,6 +36,12 @@ cookie and remain local-only under current game settings.
 
 The terminal reads the source file from `design/ship` on the server; deploying
 the game must retain that file and the model JSON alongside the game directory.
+**Model/render version gate:** the server currently registers only the verified
+v0.4 wire HTML for the canonical v0.4 model. If the model later advances to
+v0.5-candidate or v0.5 without a matching generated, reviewed and explicitly
+registered wire renderer, `/ox/console/` returns **HTTP 409** before serving
+a mismatched scene; a missing registered file returns **503**. The JavaScript
+model-version equality check remains an additional independent safeguard.
 
 ## Runtime projection
 
@@ -83,7 +89,10 @@ refresh is also available. This is deliberately **not** yet a WebSocket
 subscription or an alarm/event stream. A disconnected feed is marked stale
 rather than silently treating a last-known condition as current. A world/model
 version mismatch fails closed rather than drawing world conditions over the
-wrong geometry.
+wrong geometry. The v0.5 design candidate retains all 421 identifiers and 517
+physical connections, but its equipment inventories and pressure engineering
+are different; topology identity **does not** make v0.4 geometry/fit-out
+automatically an acceptable v0.5 graphical source.
 
 The original room inspector is left operational, with its `Condition` field
 relabeled `Source condition`. A separate `World condition` field appears
