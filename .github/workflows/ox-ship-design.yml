@@ -1,0 +1,51 @@
+name: Ox v0.5 ship design integrity
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - "design/ship/**"
+      - ".github/workflows/ox-ship-design.yml"
+      - "!**/*.md"
+  push:
+    branches: [main]
+    paths:
+      - "design/ship/**"
+      - ".github/workflows/ox-ship-design.yml"
+      - "!**/*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ox-ship-design-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  design:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    name: Candidate geometry, reference and 40-person capacity checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate candidate vs immutable v0.4 published model
+        run: |
+          python design/ship/check_v05_candidate.py
+          python design/ship/check_mission_endurance.py
+          python design/ship/check_bprime_mechanics.py
+          python design/ship/check_pressure_cells.py
+          python design/ship/check_pressure_gas.py
+          python design/ship/check_pressure_geometry.py
+          python design/ship/check_waste_byproducts.py
+          python design/ship/check_physical_operations.py
+          python design/ship/check_environmental_boundaries.py
+          python design/ship/check_atmosphere_casualties.py
+          python design/ship/check_pressure_damage_sim.py
+          python design/ship/check_fire_smoke_thermal.py
+          python design/ship/check_electrical_evacuation.py
+          python design/ship/check_whole_ship_crew_casualty.py

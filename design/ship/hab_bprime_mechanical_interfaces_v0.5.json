@@ -1,0 +1,2502 @@
+{
+  "schema_version": "ox.hab.bprime.interfaces/0.1",
+  "version": "0.5-BPRIME",
+  "status": "SELECTED_BPRIME_OPERATIONAL_LAYOUT; structural beam contact and complete solid interference not qualified",
+  "authoritative_design": {
+    "pressure_modules": 8,
+    "span_deg": 38,
+    "pitch_deg": 45,
+    "gap_deg": 7,
+    "reference_radius_m": 73.15,
+    "inner_pressure_section_d_m": 9.5,
+    "ellipsoidal_head_axial_depth_m": 2.375,
+    "pressure_head_installation_envelope_m": 2.75,
+    "hatch_aperture_m": [
+      1.4,
+      2.2
+    ],
+    "hatch_corner_radius_m": 0.2,
+    "hatch_dog_count": 16,
+    "leaf_withdraws_inward_m": 0.12,
+    "leaf_swings_inward_deg": 90,
+    "opposite_end_port_offset_radial_m": 0.75,
+    "legacy_41_deg_status": "SUPERSEDED_NONAUTHORITATIVE_COMPONENT_TRIAL"
+  },
+  "B_prime_support": {
+    "saddles_total": 24,
+    "keyed_centres": 8,
+    "sliding_outer": 16,
+    "outer_branches_per_sliding_station": 3,
+    "outer_branches_total": 48,
+    "trial_angular_speed_rpm": 3.45,
+    "per_400t_arc_trial_radial_force_kN": 3819.176663,
+    "outer_branch_steel_mass_t_reference_only": 52.894033,
+    "member_section_area_m2": 0.0511,
+    "density_assumption_kg_m3": 7850,
+    "shell_clearance_guard_m_min": 0.447157,
+    "failure_case_single_outer_station_lost_mm_reference": 179,
+    "fallback": "controlled spin-down then parked inspection, not automatic full RPM"
+  },
+  "pressure_bridges": {
+    "number": 8,
+    "port_datum_length_m_reference": 4.281834,
+    "central_spool_m_reference": 3.581834,
+    "clear_bore_d_m": 3,
+    "normal_translation_travel_mm": 125,
+    "emergency_excursion_mm": 450,
+    "guard": "450mm motion is NOT normal bellows travel and may force isolation"
+  },
+  "hab_bearing_station_x_m": [
+    439,
+    471
+  ],
+  "indexers": [
+    {
+      "id": "IX-A",
+      "x_m": 445,
+      "carrier_trial_mass_t": 30,
+      "carrier_orbit_radius_m": 10.5,
+      "capsule_radial_moving_envelope_m": [
+        8.55,
+        12.5313906484
+      ],
+      "axial_moving_envelope_m": [
+        441.1,
+        448.9
+      ],
+      "bearing_planes_x_m": [
+        439,
+        471
+      ],
+      "minimum_bearing_axial_clearance_m": 1.3,
+      "independently_driven_ring_and_retractable_pressure_collars": true,
+      "independent_balanced_counterweight_required": true,
+      "parked_state_hatch_release_only_after_pressure_equality": true,
+      "reference_swing_12s_peak_drive_torque_kNm": 99.57867,
+      "carrier_kinetic_energy_kJ_excl_ring": 215.856576,
+      "ring_and_yoke_inertias_not_included": true,
+      "states": [
+        "FIXED_CAPTURED",
+        "SEALED_TRANSFER",
+        "ROTOR_CAPTURED",
+        "INTERLOCKED",
+        "LOCAL_RECOVERY"
+      ]
+    },
+    {
+      "id": "IX-B",
+      "x_m": 465,
+      "carrier_trial_mass_t": 30,
+      "carrier_orbit_radius_m": 10.5,
+      "capsule_radial_moving_envelope_m": [
+        8.55,
+        12.5313906484
+      ],
+      "axial_moving_envelope_m": [
+        461.1,
+        468.9
+      ],
+      "bearing_planes_x_m": [
+        439,
+        471
+      ],
+      "minimum_bearing_axial_clearance_m": 1.3,
+      "independently_driven_ring_and_retractable_pressure_collars": true,
+      "independent_balanced_counterweight_required": true,
+      "parked_state_hatch_release_only_after_pressure_equality": true,
+      "reference_swing_12s_peak_drive_torque_kNm": 99.57867,
+      "carrier_kinetic_energy_kJ_excl_ring": 215.856576,
+      "ring_and_yoke_inertias_not_included": true,
+      "states": [
+        "FIXED_CAPTURED",
+        "SEALED_TRANSFER",
+        "ROTOR_CAPTURED",
+        "INTERLOCKED",
+        "LOCAL_RECOVERY"
+      ]
+    }
+  ],
+  "arcs": [
+    {
+      "id": "HAB-01",
+      "theta_center_deg": 0,
+      "theta_end_ccw_deg": -19,
+      "theta_end_cw_deg": 19,
+      "selected_sweep_deg": 38,
+      "pressure_zone_id": "PZ-HAB-01",
+      "saddle_ids": [
+        "HAB-01-CRADLE-CCW",
+        "HAB-01-CRADLE-CENTRE",
+        "HAB-01-CRADLE-CW"
+      ]
+    },
+    {
+      "id": "HAB-02",
+      "theta_center_deg": 45,
+      "theta_end_ccw_deg": 26,
+      "theta_end_cw_deg": 64,
+      "selected_sweep_deg": 38,
+      "pressure_zone_id": "PZ-HAB-02",
+      "saddle_ids": [
+        "HAB-02-CRADLE-CCW",
+        "HAB-02-CRADLE-CENTRE",
+        "HAB-02-CRADLE-CW"
+      ]
+    },
+    {
+      "id": "HAB-03",
+      "theta_center_deg": 90,
+      "theta_end_ccw_deg": 71,
+      "theta_end_cw_deg": 109,
+      "selected_sweep_deg": 38,
+      "pressure_zone_id": "PZ-HAB-03",
+      "saddle_ids": [
+        "HAB-03-CRADLE-CCW",
+        "HAB-03-CRADLE-CENTRE",
+        "HAB-03-CRADLE-CW"
+      ]
+    },
+    {
+      "id": "HAB-04",
+      "theta_center_deg": 135,
+      "theta_end_ccw_deg": 116,
+      "theta_end_cw_deg": 154,
+      "selected_sweep_deg": 38,
+      "pressure_zone_id": "PZ-HAB-04",
+      "saddle_ids": [
+        "HAB-04-CRADLE-CCW",
+        "HAB-04-CRADLE-CENTRE",
+        "HAB-04-CRADLE-CW"
+      ]
+    },
+    {
+      "id": "HAB-05",
+      "theta_center_deg": 180,
+      "theta_end_ccw_deg": 161,
+      "theta_end_cw_deg": 199,
+      "selected_sweep_deg": 38,
+      "pressure_zone_id": "PZ-HAB-05",
+      "saddle_ids": [
+        "HAB-05-CRADLE-CCW",
+        "HAB-05-CRADLE-CENTRE",
+        "HAB-05-CRADLE-CW"
+      ]
+    },
+    {
+      "id": "HAB-06",
+      "theta_center_deg": 225,
+      "theta_end_ccw_deg": 206,
+      "theta_end_cw_deg": 244,
+      "selected_sweep_deg": 38,
+      "pressure_zone_id": "PZ-HAB-06",
+      "saddle_ids": [
+        "HAB-06-CRADLE-CCW",
+        "HAB-06-CRADLE-CENTRE",
+        "HAB-06-CRADLE-CW"
+      ]
+    },
+    {
+      "id": "HAB-07",
+      "theta_center_deg": 270,
+      "theta_end_ccw_deg": 251,
+      "theta_end_cw_deg": 289,
+      "selected_sweep_deg": 38,
+      "pressure_zone_id": "PZ-HAB-07",
+      "saddle_ids": [
+        "HAB-07-CRADLE-CCW",
+        "HAB-07-CRADLE-CENTRE",
+        "HAB-07-CRADLE-CW"
+      ]
+    },
+    {
+      "id": "HAB-08",
+      "theta_center_deg": 315,
+      "theta_end_ccw_deg": 296,
+      "theta_end_cw_deg": 334,
+      "selected_sweep_deg": 38,
+      "pressure_zone_id": "PZ-HAB-08",
+      "saddle_ids": [
+        "HAB-08-CRADLE-CCW",
+        "HAB-08-CRADLE-CENTRE",
+        "HAB-08-CRADLE-CW"
+      ]
+    }
+  ],
+  "saddles": [
+    {
+      "id": "HAB-01-CRADLE-CCW",
+      "arc_id": "HAB-01",
+      "kind": "sliding_outer",
+      "theta_deg": -12,
+      "pressure_contact_point_xyz_m": [
+        455,
+        76.217261,
+        -16.200479
+      ],
+      "shell_outer_guard_radial_m": 77.92,
+      "structural_start_radial_m": 78.65,
+      "access_route": "EXT-CENTRAL; habitation rotor must first be stopped and positively parked",
+      "failure_rule": "single structural branch damage permits only controlled spin-down; sliding seizure increases differential thermal loads",
+      "branch_ids": [
+        "HAB-01-CRADLE-CCW-BRANCH-1",
+        "HAB-01-CRADLE-CCW-BRANCH-2",
+        "HAB-01-CRADLE-CCW-BRANCH-3"
+      ],
+      "interface": {
+        "sliding_radial_and_tangential": true,
+        "normal_thermal_stroke_mm": "to_be_finalized_from_as-built_differential_growth",
+        "ordinary_motion_must_not_be_clamped": true,
+        "positive_capture_exceptional_motion": true,
+        "branch_count": 3,
+        "independently_accessible_outer_lugs": true,
+        "shell_membrane_not_perforated": true
+      }
+    },
+    {
+      "id": "HAB-01-CRADLE-CENTRE",
+      "arc_id": "HAB-01",
+      "kind": "keyed_centre",
+      "theta_deg": 0,
+      "pressure_contact_point_xyz_m": [
+        455,
+        77.92,
+        0
+      ],
+      "shell_outer_guard_radial_m": 77.92,
+      "structural_start_radial_m": 78.65,
+      "access_route": "EXT-CENTRAL; habitation rotor must first be stopped and positively parked",
+      "failure_rule": "centre key damage invalidates circumferential datum; inhibit routine spin and indexer movement",
+      "interface": {
+        "diaphragm_box_m": [
+          2.4,
+          1.6,
+          1.5
+        ],
+        "main_plate_mm": 50,
+        "inner_diaphragm_mm": 40,
+        "retainer_section_mm": [
+          300,
+          35
+        ],
+        "pins_diameter_mm": 180,
+        "reference_modes": [
+          "radial_bearing",
+          "longitudinal_reference",
+          "tangential_key"
+        ],
+        "ring_connection_id": "BPRIME-KEY-HAB-01",
+        "intact_pressure_membrane_required": true,
+        "pressure_shell_coupling": "reinforced external keyed diaphragm interface with internal pressure-rated load-spreading frames"
+      }
+    },
+    {
+      "id": "HAB-01-CRADLE-CW",
+      "arc_id": "HAB-01",
+      "kind": "sliding_outer",
+      "theta_deg": 12,
+      "pressure_contact_point_xyz_m": [
+        455,
+        76.217261,
+        16.200479
+      ],
+      "shell_outer_guard_radial_m": 77.92,
+      "structural_start_radial_m": 78.65,
+      "access_route": "EXT-CENTRAL; habitation rotor must first be stopped and positively parked",
+      "failure_rule": "single structural branch damage permits only controlled spin-down; sliding seizure increases differential thermal loads",
+      "branch_ids": [
+        "HAB-01-CRADLE-CW-BRANCH-1",
+        "HAB-01-CRADLE-CW-BRANCH-2",
+        "HAB-01-CRADLE-CW-BRANCH-3"
+      ],
+      "interface": {
+        "sliding_radial_and_tangential": true,
+        "normal_thermal_stroke_mm": "to_be_finalized_from_as-built_differential_growth",
+        "ordinary_motion_must_not_be_clamped": true,
+        "positive_capture_exceptional_motion": true,
+        "branch_count": 3,
+        "independently_accessible_outer_lugs": true,
+        "shell_membrane_not_perforated": true
+      }
+    },
+    {
+      "id": "HAB-02-CRADLE-CCW",
+      "arc_id": "HAB-02",
+      "kind": "sliding_outer",
+      "theta_deg": 33,
+      "pressure_contact_point_xyz_m": [
+        455,
+        65.349211,
+        42.438274
+      ],
+      "shell_outer_guard_radial_m": 77.92,
+      "structural_start_radial_m": 78.65,
+      "access_route": "EXT-CENTRAL; habitation rotor must first be stopped and positively parked",
+      "failure_rule": "single structural branch damage permits only controlled spin-down; sliding seizure increases differential thermal loads",
+      "branch_ids": [
+        "HAB-02-CRADLE-CCW-BRANCH-1",
+        "HAB-02-CRADLE-CCW-BRANCH-2",
+        "HAB-02-CRADLE-CCW-BRANCH-3"
+      ],
+      "interface": {
+        "sliding_radial_and_tangential": true,
+        "normal_thermal_stroke_mm": "to_be_finalized_from_as-built_differential_growth",
+        "ordinary_motion_must_not_be_clamped": true,
+        "positive_capture_exceptional_motion": true,
+        "branch_count": 3,
+        "independently_accessible_outer_lugs": true,
+        "shell_membrane_not_perforated": true
+      }
+    },
+    {
+      "id": "HAB-02-CRADLE-CENTRE",
+      "arc_id": "HAB-02",
+      "kind": "keyed_centre",
+      "theta_deg": 45,
+      "pressure_contact_point_xyz_m": [
+        455,
+        55.09776,
+        55.09776
+      ],
+      "shell_outer_guard_radial_m": 77.92,
+      "structural_start_radial_m": 78.65,
+      "access_route": "EXT-CENTRAL; habitation rotor must first be stopped and positively parked",
+      "failure_rule": "centre key damage invalidates circumferential datum; inhibit routine spin and indexer movement",
+      "interface": {
+        "diaphragm_box_m": [
+          2.4,
+          1.6,
+          1.5
+        ],
+        "main_plate_mm": 50,
+        "inner_diaphragm_mm": 40,
+        "retainer_section_mm": [
+          300,
+          35
+        ],
+        "pins_diameter_mm": 180,
+        "reference_modes": [
+          "radial_bearing",
+          "longitudinal_reference",
+          "tangential_key"
+        ],
+        "ring_connection_id": "BPRIME-KEY-HAB-02",
+        "intact_pressure_membrane_required": true,
+        "pressure_shell_coupling": "reinforced external keyed diaphragm interface with internal pressure-rated load-spreading frames"
+      }
+    },
+    {
+      "id": "HAB-02-CRADLE-CW",
+      "arc_id": "HAB-02",
+      "kind": "sliding_outer",
+      "theta_deg": 57,
+      "pressure_contact_point_xyz_m": [
+        455,
+        42.438274,
+        65.349211
+      ],
+      "shell_outer_guard_radial_m": 77.92,
+      "structural_start_radial_m": 78.65,
+      "access_route": "EXT-CENTRAL; habitation rotor must first be stopped and positively parked",
+      "failure_rule": "single structural branch damage permits only controlled spin-down; sliding seizure increases differential thermal loads",
+      "branch_ids": [
+        "HAB-02-CRADLE-CW-BRANCH-1",
+        "HAB-02-CRADLE-CW-BRANCH-2",
+        "HAB-02-CRADLE-CW-BRANCH-3"
+      ],
+      "interface": {
+        "sliding_radial_and_tangential": true,
+        "normal_thermal_stroke_mm": "to_be_finalized_from_as-built_differential_growth",
+        "ordinary_motion_must_not_be_clamped": true,
+        "positive_capture_exceptional_motion": true,
+        "branch_count": 3,
+        "independently_accessible_outer_lugs": true,
+        "shell_membrane_not_perforated": true
+      }
+    },
+    {
+      "id": "HAB-03-CRADLE-CCW",
+      "arc_id": "HAB-03",
+      "kind": "sliding_outer",
+      "theta_deg": 78,
+      "pressure_contact_point_xyz_m": [
+        455,
+        16.200479,
+        76.217261
+      ],
+      "shell_outer_guard_radial_m": 77.92,
+      "structural_start_radial_m": 78.65,
+      "access_route": "EXT-CENTRAL; habitation rotor must first be stopped and positively parked",
+      "failure_rule": "single structural branch damage permits only controlled spin-down; sliding seizure increases differential thermal loads",
+      "branch_ids": [
+        "HAB-03-CRADLE-CCW-BRANCH-1",
+        "HAB-03-CRADLE-CCW-BRANCH-2",
+        "HAB-03-CRADLE-CCW-BRANCH-3"
+      ],
+      "interface": {
+        "sliding_radial_and_tangential": true,
+        "normal_thermal_stroke_mm": "to_be_finalized_from_as-built_differential_growth",
+        "ordinary_motion_must_not_be_clamped": true,
+        "positive_capture_exceptional_motion": true,
+        "branch_count": 3,
+        "independently_accessible_outer_lugs": true,
+        "shell_membrane_not_perforated": true
+      }
+    },
+    {
+      "id": "HAB-03-CRADLE-CENTRE",
+      "arc_id": "HAB-03",
+      "kind": "keyed_centre",
+      "theta_deg": 90,
+      "pressure_contact_point_xyz_m": [
+        455,
+        0,
+        77.92
+      ],
+      "shell_outer_guard_radial_m": 77.92,
+      "structural_start_radial_m": 78.65,
+      "access_route": "EXT-CENTRAL; habitation rotor must first be stopped and positively parked",
+      "failure_rule": "centre key damage invalidates circumferential datum; inhibit routine spin and indexer movement",
+      "interface": {
+        "diaphragm_box_m": [
+          2.4,
+          1.6,
+          1.5
+        ],
+        "main_plate_mm": 50,
+        "inner_diaphragm_mm": 40,
+        "retainer_section_mm": [
+          300,
+          35
+        ],
+        "pins_diameter_mm": 180,
+        "reference_modes": [
+          "radial_bearing",
+          "longitudinal_reference",
+          "tangential_key"
+        ],
+        "ring_connection_id": "BPRIME-KEY-HAB-03",
+        "intact_pressure_membrane_required": true,
+        "pressure_shell_coupling": "reinforced external keyed diaphragm interface with internal pressure-rated load-spreading frames"
+      }
+    },
+    {
+      "id": "HAB-03-CRADLE-CW",
+      "arc_id": "HAB-03",
+      "kind": "sliding_outer",
+      "theta_deg": 102,
+      "pressure_contact_point_xyz_m": [
+        455,
+        -16.200479,
+        76.217261
+      ],
+      "shell_outer_guard_radial_m": 77.92,
+      "structural_start_radial_m": 78.65,
+      "access_route": "EXT-CENTRAL; habitation rotor must first be stopped and positively parked",
+      "failure_rule": "single structural branch damage permits only controlled spin-down; sliding seizure increases differential thermal loads",
+      "branch_ids": [
+        "HAB-03-CRADLE-CW-BRANCH-1",
+        "HAB-03-CRADLE-CW-BRANCH-2",
+        "HAB-03-CRADLE-CW-BRANCH-3"
+      ],
+      "interface": {
+        "sliding_radial_and_tangential": true,
+        "normal_thermal_stroke_mm": "to_be_finalized_from_as-built_differential_growth",
+        "ordinary_motion_must_not_be_clamped": true,
+        "positive_capture_exceptional_motion": true,
+        "branch_count": 3,
+        "independently_accessible_outer_lugs": true,
+        "shell_membrane_not_perforated": true
+      }
+    },
+    {
+      "id": "HAB-04-CRADLE-CCW",
+      "arc_id": "HAB-04",
+      "kind": "sliding_outer",
+      "theta_deg": 123,
+      "pressure_contact_point_xyz_m": [
+        455,
+        -42.438274,
+        65.349211
+      ],
+      "shell_outer_guard_radial_m": 77.92,
+      "structural_start_radial_m": 78.65,
+      "access_route": "EXT-CENTRAL; habitation rotor must first be stopped and positively parked",
+      "failure_rule": "single structural branch damage permits only controlled spin-down; sliding seizure increases differential thermal loads",
+      "branch_ids": [
+        "HAB-04-CRADLE-CCW-BRANCH-1",
+        "HAB-04-CRADLE-CCW-BRANCH-2",
+        "HAB-04-CRADLE-CCW-BRANCH-3"
+      ],
+      "interface": {
+        "sliding_radial_and_tangential": true,
+        "normal_thermal_stroke_mm": "to_be_finalized_from_as-built_differential_growth",
+        "ordinary_motion_must_not_be_clamped": true,
+        "positive_capture_exceptional_motion": true,
+        "branch_count": 3,
+        "independently_accessible_outer_lugs": true,
+        "shell_membrane_not_perforated": true
+      }
+    },
+    {
+      "id": "HAB-04-CRADLE-CENTRE",
+      "arc_id": "HAB-04",
+      "kind": "keyed_centre",
+      "theta_deg": 135,
+      "pressure_contact_point_xyz_m": [
+        455,
+        -55.09776,
+        55.09776
+      ],
+      "shell_outer_guard_radial_m": 77.92,
+      "structural_start_radial_m": 78.65,
+      "access_route": "EXT-CENTRAL; habitation rotor must first be stopped and positively parked",
+      "failure_rule": "centre key damage invalidates circumferential datum; inhibit routine spin and indexer movement",
+      "interface": {
+        "diaphragm_box_m": [
+          2.4,
+          1.6,
+          1.5
+        ],
+        "main_plate_mm": 50,
+        "inner_diaphragm_mm": 40,
+        "retainer_section_mm": [
+          300,
+          35
+        ],
+        "pins_diameter_mm": 180,
+        "reference_modes": [
+          "radial_bearing",
+          "longitudinal_reference",
+          "tangential_key"
+        ],
+        "ring_connection_id": "BPRIME-KEY-HAB-04",
+        "intact_pressure_membrane_required": true,
+        "pressure_shell_coupling": "reinforced external keyed diaphragm interface with internal pressure-rated load-spreading frames"
+      }
+    },
+    {
+      "id": "HAB-04-CRADLE-CW",
+      "arc_id": "HAB-04",
+      "kind": "sliding_outer",
+      "theta_deg": 147,
+      "pressure_contact_point_xyz_m": [
+        455,
+        -65.349211,
+        42.438274
+      ],
+      "shell_outer_guard_radial_m": 77.92,
+      "structural_start_radial_m": 78.65,
+      "access_route": "EXT-CENTRAL; habitation rotor must first be stopped and positively parked",
+      "failure_rule": "single structural branch damage permits only controlled spin-down; sliding seizure increases differential thermal loads",
+      "branch_ids": [
+        "HAB-04-CRADLE-CW-BRANCH-1",
+        "HAB-04-CRADLE-CW-BRANCH-2",
+        "HAB-04-CRADLE-CW-BRANCH-3"
+      ],
+      "interface": {
+        "sliding_radial_and_tangential": true,
+        "normal_thermal_stroke_mm": "to_be_finalized_from_as-built_differential_growth",
+        "ordinary_motion_must_not_be_clamped": true,
+        "positive_capture_exceptional_motion": true,
+        "branch_count": 3,
+        "independently_accessible_outer_lugs": true,
+        "shell_membrane_not_perforated": true
+      }
+    },
+    {
+      "id": "HAB-05-CRADLE-CCW",
+      "arc_id": "HAB-05",
+      "kind": "sliding_outer",
+      "theta_deg": 168,
+      "pressure_contact_point_xyz_m": [
+        455,
+        -76.217261,
+        16.200479
+      ],
+      "shell_outer_guard_radial_m": 77.92,
+      "structural_start_radial_m": 78.65,
+      "access_route": "EXT-CENTRAL; habitation rotor must first be stopped and positively parked",
+      "failure_rule": "single structural branch damage permits only controlled spin-down; sliding seizure increases differential thermal loads",
+      "branch_ids": [
+        "HAB-05-CRADLE-CCW-BRANCH-1",
+        "HAB-05-CRADLE-CCW-BRANCH-2",
+        "HAB-05-CRADLE-CCW-BRANCH-3"
+      ],
+      "interface": {
+        "sliding_radial_and_tangential": true,
+        "normal_thermal_stroke_mm": "to_be_finalized_from_as-built_differential_growth",
+        "ordinary_motion_must_not_be_clamped": true,
+        "positive_capture_exceptional_motion": true,
+        "branch_count": 3,
+        "independently_accessible_outer_lugs": true,
+        "shell_membrane_not_perforated": true
+      }
+    },
+    {
+      "id": "HAB-05-CRADLE-CENTRE",
+      "arc_id": "HAB-05",
+      "kind": "keyed_centre",
+      "theta_deg": 180,
+      "pressure_contact_point_xyz_m": [
+        455,
+        -77.92,
+        0
+      ],
+      "shell_outer_guard_radial_m": 77.92,
+      "structural_start_radial_m": 78.65,
+      "access_route": "EXT-CENTRAL; habitation rotor must first be stopped and positively parked",
+      "failure_rule": "centre key damage invalidates circumferential datum; inhibit routine spin and indexer movement",
+      "interface": {
+        "diaphragm_box_m": [
+          2.4,
+          1.6,
+          1.5
+        ],
+        "main_plate_mm": 50,
+        "inner_diaphragm_mm": 40,
+        "retainer_section_mm": [
+          300,
+          35
+        ],
+        "pins_diameter_mm": 180,
+        "reference_modes": [
+          "radial_bearing",
+          "longitudinal_reference",
+          "tangential_key"
+        ],
+        "ring_connection_id": "BPRIME-KEY-HAB-05",
+        "intact_pressure_membrane_required": true,
+        "pressure_shell_coupling": "reinforced external keyed diaphragm interface with internal pressure-rated load-spreading frames"
+      }
+    },
+    {
+      "id": "HAB-05-CRADLE-CW",
+      "arc_id": "HAB-05",
+      "kind": "sliding_outer",
+      "theta_deg": 192,
+      "pressure_contact_point_xyz_m": [
+        455,
+        -76.217261,
+        -16.200479
+      ],
+      "shell_outer_guard_radial_m": 77.92,
+      "structural_start_radial_m": 78.65,
+      "access_route": "EXT-CENTRAL; habitation rotor must first be stopped and positively parked",
+      "failure_rule": "single structural branch damage permits only controlled spin-down; sliding seizure increases differential thermal loads",
+      "branch_ids": [
+        "HAB-05-CRADLE-CW-BRANCH-1",
+        "HAB-05-CRADLE-CW-BRANCH-2",
+        "HAB-05-CRADLE-CW-BRANCH-3"
+      ],
+      "interface": {
+        "sliding_radial_and_tangential": true,
+        "normal_thermal_stroke_mm": "to_be_finalized_from_as-built_differential_growth",
+        "ordinary_motion_must_not_be_clamped": true,
+        "positive_capture_exceptional_motion": true,
+        "branch_count": 3,
+        "independently_accessible_outer_lugs": true,
+        "shell_membrane_not_perforated": true
+      }
+    },
+    {
+      "id": "HAB-06-CRADLE-CCW",
+      "arc_id": "HAB-06",
+      "kind": "sliding_outer",
+      "theta_deg": 213,
+      "pressure_contact_point_xyz_m": [
+        455,
+        -65.349211,
+        -42.438274
+      ],
+      "shell_outer_guard_radial_m": 77.92,
+      "structural_start_radial_m": 78.65,
+      "access_route": "EXT-CENTRAL; habitation rotor must first be stopped and positively parked",
+      "failure_rule": "single structural branch damage permits only controlled spin-down; sliding seizure increases differential thermal loads",
+      "branch_ids": [
+        "HAB-06-CRADLE-CCW-BRANCH-1",
+        "HAB-06-CRADLE-CCW-BRANCH-2",
+        "HAB-06-CRADLE-CCW-BRANCH-3"
+      ],
+      "interface": {
+        "sliding_radial_and_tangential": true,
+        "normal_thermal_stroke_mm": "to_be_finalized_from_as-built_differential_growth",
+        "ordinary_motion_must_not_be_clamped": true,
+        "positive_capture_exceptional_motion": true,
+        "branch_count": 3,
+        "independently_accessible_outer_lugs": true,
+        "shell_membrane_not_perforated": true
+      }
+    },
+    {
+      "id": "HAB-06-CRADLE-CENTRE",
+      "arc_id": "HAB-06",
+      "kind": "keyed_centre",
+      "theta_deg": 225,
+      "pressure_contact_point_xyz_m": [
+        455,
+        -55.09776,
+        -55.09776
+      ],
+      "shell_outer_guard_radial_m": 77.92,
+      "structural_start_radial_m": 78.65,
+      "access_route": "EXT-CENTRAL; habitation rotor must first be stopped and positively parked",
+      "failure_rule": "centre key damage invalidates circumferential datum; inhibit routine spin and indexer movement",
+      "interface": {
+        "diaphragm_box_m": [
+          2.4,
+          1.6,
+          1.5
+        ],
+        "main_plate_mm": 50,
+        "inner_diaphragm_mm": 40,
+        "retainer_section_mm": [
+          300,
+          35
+        ],
+        "pins_diameter_mm": 180,
+        "reference_modes": [
+          "radial_bearing",
+          "longitudinal_reference",
+          "tangential_key"
+        ],
+        "ring_connection_id": "BPRIME-KEY-HAB-06",
+        "intact_pressure_membrane_required": true,
+        "pressure_shell_coupling": "reinforced external keyed diaphragm interface with internal pressure-rated load-spreading frames"
+      }
+    },
+    {
+      "id": "HAB-06-CRADLE-CW",
+      "arc_id": "HAB-06",
+      "kind": "sliding_outer",
+      "theta_deg": 237,
+      "pressure_contact_point_xyz_m": [
+        455,
+        -42.438274,
+        -65.349211
+      ],
+      "shell_outer_guard_radial_m": 77.92,
+      "structural_start_radial_m": 78.65,
+      "access_route": "EXT-CENTRAL; habitation rotor must first be stopped and positively parked",
+      "failure_rule": "single structural branch damage permits only controlled spin-down; sliding seizure increases differential thermal loads",
+      "branch_ids": [
+        "HAB-06-CRADLE-CW-BRANCH-1",
+        "HAB-06-CRADLE-CW-BRANCH-2",
+        "HAB-06-CRADLE-CW-BRANCH-3"
+      ],
+      "interface": {
+        "sliding_radial_and_tangential": true,
+        "normal_thermal_stroke_mm": "to_be_finalized_from_as-built_differential_growth",
+        "ordinary_motion_must_not_be_clamped": true,
+        "positive_capture_exceptional_motion": true,
+        "branch_count": 3,
+        "independently_accessible_outer_lugs": true,
+        "shell_membrane_not_perforated": true
+      }
+    },
+    {
+      "id": "HAB-07-CRADLE-CCW",
+      "arc_id": "HAB-07",
+      "kind": "sliding_outer",
+      "theta_deg": 258,
+      "pressure_contact_point_xyz_m": [
+        455,
+        -16.200479,
+        -76.217261
+      ],
+      "shell_outer_guard_radial_m": 77.92,
+      "structural_start_radial_m": 78.65,
+      "access_route": "EXT-CENTRAL; habitation rotor must first be stopped and positively parked",
+      "failure_rule": "single structural branch damage permits only controlled spin-down; sliding seizure increases differential thermal loads",
+      "branch_ids": [
+        "HAB-07-CRADLE-CCW-BRANCH-1",
+        "HAB-07-CRADLE-CCW-BRANCH-2",
+        "HAB-07-CRADLE-CCW-BRANCH-3"
+      ],
+      "interface": {
+        "sliding_radial_and_tangential": true,
+        "normal_thermal_stroke_mm": "to_be_finalized_from_as-built_differential_growth",
+        "ordinary_motion_must_not_be_clamped": true,
+        "positive_capture_exceptional_motion": true,
+        "branch_count": 3,
+        "independently_accessible_outer_lugs": true,
+        "shell_membrane_not_perforated": true
+      }
+    },
+    {
+      "id": "HAB-07-CRADLE-CENTRE",
+      "arc_id": "HAB-07",
+      "kind": "keyed_centre",
+      "theta_deg": 270,
+      "pressure_contact_point_xyz_m": [
+        455,
+        0,
+        -77.92
+      ],
+      "shell_outer_guard_radial_m": 77.92,
+      "structural_start_radial_m": 78.65,
+      "access_route": "EXT-CENTRAL; habitation rotor must first be stopped and positively parked",
+      "failure_rule": "centre key damage invalidates circumferential datum; inhibit routine spin and indexer movement",
+      "interface": {
+        "diaphragm_box_m": [
+          2.4,
+          1.6,
+          1.5
+        ],
+        "main_plate_mm": 50,
+        "inner_diaphragm_mm": 40,
+        "retainer_section_mm": [
+          300,
+          35
+        ],
+        "pins_diameter_mm": 180,
+        "reference_modes": [
+          "radial_bearing",
+          "longitudinal_reference",
+          "tangential_key"
+        ],
+        "ring_connection_id": "BPRIME-KEY-HAB-07",
+        "intact_pressure_membrane_required": true,
+        "pressure_shell_coupling": "reinforced external keyed diaphragm interface with internal pressure-rated load-spreading frames"
+      }
+    },
+    {
+      "id": "HAB-07-CRADLE-CW",
+      "arc_id": "HAB-07",
+      "kind": "sliding_outer",
+      "theta_deg": 282,
+      "pressure_contact_point_xyz_m": [
+        455,
+        16.200479,
+        -76.217261
+      ],
+      "shell_outer_guard_radial_m": 77.92,
+      "structural_start_radial_m": 78.65,
+      "access_route": "EXT-CENTRAL; habitation rotor must first be stopped and positively parked",
+      "failure_rule": "single structural branch damage permits only controlled spin-down; sliding seizure increases differential thermal loads",
+      "branch_ids": [
+        "HAB-07-CRADLE-CW-BRANCH-1",
+        "HAB-07-CRADLE-CW-BRANCH-2",
+        "HAB-07-CRADLE-CW-BRANCH-3"
+      ],
+      "interface": {
+        "sliding_radial_and_tangential": true,
+        "normal_thermal_stroke_mm": "to_be_finalized_from_as-built_differential_growth",
+        "ordinary_motion_must_not_be_clamped": true,
+        "positive_capture_exceptional_motion": true,
+        "branch_count": 3,
+        "independently_accessible_outer_lugs": true,
+        "shell_membrane_not_perforated": true
+      }
+    },
+    {
+      "id": "HAB-08-CRADLE-CCW",
+      "arc_id": "HAB-08",
+      "kind": "sliding_outer",
+      "theta_deg": 303,
+      "pressure_contact_point_xyz_m": [
+        455,
+        42.438274,
+        -65.349211
+      ],
+      "shell_outer_guard_radial_m": 77.92,
+      "structural_start_radial_m": 78.65,
+      "access_route": "EXT-CENTRAL; habitation rotor must first be stopped and positively parked",
+      "failure_rule": "single structural branch damage permits only controlled spin-down; sliding seizure increases differential thermal loads",
+      "branch_ids": [
+        "HAB-08-CRADLE-CCW-BRANCH-1",
+        "HAB-08-CRADLE-CCW-BRANCH-2",
+        "HAB-08-CRADLE-CCW-BRANCH-3"
+      ],
+      "interface": {
+        "sliding_radial_and_tangential": true,
+        "normal_thermal_stroke_mm": "to_be_finalized_from_as-built_differential_growth",
+        "ordinary_motion_must_not_be_clamped": true,
+        "positive_capture_exceptional_motion": true,
+        "branch_count": 3,
+        "independently_accessible_outer_lugs": true,
+        "shell_membrane_not_perforated": true
+      }
+    },
+    {
+      "id": "HAB-08-CRADLE-CENTRE",
+      "arc_id": "HAB-08",
+      "kind": "keyed_centre",
+      "theta_deg": 315,
+      "pressure_contact_point_xyz_m": [
+        455,
+        55.09776,
+        -55.09776
+      ],
+      "shell_outer_guard_radial_m": 77.92,
+      "structural_start_radial_m": 78.65,
+      "access_route": "EXT-CENTRAL; habitation rotor must first be stopped and positively parked",
+      "failure_rule": "centre key damage invalidates circumferential datum; inhibit routine spin and indexer movement",
+      "interface": {
+        "diaphragm_box_m": [
+          2.4,
+          1.6,
+          1.5
+        ],
+        "main_plate_mm": 50,
+        "inner_diaphragm_mm": 40,
+        "retainer_section_mm": [
+          300,
+          35
+        ],
+        "pins_diameter_mm": 180,
+        "reference_modes": [
+          "radial_bearing",
+          "longitudinal_reference",
+          "tangential_key"
+        ],
+        "ring_connection_id": "BPRIME-KEY-HAB-08",
+        "intact_pressure_membrane_required": true,
+        "pressure_shell_coupling": "reinforced external keyed diaphragm interface with internal pressure-rated load-spreading frames"
+      }
+    },
+    {
+      "id": "HAB-08-CRADLE-CW",
+      "arc_id": "HAB-08",
+      "kind": "sliding_outer",
+      "theta_deg": 327,
+      "pressure_contact_point_xyz_m": [
+        455,
+        65.349211,
+        -42.438274
+      ],
+      "shell_outer_guard_radial_m": 77.92,
+      "structural_start_radial_m": 78.65,
+      "access_route": "EXT-CENTRAL; habitation rotor must first be stopped and positively parked",
+      "failure_rule": "single structural branch damage permits only controlled spin-down; sliding seizure increases differential thermal loads",
+      "branch_ids": [
+        "HAB-08-CRADLE-CW-BRANCH-1",
+        "HAB-08-CRADLE-CW-BRANCH-2",
+        "HAB-08-CRADLE-CW-BRANCH-3"
+      ],
+      "interface": {
+        "sliding_radial_and_tangential": true,
+        "normal_thermal_stroke_mm": "to_be_finalized_from_as-built_differential_growth",
+        "ordinary_motion_must_not_be_clamped": true,
+        "positive_capture_exceptional_motion": true,
+        "branch_count": 3,
+        "independently_accessible_outer_lugs": true,
+        "shell_membrane_not_perforated": true
+      }
+    }
+  ],
+  "outer_branches": [
+    {
+      "id": "HAB-01-CRADLE-CCW-BRANCH-1",
+      "saddle_id": "HAB-01-CRADLE-CCW",
+      "member_index": 1,
+      "origin_xyz_m": [
+        454.4,
+        76.755853,
+        -17.156966
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        78.661877,
+        -19.32121
+      ],
+      "length_m": 2.945654,
+      "terminal_joint_id": "HAB-01-CRADLE-CCW-RING-J1",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-01-CRADLE-CCW-BRANCH-2",
+      "saddle_id": "HAB-01-CRADLE-CCW",
+      "member_index": 2,
+      "origin_xyz_m": [
+        455,
+        76.931309,
+        -16.352254
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        79.229956,
+        -16.840847
+      ],
+      "length_m": 2.35,
+      "terminal_joint_id": "HAB-01-CRADLE-CCW-RING-J2",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-01-CRADLE-CCW-BRANCH-3",
+      "saddle_id": "HAB-01-CRADLE-CCW",
+      "member_index": 3,
+      "origin_xyz_m": [
+        455.6,
+        77.098328,
+        -15.54575
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        79.719844,
+        -14.343864
+      ],
+      "length_m": 2.945654,
+      "terminal_joint_id": "HAB-01-CRADLE-CCW-RING-J3",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-01-CRADLE-CW-BRANCH-1",
+      "saddle_id": "HAB-01-CRADLE-CW",
+      "member_index": 1,
+      "origin_xyz_m": [
+        454.4,
+        77.098328,
+        15.54575
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        79.719844,
+        14.343864
+      ],
+      "length_m": 2.945654,
+      "terminal_joint_id": "HAB-01-CRADLE-CW-RING-J1",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-01-CRADLE-CW-BRANCH-2",
+      "saddle_id": "HAB-01-CRADLE-CW",
+      "member_index": 2,
+      "origin_xyz_m": [
+        455,
+        76.931309,
+        16.352254
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        79.229956,
+        16.840847
+      ],
+      "length_m": 2.35,
+      "terminal_joint_id": "HAB-01-CRADLE-CW-RING-J2",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-01-CRADLE-CW-BRANCH-3",
+      "saddle_id": "HAB-01-CRADLE-CW",
+      "member_index": 3,
+      "origin_xyz_m": [
+        455.6,
+        76.755853,
+        17.156966
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        78.661877,
+        19.32121
+      ],
+      "length_m": 2.945654,
+      "terminal_joint_id": "HAB-01-CRADLE-CW-RING-J3",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-02-CRADLE-CCW-BRANCH-1",
+      "saddle_id": "HAB-02-CRADLE-CCW",
+      "member_index": 1,
+      "origin_xyz_m": [
+        454.4,
+        66.406391,
+        42.142777
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        69.284505,
+        41.960188
+      ],
+      "length_m": 2.945654,
+      "terminal_joint_id": "HAB-02-CRADLE-CCW-RING-J1",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-02-CRADLE-CCW-BRANCH-2",
+      "saddle_id": "HAB-02-CRADLE-CCW",
+      "member_index": 2,
+      "origin_xyz_m": [
+        455,
+        65.96144,
+        42.83586
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        67.932316,
+        44.115762
+      ],
+      "length_m": 2.35,
+      "terminal_joint_id": "HAB-02-CRADLE-CCW-RING-J2",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-02-CRADLE-CCW-BRANCH-3",
+      "saddle_id": "HAB-02-CRADLE-CCW",
+      "member_index": 3,
+      "origin_xyz_m": [
+        455.6,
+        65.509256,
+        43.524245
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        66.513086,
+        46.227799
+      ],
+      "length_m": 2.945654,
+      "terminal_joint_id": "HAB-02-CRADLE-CCW-RING-J3",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-02-CRADLE-CW-BRANCH-1",
+      "saddle_id": "HAB-02-CRADLE-CW",
+      "member_index": 1,
+      "origin_xyz_m": [
+        454.4,
+        43.524245,
+        65.509256
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        46.227799,
+        66.513086
+      ],
+      "length_m": 2.945654,
+      "terminal_joint_id": "HAB-02-CRADLE-CW-RING-J1",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-02-CRADLE-CW-BRANCH-2",
+      "saddle_id": "HAB-02-CRADLE-CW",
+      "member_index": 2,
+      "origin_xyz_m": [
+        455,
+        42.83586,
+        65.96144
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        44.115762,
+        67.932316
+      ],
+      "length_m": 2.35,
+      "terminal_joint_id": "HAB-02-CRADLE-CW-RING-J2",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-02-CRADLE-CW-BRANCH-3",
+      "saddle_id": "HAB-02-CRADLE-CW",
+      "member_index": 3,
+      "origin_xyz_m": [
+        455.6,
+        42.142777,
+        66.406391
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        41.960188,
+        69.284505
+      ],
+      "length_m": 2.945654,
+      "terminal_joint_id": "HAB-02-CRADLE-CW-RING-J3",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-03-CRADLE-CCW-BRANCH-1",
+      "saddle_id": "HAB-03-CRADLE-CCW",
+      "member_index": 1,
+      "origin_xyz_m": [
+        454.4,
+        17.156966,
+        76.755853
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        19.32121,
+        78.661877
+      ],
+      "length_m": 2.945654,
+      "terminal_joint_id": "HAB-03-CRADLE-CCW-RING-J1",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-03-CRADLE-CCW-BRANCH-2",
+      "saddle_id": "HAB-03-CRADLE-CCW",
+      "member_index": 2,
+      "origin_xyz_m": [
+        455,
+        16.352254,
+        76.931309
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        16.840847,
+        79.229956
+      ],
+      "length_m": 2.35,
+      "terminal_joint_id": "HAB-03-CRADLE-CCW-RING-J2",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-03-CRADLE-CCW-BRANCH-3",
+      "saddle_id": "HAB-03-CRADLE-CCW",
+      "member_index": 3,
+      "origin_xyz_m": [
+        455.6,
+        15.54575,
+        77.098328
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        14.343864,
+        79.719844
+      ],
+      "length_m": 2.945654,
+      "terminal_joint_id": "HAB-03-CRADLE-CCW-RING-J3",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-03-CRADLE-CW-BRANCH-1",
+      "saddle_id": "HAB-03-CRADLE-CW",
+      "member_index": 1,
+      "origin_xyz_m": [
+        454.4,
+        -15.54575,
+        77.098328
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        -14.343864,
+        79.719844
+      ],
+      "length_m": 2.945654,
+      "terminal_joint_id": "HAB-03-CRADLE-CW-RING-J1",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-03-CRADLE-CW-BRANCH-2",
+      "saddle_id": "HAB-03-CRADLE-CW",
+      "member_index": 2,
+      "origin_xyz_m": [
+        455,
+        -16.352254,
+        76.931309
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        -16.840847,
+        79.229956
+      ],
+      "length_m": 2.35,
+      "terminal_joint_id": "HAB-03-CRADLE-CW-RING-J2",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-03-CRADLE-CW-BRANCH-3",
+      "saddle_id": "HAB-03-CRADLE-CW",
+      "member_index": 3,
+      "origin_xyz_m": [
+        455.6,
+        -17.156966,
+        76.755853
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        -19.32121,
+        78.661877
+      ],
+      "length_m": 2.945654,
+      "terminal_joint_id": "HAB-03-CRADLE-CW-RING-J3",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-04-CRADLE-CCW-BRANCH-1",
+      "saddle_id": "HAB-04-CRADLE-CCW",
+      "member_index": 1,
+      "origin_xyz_m": [
+        454.4,
+        -42.142777,
+        66.406391
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        -41.960188,
+        69.284505
+      ],
+      "length_m": 2.945654,
+      "terminal_joint_id": "HAB-04-CRADLE-CCW-RING-J1",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-04-CRADLE-CCW-BRANCH-2",
+      "saddle_id": "HAB-04-CRADLE-CCW",
+      "member_index": 2,
+      "origin_xyz_m": [
+        455,
+        -42.83586,
+        65.96144
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        -44.115762,
+        67.932316
+      ],
+      "length_m": 2.35,
+      "terminal_joint_id": "HAB-04-CRADLE-CCW-RING-J2",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-04-CRADLE-CCW-BRANCH-3",
+      "saddle_id": "HAB-04-CRADLE-CCW",
+      "member_index": 3,
+      "origin_xyz_m": [
+        455.6,
+        -43.524245,
+        65.509256
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        -46.227799,
+        66.513086
+      ],
+      "length_m": 2.945654,
+      "terminal_joint_id": "HAB-04-CRADLE-CCW-RING-J3",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-04-CRADLE-CW-BRANCH-1",
+      "saddle_id": "HAB-04-CRADLE-CW",
+      "member_index": 1,
+      "origin_xyz_m": [
+        454.4,
+        -65.509256,
+        43.524245
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        -66.513086,
+        46.227799
+      ],
+      "length_m": 2.945654,
+      "terminal_joint_id": "HAB-04-CRADLE-CW-RING-J1",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-04-CRADLE-CW-BRANCH-2",
+      "saddle_id": "HAB-04-CRADLE-CW",
+      "member_index": 2,
+      "origin_xyz_m": [
+        455,
+        -65.96144,
+        42.83586
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        -67.932316,
+        44.115762
+      ],
+      "length_m": 2.35,
+      "terminal_joint_id": "HAB-04-CRADLE-CW-RING-J2",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-04-CRADLE-CW-BRANCH-3",
+      "saddle_id": "HAB-04-CRADLE-CW",
+      "member_index": 3,
+      "origin_xyz_m": [
+        455.6,
+        -66.406391,
+        42.142777
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        -69.284505,
+        41.960188
+      ],
+      "length_m": 2.945654,
+      "terminal_joint_id": "HAB-04-CRADLE-CW-RING-J3",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-05-CRADLE-CCW-BRANCH-1",
+      "saddle_id": "HAB-05-CRADLE-CCW",
+      "member_index": 1,
+      "origin_xyz_m": [
+        454.4,
+        -76.755853,
+        17.156966
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        -78.661877,
+        19.32121
+      ],
+      "length_m": 2.945654,
+      "terminal_joint_id": "HAB-05-CRADLE-CCW-RING-J1",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-05-CRADLE-CCW-BRANCH-2",
+      "saddle_id": "HAB-05-CRADLE-CCW",
+      "member_index": 2,
+      "origin_xyz_m": [
+        455,
+        -76.931309,
+        16.352254
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        -79.229956,
+        16.840847
+      ],
+      "length_m": 2.35,
+      "terminal_joint_id": "HAB-05-CRADLE-CCW-RING-J2",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-05-CRADLE-CCW-BRANCH-3",
+      "saddle_id": "HAB-05-CRADLE-CCW",
+      "member_index": 3,
+      "origin_xyz_m": [
+        455.6,
+        -77.098328,
+        15.54575
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        -79.719844,
+        14.343864
+      ],
+      "length_m": 2.945654,
+      "terminal_joint_id": "HAB-05-CRADLE-CCW-RING-J3",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-05-CRADLE-CW-BRANCH-1",
+      "saddle_id": "HAB-05-CRADLE-CW",
+      "member_index": 1,
+      "origin_xyz_m": [
+        454.4,
+        -77.098328,
+        -15.54575
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        -79.719844,
+        -14.343864
+      ],
+      "length_m": 2.945654,
+      "terminal_joint_id": "HAB-05-CRADLE-CW-RING-J1",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-05-CRADLE-CW-BRANCH-2",
+      "saddle_id": "HAB-05-CRADLE-CW",
+      "member_index": 2,
+      "origin_xyz_m": [
+        455,
+        -76.931309,
+        -16.352254
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        -79.229956,
+        -16.840847
+      ],
+      "length_m": 2.35,
+      "terminal_joint_id": "HAB-05-CRADLE-CW-RING-J2",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-05-CRADLE-CW-BRANCH-3",
+      "saddle_id": "HAB-05-CRADLE-CW",
+      "member_index": 3,
+      "origin_xyz_m": [
+        455.6,
+        -76.755853,
+        -17.156966
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        -78.661877,
+        -19.32121
+      ],
+      "length_m": 2.945654,
+      "terminal_joint_id": "HAB-05-CRADLE-CW-RING-J3",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-06-CRADLE-CCW-BRANCH-1",
+      "saddle_id": "HAB-06-CRADLE-CCW",
+      "member_index": 1,
+      "origin_xyz_m": [
+        454.4,
+        -66.406391,
+        -42.142777
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        -69.284505,
+        -41.960188
+      ],
+      "length_m": 2.945654,
+      "terminal_joint_id": "HAB-06-CRADLE-CCW-RING-J1",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-06-CRADLE-CCW-BRANCH-2",
+      "saddle_id": "HAB-06-CRADLE-CCW",
+      "member_index": 2,
+      "origin_xyz_m": [
+        455,
+        -65.96144,
+        -42.83586
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        -67.932316,
+        -44.115762
+      ],
+      "length_m": 2.35,
+      "terminal_joint_id": "HAB-06-CRADLE-CCW-RING-J2",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-06-CRADLE-CCW-BRANCH-3",
+      "saddle_id": "HAB-06-CRADLE-CCW",
+      "member_index": 3,
+      "origin_xyz_m": [
+        455.6,
+        -65.509256,
+        -43.524245
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        -66.513086,
+        -46.227799
+      ],
+      "length_m": 2.945654,
+      "terminal_joint_id": "HAB-06-CRADLE-CCW-RING-J3",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-06-CRADLE-CW-BRANCH-1",
+      "saddle_id": "HAB-06-CRADLE-CW",
+      "member_index": 1,
+      "origin_xyz_m": [
+        454.4,
+        -43.524245,
+        -65.509256
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        -46.227799,
+        -66.513086
+      ],
+      "length_m": 2.945654,
+      "terminal_joint_id": "HAB-06-CRADLE-CW-RING-J1",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-06-CRADLE-CW-BRANCH-2",
+      "saddle_id": "HAB-06-CRADLE-CW",
+      "member_index": 2,
+      "origin_xyz_m": [
+        455,
+        -42.83586,
+        -65.96144
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        -44.115762,
+        -67.932316
+      ],
+      "length_m": 2.35,
+      "terminal_joint_id": "HAB-06-CRADLE-CW-RING-J2",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-06-CRADLE-CW-BRANCH-3",
+      "saddle_id": "HAB-06-CRADLE-CW",
+      "member_index": 3,
+      "origin_xyz_m": [
+        455.6,
+        -42.142777,
+        -66.406391
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        -41.960188,
+        -69.284505
+      ],
+      "length_m": 2.945654,
+      "terminal_joint_id": "HAB-06-CRADLE-CW-RING-J3",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-07-CRADLE-CCW-BRANCH-1",
+      "saddle_id": "HAB-07-CRADLE-CCW",
+      "member_index": 1,
+      "origin_xyz_m": [
+        454.4,
+        -17.156966,
+        -76.755853
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        -19.32121,
+        -78.661877
+      ],
+      "length_m": 2.945654,
+      "terminal_joint_id": "HAB-07-CRADLE-CCW-RING-J1",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-07-CRADLE-CCW-BRANCH-2",
+      "saddle_id": "HAB-07-CRADLE-CCW",
+      "member_index": 2,
+      "origin_xyz_m": [
+        455,
+        -16.352254,
+        -76.931309
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        -16.840847,
+        -79.229956
+      ],
+      "length_m": 2.35,
+      "terminal_joint_id": "HAB-07-CRADLE-CCW-RING-J2",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-07-CRADLE-CCW-BRANCH-3",
+      "saddle_id": "HAB-07-CRADLE-CCW",
+      "member_index": 3,
+      "origin_xyz_m": [
+        455.6,
+        -15.54575,
+        -77.098328
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        -14.343864,
+        -79.719844
+      ],
+      "length_m": 2.945654,
+      "terminal_joint_id": "HAB-07-CRADLE-CCW-RING-J3",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-07-CRADLE-CW-BRANCH-1",
+      "saddle_id": "HAB-07-CRADLE-CW",
+      "member_index": 1,
+      "origin_xyz_m": [
+        454.4,
+        15.54575,
+        -77.098328
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        14.343864,
+        -79.719844
+      ],
+      "length_m": 2.945654,
+      "terminal_joint_id": "HAB-07-CRADLE-CW-RING-J1",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-07-CRADLE-CW-BRANCH-2",
+      "saddle_id": "HAB-07-CRADLE-CW",
+      "member_index": 2,
+      "origin_xyz_m": [
+        455,
+        16.352254,
+        -76.931309
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        16.840847,
+        -79.229956
+      ],
+      "length_m": 2.35,
+      "terminal_joint_id": "HAB-07-CRADLE-CW-RING-J2",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-07-CRADLE-CW-BRANCH-3",
+      "saddle_id": "HAB-07-CRADLE-CW",
+      "member_index": 3,
+      "origin_xyz_m": [
+        455.6,
+        17.156966,
+        -76.755853
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        19.32121,
+        -78.661877
+      ],
+      "length_m": 2.945654,
+      "terminal_joint_id": "HAB-07-CRADLE-CW-RING-J3",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-08-CRADLE-CCW-BRANCH-1",
+      "saddle_id": "HAB-08-CRADLE-CCW",
+      "member_index": 1,
+      "origin_xyz_m": [
+        454.4,
+        42.142777,
+        -66.406391
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        41.960188,
+        -69.284505
+      ],
+      "length_m": 2.945654,
+      "terminal_joint_id": "HAB-08-CRADLE-CCW-RING-J1",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-08-CRADLE-CCW-BRANCH-2",
+      "saddle_id": "HAB-08-CRADLE-CCW",
+      "member_index": 2,
+      "origin_xyz_m": [
+        455,
+        42.83586,
+        -65.96144
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        44.115762,
+        -67.932316
+      ],
+      "length_m": 2.35,
+      "terminal_joint_id": "HAB-08-CRADLE-CCW-RING-J2",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-08-CRADLE-CCW-BRANCH-3",
+      "saddle_id": "HAB-08-CRADLE-CCW",
+      "member_index": 3,
+      "origin_xyz_m": [
+        455.6,
+        43.524245,
+        -65.509256
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        46.227799,
+        -66.513086
+      ],
+      "length_m": 2.945654,
+      "terminal_joint_id": "HAB-08-CRADLE-CCW-RING-J3",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-08-CRADLE-CW-BRANCH-1",
+      "saddle_id": "HAB-08-CRADLE-CW",
+      "member_index": 1,
+      "origin_xyz_m": [
+        454.4,
+        65.509256,
+        -43.524245
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        66.513086,
+        -46.227799
+      ],
+      "length_m": 2.945654,
+      "terminal_joint_id": "HAB-08-CRADLE-CW-RING-J1",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-08-CRADLE-CW-BRANCH-2",
+      "saddle_id": "HAB-08-CRADLE-CW",
+      "member_index": 2,
+      "origin_xyz_m": [
+        455,
+        65.96144,
+        -42.83586
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        67.932316,
+        -44.115762
+      ],
+      "length_m": 2.35,
+      "terminal_joint_id": "HAB-08-CRADLE-CW-RING-J2",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    },
+    {
+      "id": "HAB-08-CRADLE-CW-BRANCH-3",
+      "saddle_id": "HAB-08-CRADLE-CW",
+      "member_index": 3,
+      "origin_xyz_m": [
+        455.6,
+        66.406391,
+        -42.142777
+      ],
+      "terminal_ring_xyz_m": [
+        455,
+        69.284505,
+        -41.960188
+      ],
+      "length_m": 2.945654,
+      "terminal_joint_id": "HAB-08-CRADLE-CW-RING-J3",
+      "section_box_outer_m": [
+        0.4,
+        0.4
+      ],
+      "section_wall_m": 0.035,
+      "radial_guard_clearance_m": 0.447157,
+      "route_to_bearing_plane": "distinct ring junction and split axial lattice with fore/aft bearing access",
+      "system_stage": "conceptual B-prime 38deg ring re-topology; prior 41deg frame beam mesh not recalculated"
+    }
+  ],
+  "bridges": [
+    {
+      "id": "BR-01",
+      "from_arc_id": "HAB-01",
+      "to_arc_id": "HAB-02",
+      "from_hatch_id": "HAB-01-END-HATCH-CW",
+      "to_hatch_id": "HAB-02-END-HATCH-CCW",
+      "from_port_xyz_m": [
+        455,
+        69.100599,
+        26.305094
+      ],
+      "to_port_xyz_m": [
+        455,
+        67.462011,
+        30.260992
+      ],
+      "centerline_axis_xyz": [
+        0,
+        -0.382684,
+        0.923879
+      ],
+      "port_datum_distance_m": 4.281834,
+      "facing_axis_misalignment_deg": 7,
+      "angle_per_flexible_coupling_deg": 3.5,
+      "central_spool_nominal_length_m": 3.581834,
+      "collar_projected_length_m_each": 0.35,
+      "clear_bore_m": 3,
+      "outer_envelope_d_m": 3.3,
+      "independent_pressure_zone_id": "PZ-BR-01",
+      "gross_air_envelope_m3": 30.266499,
+      "normal_relative_translation_travel_mm": 125,
+      "emergency_translation_envelope_mm": 450,
+      "emergency_mode": "both end hatches closed and bridge isolated; traversal not guaranteed",
+      "service_sleeve_id": "BR-01-UTILITY-SLEEVE",
+      "spool_equipment_id": "BR-01-SPOOL",
+      "service_branches_remain_independently_isolatable": true,
+      "pressure_module_structural_load_support": false
+    },
+    {
+      "id": "BR-02",
+      "from_arc_id": "HAB-02",
+      "to_arc_id": "HAB-03",
+      "from_hatch_id": "HAB-02-END-HATCH-CW",
+      "to_hatch_id": "HAB-03-END-HATCH-CCW",
+      "from_port_xyz_m": [
+        455,
+        30.260992,
+        67.462011
+      ],
+      "to_port_xyz_m": [
+        455,
+        26.305094,
+        69.100599
+      ],
+      "centerline_axis_xyz": [
+        0,
+        -0.923879,
+        0.382684
+      ],
+      "port_datum_distance_m": 4.281834,
+      "facing_axis_misalignment_deg": 7,
+      "angle_per_flexible_coupling_deg": 3.5,
+      "central_spool_nominal_length_m": 3.581834,
+      "collar_projected_length_m_each": 0.35,
+      "clear_bore_m": 3,
+      "outer_envelope_d_m": 3.3,
+      "independent_pressure_zone_id": "PZ-BR-02",
+      "gross_air_envelope_m3": 30.266499,
+      "normal_relative_translation_travel_mm": 125,
+      "emergency_translation_envelope_mm": 450,
+      "emergency_mode": "both end hatches closed and bridge isolated; traversal not guaranteed",
+      "service_sleeve_id": "BR-02-UTILITY-SLEEVE",
+      "spool_equipment_id": "BR-02-SPOOL",
+      "service_branches_remain_independently_isolatable": true,
+      "pressure_module_structural_load_support": false
+    },
+    {
+      "id": "BR-03",
+      "from_arc_id": "HAB-03",
+      "to_arc_id": "HAB-04",
+      "from_hatch_id": "HAB-03-END-HATCH-CW",
+      "to_hatch_id": "HAB-04-END-HATCH-CCW",
+      "from_port_xyz_m": [
+        455,
+        -26.305094,
+        69.100599
+      ],
+      "to_port_xyz_m": [
+        455,
+        -30.260992,
+        67.462011
+      ],
+      "centerline_axis_xyz": [
+        0,
+        -0.923879,
+        -0.382684
+      ],
+      "port_datum_distance_m": 4.281834,
+      "facing_axis_misalignment_deg": 7,
+      "angle_per_flexible_coupling_deg": 3.5,
+      "central_spool_nominal_length_m": 3.581834,
+      "collar_projected_length_m_each": 0.35,
+      "clear_bore_m": 3,
+      "outer_envelope_d_m": 3.3,
+      "independent_pressure_zone_id": "PZ-BR-03",
+      "gross_air_envelope_m3": 30.266499,
+      "normal_relative_translation_travel_mm": 125,
+      "emergency_translation_envelope_mm": 450,
+      "emergency_mode": "both end hatches closed and bridge isolated; traversal not guaranteed",
+      "service_sleeve_id": "BR-03-UTILITY-SLEEVE",
+      "spool_equipment_id": "BR-03-SPOOL",
+      "service_branches_remain_independently_isolatable": true,
+      "pressure_module_structural_load_support": false
+    },
+    {
+      "id": "BR-04",
+      "from_arc_id": "HAB-04",
+      "to_arc_id": "HAB-05",
+      "from_hatch_id": "HAB-04-END-HATCH-CW",
+      "to_hatch_id": "HAB-05-END-HATCH-CCW",
+      "from_port_xyz_m": [
+        455,
+        -67.462011,
+        30.260992
+      ],
+      "to_port_xyz_m": [
+        455,
+        -69.100599,
+        26.305094
+      ],
+      "centerline_axis_xyz": [
+        0,
+        -0.382684,
+        -0.923879
+      ],
+      "port_datum_distance_m": 4.281834,
+      "facing_axis_misalignment_deg": 7,
+      "angle_per_flexible_coupling_deg": 3.5,
+      "central_spool_nominal_length_m": 3.581834,
+      "collar_projected_length_m_each": 0.35,
+      "clear_bore_m": 3,
+      "outer_envelope_d_m": 3.3,
+      "independent_pressure_zone_id": "PZ-BR-04",
+      "gross_air_envelope_m3": 30.266499,
+      "normal_relative_translation_travel_mm": 125,
+      "emergency_translation_envelope_mm": 450,
+      "emergency_mode": "both end hatches closed and bridge isolated; traversal not guaranteed",
+      "service_sleeve_id": "BR-04-UTILITY-SLEEVE",
+      "spool_equipment_id": "BR-04-SPOOL",
+      "service_branches_remain_independently_isolatable": true,
+      "pressure_module_structural_load_support": false
+    },
+    {
+      "id": "BR-05",
+      "from_arc_id": "HAB-05",
+      "to_arc_id": "HAB-06",
+      "from_hatch_id": "HAB-05-END-HATCH-CW",
+      "to_hatch_id": "HAB-06-END-HATCH-CCW",
+      "from_port_xyz_m": [
+        455,
+        -69.100599,
+        -26.305094
+      ],
+      "to_port_xyz_m": [
+        455,
+        -67.462011,
+        -30.260992
+      ],
+      "centerline_axis_xyz": [
+        0,
+        0.382684,
+        -0.923879
+      ],
+      "port_datum_distance_m": 4.281834,
+      "facing_axis_misalignment_deg": 7,
+      "angle_per_flexible_coupling_deg": 3.5,
+      "central_spool_nominal_length_m": 3.581834,
+      "collar_projected_length_m_each": 0.35,
+      "clear_bore_m": 3,
+      "outer_envelope_d_m": 3.3,
+      "independent_pressure_zone_id": "PZ-BR-05",
+      "gross_air_envelope_m3": 30.266499,
+      "normal_relative_translation_travel_mm": 125,
+      "emergency_translation_envelope_mm": 450,
+      "emergency_mode": "both end hatches closed and bridge isolated; traversal not guaranteed",
+      "service_sleeve_id": "BR-05-UTILITY-SLEEVE",
+      "spool_equipment_id": "BR-05-SPOOL",
+      "service_branches_remain_independently_isolatable": true,
+      "pressure_module_structural_load_support": false
+    },
+    {
+      "id": "BR-06",
+      "from_arc_id": "HAB-06",
+      "to_arc_id": "HAB-07",
+      "from_hatch_id": "HAB-06-END-HATCH-CW",
+      "to_hatch_id": "HAB-07-END-HATCH-CCW",
+      "from_port_xyz_m": [
+        455,
+        -30.260992,
+        -67.462011
+      ],
+      "to_port_xyz_m": [
+        455,
+        -26.305094,
+        -69.100599
+      ],
+      "centerline_axis_xyz": [
+        0,
+        0.923879,
+        -0.382684
+      ],
+      "port_datum_distance_m": 4.281834,
+      "facing_axis_misalignment_deg": 7,
+      "angle_per_flexible_coupling_deg": 3.5,
+      "central_spool_nominal_length_m": 3.581834,
+      "collar_projected_length_m_each": 0.35,
+      "clear_bore_m": 3,
+      "outer_envelope_d_m": 3.3,
+      "independent_pressure_zone_id": "PZ-BR-06",
+      "gross_air_envelope_m3": 30.266499,
+      "normal_relative_translation_travel_mm": 125,
+      "emergency_translation_envelope_mm": 450,
+      "emergency_mode": "both end hatches closed and bridge isolated; traversal not guaranteed",
+      "service_sleeve_id": "BR-06-UTILITY-SLEEVE",
+      "spool_equipment_id": "BR-06-SPOOL",
+      "service_branches_remain_independently_isolatable": true,
+      "pressure_module_structural_load_support": false
+    },
+    {
+      "id": "BR-07",
+      "from_arc_id": "HAB-07",
+      "to_arc_id": "HAB-08",
+      "from_hatch_id": "HAB-07-END-HATCH-CW",
+      "to_hatch_id": "HAB-08-END-HATCH-CCW",
+      "from_port_xyz_m": [
+        455,
+        26.305094,
+        -69.100599
+      ],
+      "to_port_xyz_m": [
+        455,
+        30.260992,
+        -67.462011
+      ],
+      "centerline_axis_xyz": [
+        0,
+        0.923879,
+        0.382684
+      ],
+      "port_datum_distance_m": 4.281834,
+      "facing_axis_misalignment_deg": 7,
+      "angle_per_flexible_coupling_deg": 3.5,
+      "central_spool_nominal_length_m": 3.581834,
+      "collar_projected_length_m_each": 0.35,
+      "clear_bore_m": 3,
+      "outer_envelope_d_m": 3.3,
+      "independent_pressure_zone_id": "PZ-BR-07",
+      "gross_air_envelope_m3": 30.266499,
+      "normal_relative_translation_travel_mm": 125,
+      "emergency_translation_envelope_mm": 450,
+      "emergency_mode": "both end hatches closed and bridge isolated; traversal not guaranteed",
+      "service_sleeve_id": "BR-07-UTILITY-SLEEVE",
+      "spool_equipment_id": "BR-07-SPOOL",
+      "service_branches_remain_independently_isolatable": true,
+      "pressure_module_structural_load_support": false
+    },
+    {
+      "id": "BR-08",
+      "from_arc_id": "HAB-08",
+      "to_arc_id": "HAB-01",
+      "from_hatch_id": "HAB-08-END-HATCH-CW",
+      "to_hatch_id": "HAB-01-END-HATCH-CCW",
+      "from_port_xyz_m": [
+        455,
+        67.462011,
+        -30.260992
+      ],
+      "to_port_xyz_m": [
+        455,
+        69.100599,
+        -26.305094
+      ],
+      "centerline_axis_xyz": [
+        0,
+        0.382684,
+        0.923879
+      ],
+      "port_datum_distance_m": 4.281834,
+      "facing_axis_misalignment_deg": 7,
+      "angle_per_flexible_coupling_deg": 3.5,
+      "central_spool_nominal_length_m": 3.581834,
+      "collar_projected_length_m_each": 0.35,
+      "clear_bore_m": 3,
+      "outer_envelope_d_m": 3.3,
+      "independent_pressure_zone_id": "PZ-BR-08",
+      "gross_air_envelope_m3": 30.266499,
+      "normal_relative_translation_travel_mm": 125,
+      "emergency_translation_envelope_mm": 450,
+      "emergency_mode": "both end hatches closed and bridge isolated; traversal not guaranteed",
+      "service_sleeve_id": "BR-08-UTILITY-SLEEVE",
+      "spool_equipment_id": "BR-08-SPOOL",
+      "service_branches_remain_independently_isolatable": true,
+      "pressure_module_structural_load_support": false
+    }
+  ],
+  "not_claimed": [
+    "validated three-branch structural independence from common-frame failure",
+    "real 38-degree regenerated 3D beam-model stress or buckling result",
+    "clash-free metal hatch seat, dog, hinge, flex bellows or pressure-shell joint",
+    "usable breathable net gas volume equal to gross geometry"
+  ],
+  "verification_note": "Static spatial reference for installation and operations; no construction-ready certification"
+}

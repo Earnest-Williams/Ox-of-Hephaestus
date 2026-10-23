@@ -6,6 +6,10 @@
 
 v0.4 is the current repository preparation baseline. It retains the complete habitation/cargo/service model, the compartmentalised fixed spine, the adjustable-gravity Engineering work rotor, and the survivability/maintenance layer.
 
+## Governing engineering scope
+
+**[Ship Engineering Design Standard](SHIP_ENGINEERING_DESIGN_STANDARD.md) governs all ship engineering review.** Verisimilitude for a playable, aging, repaired freighter—not NASA, ESA, or fabrication certification—is the objective. The design is adopted when spatial relationships, failure dependencies, work/access costs, limited resources and observational uncertainty are convincing and internally consistent; missing aerospace qualification is not a blocker.
+
 ## What changed in v0.2
 
 - Every major fixed-spine workplace now has a real axial compartment extent plus schematic cross-section position.
