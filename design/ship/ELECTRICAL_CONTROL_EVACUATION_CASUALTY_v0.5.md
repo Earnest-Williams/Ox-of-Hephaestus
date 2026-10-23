@@ -27,7 +27,7 @@ exercise all coupled tests against the actual selected ship v0.5 JSON.
 
 Authorial equipment references specify GEN-M **3.0 MW**, GEN-A and
 GEN-B **0.75 MW nameplate**, an overall installed **3.3 MW continuous
-delivered envelope**, **1.55 MW** normal service load, **2.6 MW**
+delivered envelope**, **1.35 MW** normal service load (including 90 kW crops and 97 kW scheduled margin), **2.6 MW**
 demanding schedule and **0.75 MW** nominal protected schedule.
 
 The test uses **0.65 MW of selected essential load per surviving auxiliary**
@@ -170,7 +170,7 @@ The adversarial test suite verifies:
 
 | Damage-control conflict | Required evidence and consequence |
 | --- | --- |
-| GEN-M trip during 1.55 MW normal schedule | Remaining GEN-B supplies at most 0.65 MW selected essential schedule; normal schedule not "still fine" |
+| GEN-M trip during 1.35 MW normal schedule | Remaining GEN-B supplies at most 0.65 MW selected essential schedule; normal schedule not "still fine" |
 | Explicit 0.60 MW load shed | Surviving B distribution can support selected essential loads |
 | Protected A-to-B transfer | HAB detector/lighting and main PROT selection require distinct real transfer action |
 | Main tie closure without synchronisation | Rejected; protected bus and batteries cannot reverse-backfeed the main board |
