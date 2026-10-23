@@ -14,6 +14,14 @@ Only the manually dispatched `Ox G11 matched-evidence memory A/B` workflow
 uses hosted Gemini. One to three repetitions require **8–24 API requests**;
 the provider key must exist in Actions secrets. It is not automatic PR CI.
 
+The experimental Qwen CPU branch additionally supports
+`--provider qwen-local` using an OpenAI-compatible localhost endpoint.
+This is **real model inference**, unlike `capture`, but it is not hosted
+inference or an automatic G11 production gate. The isolated
+`ox-qwen-local-cpu.yml` runner records descriptive per-case behaviour and
+latency while preserving exactly the same G11 fixtures and actor-visible
+evidence; only provider choice and memory-context projection vary.
+
 A local smoke command tests *wiring only*, not model behaviour:
 
 ```
