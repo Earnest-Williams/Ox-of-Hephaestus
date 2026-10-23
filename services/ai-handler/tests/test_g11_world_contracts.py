@@ -62,12 +62,12 @@ class G11RealAgentGateTests(unittest.TestCase):
                     contract_routing="yes")
         with tempfile.TemporaryDirectory() as d:
             p=Path(d)
-            t=m.Trial(241,p)
+            t=m.Trial(241,p,cognition_mode="decider")
             t._model=lambda: m.MockModel()
             t.bind({role:f"#{i+1}" for i,role in enumerate(m.ROSTER)})
             t.save()
             with self.assertRaisesRegex(PermissionError,"authority mode"):
-                m.Trial(241,p,cognition_mode="symbolic",
+                m.Trial(241,p,cognition_mode="decider",
                         contract_routing=True)
 
     def test_real_reply_goes_to_one_actor_only_and_is_still_a_proposal(self):
