@@ -411,18 +411,18 @@ def validate(ship, pressure, gas, audit):
          "whole-ship pressure geometry tally disagrees")
     doors={d["id"] for d in ship["access_links"] if d.get("pressure_boundary")}
     recorded={d["id"] for d in pressure["pressure_boundary_doors"]}
-    need(len(doors)==len(recorded)==208 and doors==recorded,
+    need(len(doors)==len(recorded)==339 and doors==recorded,
          "independent rated pressure boundary missing")
     for edge in ship["access_links"]:
         ra,rb=rooms[edge["from"]]["pressure_zone"],rooms[edge["to"]]["pressure_zone"]
-        need(ra is None or rb is None or ra==rb or edge["pressure_boundary"],
+        need(ra==rb or edge["pressure_boundary"],
              "unrated independent pressure-zone door: "+edge["id"])
     ref=ship["transit_contract"]["inter_drum_transfer"]["freight_lock_reference"]
     need(ref["clear_length_m"]==12 and ref["sled_length_m"]==8
          and ref["fore_and_aft_end_clearance_m_each"]==2,
          "sled does not fit six fixed freight chambers")
     return {"sized_pressure_cells":133,"unsized_pressure_cells":0,
-            "rated_pressure_boundaries":208,"checked_static_box_tube_envelopes":static_count,
+            "rated_pressure_boundaries":339,"checked_static_box_tube_envelopes":static_count,
             "gross_reference_m3":round(total,3),
             "newly_sized_in_this_increment":26,
             "drum_annulus_axially_separated":6,
@@ -460,6 +460,12 @@ def negative_tests(ship,pressure,gas,audit):
     fail(lambda s,p,g,a: next(x for x in g["sized_and_unsized_pressure_cells"]
          if x["pressure_zone_id"]=="PZ-AFT-STORES").update(verified_as_installed_free_gas_m3=100))
     fail(lambda s,p,g,a: room(s,"BE-12-SVC")["location"].update(z_m=-3.35))
+    fail(lambda s,p,g,a: next(e for e in s["access_links"]
+         if e["id"]=="ACC-DR-01-SEC-01").update(pressure_boundary=False))
+    fail(lambda s,p,g,a: next(e for e in s["access_links"]
+         if e["id"]=="ACC-GEN-M-ROOM").update(pressure_boundary=False))
+    fail(lambda s,p,g,a: next(e for e in s["access_links"]
+         if e["id"]=="ACC-DR-06-FREIGHT-SEC-08").update(pressure_boundary=False))
 
 
 if __name__=="__main__":
@@ -471,4 +477,4 @@ if __name__=="__main__":
     )]
     print(json.dumps(validate(*data),sort_keys=True,indent=2))
     negative_tests(*data)
-    print("OX_COMPLETE_PRESSURE_GEOMETRY_AND_FIFTEEN_NEGATIVE_TESTS_PASS")
+    print("OX_COMPLETE_PRESSURE_GEOMETRY_AND_EIGHTEEN_NEGATIVE_TESTS_PASS")

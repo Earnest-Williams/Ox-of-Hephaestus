@@ -1,4 +1,4 @@
-**CURRENT 23 OCTOBER 2026 v0.5 CANDIDATE:** 133/133 physically bounded nominal pressure cells, 208 rated access boundaries, 100,772.940 m³ gross / 65,832.797–88,021.802 m³ planned free-air reference; **802 maintained equipment objects, 13 inventory accounts, 42 maintenance groups**. The six cargo-drums now have individual passenger indexers and freight docking collars; the four separate, finite industrial/hazardous bins begin empty. Read [machinery/industrial disposal closure](MACHINERY_AND_FINITE_DISPOSAL_CLOSURE_v0.5.md) and [physical closure](PHYSICAL_CLOSURE_v0.5.md). Earlier dates/counts later in these files refer to earlier v0.5 milestones only. All source volumes are design geometry, not as-installed measurements or certified safe access.
+**CURRENT 23 OCTOBER 2026 v0.5 CANDIDATE:** 133/133 physically bounded nominal pressure cells, 339 rated isolation boundaries (208 previously rated plus 131 unknown-environment thresholds), 100,772.940 m³ gross / 65,832.797–88,021.802 m³ planned free-air reference; **802 maintained equipment objects, 13 inventory accounts, 42 maintenance groups**. The six cargo-drums now have individual passenger indexers and freight docking collars; the four separate, finite industrial/hazardous bins begin empty. Read [machinery/industrial disposal closure](MACHINERY_AND_FINITE_DISPOSAL_CLOSURE_v0.5.md) and [physical closure](PHYSICAL_CLOSURE_v0.5.md). Earlier dates/counts later in these files refer to earlier v0.5 milestones only. All source volumes are design geometry, not as-installed measurements or certified safe access.
 
 # Full ship preparation baseline
 
@@ -116,3 +116,7 @@ code is changed in this branch. The earlier full-ship integration
 PR #101 remains separate and unmerged pending design completion.
 
 - [Complete selected pressure reference and full fixed/rotary layout](PHYSICAL_CLOSURE_v0.5.md): 133 pressure cells, nonintersecting fixed envelopes, drum station separation and telescoping WR-01 references.
+
+- [Unknown-environment containment closure](UNKNOWN_ENVIRONMENT_ACCESS_CLOSURE_v0.5.md): rated protection at 131 cargo/industrial/shield thresholds, local interlocks and service ownership.
+- [Unknown-environment door schedule](environmental_access_boundaries_v0.5.json): physical records and handling rules for all 131 rated receivers.
+- [Environmental access regression](check_environmental_boundaries.py): pressure/chemistry and dual cargo-sector gate checks.

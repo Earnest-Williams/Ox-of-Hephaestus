@@ -200,11 +200,28 @@ def validate(candidate: dict, baseline: dict) -> dict:
                       if x["pressure_boundary"]}
     added_rated = {x["id"] for x in candidate["access_links"]
                    if x["pressure_boundary"]} - baseline_rated
-    require(added_rated == required_new_rated,
-            "wrong or missing independently rated intercell access")
+    # Preserve the ten already selected rated changes and require every
+    # formerly unrated opening into unknown cargo/industrial/shield space.
+    # Compute the expected set from the immutable v0.4 access identities,
+    # never from whichever new candidate gates happen to claim a rating.
+    environmental_interface_ids = set()
+    for original_link in baseline["access_links"]:
+        a = zone_of[original_link["from"]]
+        b = zone_of[original_link["to"]]
+        if (a is None) != (b is None):
+            other = b if a is None else a
+            if other != "VACUUM":
+                environmental_interface_ids.add(original_link["id"])
+    require(len(environmental_interface_ids) == 131,
+            "unknown environmental access baseline drift")
+    require(added_rated == required_new_rated | environmental_interface_ids,
+            "wrong or missing independently rated/unknown-space access")
+    require(all(links[k]["isolatable"] and links[k]["normal_state"] == "closed"
+                for k in environmental_interface_ids),
+            "cargo/industrial pressure gates cannot default open")
     for link in candidate["access_links"]:
         a, b = zone_of[link["from"]], zone_of[link["to"]]
-        require(a is None or b is None or a == b or link["pressure_boundary"],
+        require(a == b or link["pressure_boundary"],
                 f"unrated passage between distinct gas cells: {link['id']}")
     require(all(links[d]["normal_state"] == "closed"
                 for d in ("ACC-IX-A-FINAL", "ACC-IX-B-FINAL")),

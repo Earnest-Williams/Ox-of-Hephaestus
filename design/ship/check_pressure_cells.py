@@ -90,7 +90,7 @@ def validate(ship: dict, ledger: dict) -> dict:
     actual_doors = {door["id"]: door for door in ship["access_links"]
                     if door.get("pressure_boundary")}
     projected = {door["id"]: door for door in ledger["pressure_boundary_doors"]}
-    require(len(actual_doors) == len(projected) == 208,
+    require(len(actual_doors) == len(projected) == 339,
             "pressure-boundary count/reference mismatch")
     for id, door in actual_doors.items():
         record = projected[id]
@@ -102,12 +102,14 @@ def validate(ship: dict, ledger: dict) -> dict:
                 f"pressure-rated hatch has no actual isolation boundary: {id}")
 
 
-    # A separate pressure zone requires an actual rated isolation closure;
-    # this includes the nominally vacuum F1/F2 machinery enclosures.
+    # Every transition from a known pressure volume to ANY other role, including
+    # unclassified cargo and machinery, requires independent rated isolation.
+    # A space with null pressure_zone is NOT safe open air.
+    # This also includes normally vacuum F1/F2 machinery enclosures.
     for door in ship["access_links"]:
         za = space[door["from"]].get("pressure_zone")
         zb = space[door["to"]].get("pressure_zone")
-        if za is not None and zb is not None and za != zb:
+        if za != zb:
             require(door.get("pressure_boundary") is True,
                     f"unrated door between pressure zones: {door['id']}")
 
