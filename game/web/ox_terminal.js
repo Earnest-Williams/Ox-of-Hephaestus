@@ -28,7 +28,7 @@
   card.setAttribute("aria-label", "World-authoritative Ox telemetry");
   card.innerHTML = [
     '<header>',
-      '<div class="ox-live-eyebrow">WEYLAND-STYLE INDUSTRIAL MONITOR // OX</div>',
+      '<div class="ox-live-eyebrow">OX / INDUSTRIAL SYSTEMS MONITOR // OX</div>',
       '<div class="ox-live-row">',
         '<div class="ox-live-heading">VESSEL CONDITION</div>',
         '<button id="ox-refresh" type="button" class="ox-live-link">REFRESH</button>',
