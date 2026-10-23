@@ -32,6 +32,47 @@ class G11EvaluatorSafetyTests(unittest.TestCase):
             with self.assertRaises(PermissionError):
                 self.mod.evaluate(p)
 
+    def test_one_decider_engine_handles_only_registered_typed_menus(self):
+        from ox_ai.inference.decider_gguf_choice import DeciderGGUFChoiceModel
+        class NativeFake:
+            def __init__(self):
+                self.criteria=[]
+            def system_one(self, prompt, questions):
+                options=questions["next_action"]["criteria"]
+                self.criteria.append(tuple(options.values()))
+                keys=list(options)
+                return {"answers":{"next_action":{
+                    "choice":keys[-1],
+                    "probabilities":{key:1.0 if key==keys[-1] else 0.0
+                                     for key in keys},
+                }}}
+        native=NativeFake()
+        model=DeciderGGUFChoiceModel(
+            "not-real.gguf", ("a","b","c","d","e","f","g"),
+            engine=native,
+            alternate_descriptions={3:(
+                "Accept a real addressed pending agreement.",
+                "Defer a real addressed pending agreement.",
+                "Decline a real addressed pending agreement.",
+            )},
+        )
+        index, code, data=model.sample_choice(
+            "Prior remembered obligations",("A","B","C"))
+        self.assertEqual((index,code),(2,"C"))
+        self.assertEqual(len(native.criteria[-1]),3)
+        self.assertIn("Decline",native.criteria[-1][-1])
+        self.assertEqual(model.sample_choice(
+            "Prior remembered obligations",tuple("ABCDEFG"))[:2],(6,"G"))
+        self.assertEqual(len(native.criteria[-1]),7)
+        with self.assertRaisesRegex(ValueError,"finite decision menu"):
+            model.sample_choice("state",tuple("ABCD"))
+        with self.assertRaisesRegex(ValueError,"Conflicting descriptions"):
+            DeciderGGUFChoiceModel("not-real.gguf",("a","b"),engine=native,
+                                  alternate_descriptions={2:("x","y")})
+        with self.assertRaisesRegex(ValueError,"Alternate Decider menu"):
+            DeciderGGUFChoiceModel("not-real.gguf",("a","b"),engine=native,
+                                  alternate_descriptions={3:("x","y")})
+
     def test_missing_opt_in_rejected_before_reading_private_crew(self):
         with tempfile.TemporaryDirectory() as d:
             p=Path(d)
