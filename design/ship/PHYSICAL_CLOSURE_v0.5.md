@@ -54,3 +54,5 @@ The `approved_geometry_changes_v0.5.json` witness and `fixed_spine_relayout_v0.5
 ## Design scope boundaries
 
 The design closes pressure-volume bookkeeping and proposed nonintersecting station reference envelopes at *simulation-operation fidelity*. It does **not** claim a construction-quality moving-contact/FEA model, fit-to-survey pressure vessel drawings, completed atmosphere commissioning, or current crew access permission. All nominal volumes can be recomputed without inventing additional crew, stored air or voyage mass. The canonical `ox_full_ship.json` v0.4, old standalone renderer and PR #101 remain untouched.
+
+**Indexing reference correction, 23 October:** The selected six independent two-person indexed carriers now sweep r8.55–11.55 m, preserving 0.55 m nominal clearance to the fixed 8 m spine and 0.30 m to the rotating receiver r11.85 m inner rim. The former r8.05–11.65 m trial guard is superseded; both collars retract before motion.

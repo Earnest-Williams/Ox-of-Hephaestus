@@ -226,7 +226,7 @@ def rotating_drum_zone(ship, members):
          "rotating hub will hit stationary full freight lock")
     person = ship["transit_contract"]["indexed_drum_personnel_transfer"]
     need(person["selected_axial_offset_from_freight_station_m"] == 18
-         and person["internal_moving_carrier_radial_envelope_m"] == [8.05, 11.65]
+         and person["internal_moving_carrier_radial_envelope_m"] == [8.55, 11.55]
          and person["swept_collar_retract_before_freight_handling"] is True,
          "indexed personnel shuttle intersects cargo or lacks a retract interlock")
     return (pi*(13.65**2-11.85**2)*(6+5)

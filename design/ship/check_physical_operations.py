@@ -60,8 +60,8 @@ def validate(ship,model,mechanics):
         crew_at=sum(fixed["location"]["x_m"])/2
         cargo_at=sum(lock["location"]["x_m"])/2
         require_gap=(
-          pa["physical_moving_carrier_radial_envelope_m"][0]>=8.05
-          and pa["physical_moving_carrier_radial_envelope_m"][1] <= 11.65
+          pa["physical_moving_carrier_radial_envelope_m"][0]>=8.55
+          and pa["physical_moving_carrier_radial_envelope_m"][1] <= 11.55
           and crew_at-cargo_at == 18
           and crew_at-2.5 >= cargo_at+6+9.5
         )
