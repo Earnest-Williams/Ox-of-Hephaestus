@@ -2,7 +2,7 @@
 
 # Ox of Hephaestus — atmosphere volume, refill reserve and casualty delivery v0.5
 
-> **Latest v0.5 increment — 22 October 2026:** 101 of 133 pressure cells
+> **Earlier v0.5 increment — 22 October 2026:** 101 of 133 pressure cells
 > have selected nominal gross dimensions; 32 remain unsized. All ten
 > previously unprotected intercell doors now have rated boundary status,
 > bringing the count to 208. Six freight locks have 12 m clear
@@ -248,7 +248,7 @@ record as-found sensor fidelity and condition for the
 old, mixed-generation plumbing. Then the candidate can
 be promoted on its merits before revisiting Evennia/UI.
 
-## 8. Survey of the 48 still-unsized pressure cells
+## 8. Historical survey of the 48 then-unsized pressure cells
 
 The next room-by-room audit of the source model found that **37 of these 48
 cells already contain a `geometry` entry for every constituent room**;
