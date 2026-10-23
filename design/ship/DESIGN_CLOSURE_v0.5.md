@@ -58,7 +58,7 @@ An additional B′ mechanical increment now materialises eight isolatable pressu
 
 The earlier endurance increment also gives the ship two oxygen-production
 subassemblies and two regenerable CO2-removal subassemblies, plus an
-explicit 32 t long-voyage food inventory. These serve the existing
+explicit 56.79 t long-voyage food inventory. These serve the existing
 A/B ECLSS trains rather than fabricating a third full-capacity train.
 There are now 780 installed modeled equipment objects, 42 maintenance
 groups and eight explicit inventory accounts. See ENDURANCE_LEDGER_v0.5.md.
@@ -143,13 +143,16 @@ The two survival craft each provide 40 people x 30 days as a
 separate, deepest local protection layer. No small refuge equipment
 cupboard is mistaken for the living volume of forty people.
 
-Hydroponics is fresh-food supplementation, not the primary calorie
-supply. A stated 80 m² / 20 kW cultivation plan remains a provisional
-load and yield assumption, not evidence of complete food independence.
+Normal hydroponics supplies **25% of energy** through 450 m² of productive
+beds in HAB-02/06/08 under **90 kW** of normal electrical demand. The
+departure food inventory holds **56.79 t** including a full-leg **24.82 t
+dehydrated fallback** and **31.97 t conventional provision**, without
+double-counting. The assumed crop yield depends on real water, power,
+nutrient and thermal systems; it is not guaranteed on a damaged ship.
 
 ## Power and thermal operation
 
-The nominal demand is 1.55 MW; demanding operation is 2.6 MW; the
+The adopted normal schedule is 1.35 MW (including 90 kW hydroponics and 97 kW operating margin); demanding operation remains 2.6 MW; the
 wider protected-service budget is 0.75 MW. A single auxiliary generator
 supplies 0.65 MW in the deliberately shed operating schedule.
 **These two protected/emergency figures are not interchangeable.**
@@ -212,19 +215,25 @@ regenerate the wire-render snapshot and rebase the presently unmerged
 Evennia integration PR. **Do not turn unfinished design into game rules
 by accident.**
 
-## B′ Issue 1.3 reconciliation hold — 23 October 2026
+## B′ Issue 1.3 mission decision — adopted on v0.5 candidate, 23 October 2026
 
-**This v0.5 candidate is not cleared for promotion.** The current candidate's physical data and validators are internally consistent, but the mission consumables and power assumptions are **not reconciled** with the separately approved B′ Issue 1.3 engineering basis. For a credible working freighter simulation, these differences must be treated as explicit design decisions rather than silently mixing ledgers:
+The earlier endurance draft contradicted B′ Issue 1.3 in stored food, calorie sourcing, electric service load and routine atmosphere make-up. We have now selected **Issue 1.3** as the preferred **40-person, 730-day** operation baseline, while retaining the later 133-cell B′ atmosphere geometry. The concrete [mass/flow reconciliation](BPRIME_ISSUE13_MISSION_RECONCILIATION.md), revised candidate JSON and the new `check_mission_endurance.py` make this testable rather than an unresolved document-only promise.
 
-| Item | Issue 1.3 | Current v0.5 model | Required resolution |
-| --- | --- | --- | --- |
-| Food over a 730-day leg | 56.79 t stored, 28.40 t/year; 25% hydroponic, 25% dehydrated, 50% conventional | 32 t departure stock, 0.85 kg/person/day; hydroponics excluded from calories | Adopt one mass/energy model and reconcile available stores, consumption and hydroponics |
-| Continuous gas leakage | 0.01% of charged gas per day | 5.5 t in two banks reserved for post-breach recovery | Budget **5.79–7.74 t make-up gas** over 730 days on the current 79.27–105.99 t dry-air basis (0.0001 × 730 × initial mass, with no replenishment), unless the leak rate or gas inventory changes; do not double-spend casualty stock |
-| Routine electrical load | 1.30–1.40 MW, including 90 kW staples and ~97 kW margin | 1.55 MW normal | Select the current refit load and make generation/margins consistent |
-| Hab arc angle | 38° final confirmation listed as open | 38° used for geometry | Record explicit final selection of 38° or mark dimensions contingent |
-| Water for food/gas processes | ~0.74 t rehydration and ~1.1 t oxygen electrolysis over 730 days | Water losses not individually attributed | Allocate explicitly within the water ledger |
+| Account | Adopted physical/operational choice |
+| --- | --- |
+| Food storage | **56.79 t** departure: **24.82 t dehydrated** capable of feeding the full 730 days if other food is lost; **31.97 t conventional**. Both parts counted once in the same inventory |
+| Normal diet | **25% hydroponic / 25% dehydrated / 50% conventional calories**; 450 m² of existing HAB-02/06/08 growing beds, 90 kW nominal |
+| Normal voyage power | **1.35 MW** including the 90 kW crops and 97 kW internal ordinary-service margin. The protected 0.75 MW and single-auxiliary 0.65 MW shed schedules remain different |
+| Routine atmospheric gas | 0.01%/day reference loss from **79.270–105.989 t** initial dry gas: **5.787–7.737 t total mixed-air lost**, of which **4.456–5.958 t inert**. Normal refill comes from **two 3.5 t dedicated inert stores** via oxygen-verified ECLSS A/B mixers |
+| Breach and refuge gas | Separate protected **5.5 t mixed-air casualty stock** (two 2.75 t banks); **249.2 kg local/refuge oxygen** also separate. Neither is routine leak stock |
+| Water | Exactly **162 t** regular makeup: 73 domestic + 29.236 metabolic electrolysis + 35 cultivation/food + 2.100 extra O2 electrolysis for leakage + 0.740 dry-food processing + 21.924 ordinary rejects |
+| B′ arc geometry | **38° selected**; previous 41° trial superseded. 133/133 dimensioned pressure cells and 339 rated boundaries, but no invented as-installed free-air measurements |
 
-The two 2.75 t casualty banks are **not** a credible simultaneously available routine leak and breach supply without replenishment or a separately budgeted make-up inventory. This is an **operational continuity** problem, not a spacecraft certification demand. Do not merge this PR until the food, gas and electrical figures are reconciled with their actual equipment/storage assumptions or an explicit superseding B′ decision is recorded.
+The earlier review's 4.45–5.95 t *inert loss* and our 5.79–7.74 t *total dry-air loss* describe different parts of the **same leakage**. No arithmetic dispute remains once inert (77%) and O2 (23%) are accounted separately. The older Issue 1.3 ~1.1 t extra oxygen-water term derived from a smaller pressure inventory; **2.1 t** is deliberately budgeted for the current larger v0.5 atmosphere.
+
+The added makeup banks and metering routes are physically installed in separate forward/aft environmental control rooms; their A/B lines travel through segmented service raceways to ECLSS A/B, with a normally closed manual cross-tie. Unmixed inert gas never enters occupied rooms directly. The existing 1,500 t mission allowance and 1,187,500 t reference departure mass are unchanged; the added inventories are enumerated portions of this allowance, not new mass bolted onto the ship.
+
+This closes the specific Issue 1.3 **source-model** contradiction. It does **not** claim that actual depletion, crop yield, gas purity, thermal load or damaged valves are automatically healthy. Nor does it automatically promote candidate v0.5 into the published v0.4 wire/Evennia model. That remains a deliberate separate release/integration operation.
 
 ## Additional pressure-cell closure
 
@@ -234,8 +243,8 @@ The new `pressure_zone_topology_v0.5.json` identifies **133 independently sealab
 
 ## B′ pressure-gas reserve and refill-availability closure
 
-The next increment puts the 5.5 t single-arc breathing-air refill allowance into **two real 2.75 t banks** in separated forward/aft stores, including source/regulator, two axial fixed-spine supply headers, 69 normally shut local trunk taps, independent A/B rotary unions and an eight-arc gas makeup ring crossing all eight isolatable BR utility sleeves. The candidate now has **780 installed equipment items, 42 maintenance groups, 1,172 service nodes, 1,168 service edges and 1,235 isolation points**; all old room/link identities survive.
+The next increment puts the 5.5 t single-arc breathing-air refill allowance into **two real 2.75 t banks** in separated forward/aft stores, including source/regulator, two axial fixed-spine supply headers, 69 normally shut local trunk taps, independent A/B rotary unions and an eight-arc gas makeup ring crossing all eight isolatable BR utility sleeves. The reconciled candidate now has **808 installed equipment items, 42 maintenance groups, 1,186 service nodes, 1,181 service edges and 1,256 isolation points**; all old room/link identities survive.
 
-For the 133/133 geometrically sized pressure cells, the bounded planning free-air reference is **65,832.797–88,021.802 m³**, containing approximately **79.270–105.989 t dry air** at the chosen nominal reference state; **none of the 133 cells remains unsized**. All 83 spaces with unassigned normal pressure have a conservative hazard/access role, not a magically breathable default. A single inhabited arc requires about **3.09–3.71 t** of gas after complete evacuation under these assumptions. Both banks can refill one intact arc if the real gas path and pressure integrity are available, but two fully depressurised arcs cannot be restored from 5.5 t.
+For the 133/133 geometrically sized pressure cells, the bounded planning free-air reference is **65,832.797–88,021.802 m³**, containing approximately **79.270–105.989 t dry air** at the chosen nominal reference state; **none of the 133 cells remains unsized**. All 83 spaces with unassigned normal pressure have a conservative hazard/access role, not a magically breathable default. A single inhabited arc requires about **3.02–3.71 t** of gas after complete evacuation under these assumptions. Both banks can refill one intact arc if the real gas path and pressure integrity are available, but two fully depressurised arcs cannot be restored from 5.5 t.
 
 The compressed stock is separate from the existing **249.2 kg** protected refuge/local oxygen and the ship's initial charged atmosphere; it is included within the established **1,500 t mission allowance**, not added to departure mass. Reference regulators supply at most 100 kg/h each, with slower real recovery as conditions require. The independent gas-line valve graph has explicit failure consequences; two adjacent bridge-sleeve losses can deny HAB-07 refill even with both gas banks intact. See `PRESSURE_GAS_RECOVERY_v0.5.md` and `pressure_gas_recovery_v0.5.json`; unlike the gross geometry survey, these are **planning displacement intervals**, not accepted measurements of net gas volume. The remaining work is verifying fitted free-gas displacement, refill accessibility and operational resource budgets; the geometry dimensions themselves have been closed.
