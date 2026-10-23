@@ -48,7 +48,7 @@ def validate(candidate: dict, baseline: dict) -> dict:
             "spatial count changed")
     require(len(candidate["access_links"]) == len(baseline["access_links"]) == 517,
             "physical-link count changed")
-    require(len(candidate["equipment"]) == len(baseline["equipment"]) + 94 == 786,
+    require(len(candidate["equipment"]) == len(baseline["equipment"]) + 110 == 802,
             "expected v0.5 equipment including Bprime supports and reserved atmosphere makeup distribution")
     require(len(candidate["maintenance_tasks"]) == 42, "maintenance package count changed")
 
@@ -220,10 +220,11 @@ def validate(candidate: dict, baseline: dict) -> dict:
 
     require(candidate["inventories"][:len(baseline["inventories"])] == baseline["inventories"],
             "v0.4 inventory stock unexpectedly rewritten")
-    require(len(candidate["inventories"]) == len(baseline["inventories"]) + 4,
+    require(len(candidate["inventories"]) == len(baseline["inventories"]) + 6,
             "missing food or independent gas-bank inventories")
     require({x["id"] for x in candidate["inventories"][len(baseline["inventories"]):]} ==
-            {"INV-FOOD-LONG-LEG", "INV-GAS-REFILL-A", "INV-GAS-REFILL-B", "INV-WASTE-RESIDUE"},
+            {"INV-FOOD-LONG-LEG", "INV-GAS-REFILL-A", "INV-GAS-REFILL-B", "INV-WASTE-RESIDUE",
+              "INV-INDUSTRIAL-SCRAP", "INV-HAZARDOUS-RESIDUE"},
             "unknown newly invented stores or missing gas-bank inventory")
     food = next((i for i in candidate["inventories"]
                  if i["id"] == "INV-FOOD-LONG-LEG"), None)

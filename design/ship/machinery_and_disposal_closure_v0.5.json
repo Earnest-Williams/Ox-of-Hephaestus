@@ -1,0 +1,263 @@
+{
+  "schema_version": "ox.ship.mechanical-and-casualty-operating-closure/0.5",
+  "design_status": "selected_simulation_operational_geometry_not_as_installed_survey",
+  "population_design_max": 40,
+  "reference_voyage_days": 730,
+  "installed_transfer_equipment_ids": [
+    "DR-01-PERSONNEL-INDEXER",
+    "DR-01-FREIGHT-COLLAR",
+    "DR-02-PERSONNEL-INDEXER",
+    "DR-02-FREIGHT-COLLAR",
+    "DR-03-PERSONNEL-INDEXER",
+    "DR-03-FREIGHT-COLLAR",
+    "DR-04-PERSONNEL-INDEXER",
+    "DR-04-FREIGHT-COLLAR",
+    "DR-05-PERSONNEL-INDEXER",
+    "DR-05-FREIGHT-COLLAR",
+    "DR-06-PERSONNEL-INDEXER",
+    "DR-06-FREIGHT-COLLAR"
+  ],
+  "cargo_drum_modes": {
+    "personnel": [
+      "LOCKED_FIXED",
+      "SEALED_TRANSIT",
+      "CAPTURED_ROTOR",
+      "RETRACTED",
+      "FAILED_CAPTURE",
+      "LOCAL_RECOVERY"
+    ],
+    "freight": [
+      "RETRACTED",
+      "PREPARE",
+      "ALIGNED",
+      "HARD_LOCKED",
+      "PRESSURE_MATCHED",
+      "UNAVAILABLE",
+      "ISOLATED_FOR_WORK"
+    ],
+    "hardlock_load_t_routine": 50,
+    "hardlock_load_t_restricted": 100,
+    "full_sled_envelope_m": [
+      3.8,
+      3.4,
+      8
+    ],
+    "carriage_radia_envelope_m": [
+      8.05,
+      11.65
+    ],
+    "clear_axial_separation_m": 9.5,
+    "freight_and_crew_motion_mutually_exclusive": true
+  },
+  "hab_arc_ports": [
+    {
+      "equipment_id": "ECLSS-A-H2-VENT",
+      "host_arc": "HAB-06",
+      "source_train": "A",
+      "byproduct": "H2",
+      "axial_x_m": 453,
+      "theta_deg": 231,
+      "radial_outlet_m": 79.5,
+      "physical_port_diameter_m": 0.6,
+      "nominal_exterior_nozzle_clearance_to_pressure_shell_guard_m": 1.58,
+      "requires_local_eva_keepout_radius_m": 3,
+      "requires_external_reaction_force_attitude_compensation": true,
+      "jet_direction": "radial_outward",
+      "purge_occupancy_interlocked": true
+    },
+    {
+      "equipment_id": "ECLSS-A-CO2-VENT",
+      "host_arc": "HAB-06",
+      "source_train": "A",
+      "byproduct": "CO2",
+      "axial_x_m": 457,
+      "theta_deg": 219,
+      "radial_outlet_m": 79.5,
+      "physical_port_diameter_m": 0.6,
+      "nominal_exterior_nozzle_clearance_to_pressure_shell_guard_m": 1.58,
+      "requires_local_eva_keepout_radius_m": 3,
+      "requires_external_reaction_force_attitude_compensation": true,
+      "jet_direction": "radial_outward",
+      "purge_occupancy_interlocked": true
+    },
+    {
+      "equipment_id": "ECLSS-B-H2-VENT",
+      "host_arc": "HAB-08",
+      "source_train": "B",
+      "byproduct": "H2",
+      "axial_x_m": 453,
+      "theta_deg": 321,
+      "radial_outlet_m": 79.5,
+      "physical_port_diameter_m": 0.6,
+      "nominal_exterior_nozzle_clearance_to_pressure_shell_guard_m": 1.58,
+      "requires_local_eva_keepout_radius_m": 3,
+      "requires_external_reaction_force_attitude_compensation": true,
+      "jet_direction": "radial_outward",
+      "purge_occupancy_interlocked": true
+    },
+    {
+      "equipment_id": "ECLSS-B-CO2-VENT",
+      "host_arc": "HAB-08",
+      "source_train": "B",
+      "byproduct": "CO2",
+      "axial_x_m": 457,
+      "theta_deg": 309,
+      "radial_outlet_m": 79.5,
+      "physical_port_diameter_m": 0.6,
+      "nominal_exterior_nozzle_clearance_to_pressure_shell_guard_m": 1.58,
+      "requires_local_eva_keepout_radius_m": 3,
+      "requires_external_reaction_force_attitude_compensation": true,
+      "jet_direction": "radial_outward",
+      "purge_occupancy_interlocked": true
+    }
+  ],
+  "pressure_head_guard": {
+    "arc_radius_m": 73.15,
+    "pressure_shell_guard_radius_m": 77.92,
+    "end_heads_relative_deg": [
+      -19,
+      19
+    ],
+    "key_saddle_relative_deg": 0,
+    "sliding_outer_saddles_relative_deg": [
+      -12,
+      12
+    ],
+    "port_min_angular_clearance_from_saddle_deg": 4,
+    "port_min_angular_clearance_from_end_deg": 10,
+    "do_not_open_with_ext_eva_collar_or_swept_interference": true
+  },
+  "local_system_degraded_cases": [
+    {
+      "system": "electrical",
+      "equipment_id": "GEN-M",
+      "physical_fault": "load breaker false closed telemeter",
+      "evidence": [
+        "local breaker indicator",
+        "bus voltage under load",
+        "thermal state"
+      ],
+      "result": "standby generators dispatch only against actual reachable protected buses; 3.3MW combined cap remains",
+      "reset_requires": [
+        "correct local switching position",
+        "voltage/current at downstream bus"
+      ]
+    },
+    {
+      "system": "hab_rotor",
+      "equipment_id": "HAB-BEARING-FORE",
+      "physical_fault": "bearing oil temperature drift while bridge screen reports normal speed",
+      "evidence": [
+        "lube return temperature",
+        "local vibration",
+        "axial guide mark"
+      ],
+      "result": "derate or controlled spin down; independent pressure bridges and indexers have own lockouts",
+      "reset_requires": [
+        "thermal trend and lubricant flow",
+        "local load and balance survey"
+      ]
+    },
+    {
+      "system": "indexed_drum",
+      "equipment_id": "DR-02-PERSONNEL-INDEXER",
+      "physical_fault": "rotating collar falsely indicates captured",
+      "evidence": [
+        "second hardlock witness",
+        "pressure-differential hand gauge",
+        "relative-speed indication"
+      ],
+      "result": "withhold release; occupants may remain inside; cargo stop remains independent",
+      "reset_requires": [
+        "local collar inspection",
+        "positive capture test at safe differential"
+      ]
+    },
+    {
+      "system": "industrial_disposal",
+      "equipment_id": "IND-SCRAP-HOLD-B",
+      "physical_fault": "local receiver gauge stuck at empty although receiving bin full",
+      "evidence": [
+        "manual load/weight ticket",
+        "cassette seal witness",
+        "physical capacity check"
+      ],
+      "result": "stop transfer, do not route to hazardous/sanitary receiver as overflow",
+      "reset_requires": [
+        "replace level sensor",
+        "source-destination inventory reconciliation"
+      ]
+    },
+    {
+      "system": "co2_handling",
+      "equipment_id": "ECLSS-A-CO2-VENT",
+      "physical_fault": "outlet clear indicator false while exterior nozzle occupied by scaffold",
+      "evidence": [
+        "local exterior camera",
+        "EVA scaffold occupancy confirmation",
+        "hull port purge interlock"
+      ],
+      "result": "close double valves, hold finite 50kg receiver; A sorbent regeneration stops before receiver fills",
+      "reset_requires": [
+        "vacate approved keepout",
+        "verified nozzle discharge route"
+      ]
+    },
+    {
+      "system": "greywater",
+      "equipment_id": "WASTE-PROC-B",
+      "physical_fault": "rotary wet union loses seals while processor runs",
+      "evidence": [
+        "receiver level",
+        "line isolation readings",
+        "grab-sample treatment result"
+      ],
+      "result": "local wet ring alone not enough; single alternate union requires compatible isolation and physical path",
+      "reset_requires": [
+        "dual-end leak test",
+        "verified flow through surviving route"
+      ]
+    },
+    {
+      "system": "external_maintenance",
+      "equipment_id": "DC-PUMP-03",
+      "physical_fault": "portable unit left at flywheel vacuum bay and marked ready elsewhere",
+      "evidence": [
+        "crew physical inventory",
+        "tether/access permit",
+        "local equipment condition"
+      ],
+      "result": "no simultaneous use or teleport; F2 bay requires suited retrieval and rotor energy isolation",
+      "reset_requires": [
+        "personnel route verified",
+        "actual retrieved tool at site"
+      ]
+    },
+    {
+      "system": "workshop",
+      "equipment_id": "WR-INDEXER",
+      "physical_fault": "WR01 passage sliding seal leaks while carriage extends",
+      "evidence": [
+        "local differential pressure",
+        "seal interspace monitor",
+        "carriage position"
+      ],
+      "result": "freeze/retract and isolate passage; no automatic pressure source; WR01 spin handling affected",
+      "reset_requires": [
+        "paired seal replacement",
+        "metered repressurization and test"
+      ]
+    }
+  ],
+  "waste_source_material_rule": "inventories debit source mass before generated receiver credit; no duplicate departure tonnage",
+  "hazardous_receivers": [
+    "HAZ-ISO-HOLD-A",
+    "HAZ-ISO-HOLD-B"
+  ],
+  "industrial_receivers": [
+    "IND-SCRAP-HOLD-A",
+    "IND-SCRAP-HOLD-B"
+  ],
+  "limitation": "in-world selected hardware placement and interlocks; no manufacturing certification or as-installed inspection",
+  "observed_vs_actual": "world owns true machinery, indicators can be stale or false, work receipts alone do not reset hardware"
+}

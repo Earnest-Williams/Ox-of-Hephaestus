@@ -51,7 +51,7 @@ def validate(ship):
     inventory=keyed(ship["inventories"],"inventory")
     nets=keyed(ship["networks"],"networks")
     must((len(equip),len(node),len(edges),len(iso),len(inventory))==
-         (786,1180,1176,1251,11),"unexpected physical model counts")
+         (802,1180,1176,1251,13),"unexpected physical model counts")
     must("byproduct_exhaust" in nets,"missing distinct external gas discharge service")
     must(sum(x["network"]=="byproduct_exhaust" for x in node.values())==8
          and sum(x["network"]=="byproduct_exhaust" for x in edges.values())==4

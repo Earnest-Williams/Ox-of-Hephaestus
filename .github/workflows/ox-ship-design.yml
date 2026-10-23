@@ -41,3 +41,4 @@ jobs:
           python design/ship/check_pressure_gas.py
           python design/ship/check_pressure_geometry.py
           python design/ship/check_waste_byproducts.py
+          python design/ship/check_physical_operations.py
