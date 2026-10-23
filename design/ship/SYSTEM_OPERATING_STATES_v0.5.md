@@ -1,4 +1,4 @@
-**CURRENT 23 OCTOBER 2026 v0.5 CANDIDATE:** 133/133 physically bounded nominal pressure cells, 339 rated isolation boundaries (208 previous plus 131 cargo/industrial/unknown-environment thresholds), 100,772.940 m³ gross / 65,832.797–88,021.802 m³ planned free-air reference; **802 maintained equipment objects, 13 inventory accounts, 42 maintenance groups**. The six cargo-drums now have individual passenger indexers and freight docking collars; the four separate, finite industrial/hazardous bins begin empty. Read [machinery/industrial disposal closure](MACHINERY_AND_FINITE_DISPOSAL_CLOSURE_v0.5.md) and [physical closure](PHYSICAL_CLOSURE_v0.5.md). Earlier dates/counts later in these files refer to earlier v0.5 milestones only. All source volumes are design geometry, not as-installed measurements or certified safe access.
+**CURRENT 23 OCTOBER 2026 v0.5 CANDIDATE:** 133/133 physically bounded nominal pressure cells, 339 rated isolation boundaries (208 previous plus 131 cargo/industrial/unknown-environment thresholds), 100,772.940 m³ gross / 65,832.797–88,021.802 m³ planned free-air reference; **808 maintained equipment objects, 15 inventory accounts, 42 maintenance groups**. The six cargo-drums now have individual passenger indexers and freight docking collars; the four separate, finite industrial/hazardous bins begin empty. Read [machinery/industrial disposal closure](MACHINERY_AND_FINITE_DISPOSAL_CLOSURE_v0.5.md) and [physical closure](PHYSICAL_CLOSURE_v0.5.md). Earlier dates/counts later in these files refer to earlier v0.5 milestones only. All source volumes are design geometry, not as-installed measurements or certified safe access.
 
 > **Engineering scope:** This is a fictional working-freighter operating doctrine governed by [the ship design standard](SHIP_ENGINEERING_DESIGN_STANDARD.md): verisimilitude and coherent casualty consequences, **not NASA approval, safety certification or construction-ready specifications**. Performance and casualty arithmetic are scenario/reference constraints, not spaceflight qualification gates.
 
@@ -22,7 +22,7 @@ switch, valve, litre or metal part.
 The main generator GEN-M is 3.0 MW nameplate; GEN-A and GEN-B are
 0.75 MW each. Continuous **combined** delivered generation is limited to
 3.3 MW by the actual integrated plant/thermal/switching envelope.
-Normal service load is 1.55 MW; demanding load 2.6 MW; protected
+Normal service load is 1.35 MW including 90 kW staple hydroponics and 97 kW nominal operating margin; demanding load 2.6 MW; protected
 distribution budget 0.75 MW.
 
 Each generator has states OFF/COLD, PREPARING, AVAILABLE,
@@ -155,15 +155,17 @@ activate local reserves only with valid valve boundaries and
 water-quality checks. Do not drain protected emergency stock
 automatically to satisfy normal crop irrigation.
 
-The new INV-FOOD-LONG-LEG records 32 t of stored provisions,
-including at least 24.82 t reference edible demand for
-forty people over 730 days.
-
-Three growth rooms supply additional fresh food, not long-voyage
-calorie independence. Their pumps/lighting/nutrients are
-load-sheddable before full-cabin survival loads except where
-particular crop loss creates an explicitly tracked longer-term
-supply concern.
+The revised INV-FOOD-LONG-LEG records **56.79 t** of departure food:
+**24.82 t dehydrated** (sufficient alone for full remaining-leg calories
+at the planning 3,000 kcal/kg) and **31.97 t conventional provision**.
+Normal dietary energy is 25% hydroponic, 25% dehydrated and 50%
+conventional. Three existing HAB-02/06/08 production rooms together
+provide **450 m²** of authored productive beds consuming **90 kW**.
+Their edible crop yield is conditional on actual power, process water,
+nutrients, cooling, lighting and crop health—not a magically regenerated
+inventory. With crops lost, the remaining finite dehydrated stock can
+replace planned fresh calories if the food reserve itself is intact.
+Hydroponics is shed on auxiliary-only essential power schedules.
 
 ## F. Heat rejection
 
@@ -250,7 +252,7 @@ simulate random catastrophe solely to add drama.
 
 | Scenario | Required physical result |
 | --- | --- |
-| GEN-M trips at 1.55 MW demand | Alternate generation and staged shedding, no invented 0.75 MW load on 0.65 MW aux |
+| GEN-M trips at 1.35 MW demand | Alternate generation and staged shedding, no invented 0.75 MW load on 0.65 MW aux |
 | BR-06 greywater sleeve leaks | Local pressure boundary and wet-service isolation remain distinct; worker can inspect locally |
 | HAB-03 end hatch pressure seal degrades | Adjacent bridge can be isolated, crew routes change, seal test required before restoration |
 | WR-01 machine tool requires 50 t replacement | Hard-lock freight route requires rotor stop without stopping habitation |
