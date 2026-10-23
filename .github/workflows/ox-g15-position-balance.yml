@@ -1,0 +1,49 @@
+name: Ox G15 experimental Decider position-balance adapter
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches: [main]
+    paths:
+      - "services/ai-handler/src/ox_ai/inference/position_balanced_choice.py"
+      - "services/ai-handler/tests/test_position_balanced_choice.py"
+      - ".github/workflows/ox-g15-position-balance.yml"
+      - "!**/*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ox-g15-balance-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  g15-position-balance:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    name: Exact semantic permutation balance and fail-closed proof
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: services/ai-handler/pyproject.toml
+      - name: Install local handler without heavyweight optional models
+        run: python -m pip install -e ./services/ai-handler
+      - name: Verify semantic-key invariance and uncertain native failure handling
+        run: |
+          python -m unittest discover -s services/ai-handler/tests -p test_position_balanced_choice.py -v
+      - name: Assert the new scorer has no world-command transport dependency
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path=Path("services/ai-handler/src/ox_ai/inference/position_balanced_choice.py")
+          code=path.read_text()
+          assert "EvenniaWebSocketClient" not in code
+          assert "social_reply(" not in code
+          assert "system_one(" in code
+          print("OX_G15_NO_WORLD_AUTHORITY_BOUNDARY_PASS")
+          PY
