@@ -169,6 +169,12 @@ G9_TRAITS = {
 }
 G9_INTENTS = ("confront", "question", "reassure", "disclose",
               "boundary", "connect", "reflect")
+G11_REPLY_DESCRIPTIONS = (
+    "Accept an actual pending commitment after considering obligations and risks.",
+    "Defer an actual pending commitment while keeping the decision unresolved.",
+    "Decline an actual pending commitment, which may upset the other party.",
+)
+
 G9_DESCRIPTIONS = (
     "Confront the colleague about mistrust or an inconsistency.",
     "Ask the colleague a question to learn more.",
@@ -365,6 +371,10 @@ class Trial:
         path = os.environ.get("OX_DECIDER_GGUF_PATH", "")
         model = DeciderGGUFChoiceModel(
             path, G9_DESCRIPTIONS, engine=self._shared_decider,
+            alternate_descriptions=(
+                {3: G11_REPLY_DESCRIPTIONS}
+                if self.contract_routing else None
+            ),
         )
         if self._shared_decider is None:
             self._shared_decider = model.engine
