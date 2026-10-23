@@ -55,3 +55,9 @@ All ordinary receipts rely on actual available cassette free capacity, serial/se
 **Selected candidate scope:** physically coherent geometry, material destinations, maintenance ownership and consequences at simulation fidelity. Real as-installed material condition, pressure integrity, moving-gasket contact/FEA, measured volume, inspection and certified nozzle/hatch pressure vessels are not asserted. The v0.4 published ship, standalone wire display and Evennia/AI source remain unchanged.
 
 **Selected revised indexer moving guard:** r8.55–11.55 m, preserving 0.55 m to the stationary 8 m fixed spine and 0.30 m to the rotating r11.85 m receiver. Former r8.05–11.65 m was an intermediate trial. Both collars must retract before moving.
+
+## Known-air to unknown-environment physical closures
+
+A supplementary pressure-access audit has added **131 existing physical doors and shutters** to the independently rated boundary register, bringing total rated interfaces to **339**. They remain covered by the original **517 access links** and **42 existing maintenance groups**; the access-to-maintenance assignment is recorded in `environmental_access_boundaries_v0.5.json`. No extra atmosphere volume, equipment objects or departure mass is invented.
+
+The industrial/bearing service rooms, cargo service and freight sector gates, external cargo portals and shield service hatches are sealed against their source protected cells. Crews must prove local pressure, chemistry, seal and isolation; hazardous process or moving gear additionally requires energy/rotation lockout. See [UNKNOWN_ENVIRONMENT_ACCESS_CLOSURE_v0.5.md](UNKNOWN_ENVIRONMENT_ACCESS_CLOSURE_v0.5.md).
