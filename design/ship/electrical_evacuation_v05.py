@@ -99,6 +99,7 @@ class ElectricalEvacuationTrial(FireSmokeThermalTrial):
         self.issued_breathing_sets = 0
         self.issued_portable_lights = 0
         self.detector_faults = {}
+        self.electrical_fire_load_nodes = {}
         self.thermal_power_witness = True
         self.fire_pump_power_witness = {
             "FIRE-PUMP-FWD": True, "FIRE-PUMP-AFT": True}
@@ -293,6 +294,49 @@ class ElectricalEvacuationTrial(FireSmokeThermalTrial):
         return (self.thermal_power_witness
                 and self.assured_power("PWR-PROT")
                 and super()._connected_to_cooling(zone))
+
+    def ignite(self, fire_id, zone, *, fuel_kg, burn_kg_s,
+               smoke_yield_fraction=0.12,
+               hazard="ordinary_combustible",
+               energized_load_node=None):
+        if hazard == "energized_electrical":
+            require(energized_load_node in self.node
+                    and self.node[energized_load_node]["network"] == "power"
+                    and self.node[energized_load_node]["kind"] == "load"
+                    and self._node_zone(energized_load_node) == zone,
+                    "electrical fire needs a real load circuit in its pressure cell")
+        else:
+            require(energized_load_node is None,
+                    "non-electrical fire cannot be assigned a live-load fixture")
+        super().ignite(fire_id, zone, fuel_kg=fuel_kg,
+                       burn_kg_s=burn_kg_s,
+                       smoke_yield_fraction=smoke_yield_fraction,
+                       hazard=hazard)
+        if energized_load_node is not None:
+            self.electrical_fire_load_nodes[fire_id] = energized_load_node
+        self.event("fire_hazard_electrical_identity", fire=fire_id,
+                   load_node=energized_load_node)
+
+    def start_mist(self, zone, *, kg_s, local_authority, compatible_agent,
+                   energy_isolated=False):
+        active_electrical = [f for f in self.fires.values()
+                             if f.zone == zone and f.hazard == "energized_electrical"
+                             and f.remaining_fuel_kg > 0]
+        if active_electrical:
+            # A yes/no work permit is insufficient while the actual machine
+            # branch still has an energized copper path. This especially
+            # catches the patched HAB-03 cabin 07 fan-coil/SG2 exception.
+            if not energy_isolated or any(
+                self.has_power_path(self.electrical_fire_load_nodes[f.id])
+                for f in active_electrical
+            ):
+                self.event("mist_activation_denied", zone=zone,
+                           reason="real_live_electrical_load_or_unverified_lockout")
+                return False
+        return super().start_mist(
+            zone, kg_s=kg_s, local_authority=local_authority,
+            compatible_agent=compatible_agent,
+            energy_isolated=energy_isolated)
 
     def _vent_step(self, dt):
         # The original coolant/duct topology is preserved. Pressure leakage

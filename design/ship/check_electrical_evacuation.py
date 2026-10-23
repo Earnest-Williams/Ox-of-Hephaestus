@@ -150,6 +150,48 @@ def validate():
         "fan_coil_requires_SG2_group_board": True,
     }
 
+    # A generic "energy isolated" form cannot make an electrical fire
+    # safe for water mist if the actual branch still has a live feed.
+    # Deliberately exercise CAB-07's inherited corridor-fed fan coil.
+    elect_fire = new_trial()
+    load = "NODE-PWR-HAB-03-CAB-07-FANCOIL"
+    elect_fire.sample_local("PZ-HAB-03", qualified_local_probe=True)
+    elect_fire.stage_worker("HAB-03-CAB-07")
+    elect_fire.ignite("F-COIL", "PZ-HAB-03", fuel_kg=10,
+                       burn_kg_s=0.04, smoke_yield_fraction=0.10,
+                       hazard="energized_electrical", energized_load_node=load)
+    insist(not elect_fire.start_mist("PZ-HAB-03", kg_s=0.5,
+                                     local_authority=True,
+                                     compatible_agent=True,
+                                     energy_isolated=True),
+           "electrical fire received mist on a still-live SG2 fan-coil feed")
+    elect_fire.queue_valve_command(
+        "power", "ISO-HAB-03-CAB-07-LP", "closed",
+        control_mode="manual", local_authority=True,
+        worker_space="HAB-03-CAB-07", delay_s=1)
+    elect_fire.advance(2)
+    insist(not elect_fire.has_power_path("NODE-HAB-03-CAB-07-LP")
+           and elect_fire.has_power_path(load)
+           and not elect_fire.start_mist(
+               "PZ-HAB-03", kg_s=0.5, local_authority=True,
+               compatible_agent=True, energy_isolated=True),
+           "cabin breaker incorrectly treated as fan-coil isolation receipt")
+    elect_fire.queue_valve_command(
+        "power", "ISO-PWR-HAB-03-CAB-07-FANCOIL", "closed",
+        control_mode="manual", local_authority=True,
+        worker_space="HAB-03-CAB-07", delay_s=1)
+    elect_fire.advance(2)
+    insist(not elect_fire.has_power_path(load)
+           and elect_fire.start_mist(
+               "PZ-HAB-03", kg_s=0.5, local_authority=True,
+               compatible_agent=True, energy_isolated=True),
+           "locally isolated actual fan-coil feeder did not permit verified mist")
+    report["energized_refit_circuit_mist_interlock"] = {
+        "false_work_permit_alone_denied": True,
+        "cabin_panel_off_fan_coil_still_live": True,
+        "real_fan_coil_breaker_isolated_and_verified": True,
+    }
+
     # Smoke between HAB-03 and HAB-04 through air ducts requires fans
     # and powered local distribution. Unpowered fans do not instantly
     # change the physical states of the 221 mechanical dampers.
@@ -417,6 +459,13 @@ def negative_tests():
         lambda t: t.set_access_fault("ACC-INVENTED", impassable=True),
         lambda t: t.fault_indication("power", "ISO-MISSING", "open"),
         lambda t: t.fault_detector("HAB-03-AHU", "silent"),
+        lambda t: t.ignite("F-UNBOUND", "PZ-HAB-03",
+                            fuel_kg=2, burn_kg_s=0.1,
+                            hazard="energized_electrical"),
+        lambda t: t.ignite("F-WRONG", "PZ-HAB-03",
+                            fuel_kg=2, burn_kg_s=0.1,
+                            hazard="energized_electrical",
+                            energized_load_node="NODE-HAB-03-FIRE-DETECTOR-GHOST"),
         lambda t: t.has_power_path("NODE-GHOST"),
         lambda t: t.queue_valve_command("atmosphere",
                 "ISO-lt_cooling-BR-06-HAB-06", "closed",

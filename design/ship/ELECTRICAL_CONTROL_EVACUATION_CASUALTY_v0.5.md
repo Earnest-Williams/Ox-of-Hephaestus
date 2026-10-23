@@ -70,6 +70,15 @@ also loses the fan-coil regardless of cabin-panel indication.
 The test places a real scenario technician at each actual breaker
 location before claiming manual operation.
 
+The integrated electrical-fire test also identifies the actual burning
+load circuit. Merely presenting a signed "energy isolated" flag does
+not permit water mist while the true feed remains live. Closing
+CAB-07-LP leaves its patched fan-coil live and mist is still denied;
+only actual separate fan-coil breaker isolation *and* a verified energy
+lockout allows compatible local mist delivery. This conditional
+reference prevents a form or stale panel label from rewriting the
+physical wiring.
+
 ### Control and telemetry failure
 
 The experiment distinguishes five phases: command accepted into a
@@ -160,6 +169,7 @@ The adversarial test suite verifies:
 | Protected A-to-B transfer | HAB detector/lighting and main PROT selection require distinct real transfer action |
 | Main tie closure without synchronisation | Rejected; protected bus and batteries cannot reverse-backfeed the main board |
 | Manual-only CAB-07 panel and separate fan-coil | Panel can darken while refit fan-coil survives on SG2; SG2 shutdown disables it |
+| Energized cabin-07 fan-coil electrical fire | False isolation paperwork, or only its unrelated cabin panel shut, cannot permit mist; real fan-coil circuit must be dead |
 | Generator blackout with ventilation ducts open | Powered smoke mixing stops, but valve positions remain physical |
 | Pending remote damper close after control-power trip | Order fails; worksite crew can shut manually if actual safe access remains |
 | Sensor stuck OPEN despite real CLOSED contact | Readback can lie and never supplies private world truth |
