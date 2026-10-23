@@ -7,7 +7,7 @@ crew/AI permission service.
 
 ## Physical basis and authority
 
-The pure stdlib module `pressure_damage_sim_v0.5.py` loads the
+The pure stdlib module `pressure_damage_sim_v05.py` loads the
 existing **133** identified nominal pressure cells, **339** registered
 pressure-rated access connections and **131** explicitly unclassified
 receivers. It uses the original geometry and identities without inserting

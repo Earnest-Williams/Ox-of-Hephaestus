@@ -122,4 +122,4 @@ PR #101 remains separate and unmerged pending design completion.
 - [Environmental access regression](check_environmental_boundaries.py): pressure/chemistry and dual cargo-sector gate checks.
 
 - [Coupled pressure-and-damage-control trials](COUPLED_PRESSURE_DAMAGE_TRIALS_v0.5.md): deterministic gas mass, timed isolation, jammed hatch, crew access, cargo unknowns, finite reserve tests without Evennia.
-- [Pressure damage simulator](pressure_damage_sim_v0.5.py) and [adversarial scenario runner](check_pressure_damage_sim.py): run `python design/ship/check_pressure_damage_sim.py` for the design-only physical/casualty trial suite.
+- [Pressure damage simulator](pressure_damage_sim_v05.py) and [adversarial scenario runner](check_pressure_damage_sim.py): run `python design/ship/check_pressure_damage_sim.py` for the design-only physical/casualty trial suite.

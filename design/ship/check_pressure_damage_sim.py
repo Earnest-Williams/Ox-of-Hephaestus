@@ -10,7 +10,7 @@ from copy import deepcopy
 import json
 from math import isclose
 
-from pressure_damage_sim_v0.5 import PressureDamageTrial, load_model
+from pressure_damage_sim_v05 import PressureDamageTrial, load_model
 
 
 def insist(condition, message):
