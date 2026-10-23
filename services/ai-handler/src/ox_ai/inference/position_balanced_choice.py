@@ -94,7 +94,7 @@ class PositionBalancedDeciderChoiceModel:
                         "Which action should this specific crewmember attempt "
                         "next given their private beliefs, personality and "
                         "currently observed circumstances? Select an offered "
-                        "action, without asserting that it has succeeded."
+                        "action, without asserting that any action has already succeeded."
                     ),
                     "criteria": {
                         code: by_key[key] for code, key in zip(codes, order)
