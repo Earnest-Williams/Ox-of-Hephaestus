@@ -219,7 +219,7 @@ by accident.**
 | Item | Issue 1.3 | Current v0.5 model | Required resolution |
 | --- | --- | --- | --- |
 | Food over a 730-day leg | 56.79 t stored, 28.40 t/year; 25% hydroponic, 25% dehydrated, 50% conventional | 32 t departure stock, 0.85 kg/person/day; hydroponics excluded from calories | Adopt one mass/energy model and reconcile available stores, consumption and hydroponics |
-| Continuous gas leakage | 0.01% of charged gas per day | 5.5 t in two banks reserved for post-breach recovery | Budget **4.45–5.95 t make-up gas** over 730 days on the current 79.27–105.99 t dry-air basis, unless the leak rate or gas inventory changes; do not double-spend casualty stock |
+| Continuous gas leakage | 0.01% of charged gas per day | 5.5 t in two banks reserved for post-breach recovery | Budget **5.79–7.74 t make-up gas** over 730 days on the current 79.27–105.99 t dry-air basis (0.0001 × 730 × initial mass, with no replenishment), unless the leak rate or gas inventory changes; do not double-spend casualty stock |
 | Routine electrical load | 1.30–1.40 MW, including 90 kW staples and ~97 kW margin | 1.55 MW normal | Select the current refit load and make generation/margins consistent |
 | Hab arc angle | 38° final confirmation listed as open | 38° used for geometry | Record explicit final selection of 38° or mark dimensions contingent |
 | Water for food/gas processes | ~0.74 t rehydration and ~1.1 t oxygen electrolysis over 730 days | Water losses not individually attributed | Allocate explicitly within the water ledger |
