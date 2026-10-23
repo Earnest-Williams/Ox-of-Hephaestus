@@ -1,7 +1,4 @@
-"""Required Evennia server lifecycle hook placeholders.
-
-No simulation tick, external AI process or pump automation starts here yet.
-"""
+"""Required Evennia server lifecycle hooks for persistent Ox world services."""
 
 
 def at_server_init() -> None:
@@ -9,10 +6,13 @@ def at_server_init() -> None:
 
 
 def at_server_start() -> None:
-    """Ensure a persistent, world-owned duty timer exists after every boot."""
+    """Ensure canonical topology and persistent world-owned clocks exist."""
     from world.live_clock import ensure_clock_script
-    ensure_clock_script()
+    from world.ship_world import ensure_canonical_ship
     from world.terminal_failure import ensure_terminal_clock
+
+    ensure_canonical_ship()
+    ensure_clock_script()
     ensure_terminal_clock()
 
 

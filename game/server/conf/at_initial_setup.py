@@ -1,12 +1,16 @@
-"""Install the tiny ship after Evennia creates its initial rooms and account.
+"""Install the canonical Ox topology and operational proving-ground fixture.
 
 Evennia invokes this hook once on the first complete game-server startup.
-The builder is also safe to run manually; it never resets existing pump state.
+The full topology is idempotent and preserves live world state on reruns; the
+legacy small fixture remains temporarily because current systems and tests
+still depend on its staffed equipment while those subsystems migrate.
 """
 
 
 def at_initial_setup() -> None:
-    """Seed the playable Ox fixture as part of Evennia's first-run setup."""
+    """Seed the real hull topology, then the existing operational fixture."""
     from world.bootstrap import build_ship
+    from world.ship_world import build_canonical_ship
 
+    build_canonical_ship()
     build_ship()

@@ -8,11 +8,13 @@
 > fabrication qualification, agency approval or certification-level analysis.
 > Finish the playable design when these criteria are met.
 
-# Full ship preparation baseline
+# Full ship spatial integration and v0.5 engineering candidate
 
 This directory contains the current **Ox of Hephaestus full-ship physical world model, v0.4**.
 
-The published v0.4 source remains unchanged on this physical-design branch. A separate Evennia integration branch introduces the v0.4 spatial topology and a Developer-only terminal; actual crew work still uses the seven-compartment proving ground. **This candidate v0.5 is not yet promoted** into that runtime, and cannot silently override the wire render's versioned reference geometry.
+The published `ox_full_ship.json` **v0.4 source is now materialised in Evennia** as 421 persistent canonical rooms and 1,034 Developer-only exits for the 517 authored physical connections. The Developer-only authenticated read-only wire terminal presents separately persisted world spatial conditions over the *matching v0.4 drawing*. The seven-compartment proving ground still runs the current crew/equipment operations pending migration.
+
+The separately validated **v0.5 engineering candidate** adds finite resource budgets, all 133 dimensioned pressure cells, emergency and routine gas stores and 808 equipment units, but has **not** been promoted to `ox_full_ship.json` or a regenerated v0.5 renderer. A topology-identical source is *not* a version-compatible wire rendering or proof of implemented equipment and interlocks.
 
 ## Current files
 
@@ -22,20 +24,22 @@ The published v0.4 source remains unchanged on this physical-design branch. A se
 - [`MODEL_GUIDE.md`](MODEL_GUIDE.md) — modelling boundaries and future integration rules.
 - [`FIXED_SPINE_LAYOUT.md`](FIXED_SPINE_LAYOUT.md) — bridge, fixed-spine compartments, transit/logistics, adjustable-gravity Engineering shop and debris protection.
 - [`SURVIVABILITY_AND_MAINTENANCE.md`](SURVIVABILITY_AND_MAINTENANCE.md) — damage control, EVA maintenance, local machinery control and backup life support.
+- [`EVENNIA_INTEGRATION.md`](EVENNIA_INTEGRATION.md) — tested Developer-only v0.4 topology, interlock restrictions and migration sequence.
+- [`LIVE_TERMINAL.md`](LIVE_TERMINAL.md) — privileged read-only spatial console and fail-closed drawing version policy.
 
 ## Scope
 
 The v0.4 model contains 421 spaces, 517 traversable access links, 692 equipment objects, 1,041 service nodes, 1,036 service edges and 1,092 isolation points. It includes the six cargo drums, eight habitation arcs, compartmentalised fixed spine, axial personnel and heavy-logistics transport, WR-01 variable-gravity Engineering workshop/stores rotor, layered debris protection, sectionalised fire mains, external maintenance routes, 33 local machinery-control stations and distributed backup life support.
 
-The model distinguishes original design intent, current physical installation and available documentation. **Current physical installation is the future world-authoritative layer; character beliefs remain private to the cognition system.**
+The model distinguishes original design intent, current physical installation and available documentation. **Once materialised into Evennia, current physical condition is world-authoritative there; the JSON is source identity and design metadata, while character beliefs remain private to cognition.**
 
 ## Verification of the prepared artifact
 
-The source artifact was checked before import with 132/132 core reference/topology checks and 2,353/2,353 deeper casualty/topology checks. Those checks verify the design data as an internally connected model. They do **not** prove that the current Evennia runtime implements any of it.
+The source artifact was checked before import with 132/132 core reference/topology checks and 2,353/2,353 deeper casualty/topology checks. Those checks verify the design data as an internally connected model. They establish source topology and design consistency, not that every physical mechanic is simulated in Evennia. Stage-one database-backed materialisation, idempotence, access authorization, static spatial metadata and read-only terminal checks are separate CI evidence; pressure, equipment, EVA and rotary interlocks remain future runtime work.
 
 ## Integration boundary
 
-A later implementation PR should add a loader/adapter and migrate gameplay incrementally. Do not replace the existing world bootstrap merely by deserialising this file. Runtime integration must preserve the established Ox authority rules: Evennia owns physical state, access, inventory, time and action consequences; the external handler owns private cognition and never receives hidden world truth merely because it exists in this JSON.
+The stage-one importer validates the v0.4 source then idempotently creates persistent spaces and Developer-only exits without resetting existing room condition or descriptions. It does **not** give general crew permission to traverse doors marked `closed`, `closed_or_auto` or otherwise mechanically/pressure restricted; these states are presently static metadata, not enforced ordinary access. Evennia remains the sole world authority; the handler maintains private cognition and receives only observations it is entitled to receive. Promoting v0.5 later must preserve room identities, deliberately migrate operational state and generate a matched visualization before the console will serve it.
 
 ### Latest design candidate engineering totals
 
