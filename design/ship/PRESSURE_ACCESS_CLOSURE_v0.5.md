@@ -94,7 +94,7 @@ two sides were independently isolatable:
 
 Those ten *existing* doors are now explicitly pressure-rated; no room or
 travel edge is duplicated. The pressure-boundary register now contains
-**208** entries, matching all rated authored access links.
+**208** entries at that earlier 22 October checkpoint; the selected candidate now has **339** after separately rating 131 unknown-environment thresholds.
 
 The F1/F2 freight closures must **not** simply be opened as ordinary
 double doors. For heavy flywheel maintenance the local logistics stop
@@ -127,7 +127,7 @@ conditions and their particular stop/index/hard-lock states.
 - A volume calculation is not a safe unsuited-access decision, a live
   mass measurement, a proof of gas purity or a successful leak check.
   Environmental state remains world-authoritative.
-- The **32 pressure cells still held** include physically contradictory
+- The **32 pressure cells held at that earlier stage** include physically contradictory
   room/trunk overlaps, multiroom store galleries, six unsized drum service
   galleries and deployable workshop-rotor passages. The machine-readable
   audit preserves each unresolved case, rather than adding phantom gas.
