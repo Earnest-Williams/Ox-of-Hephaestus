@@ -295,9 +295,73 @@ def negative_controls(ship):
     return len(cases)
 
 
+
+def validate_current_docs(ship):
+    """Guard the latest narrative summaries against stale design numbers.
+
+    Historical intermediate estimates are deliberately preserved elsewhere.
+    Only explicit CURRENT headers and active operating-basis statements are
+    required to agree with the candidate data that CI just checked.
+    """
+    count_equip = len(ship["equipment"])
+    count_inventory = len(ship["inventories"])
+    demands = {
+        "DESIGN_CLOSURE_v0.5.md": ("56.79 t", "1.35 MW", "450 m²"),
+        "ENDURANCE_LEDGER_v0.5.md": ("56.790 t", "1.35 MW", "450 m²"),
+        "PRESSURE_GAS_RECOVERY_v0.5.md": ("7.0 t", "5.5 t", "133"),
+        "SYSTEM_OPERATING_STATES_v0.5.md": ("1.35 MW", "56.79 t", "450 m²"),
+        "README.md": ("56.79 t", "133/133", "7 t"),
+        "BPRIME_ISSUE13_MISSION_RECONCILIATION.md":
+            ("56.79", "450 m²", "1.35 MW", "4.456–5.958 t"),
+    }
+    current_headers = (
+        "DESIGN_CLOSURE_v0.5.md", "ENDURANCE_LEDGER_v0.5.md",
+        "PRESSURE_GAS_RECOVERY_v0.5.md", "PHYSICAL_CLOSURE_v0.5.md",
+        "PRESSURE_ACCESS_CLOSURE_v0.5.md",
+        "PRESSURE_GEOMETRY_RECONCILIATION_v0.5.md",
+        "BYPRODUCT_AND_WASTE_CLOSURE_v0.5.md",
+        "SYSTEM_OPERATING_STATES_v0.5.md", "README.md",
+    )
+    for name in current_headers:
+        content = (HERE / name).read_text(encoding="utf-8")
+        summary = content.splitlines()[:4]
+        statement = next((line for line in summary
+                          if "CURRENT 23 OCTOBER 2026 v0.5 CANDIDATE" in line), None)
+        demand(statement is not None and "133/133" in statement
+               and "339" in statement and "100,772.940" in statement
+               and str(count_equip) in statement
+               and str(count_inventory) in statement,
+               "current documentation inventory or pressure claim stale: " + name)
+    for name, fragments in demands.items():
+        content = (HERE / name).read_text(encoding="utf-8")
+        for fragment in fragments:
+            demand(fragment in content,
+                   "mission-current document lacks " + repr(fragment) + ": " + name)
+    docs = {
+        "MACHINERY_AND_FINITE_DISPOSAL_CLOSURE_v0.5.md": (
+            f"**{count_equip} individually maintainable equipment objects**",
+            "**1,186 service nodes**", "**1,181 service links**",
+            "**1,256 isolation points**", "**15 inventory accounts**",
+        ),
+        "PRESSURE_CELL_CLOSURE_v0.5.md": (
+            "The **current** ledger has **133/133 dimensioned",
+            "**339 rated", "**79.270–105.989 t**",
+        ),
+        "ELECTRICAL_CONTROL_EVACUATION_CASUALTY_v0.5.md":
+            ("**1.35 MW** normal service",),
+    }
+    for name, fragments in docs.items():
+        content = (HERE / name).read_text(encoding="utf-8")
+        for fragment in fragments:
+            demand(fragment in content,
+                   "active engineering document stale: " + name + " / " + fragment)
+    return len(current_headers) + len(demands) + len(docs)
+
+
 def main():
     ship = json.loads((HERE / "ox_full_ship_v0.5_candidate.json").read_text(encoding="utf-8"))
     report = validate(ship)
+    report["mission_docs_checked"] = validate_current_docs(ship)
     report["deliberate_negative_controls"] = negative_controls(ship)
     print(json.dumps(report, indent=2, sort_keys=True))
     print("OX_BPRIME_730_DAY_MISSION_ENDURANCE_PASS")
