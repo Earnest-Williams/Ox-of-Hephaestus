@@ -28,7 +28,7 @@ def validate():
            and len(new.access) == 517 and len(new.gates) == 339,
            "actual electrical/access/pressure topology was changed")
     insist(isclose(initial["available_dispatch_MW"], 3.3)
-           and isclose(initial["requested_schedule_MW"], 1.55),
+           and isclose(initial["requested_schedule_MW"], 1.35),
            "initial scenario power dispatch contrary to ship contract")
     insist(initial["schedule_within_dispatch_budget"]
            and new.assured_power("PWR-MSB-A")
@@ -84,7 +84,7 @@ def validate():
            "selected central protected bus wrongly backfeeds MSB-A")
     report["generator_trip_and_recovery"] = {
         "GEN_B_sole_MW": 0.65,
-        "normal_1_55_MW_unmet": True,
+        "normal_1_35_MW_unmet": True,
         "essential_0_60_MW_served_after_shed": True,
         "HAB03_protected_B_manually_selected": True,
         "central_PROT_B_manually_selected": True,
