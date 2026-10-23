@@ -79,21 +79,6 @@ def _materialise_space(spec: SpaceSpec, model_version: str):
     return room, created
 
 
-def _is_bidirectional(link: AccessLinkSpec) -> bool:
-    if link.metadata.get("one_way") is True:
-        return False
-    if link.metadata.get("bidirectional") is False:
-        return False
-    directionality = link.metadata.get("directionality")
-    if isinstance(directionality, str) and directionality.lower() in {
-        "one_way",
-        "one-way",
-        "directed",
-    }:
-        return False
-    return True
-
-
 def _access_name(destination, link: AccessLinkSpec) -> str:
     label = link.metadata.get("name") or link.metadata.get("label")
     if isinstance(label, str) and label.strip():
@@ -200,17 +185,20 @@ def build_canonical_ship(model: ShipWorldModel | None = None) -> dict[str, Any]:
         )
         access_objects[f"{link.id}:forward"] = forward
         created_accesses += int(created)
-        if _is_bidirectional(link):
-            reverse, created = _materialise_access(
-                link,
-                "reverse",
-                spaces[link.to_id],
-                spaces[link.from_id],
-                link.from_id,
-                model.model_version,
-            )
-            access_objects[f"{link.id}:reverse"] = reverse
-            created_accesses += int(created)
+        # The authored ship schema defines physical connections, not directed
+        # transport. Every v0.4 and candidate v0.5 link has two exit objects.
+        # Implement an explicit schema/version contract before adding one-way
+        # semantics; arbitrary metadata is not a traversal permission source.
+        reverse, created = _materialise_access(
+            link,
+            "reverse",
+            spaces[link.to_id],
+            spaces[link.from_id],
+            link.from_id,
+            model.model_version,
+        )
+        access_objects[f"{link.id}:reverse"] = reverse
+        created_accesses += int(created)
 
     _ensure_developer_entry(spaces, model.model_version)
 
