@@ -20,6 +20,7 @@ concurrency:
 
 jobs:
   g15-position-balance:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
     name: Exact semantic permutation balance and fail-closed proof
     runs-on: ubuntu-latest
     timeout-minutes: 12
