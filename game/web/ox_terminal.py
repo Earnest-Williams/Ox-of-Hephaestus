@@ -15,10 +15,13 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.clickjacking import xframe_options_deny
 from django.views.decorators.http import require_GET
 
-from world.ship_model import canonical_model_path
+from world.ship_model import canonical_model_path, load_ship_model
 from world.ship_telemetry import read_spatial_telemetry
 
-WIRE_NAME = "Ox_Ship_Wire_Render_v0.4.html"
+# A new source model may preserve 421 room IDs while changing fit-out and
+# installed topology. Never reuse a v0.4 drawing for a promoted v0.5 source.
+# Add v0.5 only after generating and inspecting its matching static wire file.
+WIRE_BY_MODEL_VERSION = {"0.4": "Ox_Ship_Wire_Render_v0.4.html"}
 
 
 def _deny_non_developer(request):
@@ -52,7 +55,24 @@ def terminal(request):
     if denial is not None:
         return denial
 
-    html = canonical_model_path().with_name(WIRE_NAME).read_text(encoding="utf-8")
+    version = load_ship_model().model_version
+    drawing = WIRE_BY_MODEL_VERSION.get(version)
+    if drawing is None:
+        return HttpResponse(
+            "No verified wire renderer for canonical Ox ship model "
+            + str(version) + ". Regenerate and explicitly register the drawing "
+            "before promoting the source model.",
+            status=409,
+            content_type="text/plain",
+        )
+    try:
+        html = canonical_model_path().with_name(drawing).read_text(encoding="utf-8")
+    except OSError:
+        return HttpResponse(
+            "Matched Ox ship wire renderer is missing.",
+            status=503,
+            content_type="text/plain",
+        )
     closing = "</body>"
     if closing not in html:
         return HttpResponse("Wire source missing body terminator.", status=500)
