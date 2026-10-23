@@ -17,13 +17,13 @@ permissions:
   actions: read
 
 concurrency:
-  group: ox-g10-wide-${ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${ github.event_name == 'pull_request' }}
+  group: ox-g10-wide-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   g10-actor-matrix:
-    if: ${ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
-    name: "G10 real Decider actor: ${ matrix.role }}"
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    name: "G10 real Decider actor: ${{ matrix.role }}"
     runs-on: ubuntu-latest
     timeout-minutes: 120
     strategy:
@@ -34,7 +34,7 @@ jobs:
       MODEL_DIR: .ox-state/g10/weights
       OX_DECIDER_GGUF_PATH: .ox-state/g10/weights/decider-4b.Q4_K_M.gguf
       HF_HUB_DISABLE_TELEMETRY: "1"
-      GH_TOKEN: ${ github.token }}
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -73,19 +73,19 @@ jobs:
           from g10_decider_battery import authenticated_archive,actor_archive
           root=Path(".ox-state/g9")
           state,report=authenticated_archive(root)
-          actor_archive(root,"${ matrix.role }}")
+          actor_archive(root,"${{ matrix.role }}")
           print("OX_G10_SOURCE_WORLD_VERIFIED",state["turn"],
                 len(report["verified_world_work"]))
           PY
       - name: Run one actor full-order mock harness (not behavioural evidence)
         run: |
           python scenarios/g8_soap_opera/g10_decider_battery.py \
-            --root .ox-state/g9 --role "${ matrix.role }}" \
+            --root .ox-state/g9 --role "${{ matrix.role }}" \
             --model fixture \
-            --out ".ox-state/g10/fixture-${ matrix.role }}.json"
+            --out ".ox-state/g10/fixture-${{ matrix.role }}.json"
           python - <<'PY'
           import json
-          r=json.load(open(".ox-state/g10/fixture-${ matrix.role }}.json"))
+          r=json.load(open(".ox-state/g10/fixture-${{ matrix.role }}.json"))
           assert r["engine"]=="fixture" and r["model_calls"]==36,r
           assert len(r["rows"])==36 and len(r["memory_pairs"])==18,r
           assert len(r["order_stability"])==12 and len(r["routing_trials"])==6,r
@@ -134,26 +134,26 @@ jobs:
         run: |
           set -euo pipefail
           python scenarios/g8_soap_opera/g10_decider_battery.py \
-            --root .ox-state/g9 --role "${ matrix.role }}" \
+            --root .ox-state/g9 --role "${{ matrix.role }}" \
             --model decider-q4 --gguf-path "$OX_DECIDER_GGUF_PATH" \
-            --out ".ox-state/g10/results/${ matrix.role }}.json" \
-            | tee ".ox-state/g10/role-${ matrix.role }}.log"
-          grep -Fq OX_G10_ROLE_BREADTH_PASS ".ox-state/g10/role-${ matrix.role }}.log"
+            --out ".ox-state/g10/results/${{ matrix.role }}.json" \
+            | tee ".ox-state/g10/role-${{ matrix.role }}.log"
+          grep -Fq OX_G10_ROLE_BREADTH_PASS ".ox-state/g10/role-${{ matrix.role }}.log"
       - name: Archive only bounded statistical evidence (never private brain or GGUF)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ox-g10-role-${ matrix.role }}
+          name: ox-g10-role-${{ matrix.role }}
           path: |
-            .ox-state/g10/results/${ matrix.role }}.json
-            .ox-state/g10/role-${ matrix.role }}.log
+            .ox-state/g10/results/${{ matrix.role }}.json
+            .ox-state/g10/role-${{ matrix.role }}.log
           retention-days: 21
           if-no-files-found: ignore
 
   g10-evaluate-all:
     name: G10 evaluate all six real-model actors and factorial controls
     needs: [g10-actor-matrix]
-    if: ${ success() }}
+    if: ${{ success() }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
