@@ -120,3 +120,6 @@ PR #101 remains separate and unmerged pending design completion.
 - [Unknown-environment containment closure](UNKNOWN_ENVIRONMENT_ACCESS_CLOSURE_v0.5.md): rated protection at 131 cargo/industrial/shield thresholds, local interlocks and service ownership.
 - [Unknown-environment door schedule](environmental_access_boundaries_v0.5.json): physical records and handling rules for all 131 rated receivers.
 - [Environmental access regression](check_environmental_boundaries.py): pressure/chemistry and dual cargo-sector gate checks.
+
+- [Coupled pressure-and-damage-control trials](COUPLED_PRESSURE_DAMAGE_TRIALS_v0.5.md): deterministic gas mass, timed isolation, jammed hatch, crew access, cargo unknowns, finite reserve tests without Evennia.
+- [Pressure damage simulator](pressure_damage_sim_v0.5.py) and [adversarial scenario runner](check_pressure_damage_sim.py): run `python design/ship/check_pressure_damage_sim.py` for the design-only physical/casualty trial suite.
