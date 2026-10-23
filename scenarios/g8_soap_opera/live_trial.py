@@ -290,10 +290,15 @@ async def social_action(clients, ids, role, other, operation, payload):
     return receipt, heard
 
 class Trial:
-    def __init__(self, seed, root, *, cognition_mode="symbolic"):
+    def __init__(self, seed, root, *, cognition_mode="symbolic",
+                 contract_routing=False):
         if cognition_mode not in ("symbolic", "decider"):
             raise ValueError("Unknown G8/G9 decision mode")
+        if type(contract_routing) is not bool or (
+                contract_routing and cognition_mode != "decider"):
+            raise ValueError("World-backed contract routing needs opt-in Decider mode")
         self.cognition_mode = cognition_mode
+        self.contract_routing = contract_routing
         self._shared_decider = None
         self.seed = seed
         self.root = root
@@ -305,6 +310,8 @@ class Trial:
                 raise ValueError("Changed seed during a 500-turn run")
             if d.get("cognition_mode", "symbolic") != cognition_mode:
                 raise PermissionError("Cannot change cognition mode at checkpoint restart")
+            if d.get("contract_routing", False) != contract_routing:
+                raise PermissionError("Cannot change world-contract authority mode at restart")
             self.turn = d["turn"]
             if cognition_mode == "decider" and len(d.get("trace", [])) != self.turn:
                 raise RuntimeError(
@@ -318,6 +325,7 @@ class Trial:
             self.reinterpretations = d.get("reinterpretations", [])
             self.routing = d.get("routing", {role: {} for role in ROSTER})
             self.route_audit = d.get("route_audit", [])
+            self.contract_audit = d.get("contract_audit", [])
             self.locations = d["locations"]
             self.seen = {tuple(item) for item in d["seen"]}
             for role in ROSTER:
@@ -338,6 +346,7 @@ class Trial:
             self.reinterpretations = []
             self.routing = {role: {} for role in ROSTER}
             self.route_audit = []
+            self.contract_audit = []
             self.locations = {r: "mess" for r in ROSTER}
             self.seen = set()
             for role in ROSTER:
@@ -391,7 +400,9 @@ class Trial:
         state = {
             "seed": self.seed, "turn": self.turn,
             "cognition_mode": self.cognition_mode,
+            "contract_routing": self.contract_routing,
             "routing": self.routing, "route_audit": self.route_audit,
+            "contract_audit": self.contract_audit,
             "private": self.private,
             "agreements": self.agreements, "faults": self.faults,
             "trace": self.trace, "reinterpretations": self.reinterpretations,
@@ -763,6 +774,100 @@ class Trial:
         })
         return mapped[key], self.route_audit[-1]
 
+    async def g11_routed_contract_reply(
+        self, role, other, baseline, agreement_id, ids, trust, interest, doubt,
+    ):
+        """Propose ONE bounded, authentic pending-relationship reply.
+
+        Real consequences occur only after the existing authenticated
+        oxwork social_reply and a matching peer-delivered event. The model
+        cannot forge a relationship, change duty permissions, or issue a world
+        command directly. This is disabled by default in G8 and G9.
+        """
+        if not self.contract_routing:
+            return baseline, None, None
+        if baseline not in ("accept", "defer", "decline"):
+            raise ValueError("Unknown symbolic reply")
+        if not any(key == agreement_id and item["state"] == "pending"
+                   and item["recipient"] == role
+                   and item["proposer"] == other
+                   for key, item in self.pending_for(role)):
+            raise PermissionError("Reply is not owned by an authentic pending offer")
+        agent = self.brains[role]
+        profile = agent.blueprint
+        if profile != g9_blueprint(role):
+            raise PermissionError("No G11 personal blueprint for authenticated role")
+        proposed_actions = (
+            ("accept", "Accept this pending commitment with the colleague."),
+            ("defer", "Ask the colleague to leave the commitment unresolved for now."),
+            ("decline", "Decline the commitment, despite its possible social cost."),
+        )
+        menu = tuple(CommandOption(
+            f"Regarding an actual pending commitment proposed by "
+            f"{ROLES[other][0]} ({other}): {description}",
+            "reply_" + name, "social",
+        ) for name, description in proposed_actions)
+        plan = GoapPlanner(tuple(
+            GoapAction(
+                "reply_" + name, requires=frozenset({"proposal_pending"}),
+                adds=frozenset({"replied"}) if name == baseline
+                else frozenset({"considered_" + name}),
+                verb="reply_" + name, target="social",
+            ) for name, _ in proposed_actions
+        ))
+        planned = plan.plan({"proposal_pending"}, {"replied"}).actions
+        if len(planned) != 1 or planned[0].name != "reply_" + baseline:
+            raise AssertionError("GOAP response baseline changed unexpectedly")
+        router = PersonalityRouter(
+            profile, ids[role], self.routing[role],
+            seed=f"ox-g9-routing-{self.seed}-{role}",
+        )
+        state = PersonalState(
+            stress=max(0.0, min(1.0, (55 - trust) / 80)),
+            fatigue=0.25,
+            social_pressure=max(0.0, min(1.0, interest / 100)),
+            uncertainty=0.85 if doubt else 0.25,
+        )
+        controller = CharacterRouteController(
+            router, DecisionScheduler(max_parallel=1, timeout_seconds=110),
+            role=role,
+        )
+        boundary = f"g11.{role}.turn-{self.turn}.agreement-{agreement_id}"
+        proposal = await controller.decide(
+            agent=agent, planner=plan,
+            beliefs=frozenset({"proposal_pending"}),
+            goals=frozenset({"replied"}),
+            options=menu,
+            boundary_id=boundary, kind="social", state=state,
+            persist=self.save,
+        )
+        answer = proposal.action.verb.removeprefix("reply_")
+        if (proposal.action.target != "social"
+                or answer not in ("accept", "defer", "decline")
+                or proposal.model_calls != int(proposal.route.selected == "llm")):
+            raise PermissionError("Model did not choose an offered reply proposal")
+        local_memories = [
+            entry for entry in agent.temporal_memories.entries()
+            if entry.subject == other and entry.kind == "witnessed_speech"
+            and entry.learned_turn <= self.turn
+        ]
+        audit = {
+            "turn": self.turn, "actor": role, "counterpart": other,
+            "agreement_id": agreement_id,
+            "baseline": baseline, "chosen": answer,
+            "route": proposal.route.selected, "model_calls": proposal.model_calls,
+            "deviated": baseline != answer,
+            "observation_revision": proposal.route.observation_revision,
+            "cognition_revision": proposal.route.cognition_revision,
+            "route_probability": proposal.route.probability_llm,
+            "route_roll": proposal.route.roll,
+            "witnessed_peer_memories": len(local_memories),
+            "latest_peer_evidence": [
+                entry.source_event_id for entry in local_memories[-3:]
+            ],
+        }
+        return answer, proposal, audit
+
     async def social(self, role, clients, ids):
         pending = self.pending_for(role)
         if pending:
@@ -775,10 +880,23 @@ class Trial:
                 role, other)
             score = affection + trust * .25 + approach * .4 + rng.randint(-25, 20)
             answer = "accept" if score >= 88 else ("defer" if score >= 71 else "decline")
+            _trust_bias, _approach, doubt, _views = self.interpreted_influence(
+                role, other)
+            answer, proposal, contract_audit = await self.g11_routed_contract_reply(
+                role, other, answer, key, ids, trust, affection, doubt,
+            )
             receipt, heard = await social_action(
                 clients, ids, role, other, "social_reply",
                 {"agreement_id": key, "revision": agreement["revision"],
                  "answer": answer})
+            if proposal is not None and proposal.route.selected == "llm":
+                # A real, independently matched server work receipt and
+                # addressed counterpart event are both required.
+                self.brains[role].record_outcome(ActionOutcome(
+                    proposal.action.request_id, "succeeded",
+                    "World confirmed this exact personal social reply",
+                    source_event_id=receipt["source_event_id"],
+                ))
             agreement["state"] = {"accept": "accepted", "defer": "deferred",
                                   "decline": "declined"}[answer]
             self.remember_contract(role, other, receipt, agreement["state"])
@@ -786,6 +904,14 @@ class Trial:
                         remembered=sources, appraisal=(trust, affection),
                         agreement=key, receipt=receipt["request_id"],
                         listener_event=heard["event_id"])
+            if contract_audit is not None:
+                contract_audit.update({
+                    "world_request_id": receipt["request_id"],
+                    "world_event_id": receipt["source_event_id"],
+                    "counterpart_event_id": heard["event_id"],
+                })
+                self.contract_audit.append(contract_audit)
+                self.trace[-1]["g11_contract"] = contract_audit.copy()
             return
         other = self.candidate(role)
         if other is None:
@@ -1002,13 +1128,18 @@ def main():
     p.add_argument("--seed", type=int, default=241)
     p.add_argument("--cognition-mode", choices=("symbolic", "decider"),
                    default="symbolic")
+    p.add_argument("--contract-routing", action="store_true",
+                   help="G11 opt-in model routing of real social agreement replies")
     p.add_argument("--root", type=Path, default=Path(".ox-state/g8"))
     args = p.parse_args()
     if os.environ.get("OX_G8_LIVE_CI") != "1":
         raise PermissionError("Disposable six-actor CI fixture only")
     if not (1 <= args.start <= args.end <= 500):
         raise ValueError("Bounded 500-decision trial required")
-    trial = Trial(args.seed, args.root, cognition_mode=args.cognition_mode)
+    trial = Trial(
+        args.seed, args.root, cognition_mode=args.cognition_mode,
+        contract_routing=args.contract_routing,
+    )
     ids = identities()
     trial.bind(ids)
     asyncio.run(trial.run_phase(ids, args.start, args.end))
