@@ -148,6 +148,47 @@ failure consequences into individual crew GOAP/Decider/Concordia cognition
 while letting Evennia remain the sole owner of movement, repairs,
 equipment, timing, injuries, inventories and receipts.
 
+## Verified result from the 23 October 2026 reference run
+
+The [v0.5 ship-design integrity workflow](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/39997482622)
+passed the 40-person matched-policy suite at commit
+[`029826f`](https://github.com/Earnest-Williams/Ox-of-Hephaestus/commit/029826f78dab48db818e365253f77316e5358e2f).
+The other three focused workflows also passed. **40 separate people occupied
+40 original authored rooms in 24 different nominal pressure cells**;
+all received individual locally bounded startup evidence and shift
+orders, with identity/location and total occupancy conserved to the
+end. **Ten invalid cases were rejected.**
+
+| 240-second metric | Containment-first | Rescue-first | Containment with HAB03 hatch jammed open |
+| --- | ---: | ---: | ---: |
+| Individually identified people moved into HAB-04 | 0 | 2 | 0 |
+| Time suppression actually started | 23 s | 140 s | 23 s |
+| Carbon-equivalent scenario fuel burned | 2.2176 kg | 10.0800 kg | 2.2176 kg |
+| Smoke tracer in HAB-04 | 0.001818 kg | 0.097332 kg | 0.001819 kg |
+| Smoke tracer in BR-03 | 0.000131 kg | 0.007483 kg | 0.004576 kg |
+| Allocated firefighting water used | 130.2 kg | 60.0 kg | 130.2 kg |
+| Total individual unsafe person-seconds | 357.0 | 1,576.5 | 576.0 |
+| Individual and operational event records | 132 | 146 | 133 |
+
+The tests passed exact manifest reconciliation, real passage-link receipts
+for CREW-007 and CREW-008, fuel/water/material balances, finite mask/light
+allocations, separately tested duct and pressure-hatch closures, actual
+B-source de-energizing for a refitted fan-coil, and failure of the
+jammed pressure seal. The 240-second endpoint is shared; the difference
+in water spent results from different durations of suppression in that
+fixed window, **not** new water creation or better liquid efficiency.
+
+**Interpretation:** rescue-first protects two identifiable cabin occupants
+by moving them, but waiting to seal the open pressure bridge and isolate
+the electrical fault exposes HAB-04 to much more smoke, lengthens
+combustion and increases person-time in unsafe atmospheres. A failed-open
+first bridge hatch increases contamination/exposure in BR-03; the
+independently functioning second hatch still protects HAB-04. These
+are meaningful **fictional operational choices**. Unsafe person-seconds
+are modeled exposure indicators, **not assigned injuries, deaths or
+measured physiological dose**, and figures are neither NASA-certifiable
+performance claims nor actual ship measurements.
+
 ## Deliberate next-stage refinements
 
 The reference scenario still uses deterministic command policies and
