@@ -17,10 +17,16 @@ def assess(root: Path) -> dict:
     seen_roles, rows, pair_events, stability, routing = set(), [], [], [], []
     role_reports = {}
     for role in ROLES:
-        path = root / (role + ".json")
-        if not path.is_file():
-            raise FileNotFoundError("A required actor report is missing: " + role)
-        report = json.loads(path.read_text(encoding="utf-8"))
+        # upload-artifact can preserve a common results/ ancestor when
+        # the role's adjacent log is also archived; accept either explicit
+        # layout but never an arbitrary/duplicate search result.
+        candidates = (root / (role + ".json"),
+                      root / "results" / (role + ".json"))
+        found = [p for p in candidates if p.is_file()]
+        if len(found) != 1:
+            raise FileNotFoundError(
+                "A unique required actor report is missing: " + role)
+        report = json.loads(found[0].read_text(encoding="utf-8"))
         if report.get("role") != role or report.get("engine") != "decider-q4":
             raise PermissionError("Report contains wrong actor or mock inference")
         if (report.get("schema") != 1 or not report.get("hypothetical_only")
