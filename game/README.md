@@ -282,7 +282,7 @@ acknowledgment alongside coolant, cargo, hails and world-owned handover.
 
 ## Full-ship preparation boundary
 
-A play-facing 950 m vessel model is now retained under [`design/ship/`](../design/ship/README.md). It is **not yet the runnable Evennia world**. The commands and bootstrap documented below continue to operate the seven-compartment proving ground until a later integration PR adds an explicit adapter/migration and corresponding world-authority tests.
+The full 950 m vessel model under [`design/ship/`](../design/ship/README.md) is now materialised in Evennia as persistent canonical rooms and Developer-only exits (stage-one spatial topology). The ordinary crew commands and operational systems documented below still use the seven-compartment proving ground; full-ship equipment, access interlocks, pressure and EVA semantics have **not** yet migrated. See [integration scope](../design/ship/EVENNIA_INTEGRATION.md).
 
 ## Start the game
 

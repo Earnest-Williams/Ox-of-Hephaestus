@@ -2,6 +2,8 @@
 
 **An autonomous spaceship MUD/simulation prototype built on [Evennia](https://www.evennia.com/).**
 
+**Full-ship integration stage one:** the canonical 421-room v0.4 spatial topology is materialised in Evennia with Developer-only exits and a read-only authenticated wire terminal. The seven-compartment proving ground remains the runtime for crew operations until the real ship's access, equipment, pressure and maintenance mechanics migrate.
+
 > **Current state — 22 October 2026 (through authenticated 40-character recovery PR #97).**
 > The primary proving-ground ship has seven compartments, three physical
 > systems, five independently authenticated technical crew and an optional
@@ -40,7 +42,7 @@ equipment, authorize itself, invent evidence or settle a case.
 
 | Area | Verified capability |
 | --- | --- |
-| Ship | Seven connected compartments; coolant pump P-01, cargo restraint grid C-01 and atmospheric scrubber A-01, each with bounded physical states |
+| Ship | Canonical 421-room/517-link v0.4 spatial topology with Developer-only traversal; separate seven-room operational proving ground with coolant pump P-01, cargo grid C-01 and atmospheric scrubber A-01 |
 | Crew | Lin, Ari, Iona, Mara and Teo have separate character identities, authenticated sessions, native Concordia state and private observations; the sixth captain is opt-in |
 | Responsibilities | World-owned roster, inspection and safety gates, specialist work, addressed hails, watch changes and captain-owned open obligations with assignment/review |
 | Decisions | Event-driven external supervisor; bounded Concordia choices; model-free GOAP for familiar procedures and locally discovered travel; optional independent maintenance rounds and uncertain investigations |
@@ -52,7 +54,7 @@ equipment, authorize itself, invent evidence or settle a case.
 | Private cognition | G8–G10b: seeded temporal episodes, subjective reinterpretation, owner-revisioned memory, native read-only Concordia context and simulated-time aging |
 | Experimental evidence | Six-client, 500-decision G8 model-free ship/social trial; G11 matched-evidence hosted-model A/B harness; G12 local native profiling at 6/20/40 brains |
 | Transport and concurrency | Buffered authenticated WebSocket matching; PostgreSQL commit-ordered journal and exact receipt provenance (PRs #82–83); cursor-based inbox reads (PR #85) with actor-scoped disposable SQLite evidence indexes and bounded Python history retention (PR #86) |
-| Observation | Operator/test journals and focused CI evidence; no published world/handler inspection APIs and no browser observatory |
+| Observation | Operator/test journals, CI evidence and a Developer-only read-only canonical-space terminal; no public world/handler combined observatory |
 
 **Current learning is narrower than the character design.** The operator-only
 routine/unfamiliar/novel *shadow* resolver compares capabilities, but it does
@@ -77,8 +79,9 @@ mode and **must not run simultaneously against the same ship**.
    decisions, GOAP proposals, pending request IDs and checkpoints. It accesses
    the world as ordinary individually authenticated characters.
 3. **Human observatory (deferred):** a future presentation layer joining
-   separately permissioned world and cognitive read models. No running
-   frontend, combined API or operator-control service exists.
+   separately permissioned world and cognitive read models. A limited authenticated
+   Developer-only **spatial terminal** is implemented; it exposes neither
+   private AI memory nor a combined handler/world observatory or operator control API.
 
 Unknown physical-action outcomes are reconciled using the **original
 request ID**. A timeout is not proof of failure and never justifies blindly
@@ -107,7 +110,7 @@ and captain-obligation contention. G11's opt-in hosted-model harness and
 G12's native dispatch profiler answer **different** questions from this
 integration testing. See [status and limits](design/STATUS.md).
 
-P5 (operator observatory) is postponed. A full-ship physical world model is now **prepared but not runtime-integrated** under [`design/ship/`](design/ship/README.md); the runnable Evennia world remains the smaller proving ground. Still unimplemented are full-ship runtime integration,
+P5 (joined handler/world observatory) is postponed. The [full-ship spatial topology](design/ship/README.md) **is now materialised in Evennia** and has an authenticated Developer-only read-only [wire terminal](design/ship/LIVE_TERMINAL.md). The seven-compartment proving ground still operates the crew and equipment mechanics. Still unimplemented are full-ship operational mechanics,
 freight trading/economics, graded real physical task attempts,
 an acquired-attribute engine, autonomous education agendas and comprehensive
 production operations. See [status](design/STATUS.md) and

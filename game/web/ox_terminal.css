@@ -1,0 +1,237 @@
+/* Ox industrial monitor styling; original wire renderer remains untouched. */
+body.ox-live-console {
+  --ox-amber: #dfbd78;
+  --ox-phosphor: #91cbae;
+  --ox-advisory: #f0b26f;
+  --ox-fault: #e47e72;
+  --ox-border: #59635b;
+  --ox-panel: #080e0dec;
+  background: #050906;
+  color: #d4decf;
+}
+body.ox-live-console #app::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  pointer-events: none;
+  opacity: .10;
+  background: repeating-linear-gradient(
+    180deg, transparent 0, transparent 3px, #000 4px, transparent 5px
+  );
+}
+body.ox-live-console .panel {
+  background: linear-gradient(160deg, #121a16f6, #060b09f6);
+  border: 1px solid #4e685a;
+  border-radius: 1px;
+  box-shadow: 0 15px 55px #0009, inset 0 0 20px #10251a48;
+}
+body.ox-live-console .panel header {
+  background: #131d17f7;
+  border-bottom: 2px solid #6d8268;
+}
+body.ox-live-console .panel .title,
+body.ox-live-console .hud .big {
+  color: var(--ox-amber);
+  letter-spacing: .13em;
+}
+body.ox-live-console .panel .badge {
+  color: var(--ox-phosphor);
+  border-color: #506957;
+  border-radius: 1px;
+}
+body.ox-live-console .panel .btn,
+body.ox-live-console .panel .row input[type=text],
+body.ox-live-console .panel .row select {
+  border-radius: 1px;
+}
+body.ox-live-console .panel .btn:hover {
+  color: #f5dfaa;
+  border-color: #d0af76;
+}
+body.ox-live-console .panel .section h3 {
+  color: var(--ox-amber);
+  letter-spacing: .17em;
+}
+body.ox-live-console .legend {
+  border-radius: 1px;
+  background: #0b130fe8;
+  border-color: #485448;
+}
+.ox-live-card {
+  position: absolute;
+  z-index: 9;
+  right: 14px;
+  top: 78px;
+  width: min(326px, calc(100vw - 28px));
+  max-height: min(71vh, 690px);
+  overflow-y: auto;
+  background: var(--ox-panel);
+  border: 1px solid var(--ox-border);
+  box-shadow: 0 12px 40px #0009, inset 0 0 25px #20452c28;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.ox-live-card header {
+  padding: 11px 13px 9px;
+  border-bottom: 1px solid #5b6855;
+  background: linear-gradient(90deg, #19271d, #0c1410);
+}
+.ox-live-eyebrow {
+  font-size: 10px;
+  letter-spacing: .16em;
+  color: var(--ox-phosphor);
+}
+.ox-live-heading {
+  margin-top: 4px;
+  font-size: 13px;
+  letter-spacing: .08em;
+  font-weight: 800;
+  color: var(--ox-amber);
+}
+.ox-live-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ox-live-link {
+  color: var(--ox-phosphor);
+  border: 1px solid #45634c;
+  background: #0d2117;
+  border-radius: 1px;
+  padding: 4px 7px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: .06em;
+}
+.ox-live-link:focus-visible,
+.ox-live-alert:focus-visible {
+  outline: 2px solid var(--ox-amber);
+  outline-offset: 2px;
+}
+.ox-live-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .09em;
+  color: var(--ox-amber);
+}
+.ox-live-status::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+}
+.ox-live-status[data-mode="online"] { color: var(--ox-phosphor); }
+.ox-live-status[data-mode="stale"] { color: var(--ox-fault); }
+.ox-live-status[data-mode="installing"] { color: var(--ox-amber); }
+.ox-live-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1px;
+  background: #314738;
+  border-bottom: 1px solid #49594a;
+}
+.ox-live-metric {
+  background: #0e1811;
+  padding: 10px 9px;
+  min-width: 0;
+}
+.ox-live-metric strong {
+  display: block;
+  font-size: 21px;
+  font-weight: 500;
+  color: #cce4d0;
+  font-variant-numeric: tabular-nums;
+}
+.ox-live-metric strong.alert { color: var(--ox-fault); }
+.ox-live-metric span {
+  display: block;
+  color: #94a496;
+  font-size: 9px;
+  line-height: 1.4;
+  letter-spacing: .04em;
+}
+.ox-live-section {
+  padding: 11px 13px;
+  border-bottom: 1px solid #283a2e;
+}
+.ox-live-label {
+  font-size: 10px;
+  color: var(--ox-amber);
+  font-weight: 700;
+  letter-spacing: .11em;
+  margin: 0 0 7px;
+}
+.ox-live-small {
+  color: #9dab9b;
+  font-size: 10px;
+  line-height: 1.55;
+}
+.ox-live-fine {
+  color: #708878;
+  font-size: 9px;
+  line-height: 1.45;
+}
+.ox-live-alerts {
+  display: grid;
+  gap: 5px;
+}
+.ox-live-alert {
+  display: block;
+  width: 100%;
+  padding: 7px 8px;
+  text-align: left;
+  font: inherit;
+  font-size: 10px;
+  border: 1px solid #656147;
+  background: #1b1911;
+  color: var(--ox-advisory);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.ox-live-alert.critical {
+  color: #f0aea2;
+  border-color: #874d47;
+  background: #291814;
+}
+.ox-live-alert:hover { filter: brightness(1.16); }
+.ox-live-selected {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  letter-spacing: .04em;
+  color: #cce4d0;
+}
+.ox-live-selected small {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  color: #9bab9a;
+}
+.ox-live-footer {
+  padding: 8px 13px;
+  color: #789181;
+  font-size: 9px;
+  letter-spacing: .03em;
+  line-height: 1.5;
+}
+@media (max-width: 760px) {
+  .ox-live-card {
+    top: auto;
+    right: 10px;
+    bottom: 50px;
+    max-height: 39vh;
+    width: min(300px, calc(100vw - 20px));
+  }
+  .ox-live-metric { padding: 7px; }
+  .ox-live-metric strong { font-size: 16px; }
+  body.ox-live-console .hud { bottom: 10px; top: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body.ox-live-console #app::after { display: none; }
+}
