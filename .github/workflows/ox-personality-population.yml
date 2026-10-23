@@ -1,0 +1,78 @@
+name: Ox forty-person personality route durability and isolation
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches: [main]
+    paths:
+      - "scenarios/personality_population_trial.py"
+      - ".github/workflows/ox-personality-population.yml"
+      - "services/ai-handler/src/ox_ai/runtime/personality_routing.py"
+      - "services/ai-handler/src/ox_ai/agents/crew_blueprints.py"
+      - "!**/*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ox-population-route-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  forty-private-actors:
+    name: 40-actor GOAP versus Decider routing ledger stress
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: services/ai-handler/pyproject.toml
+      - name: Install bounded decision policy and Concordia optional dependencies
+        run: |
+          python -m pip install -e './services/ai-handler[concordia]'
+      - name: Existing personality, scheduler and choice adapter regression
+        run: |
+          python -m unittest discover -s services/ai-handler/tests -p test_personality_routing.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_personality_live_models.py -v
+      - name: Stress forty actor-scoped persistent route ledgers
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .ox-state/population
+          python scenarios/personality_population_trial.py \
+            --out .ox-state/population/forty-report.json \
+            | tee .ox-state/population/summary.txt
+          grep -Fq OX_FORTY_ACTOR_PERSONALITY_RECOVERY_PASS \
+            .ox-state/population/summary.txt
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path(".ox-state/population/forty-report.json")
+          r=json.loads(p.read_text())
+          assert r["actors"]==40
+          assert r["unique_boundaries"]==20480
+          assert r["persist_callbacks"]==20480
+          assert r["replayed_boundaries"]==20480
+          assert r["reordered_boundaries"]==20480
+          assert r["rejected_cross_character_ledger_rebinds"]==120
+          assert r["injected_storage_failures_rolled_back"]==1
+          assert r["real_model_calls"]==0
+          assert r["world_commands_sent"]==0
+          assert r["independent_decider_rate"] > r["procedural_decider_rate"]+.25
+          print("OX_FORTY_PERSON_SCHEMA_PASS")
+          PY
+      - name: Archive non-private scale evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-forty-actor-personality-route-proof
+          path: |
+            .ox-state/population/forty-report.json
+            .ox-state/population/summary.txt
+          retention-days: 21
+          if-no-files-found: ignore
