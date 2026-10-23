@@ -1,4 +1,4 @@
-**CURRENT 23 OCTOBER 2026 v0.5 CANDIDATE:** 133/133 physically bounded nominal pressure cells, 339 rated isolation boundaries (208 previously rated plus 131 unknown-environment thresholds), 100,772.940 m³ gross / 65,832.797–88,021.802 m³ planned free-air reference; **802 maintained equipment objects, 13 inventory accounts, 42 maintenance groups**. The six cargo-drums now have individual passenger indexers and freight docking collars; the four separate, finite industrial/hazardous bins begin empty. Read [machinery/industrial disposal closure](MACHINERY_AND_FINITE_DISPOSAL_CLOSURE_v0.5.md) and [physical closure](PHYSICAL_CLOSURE_v0.5.md). Earlier dates/counts later in these files refer to earlier v0.5 milestones only. All source volumes are design geometry, not as-installed measurements or certified safe access.
+**CURRENT 23 OCTOBER 2026 v0.5 CANDIDATE:** 133/133 physically bounded nominal pressure cells, 339 rated isolation boundaries (208 previously rated plus 131 unknown-environment thresholds), 100,772.940 m³ gross / 65,832.797–88,021.802 m³ planned free-air reference; **808 maintained equipment objects, 15 inventory accounts, 42 maintenance groups**. The six cargo-drums now have individual passenger indexers and freight docking collars; the four separate, finite industrial/hazardous bins begin empty. Read [machinery/industrial disposal closure](MACHINERY_AND_FINITE_DISPOSAL_CLOSURE_v0.5.md) and [physical closure](PHYSICAL_CLOSURE_v0.5.md). Earlier dates/counts later in these files refer to earlier v0.5 milestones only. All source volumes are design geometry, not as-installed measurements or certified safe access.
 
 # Ox of Hephaestus — atmosphere volume, refill reserve and casualty delivery v0.5
 
@@ -14,7 +14,7 @@
 > Earlier volume/count figures below are retained as design history.
 
 
-**22 October 2026 · B′ 38° working ship · Engineering design candidate, not runtime**
+**23 October 2026 · B′ 38° working ship · Engineering design candidate, not runtime**
 
 **Source files:** `pressure_zone_topology_v0.5.json` (133 independent
 pressure cells), `ox_full_ship_v0.5_candidate.json` (physical machinery,
@@ -28,49 +28,24 @@ physically separated gas stock and delivery paths. This is a functional
 simulation-level engineering arrangement; the crew still needs to investigate
 and act, not simply click “repressurise.”
 
-## 1. What the gas-volume figures actually establish
+## 1. Current pressure-cell reference — all 133 dimensioned, none assumed measured
 
-The existing pressure-cell survey has **133 separately isolatable
-pressurised cells**, of which **85** have geometric dimensions:
-46 personnel-trunk sections, 23 heavy-logistics sections, eight
-habitation arcs and eight bridges. The remaining **48** known
-pressurised cells (fixed specialist workplaces, cross-connections,
-indexer capsules and the like) still have **no measured/defended
-gross volume**. We must not silently assume zero gas in them or
-fabricate room measurements.
+The completed B′ cell geometry assigns defensible nominal gross bounds to **all 133 isolatable pressure cells**: the original 46 sectional personnel bores, 23 heavy-logistics bores, eight full habitation arcs, eight bridges and 48 additional individual workplaces, transfer rooms and specialist cells. **339 pressure-rated boundaries** include 131 guarded cargo, industrial and shielding thresholds. These are different from the **83 unclassified rooms** whose normal gas and safe unsuited access remain unproven.
 
-The v0.5 working model assigns conservative *planning ranges*
-for the fraction of known gross enclosed volume that is actual
-free gas. These are not surveyed displacement figures:
-
-| Geometrically sized volume | Gross-to-free fraction, planning only | Why |
-| --- | ---: | --- |
-| 46 personnel trunk cells | 0.93–0.98 | clear 3 m bores with guides/carts and local fittings |
-| 23 heavy-freight trunk cells | 0.86–0.97 | 5.5 m bores with variable sled occupancy/restraints |
-| Eight 38° B′ habitation arcs | 0.70–0.84 | floors, cabins, furnishings, galleries, mounted equipment |
-| Eight independent pressure bridges | 0.80–0.93 | 3 m bore, collar, conduit and penetration volume |
-
-At **101.325 kPa**, **20°C**, dry-air density **1.204118 kg/m³**:
-
-| Sizing result for the 85 known-envelope cells | Range |
+| Present selected reference | Current v0.5 |
 | --- | ---: |
-| Geometric gross space (not net) | 65,549 m³ |
-| Screened free air volume | **52,609–59,898 m³** |
-| Contained air mass | **63.35–72.12 tonnes** |
-| One intact pressurised habitation arc | **3.09–3.71 tonnes** |
-| Two intact habitation arcs | **at least 6.18 tonnes** |
+| Independently bounded pressure cells | **133 / 133** |
+| Gross geometric envelopes | **100,772.940 m³** |
+| Screened fitted free gas (planning only) | **65,832.797–88,021.802 m³** |
+| Dry air at 101.325 kPa and 20°C | **79.270–105.989 t** |
+| One HAB arc full post-breach replacement | **approximately 3.02–3.71 t** |
+| Rated door/threshold boundaries | **339** |
+| Cargo/industrial/shield rooms not proved breathable | **83** |
 
-These numbers exclude the 48 unsized gas cells. They are useful
-order-of-magnitude reservoir requirements for **operating and casualty
-simulation**, not a claim that the installed ship has been measured or
-is always at this temperature or pressure. Each ledger row retains a
-separate `verified_as_installed_free_gas_m3: null`. Pressure,
-composition, humidity and compartment temperature change actual gas mass.
+The planning void fractions bound corridors, freight displacement, arc fit-out, sealed subrooms and specialist volumes; each cell's selected fraction and separate `verified_as_installed_free_gas_m3: null` are retained in `pressure_gas_recovery_v0.5.json`. Nominal geometry is not a pressure reading. This section supersedes the earlier **85 sized / 48 unsized** discussion below, retained solely as a documented design-history checkpoint.
 
-The underlying source `pressure_zone_topology_v0.5.json` deliberately
-continues to distinguish `gross_reference_envelope_m3` from
-`actual_usable_free_air_m3`; this increment does not overwrite that
-distinction.
+**Routine vs casualty mass are different supplies.** The **7.0 t** `INV-INERT-MAKEUP-A/B` stock covers 0.01%/day **inert** atmosphere leakage under ECLSS oxygen-balanced mixing, while the **5.5 t** separated compressed mixed-air reserves below remain protected for actual pressure breaches. The routine 730-day estimate is **4.456–5.958 t inert** (part of **5.787–7.737 t complete leaked air**) at the currently larger pressure inventory. See [B′ Issue 1.3 endurance reconciliation](BPRIME_ISSUE13_MISSION_RECONCILIATION.md).
+
 
 ## 2. Two real, independent refill-gas banks
 
@@ -233,20 +208,14 @@ surviving A/B gas main can reach a specifically
 identified section through its local tap, but an open
 tap is not permission to open a person-size pressure door.
 
-## 7. Remaining closure without false precision
+## 7. What is closed and what remains uncertain
 
-This increment closes gas source and route *identity* at the
-full-ships's simulation granularity, not the dimensions of
-48 presently unsized breathable pressure cells or exact
-surveyed free air. It does not claim finite-element
-validation for pressure bottles, rotating seals or hatch seats.
+Pressure-cell **gross geometry** is dimensioned for all 133 authored pressure cells, and the ship has both a physically differentiated **5.5 t protected casualty-air reserve** and a separately metered **7.0 t routine inert-gas supply**. Each has finite mass, distinguishable source IDs, local valves and operating conditions. A single full HAB arc may be refillable after leak repair; two full losses still exceed available casualty air. Routine inert stock is never implicitly usable as breathable full-arc refill.
 
-Next: size the 48 unsized pressurised zones from their
-actual structural geometry/operational requirement;
-resolve existing byproduct discharge and waste receivers;
-record as-found sensor fidelity and condition for the
-old, mixed-generation plumbing. Then the candidate can
-be promoted on its merits before revisiting Evennia/UI.
+Fitted displacement, actual partial pressures, corrosion/purity, as-found legacy connections and damage histories remain unmeasured or potentially wrong. Neither the source dimensions nor the 83 unclassified hazardous rooms grant unsuited entry or bypass a failed sensor. The separate 40-person ECLSS oxygen electrolysers replace metabolic and nominal leak O2 but cannot create nitrogen.
+
+Operations require tested pressure/gas composition, proven source-to-destination routing, isolation, local authority, power and real inventory depletion. Exact fabrication certification is not an approval gate. Design history below explains why some older v0.5 checkpoint numbers are smaller than today's complete model.
+
 
 ## 8. Historical survey of the 48 then-unsized pressure cells
 
