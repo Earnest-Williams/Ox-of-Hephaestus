@@ -277,3 +277,7 @@ Character recruitment, full ship economics and an acquired-attribute engine
 remain unimplemented. Conceptual learning has one assessed course and one
 bounded firsthand method reflection; general theoretical training is not
 complete.
+
+## Proposed G16 model policy (not adopted; 23 October 2026)
+
+**Decision is proposed, not activated.** Select Decider 4B Q4_K_M only as the position-balanced G15 three-pass finite-action scorer, with explicit authored character dispositions applied in GOAP operator costs and a separate bounded, seeded and replay-stable personality adjustment to native deliberate-choice scores. A distinct generative model produces dialogue; generated text never chooses or authorizes a consequential world action. Gate all behaviour under `OX_PERSONALITY_CHOICE` (off by default). Require G16 schema, real-margin calibration, replay/ledger, safety invariants, preregistered six-actor native evidence, 6/20/40 scheduler cost, independently evaluated dialogue and position-balanced Qwen-vs-Decider comparison **before** adoption or opt-in supervisor soak. [Full proposed architecture and gates](prototypes/g16-proposed-personality-action-policy.md).
