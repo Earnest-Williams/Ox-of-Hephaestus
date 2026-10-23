@@ -856,6 +856,10 @@ class Trial:
             "agreement_id": agreement_id,
             "baseline": baseline, "chosen": answer,
             "route": proposal.route.selected, "model_calls": proposal.model_calls,
+            "proposal_request_id": (
+                proposal.action.request_id if proposal.route.selected == "llm"
+                else None
+            ),
             "deviated": baseline != answer,
             "observation_revision": proposal.route.observation_revision,
             "cognition_revision": proposal.route.cognition_revision,
