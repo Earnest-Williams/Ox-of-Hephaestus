@@ -11,6 +11,7 @@ on:
       - "services/ai-handler/src/ox_ai/scenarios/p4a_personality_gate.py"
       - "services/ai-handler/src/ox_ai/scenarios/personality_dilemmas.py"
       - ".github/workflows/ox-g16-action-tags.yml"
+      - "!**/*.md"
   workflow_dispatch:
 
 permissions:
@@ -22,6 +23,7 @@ concurrency:
 
 jobs:
   action-tags:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
     name: Strict shared Pydantic schema and source-menu coverage
     runs-on: ubuntu-latest
     timeout-minutes: 12
