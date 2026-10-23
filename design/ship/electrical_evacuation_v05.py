@@ -17,7 +17,7 @@ from pressure_damage_sim_v05 import load_model, positive, require
 
 GENERATOR_MW = {"GEN-M": 3.0, "GEN-A": 0.65, "GEN-B": 0.65}
 SHIP_CONTINUOUS_MW = 3.3
-NORMAL_DEMAND_MW = 1.55
+NORMAL_DEMAND_MW = 1.35
 MAX_CREW = 40
 BATCH_WALKERS = 4  # explicit scenario screen, NOT a rated corridor throughput
 POWER_SOURCE_IDS = {
