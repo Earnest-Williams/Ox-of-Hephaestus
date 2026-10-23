@@ -190,6 +190,24 @@ def run_reference_tests():
     fanless.advance(180)
     insist(isclose(fanless.captured_smoke_kg, 0, abs_tol=1e-7),
            "disabled circulation magically powers remote smoke scrubber")
+    # ECLSS lives in HAB-06/HAB-08. Remote reachability cannot
+    # instantly remove smoke from HAB-03 before ducts transport it to
+    # either real processor. Closing a processor intake blocks its filter.
+    remote = new_trial(filters_kg=2.0)
+    remote.mark_contaminated("PZ-HAB-03", 0.5)
+    remote.configure_smoke_cleanup(True, local_authority=True)
+    remote.advance(1)
+    insist(remote.captured_smoke_kg < 1e-5,
+           "remote ECLSS filtered distant untransported smoke instantly")
+    inlet_closed = new_trial(filters_kg=2.0)
+    inlet_closed.mark_contaminated("PZ-HAB-06", 0.5)
+    inlet_closed.configure_smoke_cleanup(True, local_authority=True)
+    inlet_closed.configure_processor("ECLSS-B", False, local_authority=True)
+    inlet_closed.change_valve("atmosphere", "ISO-ECLSS-A-AIR", "closed",
+                              local_authority=True)
+    inlet_closed.advance(12)
+    insist(isclose(inlet_closed.captured_smoke_kg, 0, abs_tol=1e-8),
+           "closed local ECLSS-A inlet still magically filters")
     report["finite_filtration"] = {
         "connected_filters_captured_kg": round(filtered.captured_smoke_kg, 5),
         "isolated_filters_captured_kg": round(blocked.captured_smoke_kg, 5),
@@ -241,6 +259,21 @@ def run_reference_tests():
         "PZ-HAB-03", kg_s=0.6, local_authority=True,
         compatible_agent=True, energy_isolated=True),
         "locally isolated electrical fire cannot receive verified suppression")
+    # The two actual pump groups and HAB rotary fire inlets are
+    # genuinely independent sources: one works, two missing do not.
+    redundancy = new_trial()
+    hab_fire(redundancy)
+    redundancy.configure_pump("FIRE-PUMP-FWD", False, local_authority=True)
+    insist(redundancy._firewater_reaches("PZ-HAB-03"),
+           "remaining aft fire pump cannot reach the HAB ring")
+    redundancy.change_valve("fire_main", "ISO-ROT-FIRE-A-ROTARY_TRANSFER",
+                            "closed", local_authority=True)
+    insist(redundancy._firewater_reaches("PZ-HAB-03"),
+           "B rotary inlet fails to backfeed independent fire ring")
+    redundancy.change_valve("fire_main", "ISO-ROT-FIRE-B-ROTARY_TRANSFER",
+                            "closed", local_authority=True)
+    insist(not redundancy._firewater_reaches("PZ-HAB-03"),
+           "both rotary water paths isolated yet mist remains supplied")
     report["suppression"] = {
         "mist_water_used_kg": round(wet.water_used_kg, 3),
         "fuel_burned_without_mist_kg": round(
@@ -287,6 +320,18 @@ def run_reference_tests():
     isolated_coolant.advance(240)
     insist(isolated_coolant.cells["PZ-HAB-03"].temperature_K > T_HEAT_THRESHOLD(),
            "lost local LT flow has no heat consequence")
+    # BR-06 is a documented patched/manual-only sleeve. A remote
+    # operation command must not acquire local hands magically.
+    patched = new_trial()
+    valve = "ISO-lt_cooling-BR-06-HAB-06"
+    insist(patched.isolator[valve]["remote_operable"] is False,
+           "BR-06 mixed-generation manual operating requirement lost")
+    insist(not patched.change_valve("lt_cooling", valve, "closed",
+                                    local_authority=True, control_mode="remote"),
+           "remote controller opened manually operated BR-06 service valve")
+    insist(patched.change_valve("lt_cooling", valve, "closed",
+                                local_authority=True, control_mode="manual"),
+           "on-site worker denied correct BR-06 manual valve control")
     report["thermal_capacity_and_shedding"] = {
         "four_radiators_300s_HAB03_C": round(t_healthy - 273.15, 4),
         "two_radiators_300s_HAB03_C": round(t_degraded - 273.15, 4),
@@ -334,6 +379,51 @@ def run_reference_tests():
            and unknown.summary(["PZ-DR-01-SVC"])["cells"][
                "PZ-DR-01-SVC"]["pressure_reference_kpa"] is None,
            "unverified cargo receiving atmosphere fabricated by HVAC model")
+
+    # Each of the eight real B-prime habitation arcs has its own AHU
+    # and two duct neighbors. Ring smoke transport must not be accidentally
+    # hardcoded only to HAB-03, nor leak through a closed pressure hatch.
+    ring_results = {}
+    for n in range(1, 9):
+        incident = new_trial()
+        start = "PZ-HAB-%02d" % n
+        next_zone = "PZ-HAB-%02d" % (n % 8 + 1)
+        incident.ignite("RING-%02d" % n, start, fuel_kg=12,
+                        burn_kg_s=0.07, smoke_yield_fraction=0.35)
+        incident.advance(110)
+        spread = incident.cells[next_zone].trace_kg
+        insist(spread > 1e-6 and
+               all(not g.is_open() for g in incident.gates.values())
+               and incident.mass_balance_error_kg() < 1e-5,
+               "B-prime HAB arc ring duct smoke propagation absent: " + start)
+        ring_results[start] = round(spread, 5)
+    report["all_eight_hab_arc_ring_spread_kg"] = ring_results
+
+    # Two simultaneous outbreaks, scarce filtration and a damaged thermal
+    # plant must remain deterministic and finite across all inventories.
+    compound = new_trial(filters_kg=0.2, water_kg=18)
+    compound.ignite("F1", "PZ-HAB-01", fuel_kg=30, burn_kg_s=0.08,
+                    smoke_yield_fraction=0.25)
+    compound.ignite("F2", "PZ-HAB-07", fuel_kg=30, burn_kg_s=0.08,
+                    smoke_yield_fraction=0.25)
+    compound.configure_smoke_cleanup(True, local_authority=True)
+    compound.configure_radiator("RAD-LT-1", False, local_authority=True)
+    compound.configure_radiator("RAD-LT-2", False, local_authority=True)
+    compound.start_mist("PZ-HAB-07", kg_s=0.6,
+                        local_authority=True, compatible_agent=True)
+    compound.advance(180)
+    insist(compound.fires["F1"].consumed_fuel_kg > 0
+           and compound.fires["F2"].consumed_fuel_kg > 0
+           and compound.water_used_kg <= 18.000001
+           and compound.captured_smoke_kg <= 0.200001
+           and compound.mass_balance_error_kg() < 1e-5,
+           "concurrent casualties double-spent physical resources")
+    report["simultaneous_fires_and_reserves"] = {
+        "oxygen_burned_kg": round(compound.lost_oxygen_in_combustion_kg, 3),
+        "water_used_kg": round(compound.water_used_kg, 3),
+        "filter_used_kg": round(compound.captured_smoke_kg, 5),
+        "mass_balance_kg": compound.mass_balance_error_kg(),
+    }
 
     # Exactly reproducible sample IDs and more than one starting reference
     # free-gas assumption; no carbon/gas material imbalance.
@@ -386,6 +476,9 @@ def negative_tests():
                                         local_authority=False,
                                         evacuated_and_isolated=True),
         lambda t: t.configure_smoke_cleanup("on", local_authority=True),
+        lambda t: t.change_valve("lt_cooling",
+                                "ISO-lt_cooling-BR-06-HAB-06", "closed",
+                                local_authority=True, control_mode="telepathy"),
     ]
     for i, mutate in enumerate(bad, 1):
         trial = new_trial()
@@ -433,4 +526,4 @@ if __name__ == "__main__":
     output = run_reference_tests()
     output["negative_regressions_rejected"] = negative_tests()
     print(json.dumps(output, indent=2, sort_keys=True))
-    print("OX_FIRE_SMOKE_THERMAL_AND_EIGHTEEN_NEGATIVE_TESTS_PASS")
+    print("OX_FIRE_SMOKE_THERMAL_AND_NINETEEN_NEGATIVE_TESTS_PASS")

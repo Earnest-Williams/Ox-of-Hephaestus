@@ -78,8 +78,10 @@ bypass uses real known-to-known pressure-cell endpoints and finite gas
 inventory.
 
 The two installed ECLSS trains have separate flags and an optional
-scenario smoke-filtration action. Filtration needs actual duct reachability
-and powered fans; its finite filter budget is explicitly an allocation
+scenario smoke-filtration action. **Only smoke physically delivered to
+HAB-06/ECLSS-A or HAB-08/ECLSS-B can be caught there.** Filter intake
+dampers and powered fans must be available; a remotely reachable cabin
+is not instantaneously filtered; its finite filter budget is explicitly an allocation
 inside existing **INV-DC-CONSUMABLES**, not new ship mass. Capture removes
 aerosol mass from cabin gas into an accounted recovered residue.
 A blocked or isolated duct cannot make a remote filter clean that
@@ -126,8 +128,10 @@ model and these additional fire/system interdependencies:
 | Nonessential work shed after radiator casualty | Remaining radiator capacity can cool warm compartments |
 | Vacuum vent requested at nonexistent HAB hatch or with people present | Refused; permitted rated isolated airlock loses real gas |
 | Unknown cargo threshold fails open | No cargo air state invented; affected zone truth/crew access withheld |
+| All eight HAB arcs; simultaneous fires | Every real arc propagates smoke to a duct neighbor; two fires cannot duplicate suppressant/filter resources |
+| BR-06 patched coolant sleeve | A remote command cannot operate a valve known to require manual local work |
 | Lower/midpoint/upper free-volume assumptions | Different test pressure/thermal outcomes, all gas/particulate/fuel mass conserved |
-| Eighteen deliberately damaging inputs | False identities, valves, ratings, stock/rates and authority rejected |
+| Nineteen deliberately damaging inputs | False identities, valves, ratings, stock/rates and authority rejected |
 
 **Preserved authority boundary:** design scripts may emit evidence and
 physical counterfactuals. Later Evennia code will own actual gas,

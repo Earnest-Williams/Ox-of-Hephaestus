@@ -182,11 +182,19 @@ class FireSmokeThermalTrial(PressureDamageTrial):
         return found
 
     def change_valve(self, network: str, valve_id: str, state: str,
-                     *, local_authority: bool) -> bool:
+                     *, local_authority: bool, control_mode: str = "remote") -> bool:
         require(network in self.valves and valve_id in self.valves[network],
                 "unregistered valve or wrong service network")
         require(state in ("open", "closed") and local_authority is True,
                 "missing operator authorization for valve control")
+        require(control_mode in ("remote", "manual"),
+                "unrecognized remote/manual service operation")
+        hardware = self.isolator[valve_id]
+        if (control_mode == "remote" and hardware["remote_operable"] is not True
+                or control_mode == "manual" and hardware["manual_operation"] is not True):
+            self.event("valve_control_not_fitted", valve=valve_id,
+                       control_mode=control_mode)
+            return False
         valve = self.valves[network][valve_id]
         if valve["fault"] != "working":
             self.event("valve_move_failed", valve=valve_id, fault=valve["fault"])
@@ -450,30 +458,29 @@ class FireSmokeThermalTrial(PressureDamageTrial):
     def _scrub_step(self, dt: float) -> None:
         if not self.filters_on or not self.fans_online or self.filter_available_kg <= 0:
             return
-        starts = []
-        for train, online in self.eclss_processors.items():
-            if online:
-                starts.append("NODE-" + train + "-AIR")
-        if not starts:
-            return
-        reachable = self._reachable("atmosphere", starts)
-        eligible = {self._node_zone(n) for n in reachable}
-        limit = min(self.filter_available_kg,
-                    FILTER_KG_S_PER_TRAIN * len(starts) * dt)
-        for zone in sorted(eligible):
-            if zone not in self.cells or limit <= 0:
+        # Remote reachability is NOT filtration throughput. Scrubbed smoke
+        # must first travel via modeled ducts to one of the REAL processing
+        # plants (HAB-06 ECLSS-A or HAB-08 ECLSS-B). The processor's own
+        # air inlet damper must also be open. No source-side instant cleanup.
+        for train in ("ECLSS-A", "ECLSS-B"):
+            if not self.eclss_processors[train] or self.filter_available_kg <= 0:
                 continue
+            inlet = next(e for e in self.edges["atmosphere"]
+                         if e["id"] == "EDGE-" + train + "-AIR")
+            if not self._active("atmosphere", inlet):
+                continue
+            zone = self._node_zone("NODE-" + train + "-AIR")
             cell = self.cells[zone]
             if cell.unknown_exposure:
                 continue
-            caught = min(limit, cell.trace_kg)
+            caught = min(self.filter_available_kg,
+                         FILTER_KG_S_PER_TRAIN * dt, cell.trace_kg)
             if caught <= 0:
                 continue
             cell.gas_kg -= caught
             cell.trace_kg -= caught
             self.captured_smoke_kg += caught
             self.filter_available_kg -= caught
-            limit -= caught
 
     def _thermal_step(self, dt: float, fire_heat_MJ: dict) -> None:
         # LT rejection is SHARED across connected zones and constrained by
