@@ -47,3 +47,4 @@ jobs:
           python design/ship/check_pressure_damage_sim.py
           python design/ship/check_fire_smoke_thermal.py
           python design/ship/check_electrical_evacuation.py
+          python design/ship/check_whole_ship_crew_casualty.py

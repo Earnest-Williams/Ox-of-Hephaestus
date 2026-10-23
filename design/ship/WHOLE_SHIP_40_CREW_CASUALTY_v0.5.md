@@ -1,0 +1,148 @@
+# 40 distinct crew, whole-ship coupled casualty — v0.5 candidate
+
+**Design-side operational exercise, 23 October 2026.** Governed by
+[Ship Engineering Design Standard](SHIP_ENGINEERING_DESIGN_STANDARD.md):
+the target is verisimilitude, coherent operations and playable consequences,
+**not NASA approval or construction-ready spacecraft qualification**.
+
+This test completes a bounded design-side 40-person exercise spanning
+habitation, pressure bridges, command, stores, workshop and axial trunks.
+It does **not** instantiate 40 authenticated Evennia agents, run 40
+Concordia/Decider language-model brains, or install these sample injuries,
+jobs, personalities or faults as canonical crew history.
+
+## World source and individualized personnel
+
+`whole_ship_crew_casualty_v05.py` extends the existing
+`electrical_evacuation_v05.py` and its coupled smoke, thermal,
+pressure and gas ledgers. It uses the immutable selected physical identifiers
+from the **421-room / 517-access** ship candidate, **133 pressure cells /
+339 pressure gates**, **438 power nodes / 450 power links**, and existing
+ventilation, suppression, coolant and reserve networks.
+
+The deterministic crew manifest has **40 different IDs and 40 different
+authored starting rooms**:
+
+| Assignment | Individuals | Real starting rooms |
+| --- | ---: | --- |
+| Habitation cabin occupants | 16 | CAB-01 and CAB-02 in each of HAB-01..HAB-08 |
+| Habitation sector watches | 8 | HAB-01..08 main corridors |
+| Ring pressure/transfer technicians | 8 | BR-01..BR-08 physical pressure bridges |
+| Command, engineering, stores and trunk posts | 8 | CMD-PRIMARY, CMD-EMERG, SHOP-MECH, SPARES-CENTRAL, TRUNK-A-BOW, TRUNK-A-DR-01, TRUNK-A-AFT, TRUNK-B-AFT |
+| **Total** | **40** | **40 distinct authored rooms** |
+
+Each slot retains its own ID, specialty, initial/final location,
+individual local startup observation, later disposition or task orders,
+gear ownership, and cumulative unsafe person-seconds. Physical room
+occupancy and pressure-cell occupancy must *both* sum to forty at every
+final check, with no phantom separate maintenance-worker population.
+
+Crew are **individually tracked physical actors** in a deterministic
+engineering exercise, **not** artificial general intelligences. Test
+policies are deliberately authored rather than attributed to learned
+personalities or autonomous decision-making.
+
+## Common incident and imperfect knowledge
+
+All compared runs start with the *same* selected 40-person manifest,
+nominal measured-at-startup reference gas, available original utility
+distribution and a normal shift in which the two **actual** BR-03
+pressure hatches have been explicitly opened (not assumed open by the
+baseline model). The shared incident is a real refit-era
+**HAB-03 cabin 07 fan-coil electrical fire**. The coil is fed from
+**SG2 corridor board**, not its apparent cabin panel; the B-distribution
+source must actually be de-energized before water mist is permitted.
+
+The installed HAB-03 fire detector is deliberately stuck silent. The
+captain at CMD-PRIMARY receives that **false-silent reading**, not
+private fire-object truth. An HAB-03 sector watch at its real corridor
+position provides a competing local odor/visible-smoke observation
+after a fixed detection threshold. The captain may receive that
+report only while the real HAB-03 communications circuit, protected
+power and command transport are available. Disabling that route stops
+the report. No controller gets an omniscient fuel/oxygen/valve map.
+
+The following selected **reference assumptions** are explicit:
+28 kg initial combustible carbon-equivalent fuel; 0.07 kg/s nominal
+burning; 30% tagged smoke yield; an incident horizon of 240 s;
+two preassigned masks and two portable lights as finite allocations
+from existing damage-control resources; 180 seconds nominal protective
+mask endurance; and test-selected response/valve delays. These are
+**not** surveyed ship performance, actual mask stocks/endurance, or
+new permanent inventory/equipment objects. Preissued personal gear is
+stated explicitly so it is not teleported from the service locker
+during a smoky casualty.
+
+## Competing courses of action
+
+**Containment-first:** The bridge operator orders closure of both
+rated BR-03 hatches; the captain queues real remote closures for both
+HAB-03 ventilation-ring isolation dampers; the engineer at CMD-EMERG
+isolates generator B, proving the refitted coil is no longer energized;
+then compatible water mist may flow through the actual fire main using
+finite existing water. The two HAB-03 cabin occupants remain in their
+arc with finite-duration protective equipment: surrounding atmosphere
+is protected sooner, but the two people stay exposed to local smoke
+when protection is exhausted.
+
+**Rescue-first:** The same hatches remain physically open while two
+identified cabin occupants (CREW-007/CREW-008) move **one by one**
+from separate real cabins through their corridor, vestibule,
+BR-03 and the HAB-04 vestibule into HAB-04's real corridor. Each
+access leg advances ship casualty time and is invalidated by changed
+access or receiving atmosphere. Each person carries one of the two
+separately debited breathing/light allocations. Only *after* these
+movements does the operator shut the hatches, isolate the ventilation
+dampers and B electrical source, and admit mist. This can save
+the two individuals while allowing more smoke and heat to spread
+toward occupied HAB-04, and burning more fuel before suppression.
+
+**Containment with a jam:** The HAB-03/BR-03 hatch is explicitly
+jammed open; the close command fails and is recorded as such.
+The independently functioning far BR-03/HAB-04 hatch may still
+protect HAB-04 even while BR-03 itself becomes a worse exposure.
+No one is credited with a positive pressure seal that never existed.
+
+These are **counterfactual choices** for engineering testing, not a
+claim that one is universally the 'correct' behavior in every fire.
+
+## Physical execution and acceptance
+
+Run `python design/ship/check_whole_ship_crew_casualty.py`.
+
+The checker requires all three cases to share one 240-second
+evaluation horizon and initial forty-person roster. It checks
+different propagation/suppression outcomes, the actual two named
+evacuations, pressure-door and ventilation-isolator receipts, scarce
+gear, per-person risk, generator B isolation, finite suppressant water,
+gas/fuel mass accounting, unique actor event authors, 40 tracked people
+in 40 valid original starting spaces, individually recorded orders and
+observations, and distinct outcomes under the jam fault.
+
+It also rejects six intentional bad configurations or manipulations:
+unknown policy, false jam setting, nonexistent crew actor,
+remote observation with disconnected command transport, false local
+observation from a different room, and manufactured crew movement.
+
+The common test never creates replacement gas, infinite mask supplies,
+third-party medical rescues, vacuum-safe breathing masks or extra
+physical rooms. If an entrance or escape path is actually closed,
+its apparent topology alone is not enough to credit a crossing.
+
+**Review interpretation:** This verifies that the established fictional
+ship engineering can produce contrasting, concrete consequences for
+40 distinct workers and passengers. It is *not* a new real-time
+scheduler for forty world-authoritative Evennia actors. A subsequent
+integration increment can feed these same physical IDs and bounded
+failure consequences into individual crew GOAP/Decider/Concordia cognition
+while letting Evennia remain the sole owner of movement, repairs,
+equipment, timing, injuries, inventories and receipts.
+
+## Deliberate next-stage refinements
+
+The reference scenario still uses deterministic command policies and
+a fixed detection threshold; it has not yet measured the stochastic
+effects of individual experience, mixed priorities, limited communications,
+multiple concurrent repair teams, exhausted apparatus or genuine
+crew-task arbitration. Those belong in future *playable operations*
+refinements, not in an aerospace-certification programme.

@@ -137,3 +137,6 @@ PR #101 remains separate and unmerged pending design completion.
 
 - [Electrical distribution, fallible control and crew-access casualty trials](ELECTRICAL_CONTROL_EVACUATION_CASUALTY_v0.5.md): 438 electrical nodes / 450 connections / 466 isolators, delayed actuator failure, protected-feed switching, refit wiring, and 517 actual room access links.
 - [Electrical/evacuation simulator](electrical_evacuation_v05.py) and [adversarial acceptance runner](check_electrical_evacuation.py): `python design/ship/check_electrical_evacuation.py`. Design-only: no Evennia, new spaces, or canon promotion.
+
+- [Forty distinct crew across the real ship](WHOLE_SHIP_40_CREW_CASUALTY_v0.5.md): fixed 40-person, 40-space manifest, false detector evidence, containment-versus-rescue choices, route-by-route movement, finite PPE, individual hazard exposure and jammed pressure-hatch consequences.
+- [Whole-ship 40-person reference simulator](whole_ship_crew_casualty_v05.py) and [adversarial matched-policy runner](check_whole_ship_crew_casualty.py): run `python design/ship/check_whole_ship_crew_casualty.py` for the design-only exercise; not 40 live Evennia agents.
