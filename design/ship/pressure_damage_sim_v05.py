@@ -347,66 +347,92 @@ class PressureDamageTrial:
         ratio = min(1.0, sqrt(2.0 * (source_p - sink_p) / source_p))
         return nominal_flow_kg_s * (source_p / P_REF_KPA) * ratio * dt_s
 
+    def _move_mass(self, source: GasCell, receiver: GasCell | None,
+                   wanted_kg: float) -> None:
+        """Move an actual parcel of mass/species or vent it to known vacuum."""
+        mass = min(max(wanted_kg, 0.0), source.gas_kg)
+        if mass <= 0:
+            return
+        oxygen = mass * source.oxygen_kg / source.gas_kg
+        trace = mass * source.trace_kg / source.gas_kg
+        source.gas_kg = max(0.0, source.gas_kg - mass)
+        source.oxygen_kg = max(0.0, source.oxygen_kg - oxygen)
+        source.trace_kg = max(0.0, source.trace_kg - trace)
+        if receiver is None:
+            self.lost_to_vacuum_kg += mass
+            self.lost_oxygen_kg += oxygen
+        else:
+            receiver.gas_kg += mass
+            receiver.oxygen_kg += oxygen
+            receiver.trace_kg += trace
+
+    @staticmethod
+    def _exchange_constituents(a: GasCell, b: GasCell,
+                               mass_equivalent: float) -> None:
+        """Conservative equal-gross-mass bidirectional gas exchange."""
+        if mass_equivalent <= 0 or a.gas_kg <= 0 or b.gas_kg <= 0:
+            return
+        x = min(mass_equivalent, 0.25 * a.gas_kg, 0.25 * b.gas_kg)
+        oxygen_a, oxygen_b = a.oxygen_kg / a.gas_kg, b.oxygen_kg / b.gas_kg
+        trace_a, trace_b = a.trace_kg / a.gas_kg, b.trace_kg / b.gas_kg
+        oxygen_difference = x * (oxygen_b - oxygen_a)
+        trace_difference = x * (trace_b - trace_a)
+        a.oxygen_kg += oxygen_difference
+        b.oxygen_kg -= oxygen_difference
+        a.trace_kg += trace_difference
+        b.trace_kg -= trace_difference
+
     def _step(self, dt: float) -> None:
         self._propagate_unknown_exposure()
-        outgoing: dict[str, list[tuple[str | None, float]]] = defaultdict(list)
-        pressure = {id: c.pressure_kpa for id, c in self.cells.items()}
-        for g in self.gates.values():
+        # Evaluate pairs sequentially against their CURRENT masses.
+        # For every connected pair, cap its transfer at their equal-pressure
+        # mass. The previous simultaneous explicit Euler scheme allowed
+        # an enormous 35 kg/s hatch to overshoot a tiny BR-03 bridge cell,
+        # spuriously pushing HAB-04 above 1 atm during a leak-only casualty.
+        # This pairwise limiter preserves the pressure maximum principle.
+        for gate_id in sorted(self.gates):
+            g = self.gates[gate_id]
             if not g.is_open() or g.a is None or g.b is None:
-                continue  # unclassified atmosphere is NOT assumed vacuum
-            a, b = g.a, g.b
-            pa, pb = pressure.get(a, 0.0), pressure.get(b, 0.0)
-            if pa > pb and a in self.cells:
-                outgoing[a].append((b if b in self.cells else None,
-                                    self._flow_kg(pa, pb, g.open_flow_kg_s, dt)))
-            elif pb > pa and b in self.cells:
-                outgoing[b].append((a if a in self.cells else None,
-                                    self._flow_kg(pb, pa, g.open_flow_kg_s, dt)))
-            if a in self.cells and b in self.cells:
-                # Even equal-pressure rooms exchange constituents through an
-                # open hatch. A small bidirectional displacement represents
-                # diffusion/mixing without manufacturing total carrier gas.
-                mixed = min(g.diffusion_exchange_kg_s * dt,
-                            self.cells[a].gas_kg * 0.25,
-                            self.cells[b].gas_kg * 0.25)
-                if mixed > 0:
-                    outgoing[a].append((b, mixed))
-                    outgoing[b].append((a, mixed))
-        for breach in self.breaches.values():
-            if breach.active:
-                p = pressure[breach.cell_id]
-                outgoing[breach.cell_id].append((
-                    None, breach.full_pressure_loss_kg_s * (p / P_REF_KPA) * dt))
-        delta_gas = defaultdict(float)
-        delta_o2 = defaultdict(float)
-        delta_trace = defaultdict(float)
-        for src_id, routes in outgoing.items():
-            cell = self.cells[src_id]
-            requested = sum(rate for _, rate in routes)
-            if requested <= 0 or cell.gas_kg <= 0:
-                continue
-            scale = min(1.0, cell.gas_kg / requested)
-            o2_fraction = cell.oxygen_kg / cell.gas_kg
-            trace_fraction = cell.trace_kg / cell.gas_kg
-            for dest_id, requested_mass in routes:
-                mass = requested_mass * scale
-                o2 = mass * o2_fraction
-                trace = mass * trace_fraction
-                delta_gas[src_id] -= mass
-                delta_o2[src_id] -= o2
-                delta_trace[src_id] -= trace
-                if dest_id is None:  # confirmed vacuum only
-                    self.lost_to_vacuum_kg += mass
-                    self.lost_oxygen_kg += o2
+                continue  # null receiver never modeled as vacuum
+            a, b = self.cells.get(g.a), self.cells.get(g.b)
+            if a is not None and b is not None:
+                pa, pb = a.pressure_kpa, b.pressure_kpa
+                if pa > pb:
+                    donor, receiver, p_high, p_low = a, b, pa, pb
+                elif pb > pa:
+                    donor, receiver, p_high, p_low = b, a, pb, pa
                 else:
-                    delta_gas[dest_id] += mass
-                    delta_o2[dest_id] += o2
-                    delta_trace[dest_id] += trace
-        for id, c in self.cells.items():
-            c.gas_kg = max(0.0, c.gas_kg + delta_gas[id])
-            c.oxygen_kg = max(0.0, c.oxygen_kg + delta_o2[id])
-            c.trace_kg = max(0.0, c.trace_kg + delta_trace[id])
-            require(c.oxygen_kg + c.trace_kg <= c.gas_kg + 1e-7,
+                    donor = receiver = None
+                if donor is not None:
+                    requested = self._flow_kg(
+                        p_high, p_low, g.open_flow_kg_s, dt)
+                    equalising_mass = (
+                        donor.gas_kg * receiver.free_volume_m3
+                        - receiver.gas_kg * donor.free_volume_m3
+                    ) / (donor.free_volume_m3 + receiver.free_volume_m3)
+                    self._move_mass(donor, receiver,
+                                    min(requested, max(equalising_mass, 0.0)))
+                # Composition still mixes through a hatch at equal P.
+                self._exchange_constituents(
+                    a, b, g.diffusion_exchange_kg_s * dt)
+            else:
+                live = a if a is not None else b
+                if live is not None and "VACUUM" in (g.a, g.b):
+                    p = live.pressure_kpa
+                    self._move_mass(live, None, self._flow_kg(
+                        p, 0.0, g.open_flow_kg_s, dt))
+        for breach_id in sorted(self.breaches):
+            breach = self.breaches[breach_id]
+            if breach.active:
+                cell = self.cells[breach.cell_id]
+                self._move_mass(cell, None,
+                                breach.full_pressure_loss_kg_s
+                                * (cell.pressure_kpa / P_REF_KPA) * dt)
+        for c in self.cells.values():
+            require(c.gas_kg >= -1e-8
+                    and c.oxygen_kg >= -1e-8
+                    and c.trace_kg >= -1e-8
+                    and c.oxygen_kg + c.trace_kg <= c.gas_kg + 1e-7,
                     "species/material ledger underflow")
             if not c.modeled_unsuited_air_safe():
                 c.crew_unsafe_seconds += c.crew * dt

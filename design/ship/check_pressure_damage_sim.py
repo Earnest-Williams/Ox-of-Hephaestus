@@ -113,6 +113,12 @@ def validate():
     p_none = unisolated.cells["PZ-HAB-04"].pressure_kpa
     insist(p_early > p_late + 0.2 and p_late > p_none + 0.2,
            "isolation time does not alter adjacent HAB-04 pressure loss")
+    insist(all(c.pressure_kpa <= 101.326 for trial in (early, late, unisolated)
+               for c in trial.cells.values()),
+           "leak-only casualty created fictitious local overpressure")
+    insist(all(c.pressure_kpa >= -1e-7 for trial in (early, late, unisolated)
+               for c in trial.cells.values()),
+           "gas equalization created negative compartment pressure")
     insist(early.lost_to_vacuum_kg > 0 and
            late.lost_to_vacuum_kg > early.lost_to_vacuum_kg,
            "delayed closure does not increase atmosphere lost")

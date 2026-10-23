@@ -37,8 +37,12 @@ open-hatch flow**, **0.25 kg/s symmetric composition mixing** and
 scenario-defined nominal breach flow (18 kg/s in the HAB-03 trial)
 are deliberately *lumped casualty parameters*, not measured hatch
 conductances, high-fidelity compressible CFD, or hardware specifications.
-Flow scales with upstream pressure and pressure ratio; source-gas outflows
-are collectively bounded by physically remaining mass.
+Flow scales with upstream pressure and pressure ratio. Each open-door
+transfer is capped at the mass required for the donor and receiver to
+reach equal pressure, and all vacuum losses are bounded by physically
+remaining mass. In a leak-only trial, no adjacent intact compartment
+can rise above the original equilibrium pressure just because a small
+bridge chamber was integrated with a finite timestep.
 
 Open pressure-cell connections exchange total mass, oxygen and the
 contaminant tracer. A breach or a failed-open gate to a space **known
