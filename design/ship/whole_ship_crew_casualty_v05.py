@@ -43,13 +43,35 @@ class Crew:
 def reference_roster() -> list[Crew]:
     """The same 40 distinct positions, jobs and knowledge in every replay."""
     crew = []
+    # B-prime uses four residential arcs interleaved with galley,
+    # medical, life-support and industrial/crew-service work arcs.
+    # An imaginary CAB in HAB-02, 04, 06 or 08 is a topology defect.
+    duty_spaces = {
+        1: (("CAB-01", "off_duty", "basic_safety"),
+            ("CAB-02", "utility_rating", "basic_safety")),
+        2: (("GALLEY", "cook", "food_safety"),
+            ("MESS", "steward", "crew_services")),
+        3: (("CAB-01", "off_duty", "basic_safety"),
+            ("CAB-02", "utility_rating", "basic_safety")),
+        4: (("MED-TREAT", "medical_officer", "emergency_medicine"),
+            ("MED-OBS", "medical_technician", "patient_monitoring")),
+        5: (("CAB-01", "off_duty", "basic_safety"),
+            ("CAB-02", "utility_rating", "basic_safety")),
+        6: (("ECLSS-A", "life_support_engineer", "environmental_systems"),
+            ("WORKSHOP", "instrument_technician", "repair_era_controls")),
+        7: (("CAB-01", "off_duty", "basic_safety"),
+            ("CAB-02", "utility_rating", "basic_safety")),
+        8: (("ECLSS-B", "life_support_engineer", "environmental_systems"),
+            ("GROW", "cultivation_technician", "cultivation")),
+    }
     for n in range(1, 9):
         tag = "HAB-%02d" % n
+        a, b = duty_spaces[n]
         crew.extend((
-            Crew("CREW-%03d" % (3*n-2), "off_duty",
-                 tag+"-CAB-01", tag+"-CAB-01", "basic_safety"),
-            Crew("CREW-%03d" % (3*n-1), "utility_rating",
-                 tag+"-CAB-02", tag+"-CAB-02", "basic_safety"),
+            Crew("CREW-%03d" % (3*n-2), a[1],
+                 tag+"-"+a[0], tag+"-"+a[0], a[2]),
+            Crew("CREW-%03d" % (3*n-1), b[1],
+                 tag+"-"+b[0], tag+"-"+b[0], b[2]),
             Crew("CREW-%03d" % (3*n), "sector_watch",
                  tag+"-COR", tag+"-COR", "damage_control"),
         ))
@@ -333,8 +355,10 @@ class FortyCrewVoyage:
                   passage_ids=[leg["access_link_id"] for leg in route["legs"]],
                   walk_reference_s=route["reference_duration_s"])
         for leg in route["legs"]:
-            if self.sim.time_s > p.wearing_from_s + BREATHING_SET_REFERENCE_S:
-                self.emit(p.id, "smoke_mask_reference_endurance_expired")
+            if (self.sim.time_s + leg["duration_reference_s"]
+                    > p.wearing_from_s + BREATHING_SET_REFERENCE_S):
+                self.emit(p.id, "smoke_mask_reference_endurance_insufficient",
+                          proposed_access_link=leg["access_link_id"])
                 return False
             one = {
                 "personnel": 1,

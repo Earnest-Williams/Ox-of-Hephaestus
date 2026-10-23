@@ -22,10 +22,16 @@ ventilation, suppression, coolant and reserve networks.
 
 The deterministic crew manifest has **40 different IDs and 40 different
 authored starting rooms**:
+The Ox's four residential arcs are interleaved with distinct galley,
+medical, ECLSS and workshop service arcs; **HAB-02/04/06/08 do not
+contain cabin numbers**. This exercise deliberately uses their actual
+specialist spaces rather than fabricating crew cabins.
+
 
 | Assignment | Individuals | Real starting rooms |
 | --- | ---: | --- |
-| Habitation cabin occupants | 16 | CAB-01 and CAB-02 in each of HAB-01..HAB-08 |
+| Cabin occupants in residential arcs | 8 | CAB-01/CAB-02 of HAB-01, HAB-03, HAB-05 and HAB-07 |
+| Specialist arc-duty crew | 8 | HAB-02 GALLEY/MESS; HAB-04 MED-TREAT/MED-OBS; HAB-06 ECLSS-A/WORKSHOP; HAB-08 ECLSS-B/GROW |
 | Habitation sector watches | 8 | HAB-01..08 main corridors |
 | Ring pressure/transfer technicians | 8 | BR-01..BR-08 physical pressure bridges |
 | Command, engineering, stores and trunk posts | 8 | CMD-PRIMARY, CMD-EMERG, SHOP-MECH, SPARES-CENTRAL, TRUNK-A-BOW, TRUNK-A-DR-01, TRUNK-A-AFT, TRUNK-B-AFT |
@@ -90,7 +96,9 @@ identified cabin occupants (CREW-007/CREW-008) move **one by one**
 from separate real cabins through their corridor, vestibule,
 BR-03 and the HAB-04 vestibule into HAB-04's real corridor. Each
 access leg advances ship casualty time and is invalidated by changed
-access or receiving atmosphere. Each person carries one of the two
+access or receiving atmosphere. A mask must also have **enough remaining
+reference duration for the entire next leg**; entering a passage just
+before its equipment expires does not count as a verified traversal. Each person carries one of the two
 separately debited breathing/light allocations. Only *after* these
 movements does the operator shut the hatches, isolate the ventilation
 dampers and B electrical source, and admit mist. This can save
@@ -119,10 +127,12 @@ gas/fuel mass accounting, unique actor event authors, 40 tracked people
 in 40 valid original starting spaces, individually recorded orders and
 observations, and distinct outcomes under the jam fault.
 
-It also rejects six intentional bad configurations or manipulations:
-unknown policy, false jam setting, nonexistent crew actor,
+It also rejects **ten intentional bad configurations or manipulations**:
+unknown policy (two variants), false jam setting, nonexistent crew actor,
 remote observation with disconnected command transport, false local
-observation from a different room, and manufactured crew movement.
+observation from a different room, manufactured crew movement,
+expired breathing gear, passage through a closed rated hatch, and
+a fabricated 41st physical crew member.
 
 The common test never creates replacement gas, infinite mask supplies,
 third-party medical rescues, vacuum-safe breathing masks or extra

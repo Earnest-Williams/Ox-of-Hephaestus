@@ -228,7 +228,29 @@ def negative_tests():
         pass
     else:
         raise AssertionError("character teleportation evaded manifest accounting")
-    return 6
+
+    expired = FortyCrewVoyage(response="rescue_first")
+    expired_person = expired.personnel["CREW-007"]
+    expired_person.wearing_from_s = -179.0
+    require(not expired._route_person("CREW-007")
+            and expired_person.current_space == "HAB-03-CAB-01",
+            "expired finite mask permitted a real smoke evacuation")
+
+    blocked = FortyCrewVoyage(response="rescue_first")
+    blocked.sim.close_gate(EXITS[0])
+    require(not blocked._route_person("CREW-007")
+            and blocked.personnel["CREW-007"].current_space
+                == "HAB-03-CAB-01",
+            "closed rated bridge hatch crossed by a route planner")
+
+    forty_one = FortyCrewVoyage(response="containment_first")
+    try:
+        forty_one.sim.stage_crew("HAB-01-CAB-03", 1)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("41st physical crew person admitted to manifest")
+    return 10
 
 
 if __name__ == "__main__":
@@ -244,4 +266,4 @@ if __name__ == "__main__":
         for p in scenarios["rescue_first"]["individual_crew"]
     ]
     print(json.dumps(summary, indent=2, sort_keys=True))
-    print("OX_40_DISTINCT_CREW_MATCHED_CASUALTY_AND_SIX_NEGATIVE_TESTS_PASS")
+    print("OX_40_DISTINCT_CREW_MATCHED_CASUALTY_AND_TEN_NEGATIVE_TESTS_PASS")
