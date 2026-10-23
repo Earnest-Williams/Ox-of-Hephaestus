@@ -34,3 +34,27 @@ never be presented as 20,480 **native model** decisions. It invokes
 **zero** native Decider calls and sends **zero** actual world actions.
 The meaningful Decider behaviour and actual world consequences remain in
 G10/G11. Its report is produced as a downloadable CI artifact.
+
+## Verified run, 2026-10-23
+
+[GitHub Actions evidence run #39884678442](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/39884678442) passed its router stress, existing personality regression and schema checks.
+
+| Observed measurement | Actual value |
+| --- | ---: |
+| Distinct character personalities | 40 |
+| Fresh checkpointed route boundaries | 20,480 |
+| Exact replayed boundaries after checkpoint | 20,480 |
+| Identical routes despite reversed evaluation order | 20,480 |
+| Persist callback invocations | 20,480 |
+| Per-character JSON durability snapshots | 320 |
+| Actor/profile/seed rebind refusals | 120 |
+| Injected storage-persist failures rolled back | 1 |
+| GOAP routes selected | 12,697 |
+| Decider consultations *scheduled* | 7,783 |
+| Mean consultation rate, procedure-oriented group | 10.3223% |
+| Mean consultation rate, independent group | 65.6836% |
+| Actual native Decider model calls | **0** |
+| Actual Evennia commands | **0** |
+
+The combined policy rate is a configuration property under the selected
+controlled stress/uncertainty settings, *not* empirical human behaviour.
