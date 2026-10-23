@@ -1,6 +1,8 @@
-**CURRENT 23 OCTOBER 2026 v0.5 CANDIDATE:** 133/133 sized nominal pressure cells, 339 rated isolation boundaries: 208 previously registered plus 131 fail-shut interfaces to cargo, machinery and shield compartments whose atmospheres remain unverified. Earlier figures below record design history. See [unknown-environment access closure](UNKNOWN_ENVIRONMENT_ACCESS_CLOSURE_v0.5.md).\n\n# Ox of Hephaestus — pressure-cell separation and gross gas envelopes, v0.5
+**CURRENT 23 OCTOBER 2026 v0.5 CANDIDATE:** 133/133 sized nominal pressure cells, 339 rated isolation boundaries: 208 previously registered plus 131 fail-shut interfaces to cargo, machinery and shield compartments whose atmospheres remain unverified. Earlier figures below record design history. See [unknown-environment access closure](UNKNOWN_ENVIRONMENT_ACCESS_CLOSURE_v0.5.md).
 
-**CURRENT v0.5 DESIGN STATE (22 October 2026):** 421 rooms, 517 access links, 786 equipment units, 1,180 service nodes, 1,176 service links, 1,251 isolation points, 11 inventory accounts and 42 maintenance groups. 133 independently isolatable pressure cells include 101 dimensioned references, 32 unsized, and 208 pressure boundaries. Nominal counted gross air envelope 68,186.014 m³; design free-air screen 54,020.573–62,390.375 m³. Earlier numbers later in the document describe interim v0.5 increments only. [Pressure access](PRESSURE_ACCESS_CLOSURE_v0.5.md) and [byproduct/waste closure](BYPRODUCT_AND_WASTE_CLOSURE_v0.5.md) are the newer physical references; v0.4 canonical and Evennia are unchanged.
+# Ox of Hephaestus — pressure-cell separation and gross gas envelopes, v0.5
+
+**HISTORICAL v0.5 CHECKPOINT (22 October 2026):** 421 rooms, 517 access links, 786 equipment units, 1,180 service nodes, 1,176 service links, 1,251 isolation points, 11 inventory accounts and 42 maintenance groups. 133 independently isolatable pressure cells include 101 dimensioned references, 32 unsized, and 208 pressure boundaries. Nominal counted gross air envelope 68,186.014 m³; design free-air screen 54,020.573–62,390.375 m³. Earlier numbers later in the document describe interim v0.5 increments only. [Pressure access](PRESSURE_ACCESS_CLOSURE_v0.5.md) and [byproduct/waste closure](BYPRODUCT_AND_WASTE_CLOSURE_v0.5.md) are the newer physical references; v0.4 canonical and Evennia are unchanged.
 
 
 **Design-only physical-world correction.** The vessel's 421-space map,
@@ -8,7 +10,7 @@
 There is no Evennia, AI, dashboard or real-time gas simulation change.
 
 **Data:** `pressure_zone_topology_v0.5.json` contains all elementary
-pressurised gas cells, their constituent room IDs, the 198 authored
+pressurised gas cells, their constituent room IDs, the original 198 authored
 pressure-boundary links, and defensible **gross geometric** volumes
 where enough dimensions already exist. A separate stdlib validator
 `check_pressure_cells.py` verifies these declarations and six
