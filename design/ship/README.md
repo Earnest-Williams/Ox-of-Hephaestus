@@ -31,7 +31,7 @@ A later implementation PR should add a loader/adapter and migrate gameplay incre
 
 ### Latest design candidate engineering totals
 
-**23 October 2026 — indexed drum locks:** Six separately pressurised DR-01–DR-06 fixed service-lock cylinders have been moved off the personnel-trunk bores. There are now **107/133 sized pressure cells**, **26 held**, **208 rated boundaries**, **68,310.657 m³ nominal gross** and **54,101.591–62,502.553 m³ design free-air screen**. The short station connectors and moving indexed collars remain survey items; measured free air and actual safe access remain unknown. The two independent 2.75 t air reserves remain unchanged.
+**Earlier 23 October 2026 checkpoint — indexed drum locks:** Six separately pressurised DR-01–DR-06 fixed service-lock cylinders have been moved off the personnel-trunk bores. There are now **107/133 sized pressure cells**, **26 held**, **208 rated boundaries**, **68,310.657 m³ nominal gross** and **54,101.591–62,502.553 m³ design free-air screen**. The short station connectors and moving indexed collars remain survey items; measured free air and actual safe access remain unknown. The two independent 2.75 t air reserves remain unchanged.
 
 ## v0.5 ship-completion candidate (design-only)
 
@@ -79,7 +79,7 @@ unchanged.
   40-person whole-arc refuge interpretation, rated hatches, vacuum flywheel bays
   and material/gas volume limitations.
 - [Pressure-cell machine-readable register](pressure_zone_topology_v0.5.json):
-  133 elementary pressurised cells with 198 pressure-rated boundaries; includes
+  133 nominal pressurised cells with 339 rated isolation boundaries (including 131 unclassified-environment interfaces); includes
   gross reference envelopes where dimensions are defined.
 - [Atmosphere reserve / bounded free-volume and gas-recovery design](PRESSURE_GAS_RECOVERY_v0.5.md):
   the 5.5 t two-bank gas reserve, sectional refill plumbing, 69 fixed-spine
