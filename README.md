@@ -42,7 +42,7 @@ equipment, authorize itself, invent evidence or settle a case.
 
 | Area | Verified capability |
 | --- | --- |
-| Ship | Seven connected compartments; coolant pump P-01, cargo restraint grid C-01 and atmospheric scrubber A-01, each with bounded physical states |
+| Ship | Canonical 421-room/517-link v0.4 spatial topology with Developer-only traversal; separate seven-room operational proving ground with coolant pump P-01, cargo grid C-01 and atmospheric scrubber A-01 |
 | Crew | Lin, Ari, Iona, Mara and Teo have separate character identities, authenticated sessions, native Concordia state and private observations; the sixth captain is opt-in |
 | Responsibilities | World-owned roster, inspection and safety gates, specialist work, addressed hails, watch changes and captain-owned open obligations with assignment/review |
 | Decisions | Event-driven external supervisor; bounded Concordia choices; model-free GOAP for familiar procedures and locally discovered travel; optional independent maintenance rounds and uncertain investigations |
@@ -54,7 +54,7 @@ equipment, authorize itself, invent evidence or settle a case.
 | Private cognition | G8–G10b: seeded temporal episodes, subjective reinterpretation, owner-revisioned memory, native read-only Concordia context and simulated-time aging |
 | Experimental evidence | Six-client, 500-decision G8 model-free ship/social trial; G11 matched-evidence hosted-model A/B harness; G12 local native profiling at 6/20/40 brains |
 | Transport and concurrency | Buffered authenticated WebSocket matching; PostgreSQL commit-ordered journal and exact receipt provenance (PRs #82–83); cursor-based inbox reads (PR #85) with actor-scoped disposable SQLite evidence indexes and bounded Python history retention (PR #86) |
-| Observation | Operator/test journals and focused CI evidence; no published world/handler inspection APIs and no browser observatory |
+| Observation | Operator/test journals, CI evidence and a Developer-only read-only canonical-space terminal; no public world/handler combined observatory |
 
 **Current learning is narrower than the character design.** The operator-only
 routine/unfamiliar/novel *shadow* resolver compares capabilities, but it does
