@@ -136,10 +136,14 @@ def isolated_snapshot(original: dict, arm: str) -> tuple[dict, CrewBlueprint]:
         )
         if reverse != original["concordia_state"]:
             raise PermissionError("Counterfactual modified non-profile brain state")
-        saved["character_blueprint"]["traits"] = dict(before.traits)
-        if saved != original:
+        # Compare the *reconstructed original*, not the still-modified
+        # treatment. The old assertion inadvertently compared modified
+        # Concordia context with the untouched checkpoint.
+        round_trip = json.loads(json.dumps(saved))
+        round_trip["concordia_state"] = reverse
+        round_trip["character_blueprint"]["traits"] = dict(before.traits)
+        if round_trip != original:
             raise PermissionError("Personality trial modified actor evidence")
-        saved["character_blueprint"]["traits"] = dict(after.traits)
     else:
         if saved != original:
             raise PermissionError("Original profile replay changed evidence")
