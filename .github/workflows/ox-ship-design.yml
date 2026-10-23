@@ -36,6 +36,7 @@ jobs:
       - name: Validate candidate vs immutable v0.4 published model
         run: |
           python design/ship/check_v05_candidate.py
+          python design/ship/check_mission_endurance.py
           python design/ship/check_bprime_mechanics.py
           python design/ship/check_pressure_cells.py
           python design/ship/check_pressure_gas.py
