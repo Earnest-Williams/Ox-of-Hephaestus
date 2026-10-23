@@ -43,3 +43,4 @@ jobs:
           python design/ship/check_waste_byproducts.py
           python design/ship/check_physical_operations.py
           python design/ship/check_environmental_boundaries.py
+          python design/ship/check_atmosphere_casualties.py
