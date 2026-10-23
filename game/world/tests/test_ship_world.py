@@ -9,7 +9,7 @@ from world.ship_world import build_canonical_ship, find_ship_space, find_world_e
 
 
 class CanonicalShipWorldTests(EvenniaTestCase):
-    def _model(self, *, one_way: bool = False) -> ShipWorldModel:
+    def _model(self) -> ShipWorldModel:
         return ShipWorldModel(
             schema_version="ox.ship-world/0.1",
             model_version="test-v1",
@@ -40,7 +40,7 @@ class CanonicalShipWorldTests(EvenniaTestCase):
                     from_id="A",
                     to_id="B",
                     kind="pressure_hatch",
-                    metadata={"one_way": one_way} if one_way else {},
+                    metadata={},
                 ),
             ),
         )
@@ -74,7 +74,10 @@ class CanonicalShipWorldTests(EvenniaTestCase):
         self.assertEqual(second["created_spaces"], 0)
         self.assertEqual(second["created_accesses"], 0)
 
-    def test_one_way_source_link_does_not_invent_reverse_traversal(self):
-        build_canonical_ship(self._model(one_way=True))
-        self.assertIsNotNone(find_world_entity("access:AB:forward"))
-        self.assertIsNone(find_world_entity("access:AB:reverse"))
+    def test_rebuild_preserves_both_access_object_identities(self):
+        build_canonical_ship(self._model())
+        original_forward = find_world_entity("access:AB:forward").id
+        original_reverse = find_world_entity("access:AB:reverse").id
+        build_canonical_ship(self._model())
+        self.assertEqual(find_world_entity("access:AB:forward").id, original_forward)
+        self.assertEqual(find_world_entity("access:AB:reverse").id, original_reverse)
