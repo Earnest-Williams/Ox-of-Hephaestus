@@ -260,15 +260,18 @@ def validate():
     insist(indication.fire_detector_report(3)["report"] == "alarm"
            and indication.fire_detector_report(3)["credible_fire_truth"] is False,
            "panel readout incorrectly supplies certain world-hidden truth")
-    indication.sample_local("PZ-HAB-03", qualified_local_probe=True)
-    indication.stage_worker("HAB-03-COR")
-    indication.queue_valve_command(
+    detector_panel = new_trial()
+    detector_panel.sample_local("PZ-HAB-03", qualified_local_probe=True)
+    detector_panel.stage_worker("HAB-03-COR")
+    detector_panel.queue_valve_command(
         "power", "ISO-HAB-03-FIRE-DETECT", "closed", control_mode="manual",
-        local_authority=True, worker_space="HAB-03-COR", delay_s=0.1)
-    indication.advance(2)
-    insist(indication.fire_detector_report(3)["report"] == "unavailable"
-           and indication.assured_power("NODE-HAB-03-EMERGENCY-LIGHT"),
-           "isolated detector wrongly takes down independent emergency light")
+        local_authority=True, worker_space="HAB-03-COR", delay_s=1)
+    detector_panel.advance(3)
+    insist(detector_panel.valves["power"]["ISO-HAB-03-FIRE-DETECT"]["state"]
+           == "closed"
+           and detector_panel.fire_detector_report(3)["report"] == "unavailable"
+           and detector_panel.assured_power("NODE-HAB-03-EMERGENCY-LIGHT"),
+           "independently controlled fire-detector breaker not correctly isolated")
     report["alarm_trust_boundary"] = "powered reading, false report and dark sensor remain distinct"
 
     # Real cargo zones remain unverified; no hull access path may silently

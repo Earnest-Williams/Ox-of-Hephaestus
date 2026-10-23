@@ -126,3 +126,6 @@ PR #101 remains separate and unmerged pending design completion.
 
 - [Fire, smoke and thermal casualty closure](FIRE_SMOKE_THERMAL_CASUALTY_v0.5.md): coupled oxygen/fuel, HVAC dampers, smoke filtration, source-pump-and-fire-main water delivery, cooling heat rejection, failed radiator and loss-of-ventilation cases.
 - [Coupled fire/thermal module](fire_smoke_thermal_v05.py) and [adversarial fire/smoke runner](check_fire_smoke_thermal.py): execute `python design/ship/check_fire_smoke_thermal.py`; existing v0.4 and Evennia remain unaffected.
+
+- [Electrical distribution, fallible control and crew-access casualty trials](ELECTRICAL_CONTROL_EVACUATION_CASUALTY_v0.5.md): 438 electrical nodes / 450 connections / 466 isolators, delayed actuator failure, protected-feed switching, refit wiring, and 517 actual room access links.
+- [Electrical/evacuation simulator](electrical_evacuation_v05.py) and [adversarial acceptance runner](check_electrical_evacuation.py): `python design/ship/check_electrical_evacuation.py`. Design-only: no Evennia, new spaces, or canon promotion.
