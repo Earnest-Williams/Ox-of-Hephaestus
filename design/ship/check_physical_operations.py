@@ -105,7 +105,7 @@ def validate(ship,model,mechanics):
     insist(tt["count"]==6
            and tt["selected_axial_offset_from_freight_station_m"]==18
            and tt["swept_collar_retract_before_freight_handling"]
-           and tt["internal_moving_carrier_radial_envelope_m"]==[8.05,11.65],
+           and tt["internal_moving_carrier_radial_envelope_m"]==[8.55,11.55],
            "drum-indexed cargo/crew transfer doctrine drift")
     disposal=ship["industrial_waste_and_recovery_contract"]
     insist(disposal["design_people"]==model["population_design_max"]==40
