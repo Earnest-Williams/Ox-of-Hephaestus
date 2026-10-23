@@ -21,6 +21,8 @@ All three parallel actual-world trials and the cross-seed aggregator passed. The
 
 The following outcomes are real persistent social states inside the disposable Evennia game, **not imagined follow-on storytelling**.
 
+- **Seed 241, turns 9 and 201:** Iona twice received a pending commitment from Ari. On both occasions the GOAP baseline favored acceptance, but Decider chose **decline** and two distinct world transactions recorded rejection. This is a repeated in-world pattern, though still only two examples.
+- **Seed 241, turn 27:** Iona's baseline would have declined the Captain's pending commitment; Decider deferred instead.
 - **Seed 619, turn 21:** Iona considered the Captain's pending commitment. GOAP would have declined; the Decider route also declined and the world recorded that decline.
 - **Seed 619, turn 22:** Mara's baseline would have accepted a pending commitment with Lin. Decider instead deferred, and Evennia recorded deferral.
 - **Seed 619, turn 50:** Ari's symbolic baseline was acceptance with Lin; Decider deferred and the world recorded deferral.
