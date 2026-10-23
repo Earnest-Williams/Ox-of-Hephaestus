@@ -1,0 +1,92 @@
+{
+  "schema": 1,
+  "status": "G16b_descriptive_native_margin_calibration_not_adoption",
+  "sources": {
+    "first": "https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40016163471",
+    "final_head": "https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40028008764",
+    "authenticated_g9_source_run": 39872687597,
+    "actor_roles": [
+      "lin",
+      "ari",
+      "iona",
+      "mara",
+      "teo",
+      "captain"
+    ],
+    "per_run_native_calls": 312,
+    "verified_per_run_repeat_controls": 24,
+    "artifact_ids_by_actor": {
+      "lin": [
+        12532466217,
+        12535357449
+      ],
+      "ari": [
+        12529878636,
+        12534433365
+      ],
+      "iona": [
+        12531562654,
+        12536975445
+      ],
+      "mara": [
+        12530846915,
+        12533734658
+      ],
+      "teo": [
+        12529877745,
+        12534912426
+      ],
+      "captain": [
+        12532216569,
+        12535953729
+      ]
+    }
+  },
+  "population": {
+    "independent_actor_cases": 24,
+    "paired_native_runs": 2,
+    "paired_mean_probability_vectors": 48,
+    "not_independent_actor_cases": 48,
+    "same_actor_case_three_pass_winner_disagreements": 0
+  },
+  "observed": {
+    "native_top_probability": {
+      "median": 0.41005,
+      "max": 0.5292333333333333
+    },
+    "top_two_probability_margin": {
+      "p25": 0.04703333333333337,
+      "median": 0.08079999999999998,
+      "p75": 0.16043333333333332,
+      "max": 0.27956666666666663
+    },
+    "top_two_log_probability_gap": {
+      "p25": 0.13141470990391957,
+      "median": 0.22726623384566674,
+      "p75": 0.4128717656055787,
+      "max": 0.7513027235662463
+    },
+    "below_margin_0_30": 48,
+    "at_or_above_native_score_0_85": 0
+  },
+  "preregister_before_G16e": {
+    "gain": 0.1,
+    "max_shift": 0.21,
+    "base_temperature": 0.33,
+    "personal_temperature_min": 0.2,
+    "personal_temperature_max": 0.45,
+    "personal_temperature_risk_minus_conscientiousness_multiplier": 0.25,
+    "urgent_temperature": 0.11,
+    "safety_evidence_lock": 0.85,
+    "safety_lock_native_argmax_required": true,
+    "native_scores_are_not_calibrated_evidence_probabilities": true
+  },
+  "scope": [
+    "Native Decider three-pass position-balanced numeric-original scores only",
+    "No G16e holdout cases used to choose these defaults",
+    "Same six identities and four cases appear in both native runs",
+    "0.85 evidence_lock retained as provisional heuristic; it locked zero G14 cases",
+    "World remains sole authority for safety, permissions, work and consequences",
+    "Safety lock must force native semantic argmax; zero shifts alone still permits seeded stochastic override"
+  ]
+}
