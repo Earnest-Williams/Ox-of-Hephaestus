@@ -430,10 +430,11 @@ class ElectricalEvacuationTrial(FireSmokeThermalTrial):
         require(self.may_enter_unsuited(zone),
                 "worker location unsafe or has no recent local sample")
         require(type(count) is int and 1 <= count <= MAX_CREW
-                and sum(self.workers.values())
-                    + sum(self.crew_by_space.values()) + count <= MAX_CREW,
+                and sum(self.crew_by_space.values()) + count <= MAX_CREW,
                 "worker would exceed 40-person manifest")
         self.workers[space_id] += count
+        self.crew_by_space[space_id] += count
+        self.cells[zone].crew += count
         self.event("qualified_worker_present", space=space_id, count=count)
 
     def queue_valve_command(self, network, valve_id, desired, *,
@@ -680,7 +681,7 @@ class ElectricalEvacuationTrial(FireSmokeThermalTrial):
                 and self._can_occupy_space(space_id, breathing_set=False),
                 "unverified crew starting room or dangerous pressure")
         total = sum(self.crew_by_space.values())
-        require(total + sum(self.workers.values()) + count <= MAX_CREW,
+        require(total + count <= MAX_CREW,
                 "cannot spawn more than 40 verified ship crew")
         zone_id = self.space[space_id]["pressure_zone"]
         self.crew_by_space[space_id] += count
@@ -723,6 +724,11 @@ class ElectricalEvacuationTrial(FireSmokeThermalTrial):
             start_zone = self.space[current]["pressure_zone"]
             self.crew_by_space[current] -= count
             self.crew_by_space[destination] += count
+            # A worker is a manifested person, not a second independently
+            # spawned occupant. Their on-site capability moves with them.
+            relocating_workers = min(count, self.workers[current])
+            self.workers[current] -= relocating_workers
+            self.workers[destination] += relocating_workers
             if z != start_zone:
                 self.cells[start_zone].crew -= count
                 self.cells[z].crew += count

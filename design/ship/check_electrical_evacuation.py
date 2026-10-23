@@ -181,16 +181,27 @@ def validate():
         control_mode="manual", local_authority=True,
         worker_space="HAB-03-CAB-07", delay_s=1)
     elect_fire.advance(2)
-    insist(not elect_fire.has_power_path(load),
-           "manual closure of actual fan-coil branch did not cut its source")
+    insist(elect_fire.has_power_path(load)
+           and any(e["kind"] == "control_order_result"
+                   and not e["accepted_and_moved"]
+                   for e in elect_fire.events),
+           "stale smoke-affected worksite sensor falsely allowed local breaker work")
+    # This old cabin circuit cannot be remotely broken and the worker
+    # has already lost reliable local atmosphere evidence. The costly
+    # alternative is isolating the actual upstream B generator/feed.
+    elect_fire.set_generator("GEN-B", False, local_authority=True)
+    insist(not elect_fire.has_power_path(load)
+           and elect_fire.assured_power("PWR-PROT"),
+           "upstream B source trip failed to isolate fan or preserved A power")
     insist(elect_fire.start_mist(
         "PZ-HAB-03", kg_s=0.5, local_authority=True,
         compatible_agent=True, energy_isolated=True),
-        "verified real fan-coil isolation failed to enable compatible water mist")
+        "verified upstream B isolation failed to enable compatible water mist")
     report["energized_refit_circuit_mist_interlock"] = {
         "false_work_permit_alone_denied": True,
         "cabin_panel_off_fan_coil_still_live": True,
-        "real_fan_coil_breaker_isolated_and_verified": True,
+        "local_breaker_work_denied_after_smoke_sample_staled": True,
+        "real_upstream_B_feed_isolated_and_verified": True,
     }
 
     # Smoke between HAB-03 and HAB-04 through air ducts requires fans
@@ -286,6 +297,35 @@ def validate():
     manual_only.advance(3)
     insist(manual_only.valves["lt_cooling"][device]["state"] == "closed",
            "patched BR-06 manual actuation fails on-site")
+
+    # An actual engineer already standing at the real damper can lose
+    # safe chemistry evidence while a five-second manual close is queued.
+    # This both aborts the action and counts the technician as exposed crew.
+    endangered = new_trial()
+    endangered.sample_local("PZ-HAB-03", qualified_local_probe=True)
+    endangered.stage_worker("HAB-03-VEST-CW")
+    endangered.queue_valve_command(
+        "atmosphere", valve, "closed", control_mode="manual",
+        local_authority=True, worker_space="HAB-03-VEST-CW", delay_s=5)
+    endangered.ignite("WORKSITE-FIRE", "PZ-HAB-03",
+                      fuel_kg=20, burn_kg_s=0.12,
+                      smoke_yield_fraction=0.5)
+    endangered.advance(6)
+    insist(endangered.valves["atmosphere"][valve]["state"] == "open"
+           and endangered.cells["PZ-HAB-03"].crew_unsafe_seconds > 0
+           and endangered.crew_by_space["HAB-03-VEST-CW"] == 1,
+           "unsafe manual worksite was wrongly ignored or worker disappeared")
+    endangered.queue_valve_command(
+        "atmosphere", valve, "closed", control_mode="remote",
+        local_authority=True, delay_s=2)
+    endangered.advance(3)
+    insist(endangered.valves["atmosphere"][valve]["state"] == "closed",
+           "surviving powered remote alternative cannot isolate smoky worksite")
+    report["worksite_unsafe_before_manual_control"] = {
+        "local_job_aborted_when_sensor_stale": True,
+        "on_site_engineer_counted_in_exposure": True,
+        "verified_remote_backup_actuated": True,
+    }
 
     # Alarms, physical fire truth and power are separate. A dark sensor
     # cannot prove that no fire exists; false alarms and stuck-silent
@@ -400,6 +440,35 @@ def validate():
     insist(dark.plan_crew_route("HAB-03-CAB-01", "HAB-03-COR",
                                portable_lighting=True) is not None,
            "verified portable light cannot substitute for failed arc lighting")
+
+    # A worker is one of the forty real bodies. Do not create a separate
+    # 40-person cargo-like "engineer population" atop the crew manifest.
+    staffing = new_trial()
+    staffing.sample_local("PZ-HAB-03", qualified_local_probe=True)
+    staffing.stage_worker("HAB-03-VEST-CW")
+    staffing.stage_crew("HAB-03-COR", 39)
+    insist(sum(staffing.crew_by_space.values()) == 40
+           and staffing.cells["PZ-HAB-03"].crew == 40,
+           "maintenance worker not charged to real crew occupancy")
+    try:
+        staffing.stage_crew("HAB-03-COR", 1)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("forty plus one phantom worker accepted")
+
+    reloc = new_trial()
+    reloc.sample_local("PZ-HAB-03", qualified_local_probe=True)
+    reloc.stage_worker("HAB-03-COR")
+    relocation = reloc.plan_crew_route("HAB-03-COR", "HAB-03-VEST-CW")
+    insist(relocation is not None, "legitimate technician intra-arc route denied")
+    moved_worker = reloc.evacuate_group(
+        relocation, qualified_threshold_probes=True)
+    insist(moved_worker["arrived"]
+           and reloc.workers["HAB-03-COR"] == 0
+           and reloc.workers["HAB-03-VEST-CW"] == 1
+           and sum(reloc.crew_by_space.values()) == 1,
+           "qualified technician teleported, multiplied or left behind")
 
     # 40-character passage under finite physical link traversal; the
     # published MUD remains untouched and no occupant may multiply.

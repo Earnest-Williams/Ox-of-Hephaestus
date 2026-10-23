@@ -74,8 +74,12 @@ The integrated electrical-fire test also identifies the actual burning
 load circuit. Merely presenting a signed "energy isolated" flag does
 not permit water mist while the true feed remains live. Closing
 CAB-07-LP leaves its patched fan-coil live and mist is still denied;
-only actual separate fan-coil breaker isolation *and* a verified energy
-lockout allows compatible local mist delivery. This conditional
+only a truly de-energized fan-coil branch *and* a verified energy
+lockout allows compatible local mist delivery. If smoke invalidates local
+chemistry observations before the manual fan-coil breaker can be shut,
+the selected test must sacrifice the upstream **GEN-B** feed while
+retaining independent GEN-M/A-bus supply for the protected fire pumps.
+The false local-breaker work receipt is rejected. This conditional
 reference prevents a form or stale panel label from rewriting the
 physical wiring.
 
@@ -140,7 +144,9 @@ A healthy route is not a guarantee that all segments will stay safe:
 the execution helper advances actual casualty simulation time for
 every segment and rechecks the destination at each threshold.
 Participants move physically from their recorded originating room;
-the total cannot exceed **40 crew**. A delayed or blocked leg retains
+staged maintenance workers count as **real crew occupants** and accumulate
+exposure in their actual pressure cells; technicians are not a duplicate
+independent population. The total cannot exceed **40 crew**. A delayed or blocked leg retains
 them at the last verified room, not at a hypothetical refuge.
 A moving group has a deliberately chosen *screening* walking
 concurrency of four people per authored link traversal period; it is
@@ -169,7 +175,7 @@ The adversarial test suite verifies:
 | Protected A-to-B transfer | HAB detector/lighting and main PROT selection require distinct real transfer action |
 | Main tie closure without synchronisation | Rejected; protected bus and batteries cannot reverse-backfeed the main board |
 | Manual-only CAB-07 panel and separate fan-coil | Panel can darken while refit fan-coil survives on SG2; SG2 shutdown disables it |
-| Energized cabin-07 fan-coil electrical fire | False isolation paperwork, or only its unrelated cabin panel shut, cannot permit mist; real fan-coil circuit must be dead |
+| Energized cabin-07 fan-coil electrical fire | False paperwork or unrelated cabin panel cannot permit mist; stale smoke sample blocks the manual breaker, forcing isolation of the true upstream B feed |
 | Generator blackout with ventilation ducts open | Powered smoke mixing stops, but valve positions remain physical |
 | Pending remote damper close after control-power trip | Order fails; worksite crew can shut manually if actual safe access remains |
 | Sensor stuck OPEN despite real CLOSED contact | Readback can lie and never supplies private world truth |
