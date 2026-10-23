@@ -45,7 +45,7 @@ def validate(ship,model,mechanics):
     access=unique(ship["access_links"],"access links")
     arc={x["id"]:x for x in mechanics["arcs"]}
     insist((len(equip),len(inventory),len(tasks),len(spaces),len(access))
-           ==(802,13,42,421,517),"candidate equipment counts unexpectedly altered")
+           ==(808,15,42,421,517),"candidate equipment counts unexpectedly altered")
     insist(set(model["installed_transfer_equipment_ids"]) ==
            {f"DR-{i:02d}-{kind}" for i in range(1,7) for kind in
             ("PERSONNEL-INDEXER","FREIGHT-COLLAR")},
