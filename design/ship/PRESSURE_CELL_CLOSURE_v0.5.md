@@ -10,9 +10,9 @@
 There is no Evennia, AI, dashboard or real-time gas simulation change.
 
 **Data:** `pressure_zone_topology_v0.5.json` contains all elementary
-pressurised gas cells, their constituent room IDs, the original 198 authored
-pressure-boundary links, and defensible **gross geometric** volumes
-where enough dimensions already exist. A separate stdlib validator
+pressurised gas cells, their constituent room IDs, the final 339 independently rated
+pressure/unknown-environment boundary links, and defensible **gross geometric**
+volumes for all 133 selected nominal gas cells. A separate stdlib validator
 `check_pressure_cells.py` verifies these declarations and six
 failure-inducing mutations.
 
@@ -100,8 +100,10 @@ extra inventory.
 
 At normal reference conditions (101.325 kPa, 20°C, dry air),
 ideal-air density is approximately **1.204 kg/m³**.
-The geometry is sufficiently defined to calculate these
-**gross enclosing envelopes**, not actual free gas volumes:
+The **earliest v0.5 core-only geometry checkpoint** calculated these
+**gross enclosing envelopes**, before the 48 specialist/transfer cells
+were dimensioned. They are an historical subtotal, not today's full gas
+inventory or actual free-gas measurements:
 
 | Subsystem | Independently isolatable cells | Gross envelope |
 | --- | ---: | ---: |
@@ -110,12 +112,15 @@ The geometry is sufficiently defined to calculate these
 | Heavy logistics tube (5.5 m clear × 950 m) | 23 | 22,570 m³ |
 | Eight B′ 38° habitation arcs with paired half-heads | 8 | 29,306 m³ |
 | Eight 3 m-bore inter-arc bridge pressure volumes | 8 | 242 m³ |
-| **Sized geometric envelopes** | **85** | **65,549 m³** |
+| **Historical core subtotal only** | **85** | **65,549 m³** |
 
-The ledger has **133 total pressure cells**: 85 with sufficient
-reference geometry for a gross volume, and 48 others—including
-specialist compartments, cross-connections and indexed lifts—
-whose actual volume has not been invented.
+The **current** ledger has **133/133 dimensioned nominal pressure cells**
+(48 later reconciled specialist compartments, cross-connectors, indexed lifts
+and other individually rated subspaces beyond the 85 early core). Their
+complete nominal gross reference is **100,772.940 m³**, fitted planning
+free-gas interval **65,832.797–88,021.802 m³**, and reference dry-air
+inventory **79.270–105.989 t**. These are geometry-based planning
+bounds, not observed installed atmosphere measurements.
 
 The gross envelope implies **about 78.9 tonnes of air** at
 the reference state *if all these physical envelopes were
@@ -143,10 +148,11 @@ must not become breathable by software default.
 
 The ledger also recognises **26 known vacuum spaces**:
 24 external work locations/routes plus F1 and F2 flywheel
-machinery rooms. The current ship has **198 pressure-rated
-access links** across different gas cells or between a cell
-and vacuum; no remaining pressure-rated connection puts
-two spaces into the same elemental gas cell.
+machinery rooms. The current v0.5 candidate has **339 rated
+pressure and environmental-threshold access links** (the earlier
+208 plus 131 cargo/industrial/shield threshold guards). These
+connections are not permission for unsuited access, regardless
+of assumed nominal pressure on either side.
 
 Neither the nominal atmosphere in the static JSON nor a
 successful repair action is proof of present pressure.
@@ -173,13 +179,13 @@ underlying physical gas mass remain separate authorities.
   entry through the pressured airlock into a vacuum bay;
   no casually occupied machine room during full rotation.
 
-Next physical closure: assign **net free air** and stored
-repressurisation inventory to each relevant cell from
-room dimensions and fit-out; identify cross-cell exchange,
-gas makeup, exhaust, pump and evacuation rates. This is a
-bounded simulation-engineering task, not a requirement for
-real spacecraft certification.
+Further as-installed work: observe fitted free air, pressure,
+composition, live leakage and thermal states; the bounded design
+now has stored routine inert gas and separate mixed-air casualty
+banks, and retains explicit isolatable delivery and exhaust paths.
+That is operating uncertainty, not unresolved nominal geometry,
+and not a demand for real-world spacecraft certification.
 
 ## 7. Bounded free-volume and refill extension
 
-The follow-on `pressure_gas_recovery_v0.5.json` screens the 85 geometrically defined cells with explicit, class-specific occupancy fractions instead of treating entire gross cylinders as air. It calculates **52,609–59,898 m³** of *planning* free volume in those cells (approximately 63.35–72.12 t nominal dry air). **48 other pressurised cells remain unsized and all installed measured net volumes remain null.** The 5.5 t refill allowance is now physically split into two separately located banks feeding the 69 trunk taps and eight-arc makeup line; it does not provide whole-ship recharge. All 83 other cargo/industrial spaces without defined pressure zone receive conservative no-unsuited-access-by-default rules, not invented pressure volumes.
+The `pressure_gas_recovery_v0.5.json` screens **all 133 nominally dimensioned pressure cells**, each with an explicit void-fraction interval, including 45 individually overridden specialist/occupied cells and separately assessed transfer capsules, medical space, bores and bridges. The **current free-gas reference is 65,832.797–88,021.802 m³ (79.270–105.989 t)**; no as-installed net-volume measurement is claimed. The emergency **5.5 t** mixed-air stock remains two independent **2.75 t** banks supplying 69 taps and the eight-arc refill ring; routine **4.456–5.958 t** inert-gas loss over 730 days is budgeted instead from **two 3.5 t** metered inert stores feeding ECLSS A/B oxygen-controlled mixing, not the casualty banks. All **83** unknown-environment cargo/industrial/shield spaces remain nonbreathable by default. See [B′ Issue 1.3 reconciliation](BPRIME_ISSUE13_MISSION_RECONCILIATION.md).
