@@ -31,8 +31,11 @@ or sampled air.
 
 For each simulated time step (at most one second), flow is computed from
 the existing rated **open** connections and registered hull breaches.
-The model uses fixed-temperature ideal-gas scaling from 101.325 kPa,
-20 °C and 1.204118 kg/m³ reference air. Its chosen **35 kg/s reference
+The pressure-only scenarios begin at 101.325 kPa, 20 °C and
+1.204118 kg/m³ reference air. The shared gas-cell model now also
+supports temperature-dependent pressure and thermal parcel mixing;
+`fire_smoke_thermal_v05.py` supplies finite combustion heat and cooling
+consequences without changing the pressure-cell identities. Its chosen **35 kg/s reference
 open-hatch flow**, **0.25 kg/s symmetric composition mixing** and
 scenario-defined nominal breach flow (18 kg/s in the HAB-03 trial)
 are deliberately *lumped casualty parameters*, not measured hatch
@@ -135,8 +138,10 @@ the Evennia room database, crew decision maker, inventories or UI.
 
 ## Still deliberately outside this increment
 
-The reference calculation assumes isothermal compartments; it does not
-solve thermal expansion, sonic nozzle details, flexible pressure-shell
+The standalone *pressure-only* reference trials hold temperature at 20 °C;
+the separate fire/thermal extension can vary compartment temperature and
+pressure with finite energy and coolant service. Neither trial resolves
+detailed sonic nozzle flows, flexible pressure-shell
 deformation, measured pipe conductance, airlock cycle machinery,
 automatic sensing faults, metered crew breathing, fire heat/smoke
 chemistry, detailed pumping transients or real-time world event ordering.
