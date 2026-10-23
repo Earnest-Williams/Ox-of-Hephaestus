@@ -1,0 +1,187 @@
+name: Ox G10 broad Decider persona and operational choice battery
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches: [main]
+    paths:
+      - "scenarios/g8_soap_opera/g10_decider_battery.py"
+      - "scenarios/g8_soap_opera/g10_assess.py"
+      - "services/ai-handler/tests/test_g10_breadth.py"
+      - ".github/workflows/ox-g10-personality-breadth.yml"
+      - "!**/*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ox-g10-wide-${ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${ github.event_name == 'pull_request' }}
+
+jobs:
+  g10-actor-matrix:
+    if: ${ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    name: "G10 real Decider actor: ${ matrix.role }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        role: [lin, ari, iona, mara, teo, captain]
+    env:
+      MODEL_DIR: .ox-state/g10/weights
+      OX_DECIDER_GGUF_PATH: .ox-state/g10/weights/decider-4b.Q4_K_M.gguf
+      HF_HUB_DISABLE_TELEMETRY: "1"
+      GH_TOKEN: ${ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            services/ai-handler/pyproject.toml
+            uv.lock
+            .github/ci/cache-profiles/concordia.txt
+      - name: Install native Concordia, Evennia transport and GGUF scorer
+        run: |
+          python -m pip install .
+          python -m pip install -e './services/ai-handler[concordia,transport]'
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers>=5,<6' 'numpy<3' 'huggingface_hub>=0.34,<2' jinja2 'llama-cpp-python>=0.3.35,<0.4'
+          python -m pip install --no-deps 'decider-ai==1.10.0'
+      - name: Broad offline fixture contract regressions
+        run: |
+          python -m unittest discover -s services/ai-handler/tests -p test_g10_breadth.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_personality_routing.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_g9_longitudinal.py -v
+      - name: Retrieve exact completed G9 world evidence and private snapshots
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .ox-state/g9 .ox-state/g10/results
+          gh run download 39872687597 --repo "$GITHUB_REPOSITORY" \
+            --name ox-g9-real-decider-205-turns \
+            --dir .ox-state/g9
+          python - <<'PY'
+          import sys
+          from pathlib import Path
+          sys.path.insert(0, "scenarios/g8_soap_opera")
+          from g10_decider_battery import authenticated_archive,actor_archive
+          root=Path(".ox-state/g9")
+          state,report=authenticated_archive(root)
+          actor_archive(root,"${ matrix.role }}")
+          print("OX_G10_SOURCE_WORLD_VERIFIED",state["turn"],
+                len(report["verified_world_work"]))
+          PY
+      - name: Run one actor full-order mock harness (not behavioural evidence)
+        run: |
+          python scenarios/g8_soap_opera/g10_decider_battery.py \
+            --root .ox-state/g9 --role "${ matrix.role }}" \
+            --model fixture \
+            --out ".ox-state/g10/fixture-${ matrix.role }}.json"
+          python - <<'PY'
+          import json
+          r=json.load(open(".ox-state/g10/fixture-${ matrix.role }}.json"))
+          assert r["engine"]=="fixture" and r["model_calls"]==36,r
+          assert len(r["rows"])==36 and len(r["memory_pairs"])==18,r
+          assert len(r["order_stability"])==12 and len(r["routing_trials"])==6,r
+          assert r["world_commands_sent"]==0,r
+          print("OX_G10_FIXTURE_CONTRACT_PASS")
+          PY
+      - name: Provision Q4 Decider GGUF pinned weights and publisher tokenizer
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$MODEL_DIR"
+          python - <<'PY'
+          from huggingface_hub import snapshot_download,hf_hub_download
+          from pathlib import Path
+          import os,shutil,hashlib,json
+          d=Path(os.environ["MODEL_DIR"])
+          qrev="3b02c98fa0b19e9daab247d633095b6e8a6cd4c5"
+          trev="d3a78581751d518bbfa9e871a6d84059554d53c5"
+          snapshot_download(repo_id="Mapika/decider-4b-GGUF",revision=trev,
+              local_dir=str(d),allow_patterns=["config.json","decider_config.json",
+                  "tokenizer.json","tokenizer_config.json","special_tokens_map.json",
+                  "*.jinja","vocab.json","merges.txt","added_tokens.json"])
+          from huggingface_hub import HfApi
+          names=[x.rfilename for x in HfApi().model_info(
+              "mradermacher/decider-4b-GGUF",revision=qrev).siblings]
+          qs=[n for n in names if n.lower().endswith("q4_k_m.gguf") and "/" not in n]
+          if len(qs)!=1:raise RuntimeError(f"Expected one Q4_K_M: {qs}")
+          src=hf_hub_download(repo_id="mradermacher/decider-4b-GGUF",
+              filename=qs[0],revision=qrev)
+          out=d/qs[0]
+          if not out.exists():shutil.copyfile(src,out)
+          expected=d/"decider-4b.Q4_K_M.gguf"
+          if out!=expected:
+              if expected.exists():raise RuntimeError("Unexpected existing model")
+              expected.symlink_to(out.name)
+          h=hashlib.sha256()
+          with out.open("rb") as f:
+              while piece:=f.read(8*1024*1024):h.update(piece)
+          m=dict(model="decider-q4",hf_revision=qrev,tokenizer_revision=trev,
+                 sha256=h.hexdigest(),size=out.stat().st_size,source_file=out.name)
+          (d.parent/"model-manifest.json").write_text(json.dumps(m,indent=2))
+          print(m)
+          PY
+      - name: Run selected native Decider Q4 against all six situations and treatments
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scenarios/g8_soap_opera/g10_decider_battery.py \
+            --root .ox-state/g9 --role "${ matrix.role }}" \
+            --model decider-q4 --gguf-path "$OX_DECIDER_GGUF_PATH" \
+            --out ".ox-state/g10/results/${ matrix.role }}.json" \
+            | tee ".ox-state/g10/role-${ matrix.role }}.log"
+          grep -Fq OX_G10_ROLE_BREADTH_PASS ".ox-state/g10/role-${ matrix.role }}.log"
+      - name: Archive only bounded statistical evidence (never private brain or GGUF)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-g10-role-${ matrix.role }}
+          path: |
+            .ox-state/g10/results/${ matrix.role }}.json
+            .ox-state/g10/role-${ matrix.role }}.log
+          retention-days: 21
+          if-no-files-found: ignore
+
+  g10-evaluate-all:
+    name: G10 evaluate all six real-model actors and factorial controls
+    needs: [g10-actor-matrix]
+    if: ${ success() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Download every actor report, without selecting favorable outcomes
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ox-g10-role-*
+          path: .ox-state/g10/combined
+          merge-multiple: true
+      - name: Cross-actor and six-situation native Decider acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scenarios/g8_soap_opera/g10_assess.py \
+            --root .ox-state/g10/combined \
+            --out .ox-state/g10/summary.json | tee .ox-state/g10/summary.txt
+          grep -Fq OX_G10_WIDE_DECIDER_ASSAY_PASS .ox-state/g10/summary.txt
+      - name: Archive aggregated, non-private experimental evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-g10-wide-216-decision-summary
+          path: |
+            .ox-state/g10/summary.json
+            .ox-state/g10/summary.txt
+          retention-days: 21
+          if-no-files-found: ignore
