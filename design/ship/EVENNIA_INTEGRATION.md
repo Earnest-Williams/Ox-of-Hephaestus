@@ -29,11 +29,21 @@ The builder is idempotent. An interrupted first deployment leaves the root marke
 
 ## Conservative traversal boundary
 
-Canonical access links are **Developer-only in Stage 1**.
+Canonical access links are **Developer-only in Stage 1**. The
+517 authored v0.4 links have physically **bidirectional** connectivity; the
+stage-one importer constructs 1,034 Developer-only exit objects, not an
+invented one-way distinction from unsupported metadata keys.
 
 This is intentional. The source model contains pressure boundaries, exterior work zones, rotating cargo drums, indexed transfers, hard-lock requirements and machinery-access conditions. Treating every graph edge as an ordinary open doorway would make the integrated ship less correct than the prepared model.
 
-The topology can therefore be inspected and exercised immediately by developers without granting crew impossible movement. Later slices will replace the temporary traversal lock with world-owned checks appropriate to each access class.
+The topology can therefore be inspected and exercised immediately by developers without granting crew impossible movement. Later slices will replace the temporary traversal lock with world-owned checks appropriate to each access class. Importantly, the source
+already includes normally **closed** and **closed_or_auto** access conditions,
+pressure differential, rotary/indexing and restriction metadata. Stage-one
+`ox_static` records those values but **does not enforce** them for even
+Developer traversal. Never enable ordinary crew access until live pressure,
+atmosphere classification, hazard state and mechanical lock/interlock
+checks use Evennia-owned state. A later schema revision, not an arbitrary
+`one_way` attribute, would be needed to authorize directed physical links.
 
 ## Temporary coexistence with the proving ground
 
@@ -50,6 +60,16 @@ The prototype is not the target world. It is compatibility scaffolding and shoul
 3. Connect service nodes, service edges and isolation points to world-owned utility state and casualty consequences.
 4. Move operational crew and existing incident scenarios onto canonical spaces and equipment while preserving durable identities and histories.
 5. Retire the seven-compartment proving ground after regression parity is demonstrated.
+
+**v0.5 release boundary:** PR #102 develops an engineering-complete candidate
+with the same 421 space IDs and 517 access links but new pressure, energy,
+life-support inventories and 808 equipment units. Its physical JSON is
+not the default `ox_full_ship.json` consumed here. Promotion requires a
+separately reviewed source replacement, a version-matched wire renderer,
+verified access-rule migration and state preservation; do not conflate
+a passed design validator with deployed Evennia machinery. Stage-one can
+continue using the published v0.4 source without claiming the v0.5 systems
+are simulated.
 
 ## Verification
 
