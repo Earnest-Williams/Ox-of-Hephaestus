@@ -1,4 +1,4 @@
-**CURRENT 23 OCTOBER 2026 v0.5 CANDIDATE:** 133/133 physically bounded nominal pressure cells, 339 rated isolation boundaries (208 previously rated plus 131 unknown-environment thresholds), 100,772.940 m³ gross / 65,832.797–88,021.802 m³ planned free-air reference; **802 maintained equipment objects, 13 inventory accounts, 42 maintenance groups**. The six cargo-drums now have individual passenger indexers and freight docking collars; the four separate, finite industrial/hazardous bins begin empty. Read [machinery/industrial disposal closure](MACHINERY_AND_FINITE_DISPOSAL_CLOSURE_v0.5.md) and [physical closure](PHYSICAL_CLOSURE_v0.5.md). Earlier dates/counts later in these files refer to earlier v0.5 milestones only. All source volumes are design geometry, not as-installed measurements or certified safe access.
+**CURRENT 23 OCTOBER 2026 v0.5 CANDIDATE:** 133/133 physically bounded nominal pressure cells, 339 rated isolation boundaries (208 previously rated plus 131 unknown-environment thresholds), 100,772.940 m³ gross / 65,832.797–88,021.802 m³ planned free-air reference; **808 maintained equipment objects, 15 inventory accounts, 42 maintenance groups**. The six cargo-drums now have individual passenger indexers and freight docking collars; the four separate, finite industrial/hazardous bins begin empty. Read [machinery/industrial disposal closure](MACHINERY_AND_FINITE_DISPOSAL_CLOSURE_v0.5.md) and [physical closure](PHYSICAL_CLOSURE_v0.5.md). Earlier dates/counts later in these files refer to earlier v0.5 milestones only. All source volumes are design geometry, not as-installed measurements or certified safe access.
 
 > **Ship design standard — VERISIMILITUDE, NOT NASA APPROVAL.**
 > [Read the binding ship engineering design philosophy](SHIP_ENGINEERING_DESIGN_STANDARD.md).
@@ -12,7 +12,7 @@
 
 This directory contains the current **Ox of Hephaestus full-ship physical world model, v0.4**.
 
-It is deliberately **not integrated into the runnable Evennia world in this change**. The existing seven-compartment proving ground remains the implemented runtime. These files prepare the later integration by giving it a stable spatial, equipment, access, utility, maintenance and survivability source model.
+The published v0.4 source remains unchanged on this physical-design branch. A separate Evennia integration branch introduces the v0.4 spatial topology and a Developer-only terminal; actual crew work still uses the seven-compartment proving ground. **This candidate v0.5 is not yet promoted** into that runtime, and cannot silently override the wire render's versioned reference geometry.
 
 ## Current files
 
@@ -79,8 +79,10 @@ unchanged.
 - [Major-system operating states](SYSTEM_OPERATING_STATES_v0.5.md):
   power, atmosphere, water, thermal, cargo, damage control and repair
   doctrine for a 40-person ship.
+- [Selected B′ Issue 1.3 operating-basis reconciliation](BPRIME_ISSUE13_MISSION_RECONCILIATION.md):
+  physically funded 40-person diet/crops, normal and casualty gas, water balance, 1.35 MW/730-day cartridge contract and recoverable failure paths.
 - [730-day, 40-person endurance ledger](ENDURANCE_LEDGER_v0.5.md):
-  explicit 32 t stored food, oxygen electrolysis, CO2 regeneration,
+  explicit 56.79 t stored food with 24.82 t full-leg dehydrated fallback, 450 m² staple cultivation, oxygen electrolysis, CO2 regeneration,
   water-makeup balance and actual chemical byproducts.
 - [Pressure-cell separation and gas envelope](PRESSURE_CELL_CLOSURE_v0.5.md):
   46 sectional personnel-trunk cells, 8 independently isolatable HAB bridges,
@@ -91,7 +93,7 @@ unchanged.
   gross reference envelopes where dimensions are defined.
 - [Atmosphere reserve / bounded free-volume and gas-recovery design](PRESSURE_GAS_RECOVERY_v0.5.md):
   the 5.5 t two-bank gas reserve, sectional refill plumbing, 69 fixed-spine
-  taps, 8 bridge crossings and honest 85/48 cell volume uncertainty.
+  taps, 8 bridge crossings and all **133/133 dimensioned** pressure cells (actual free gas remains unmeasured); separate routine 7 t inert makeup is not a pressure-casualty refill.
 - [Atmosphere gas reference and room-safety roles](pressure_gas_recovery_v0.5.json):
   engineering free-volume ranges, all 83 unresolved-space roles and the
   independent refill-gas topology linked to installed objects.
@@ -113,15 +115,17 @@ unchanged.
 - [B′ mechanical and casualty validator](check_bprime_mechanics.py):
   independent port geometry, equipment, load-path, movement/reachability and
   eight deliberate mutation checks.
+- [B′ 730-day coupled-endurance validator](check_mission_endurance.py): finite food/crop/yield substitution, dedicated inert makeup/oxygen/water supplies, 40-person power and negative fault controls.
 - [Focused design validator](check_v05_candidate.py): stdlib model-reference,
   geometry, mass/O2 and negative-regression checks; runnable without Evennia.
 
-Run `python design/ship/check_v05_candidate.py` and `python design/ship/check_bprime_mechanics.py`, plus
+Run `python design/ship/check_mission_endurance.py`, `python design/ship/check_v05_candidate.py` and `python design/ship/check_bprime_mechanics.py`, plus
 `python design/ship/check_pressure_cells.py` and `python design/ship/check_pressure_gas.py` and `python design/ship/check_pressure_geometry.py` and `python design/ship/check_waste_byproducts.py`, from the repository root.
 The v0.5 candidate is a *simulation-operational* engineering proposal,
 not real-world construction or certification data. No Evennia or dashboard
-code is changed in this branch. The earlier full-ship integration
-PR #101 remains separate and unmerged pending design completion.
+code is changed in this branch. Runtime promotion and terminal/loader version
+alignment are distinct release tasks; see the separate stage-one integration
+PR #101 without depending on its temporary merge state.
 
 - [Complete selected pressure reference and full fixed/rotary layout](PHYSICAL_CLOSURE_v0.5.md): 133 pressure cells, nonintersecting fixed envelopes, drum station separation and telescoping WR-01 references.
 
