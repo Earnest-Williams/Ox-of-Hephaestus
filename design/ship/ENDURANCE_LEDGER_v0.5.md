@@ -1,9 +1,6 @@
-**CURRENT 23 OCTOBER 2026 v0.5 CANDIDATE:** 133/133 physically bounded nominal pressure cells, 339 rated isolation boundaries (208 previous plus 131 cargo/industrial/unknown-environment thresholds), 100,772.940 m³ gross / 65,832.797–88,021.802 m³ planned free-air reference; **802 maintained equipment objects, 13 inventory accounts, 42 maintenance groups**. The six cargo-drums now have individual passenger indexers and freight docking collars; the four separate, finite industrial/hazardous bins begin empty. Read [machinery/industrial disposal closure](MACHINERY_AND_FINITE_DISPOSAL_CLOSURE_v0.5.md) and [physical closure](PHYSICAL_CLOSURE_v0.5.md). Earlier dates/counts later in these files refer to earlier v0.5 milestones only. All source volumes are design geometry, not as-installed measurements or certified safe access.
+**CURRENT 23 OCTOBER 2026 v0.5 CANDIDATE:** 133/133 physically bounded nominal pressure cells, 339 rated isolation boundaries (208 previous plus 131 cargo/industrial/unknown-environment thresholds), 100,772.940 m³ gross / 65,832.797–88,021.802 m³ planned free-air reference; **808 maintained equipment objects, 15 inventory accounts, 42 maintenance groups**. The six cargo-drums now have individual passenger indexers and freight docking collars; the four separate, finite industrial/hazardous bins begin empty. Read [machinery/industrial disposal closure](MACHINERY_AND_FINITE_DISPOSAL_CLOSURE_v0.5.md) and [physical closure](PHYSICAL_CLOSURE_v0.5.md). Earlier dates/counts later in these files refer to earlier v0.5 milestones only. All source volumes are design geometry, not as-installed measurements or certified safe access.
 
 # Ox of Hephaestus — 40-person, 730-day endurance and consumables v0.5
-
-**Earlier 23 October 2026 checkpoint — indexed drum locks:** Six separately pressurised DR-01–DR-06 fixed service-lock cylinders have been moved off the personnel-trunk bores. There are now **107/133 sized pressure cells**, **26 held**, **208 rated boundaries**, **68,310.657 m³ nominal gross** and **54,101.591–62,502.553 m³ design free-air screen**. The short station connectors and moving indexed collars remain survey items; measured free air and actual safe access remain unknown. The two independent 2.75 t air reserves remain unchanged.
-
 
 **Design-only normal-voyage ledger.** The accepted population limit is
 40 people, not a requirement that 40 people be aboard every leg.
@@ -26,7 +23,9 @@ envelope.
 | Respiratory CO2 produced | 43.2 kg/day | 31.536 t |
 | Domestic water circulated | 1,000 L/day | 730,000 L gross |
 | Domestic unrecovered at 90% | 100 L/day | 73 t |
-| Shelf-stable edible provision | 34 kg/day | 24.82 t |
+| Normal mixed-diet food mass (includes freshly grown crops) | 77.795 kg/day | 56.790 t |
+| Nominal consumed dehydrated food | 8.5 kg/day | 6.205 t |
+| Nominal consumed on-board staple crop | 25.5 kg/day | 18.615 t |
 
 Oxygen and CO2 figures are the ship's adopted biological accounting rates,
 not assumptions that occupants live only on bottled oxygen. A normal
@@ -60,7 +59,7 @@ possible casualty and repair task.
 A provisional 6 kWh electrical/kg O2 implies about **8.9 kW**
 continuous average electrolysis demand at reference consumption,
 and 10 kW at a 40 kg/day skid output. This is an explicit
-environmental-process load inside the wider 1.55 MW normal ship
+environmental-process load inside the adopted 1.35 MW normal ship
 demand, not a newly claimed electric plant.
 
 **Protected bottled oxygen** is still 249.2 kg total across the
@@ -91,111 +90,71 @@ ECLSS train rooms. Specific hydrogen/CO2 overboard discharge
 routes are still future equipment/service-topology authoring,
 not a reason to invent a third full-capacity ECLSS train.
 
-## 4. Reconcile the 162 t normal makeup-water allowance
+## 4. Reconciled 162 t normal makeup-water allowance
 
-The previous 162 t allowance could not be derived simply from
-the 90% recovered domestic supply: that alone is 73 t for
-730 days. The v0.5 candidate adopts a conservative planning
-allocation:
+Forty people at 25 L/day each circulate 730 t over a 730-day leg; at 90% recovery the net domestic loss is **73.000 t**. That loss alone never explained the separate 162 t normal voyage make-up account. The adopted B′ Issue 1.3 policy allocates **all** of it:
 
 | Normal make-up demand (730 days) | Tonnes |
 | --- | ---: |
-| Domestic unrecovered (40 x 25 L/day x 10%) | 73.000 |
-| Gross oxygen electrolysis feed | 29.236 |
-| Cultivation and food-process net water | 35.000 |
-| Routine servicing, quality rejection, leakage allowance | 24.764 |
-| **Total normal planning makeup** | **162.000** |
+| Domestic unrecovered (40 × 25 L/day × 10%) | 73.000 |
+| Ordinary metabolism O2 electrolysis water feed | 29.236 |
+| Cultivation and conventional-food process | 35.000 |
+| O2 electrolysis feed replacing oxygen lost in daily cabin leakage | 2.100 |
+| Dehydrated food rehydration/handling | 0.740 |
+| Ordinary servicing and water-quality rejection | 21.924 |
+| **Normal stock consumed (reference maximum)** | **162.000** |
 
-Rounding the electrolysis term to three decimals does not
-alter the intended 29.2365 t stoichiometric estimate. Some
-respired water or processed byproducts may later be returned
-to the feed cycle, but the proposed ledger takes **no** credit
-until actual recovery equipment and routing are demonstrated.
+Respiratory O2 electrolysis uses 35.6 kg/day × 730 × 18/16 = approximately 29.2365 t gross treated-water feed. The additional **2.100 t** allocation covers lost O2 at the **current larger 133-cell atmosphere inventory**, not the ~1.1 t derived for Issue 1.3's older, smaller atmospheric mass. This is conservative gross process water; no unmodeled reclaim is assumed. The separate **70 t protected water-recovery reserve** is not automatically available for crop watering or ordinary washdown. The **39 t working water** account is circulating/process stock, not a second 39 t of makeup. At 80% domestic recovery, extra loss alone is 73 t over the leg: a tangible repair/rationing emergency.
 
-The protected **70 t** reserve is separate from routine
-162 t, and must be protected against automatic watering or
-ordinary washdown during low-inventory operation. If domestic
-recovery slips from 90% to 80%, that alone increases
-unrecovered domestic demand by 100 L/day—approximately
-73 t over a 730-day leg. The 70 t reserve can bridge
-substantial degraded operation but is not magic indefinite
-support.
+## 5. Stored food, working 450 m² cultivation and failure fallback
 
-The additional 39 t working/process/refuge water account
-exists for circulation and local operation. It is not a
-second copy of either the 162 t or 70 t makeup stocks.
+The single `INV-FOOD-LONG-LEG` holds **56.790 t at departure**, in `STORE-FOOD-AFT` and the four named HAB-01/03/05/07 stores. The physically allocated split is **24.820 t high-energy dehydrated fallback** and **31.970 t conventional foods**—not 56.79 t dry *plus* 56.79 t conventional. This corrects the old 32 t / 0.85 kg-per-person-day provisioning concept.
 
-## 5. Food is a real stored material
+The reference diet is 40 × 2,550 kcal/day × 730 days = **74.46 million kcal**, divided **25% hydroponic, 25% dehydrated and 50% conventional**. At the selected reference energy densities, normal dietary mass consumption is **18.615 t fresh crops + 6.205 t dehydrated + 31.970 t conventional = 56.790 t**. Crop mass is produced in flight, not stored on departure. The same total as 56.79 t departure stock is coincidental: dehydrated safety margin offsets fresh crop production.
 
-The four HAB-01/03/05/07 FOOD-STORES rooms and aft
-STORE-FOOD-AFT existed in v0.4, but no explicit voyage-food
-inventory was tied to them. The candidate adds
-**INV-FOOD-LONG-LEG** with **32 t departure stock**.
+Three existing rooms, `HAB-02-GROW`, `HAB-06-GROW`, `HAB-08-GROW`, each hold **150 m² productive growing beds**, serviced by existing controls/nutrient skids. Their **90 kW** combined reference power is ordinary operating load. The 450 m² staple output target is a bounded, plausible fictional yield to verify during operation, **not** a free default material credit: production depends on lighting, nutrients, water, temperature, heat rejection and maintenance.
 
-At the proposed reference 0.85 kg/day/person of edible shelf-stable
-provisions, 40 people require **24.82 t edible mass** over 730 days.
-The remaining mass allowance covers packaging, diet/menu variety,
-handling loss and contingency. Approximate planning energy is
-0.85 kg x 3,000 kcal/kg = **2,550 kcal/person/day**,
-sufficiently useful as a scenario reference without claiming
-that every body or duty has identical needs.
+The **24.82 t** dehydrated departure subset alone provides the entire 74.46 million kcal at ~3,000 kcal/kg. During a normal voyage, dry food is consumed at only one-quarter of calories, so the *remaining* dry stock can still support the *remaining leg* if the crop and conventional foods are lost late. It does not restore an already contaminated food store, guarantee water/power, or make fresh production instantaneous.
 
-The 32 t inventory is **inside the existing 1,500 t
-mission/non-propulsive allowance**—the voyage departure
-mass remains 1,187,500 t. It is not 32 t new mass secretly
-added to the vessel. Cultivation supplies fresh produce and
-crew morale, not the calorie balance; a crop failure should
-not immediately starve a provisioned ship.
+Stored food and the two independent gas stores remain inside the existing **1,500 t mission allowance**, so the selected departure mass remains **1,187,500 t**. Complete contract/validator: [B′ reconciliation](BPRIME_ISSUE13_MISSION_RECONCILIATION.md).
 
-## 6. Gas refill and waste are distinct from normal circulation
+## 6. Everyday atmospheric leakage is not a pressure-breach casualty
 
-The v0.4 5.5 t *single arc refill gas* allowance is not
-an entire-vessel atmospheric reserve. Approximate gross
-geometric envelopes of the two 3 m personnel trunks, the
-5.5 m logistics trunk and eight candidate 38° pressure sections
-already total around 63,511 m³ before adjustment for
-equipment, bulkheads, heads and occupied fixed compartments.
-Exact free gas volume and usable storage positions still
-require a **pressure-zone ledger**.
+The candidate has **133 physically dimensioned pressure cells**, a **79.270–105.989 t** dry-air planning charge, and **83 cargo/industrial/shield rooms** whose breathability is *unknown by default*. At the selected **0.01%/day** nominal leak assumption, **5.787–7.737 t full air** exits the ship over 730 days. The **inert component is 4.456–5.958 t** (~77% dry-air mass), and O2 loss is **1.331–1.780 t** (~23%). These are respectively full-air, inert and oxygen terms; do not use them as interchangeable numbers.
 
-Solid biological waste, packaging, used filters, spent
-cartridges, contaminated water and captured atmospheric
-byproducts do not vanish when an inventory goes down.
-Existing waste-processing plant can transform or dispose of
-material only through verified process modes and receiving
-volume. Exact receiver capacities, disposal permits and
-long-leg accumulation are the next endurance-model closure.
+Routine maintenance uses a distinct **7 t inert-gas inventory**, two 3.5 t banks with metered A/B delivery to *ECLSS-controlled atmosphere mixers*. Pure inert gas cannot feed habitable rooms directly. A dedicated manual cross-tie is normally shut and usable only after isolation/purity checks. Existing oxygen electrolysers must make up the missing oxygen along with ordinary metabolism. Each A/B 40 kg O2/day train is sufficient for 35.6 kg metabolism plus at most ~2.44 kg/day leak-O2 under this plan, subject to power/water/heat/disposal and purity proof.
 
-## 7. Failure cases available with these choices
+The **two 2.75 t mixed-air emergency banks** remain fully reserved for deliberate post-breach pressure-cell recovery, separately from the protected **249.2 kg local/refuge oxygen**. A normal 730-day voyage must never silently debit emergency banks for steady leakage. If the 7 t inert stock runs out, the crew faces an actual pressurisation/operating limitation; the ship does not manufacture nitrogen by electrolysis. See [gas recovery](PRESSURE_GAS_RECOVERY_v0.5.md) and [mission reconciliation](BPRIME_ISSUE13_MISSION_RECONCILIATION.md).
 
-- A water-processor contamination alarm can interrupt both
-  ordinary potable distribution and oxygen-electrolyser feed;
-  splitting A/B ECLSS equipment does not make a shared feed
-  magically independent.
-- Electrolyser A can fail while B continues the forty-person
-  oxygen replacement, subject to distribution and heat budget.
-- CO2 regeneration isolation can cause a delayed atmosphere
-  problem even when fans and oxygen production remain normal.
-- A decrease to 80% domestic water recovery consumes the
-  protected water reserve over the course of the voyage rather
-  than requiring an immediate evacuation.
-- A cultivation fault reduces dietary variety, not the
-  basic 730-day calorie stock.
-- A food-storage leak or contamination event forces a
-  real inventory survey, ration plan or lost-cargo decision.
+Waste streams and industrial receivers remain finite. Biological solids, spoiled crops/packaging, used filters, contaminated water, generated hydrogen and captured CO2 require compatible actual processing, isolation or identified exterior discharge. They never disappear merely because an inventory entry decreases.
 
-The design can now support meaningful causality and
-work with actual consumables. It is not yet a completed
-physical utility-graph implementation.
+## 7. Consequential operating casualties at the selected mission loads
 
-## 8. Updated B′ gross geometric volume reference
+- A water processor can interrupt normal crew drinking water, electrolyser oxygen feed and the productive 450 m² crop system simultaneously; the separate emergency water stock is not automatic crop irrigation.
+- One ECLSS train may fail and the other still replaces **38.04 kg/day** reference oxygen if powered and connected, but the oxygen-capacity margin is small.
+- A stuck inert metering valve can waste the **separate 3.5 t** routine bank; a contaminated or blocked mixer cannot be bypassed straight into occupied cabins. A manual cross-feed may restore one path, but introduces a testable shared-contamination risk.
+- Loss of a whole hab arc needs the **separate** 5.5 t casualty mixed-air banks; spending them for everyday leakage would make the later breach unrecoverable.
+- Crop or conventional-food loss increases **measured depletion** of remaining dehydrated stores. A contaminated dry-food bay removes the very fallback that otherwise preserves calories.
+- Loss of the main generator forces a verified **0.65 MW or smaller** essential power schedule. The entire **90 kW** hydroponic load is shed; a claimed 0.75 MW protected-service demand is not automatically attainable.
+- Domestic water recovery degraded from 90% to 80% adds **73 t** gross loss over the leg and threatens the protected reserve unless repaired or rationed.
+- ECLSS captured gases and sanitary/industrial waste must have physically identified, compatible bounded disposal routes; an exhausted receiver halts further generating work.
 
-A 38°/73.15 m-centreline/9.5 m pressure tube has approximately 27,511 m³ eight-arc tube envelope. Adding a schematic pair of 2:1 ellipsoidal half-head volumes per arc gives approximately **29,306 m³** gross habitation module envelope. Eight pressure bridges add approximately **242 m³** gross bore envelope at the selected port spacings. The fixed spine's three nominal full-length tubes add approximately 36,001 m³, yielding roughly **65,549 m³ gross geometric envelopes before fixed rooms, partial pressurisation and displaced fit-out**. This does **not** mean all this gas is carried at once or that it belongs in one pressure zone. Inventory/refill planning still requires actual net volumes and pressure boundaries; see `BPRIME_HAB38_MECHANICAL_CLOSURE.md`.
+## 8. Updated B′ gross and fitted-free geometry reference
 
-## 9. Independent pressure boundaries and refill-gas distribution
+The historical 38° HAB tube/head/bridge and three fixed-spine movement-tube subtotal of ~**65,549 m³** is only a partial geometry screen. It omits numerous fixed specialist compartments, transfer locks, connectors and work volumes; it is **not the current whole-ship pressure-volume inventory**.
 
-The gross 65,549 m³ schematic envelope now belongs to **multiple separate pressure cells**, not a single shipwide air tank. The two 950 m personnel trunks alone form 46 isolatable sections, with 23 heavy-freight tube cells and eight independently sealable habitation bridge volumes. Any simulated repressurisation must account for doors, equalisation and gas supply/consumption within *reachable* cells. The two 40-person refuges occupy intact HAB-04 and HAB-08 whole-arc pressure zones; 40 m² REFUGE identifiers remain equipment stores. `pressure_zone_topology_v0.5.json` records 85 geometric envelopes and 48 additional pressurised cells whose dimensions remain unresolved; this ledger retains the original 5.5 t per-arc refill-gas planning allowance without pretending to know total free-gas volume.
+The completed cell-by-cell B′ physical reconciliation now gives **133/133 nominal pressure cells dimensioned**, **339 rated access/pressure boundaries**, **100,772.940 m³ screened gross pressure envelope**, and **65,832.797–88,021.802 m³ planning free-gas range**. That implies approximately **79.270–105.989 t dry gas** at the reference temperature and pressure. Occupied arc refill mass is roughly 3.02–3.71 t depending on arc/source-specific displacement. The 83 additional industrial/cargo/shield rooms are not made breathable by a convenient JSON default.
 
-## 10. After-loss replacement air now has stores and plumbing
+As-installed actual free-air volume, gas composition, seal conditions, manifold failures and incident pressure histories remain unknown until observed. The data deliberately records **planning fractions and null measured free air**, not fabricated world truth.
 
-The working 5.5 t single-arc refill-gas allowance now exists as two **2.75 t compressed dry-air banks** (forward tank-bay and aft fluid stores), independently valved from a network of sectioned fixed-spine headers, 69 local trunk pressure taps, two rotary unions and an eight-arc sectionalised makeup-gas ring. This stock is **not** a third ECLSS train, not the 249.2 kg local/refuge oxygen supply, and not a second copy of the ship's initial atmosphere. The nominal upper regulator rate is **100 kg/h per bank**, so a full 3.09–3.71 t arc refill is a many-hour recovery following repair and pressure/purity verification. Two full arc refills exceed nominal 5.5 t reserve. The reference gas ranges for 85 sized cells are 52,609–59,898 m³ and 63.35–72.12 t dry air; 48 further pressurised volumes are currently unsized. See `PRESSURE_GAS_RECOVERY_v0.5.md`. No additional departure mass is asserted.
+## 9. Independent pressure boundaries and routine inert gas replenishment
+
+There are 46 true personnel trunk pressure sections, 23 heavy-logistics cells, eight independently isolatable HAB bridges, eight full habitation arcs and other sized specialist cells. **All 133** have defensible nominal gross bounds; the 339 rated connections include 131 explicitly guarded cargo/industrial/shield thresholds. Equalisation and refill require a safe physical path, valve/pressure evidence and nonhazardous destination, not just a graphical doorway.
+
+Routine **inert** loss over 730 days draws only `INV-INERT-MAKEUP-A/B` (two distinct **3.5 t** sources), through verified ECLSS mixing skids—not the pressure-refill ring. Individual metering paths run alongside selected A/B segmented trunk raceways and independent rotary service interfaces. Their normally shut local controls and cross-tie have physical access and failure consequences.
+
+## 10. After-loss emergency refilling remains separate
+
+Two **2.75 t mixed breathable-air reserve banks** in the original forward shielding and aft fluid stores feed regulated, isolated A/B fixed-spine headers, 69 trunk pressure taps, two independent rotary crossings and the HAB gas ring. These 5.5 t are intended for a **single, repaired and verified** severely depressurised hab arc (roughly 3.02–3.71 t), never two whole arcs. The 100 kg/h per-bank regulator reference makes recovery a many-hour operation.
+
+They do **not** count as normal leak supply; the independent 7 t inert inventory is neither a substitute for a full mixed-air refill nor a rescue O2 reserve. All **15** inventory accounts, **808** installed maintained equipment units and routine water/food/power/endurance assumptions are crosschecked by the 14-validator ship design CI including `check_mission_endurance.py`. Fictional verisimilitude and meaningful operating constraints are the acceptance standard, not NASA approval.
