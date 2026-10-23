@@ -1,0 +1,50 @@
+name: Ox G16a authored action tag contract
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches: [main]
+    paths:
+      - "contracts/**"
+      - "scenarios/g8_soap_opera/g14_profile_salience.py"
+      - "scenarios/personality_route_trial.py"
+      - "services/ai-handler/src/ox_ai/scenarios/p4a_personality_gate.py"
+      - "services/ai-handler/src/ox_ai/scenarios/personality_dilemmas.py"
+      - ".github/workflows/ox-g16-action-tags.yml"
+      - "!**/*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ox-g16a-tags-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  action-tags:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    name: Strict shared Pydantic schema and source-menu coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install independent shared contract package
+        run: python -m pip install -e ./contracts
+      - name: Validate schema and real source menus without inference
+        run: |
+          python -m compileall -q contracts/ox_contracts contracts/tests
+          python -m unittest discover -s contracts/tests -p 'test_*.py' -v
+      - name: Verify load and stable version digest
+        run: |
+          python - <<'PY'
+          from ox_contracts import load_catalog
+          c = load_catalog()
+          assert c.schema_version == 1
+          assert len(c.menus) == 10
+          assert sum(len(m.options) for m in c.menus) == 32
+          print("OX_G16A_ACTION_TAG_CONTRACT_PASS", c.content_sha256())
+          PY

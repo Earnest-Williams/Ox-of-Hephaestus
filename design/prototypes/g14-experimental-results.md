@@ -101,4 +101,23 @@ The six observed average score-difference effects include the largest absolute t
 
 **Interpretation and next gate:** The treatment changed relatively few selected options. Providing a qualitative profile did not reliably overcome the native scorer's dominant situation/menu tendencies; it is premature to describe either route as strongly personality-driven. The route-policy probability from G13 must never be counted as an observed Decider *choice*. G15's separate `PositionBalancedDeciderChoiceModel` must be evaluated as an explicit multi-pass policy and its triple native inference cost accounted for. The proposed G16 layer adds authored disposition tags and separately calibrated choice shifts, opt-in behind `OX_PERSONALITY_CHOICE`; its calibration and preregistered native tests must pass before a production adoption claim.
 
-*Reproducibility:* the historic v1 results and their position confound remain above. All figures in this section come from the **v2 aggregate**, not the v1 run, and remain tied to the source workflow run rather than a future rebased PR head. Rebase/push must cause a fresh passing G14 head run before merging this PR.
+*Reproducibility:* the historic v1 results and their position confound remain above. The preceding v2 tables come from **run #40016163471**, not the v1 run. A fresh native rerun was also made on the *exact final PR #110 head* before merge, with independent results below.
+
+### Independent final-head v2 rerun: variation without a change of protocol
+
+The [final-head six-actor native run #40028008764](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40028008764), on exact commit `2c2ed5090187ef5b7314e90f672b64a7dad108d2`, passed **all six shards and the aggregate**. All 32 applicable PR workflows passed. The repeated native experiment made **312** calls, passed **24/24** same-input controls and the position-coverage checks, and sent **zero** Evennia commands. It is a separate real-model observation, not a replacement for the earlier v2 artifact.
+
+| Outcome (72 matched conditions per comparison) | Earlier v2 #40016163471 | Final-head v2 #40028008764 |
+| --- | ---: | ---: |
+| Numeric: original vs independent traits, changed actions | 3 | 3 |
+| Prose: original vs independent traits, changed actions | 5 | 2 |
+| Original traits: numeric vs prose, changed actions | 2 | 2 |
+| Independent traits: numeric vs prose, changed actions | 6 | 3 |
+| Chosen first / second / third display position (288 factorial) | 119 / 95 / 74 | 121 / 95 / 72 |
+| Three-order action invariance, numeric original / independent (24 each) | 16 / 14 | 16 / 14 |
+| Three-order action invariance, prose original / independent (24 each) | 16 / 19 | 16 / 16 |
+| Unchanged-input repeat choices | 24 / 24 | 24 / 24 |
+
+The native numeric independent-minus-original score shifts in **#40028008764** included: `accept_help` -0.01123, `work_alone` +0.00478, `cover_watch` -0.02029, `keep_watch` +0.01178, `consider_talk` -0.01432, `protect_space` +0.00959, and `ask_later` +0.00472. These are *mean probability differences*, not calibrated posterior beliefs or evidence of world conduct. The final-head prose contrast for `cover_watch` was -0.02494 (2.49 percentage points), rather than -0.02836 (2.84 pp) in the earlier v2 run.
+
+Both native experiments passed the same structural protocol, but **their selected actions and probability shifts were not identical**. This cannot be explained away by calling 24/24 same-input controls 'overall reproducibility': those controls checked individual repeated prompts *within* each run. Between-run variation and first-slot tendency remain relevant to calibrating G16; do not select a flattering run or collapse their provenance. Neither v2 result establishes convincing personality-sensitive choice. The production policy remains off.

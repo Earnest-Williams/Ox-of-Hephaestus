@@ -178,3 +178,36 @@ OpenAPI/JSON wire schema today.
 
 See the [architecture](../ARCHITECTURE.md) and
 [deferred interface](../services/interface/README.md).
+
+## G16a — shared authored disposition tags (experimental)
+
+The independent, installable Pydantic v2 `ox-contracts` distribution defines
+one versioned typed schema for five action-disposition dimensions: risk,
+deference, social, autonomy and procedure. The [validator](ox_contracts/personality_actions.py)
+loads the sole [authored data catalog](ox_contracts/data/personality_action_tags.v1.json).
+Install with `python -m pip install -e ./contracts`; both the future
+Evennia and handler consumers must use this exact package, not diverging
+copies. Every tag is an explicit, finite JSON float in [-1,1], and each
+semantic action and command signature must be unique within its menu.
+
+Positive dimensions favour risk-taking, legitimate authority deference,
+social assistance, self-direction and procedural conformity respectively;
+negative values describe opposite inclinations and zero is neutral. The
+manifest includes four G14 hypotheticals, the real opt-in P4a Evennia
+pump-choice menu, the offline gauge pilot and four other offline dilemmas
+(**10 menus / 32 actions**). [G16a CI](../.github/workflows/ox-g16-action-tags.yml)
+checks schema rules and matches the catalog against those actual Python menu
+sources via AST, without loading models or sending world commands.
+
+Seven unambiguous G14 tags have a **retrospective** sign sanity check against
+the numeric independent-minus-original mean native score shifts in
+[final-head G14 CI #40028008764](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40028008764).
+These directions were known when the tags were authored, so agreement is **not**
+a blind prediction, tuned policy, or personality-quality acceptance result.
+
+This package is preparation only. G16a does **not** attach tags to deployed
+world messages or enable personality scoring. The approved action menu and
+actor-specific permissions are still Evennia's; a tag is never a work receipt,
+safety approval, factual observation, or grant of authority. G16c/d must
+explicitly adopt the package and bind its version/digest into the durable
+routing ledger before any controlled activation.

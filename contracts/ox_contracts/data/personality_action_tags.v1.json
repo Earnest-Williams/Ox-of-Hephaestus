@@ -1,0 +1,459 @@
+{
+  "schema_version": 1,
+  "menus": [
+    {
+      "menu_key": "g14.verified_mutual_aid",
+      "scope": "hypothetical",
+      "safety_critical": false,
+      "options": [
+        {
+          "semantic_key": "accept_help",
+          "verb": "consider.accept_help",
+          "target": "g14.verified_mutual_aid",
+          "tags": {
+            "risk": 0.0,
+            "deference": 0.0,
+            "social": 0.9,
+            "autonomy": -0.8,
+            "procedure": 0.2
+          }
+        },
+        {
+          "semantic_key": "work_alone",
+          "verb": "consider.work_alone",
+          "target": "g14.verified_mutual_aid",
+          "tags": {
+            "risk": 0.2,
+            "deference": 0.0,
+            "social": -0.5,
+            "autonomy": 0.9,
+            "procedure": 0.1
+          }
+        },
+        {
+          "semantic_key": "reschedule",
+          "verb": "consider.reschedule",
+          "target": "g14.verified_mutual_aid",
+          "tags": {
+            "risk": -0.2,
+            "deference": 0.0,
+            "social": 0.0,
+            "autonomy": 0.5,
+            "procedure": 0.0
+          }
+        }
+      ]
+    },
+    {
+      "menu_key": "g14.finite_spare_dispute",
+      "scope": "hypothetical",
+      "safety_critical": true,
+      "options": [
+        {
+          "semantic_key": "reserve_spare",
+          "verb": "consider.reserve_spare",
+          "target": "g14.finite_spare_dispute",
+          "tags": {
+            "risk": -0.9,
+            "deference": 0.2,
+            "social": -0.3,
+            "autonomy": 0.4,
+            "procedure": 0.8
+          }
+        },
+        {
+          "semantic_key": "support_loan",
+          "verb": "consider.support_loan",
+          "target": "g14.finite_spare_dispute",
+          "tags": {
+            "risk": 0.85,
+            "deference": -0.1,
+            "social": 0.85,
+            "autonomy": 0.1,
+            "procedure": -0.8
+          }
+        },
+        {
+          "semantic_key": "seek_review",
+          "verb": "consider.seek_review",
+          "target": "g14.finite_spare_dispute",
+          "tags": {
+            "risk": -0.65,
+            "deference": 0.95,
+            "social": 0.5,
+            "autonomy": -0.75,
+            "procedure": 0.9
+          }
+        }
+      ]
+    },
+    {
+      "menu_key": "g14.approved_watch_relief",
+      "scope": "hypothetical",
+      "safety_critical": false,
+      "options": [
+        {
+          "semantic_key": "cover_watch",
+          "verb": "consider.cover_watch",
+          "target": "g14.approved_watch_relief",
+          "tags": {
+            "risk": 0.1,
+            "deference": 0.35,
+            "social": 0.95,
+            "autonomy": -0.35,
+            "procedure": 0.7
+          }
+        },
+        {
+          "semantic_key": "keep_watch",
+          "verb": "consider.keep_watch",
+          "target": "g14.approved_watch_relief",
+          "tags": {
+            "risk": -0.1,
+            "deference": 0.1,
+            "social": -0.7,
+            "autonomy": 0.9,
+            "procedure": 0.3
+          }
+        },
+        {
+          "semantic_key": "offer_alternative",
+          "verb": "consider.offer_alternative",
+          "target": "g14.approved_watch_relief",
+          "tags": {
+            "risk": -0.1,
+            "deference": 0.0,
+            "social": 0.5,
+            "autonomy": 0.65,
+            "procedure": 0.2
+          }
+        }
+      ]
+    },
+    {
+      "menu_key": "g14.uncertain_private_apology",
+      "scope": "hypothetical",
+      "safety_critical": false,
+      "options": [
+        {
+          "semantic_key": "consider_talk",
+          "verb": "consider.consider_talk",
+          "target": "g14.uncertain_private_apology",
+          "tags": {
+            "risk": 0.2,
+            "deference": 0.0,
+            "social": 0.8,
+            "autonomy": -0.4,
+            "procedure": 0.0
+          }
+        },
+        {
+          "semantic_key": "protect_space",
+          "verb": "consider.protect_space",
+          "target": "g14.uncertain_private_apology",
+          "tags": {
+            "risk": -0.2,
+            "deference": 0.0,
+            "social": -0.9,
+            "autonomy": 0.8,
+            "procedure": 0.0
+          }
+        },
+        {
+          "semantic_key": "ask_later",
+          "verb": "consider.ask_later",
+          "target": "g14.uncertain_private_apology",
+          "tags": {
+            "risk": -0.2,
+            "deference": 0.0,
+            "social": 0.0,
+            "autonomy": 0.75,
+            "procedure": 0.0
+          }
+        }
+      ]
+    },
+    {
+      "menu_key": "live.p4a_pump_alarm",
+      "scope": "live_trial",
+      "safety_critical": true,
+      "options": [
+        {
+          "semantic_key": "isolate",
+          "verb": "isolate",
+          "target": "pump",
+          "tags": {
+            "risk": -0.85,
+            "deference": 0.8,
+            "social": -0.1,
+            "autonomy": -0.2,
+            "procedure": 1.0
+          }
+        },
+        {
+          "semantic_key": "defer",
+          "verb": "defer",
+          "target": null,
+          "tags": {
+            "risk": 0.85,
+            "deference": -0.6,
+            "social": 0.25,
+            "autonomy": 0.5,
+            "procedure": -0.95
+          }
+        }
+      ]
+    },
+    {
+      "menu_key": "offline.personality_gauge",
+      "scope": "offline_trial",
+      "safety_critical": false,
+      "options": [
+        {
+          "semantic_key": "inspect",
+          "verb": "inspect",
+          "target": "gauge",
+          "tags": {
+            "risk": -0.5,
+            "deference": 0.6,
+            "social": 0.0,
+            "autonomy": 0.2,
+            "procedure": 0.9
+          }
+        },
+        {
+          "semantic_key": "defer",
+          "verb": "defer",
+          "target": null,
+          "tags": {
+            "risk": 0.5,
+            "deference": -0.2,
+            "social": 0.0,
+            "autonomy": 0.45,
+            "procedure": -0.8
+          }
+        }
+      ]
+    },
+    {
+      "menu_key": "offline.dilemma.pump_mara",
+      "scope": "offline_trial",
+      "safety_critical": true,
+      "options": [
+        {
+          "semantic_key": "isolate",
+          "verb": "isolate",
+          "target": "pump",
+          "tags": {
+            "risk": -0.85,
+            "deference": 0.85,
+            "social": -0.2,
+            "autonomy": -0.3,
+            "procedure": 1.0
+          }
+        },
+        {
+          "semantic_key": "recheck",
+          "verb": "recheck",
+          "target": "pump",
+          "tags": {
+            "risk": -0.2,
+            "deference": 0.1,
+            "social": 0.1,
+            "autonomy": 0.5,
+            "procedure": 0.2
+          }
+        },
+        {
+          "semantic_key": "escalate",
+          "verb": "escalate",
+          "target": "pump",
+          "tags": {
+            "risk": -0.5,
+            "deference": 0.9,
+            "social": 0.2,
+            "autonomy": -0.6,
+            "procedure": 0.8
+          }
+        },
+        {
+          "semantic_key": "defer",
+          "verb": "defer",
+          "target": "pump",
+          "tags": {
+            "risk": 0.95,
+            "deference": -0.9,
+            "social": 0.75,
+            "autonomy": 0.5,
+            "procedure": -1.0
+          }
+        }
+      ]
+    },
+    {
+      "menu_key": "offline.dilemma.cargo_jon",
+      "scope": "offline_trial",
+      "safety_critical": true,
+      "options": [
+        {
+          "semantic_key": "secure",
+          "verb": "secure",
+          "target": "cargo",
+          "tags": {
+            "risk": -0.85,
+            "deference": 0.85,
+            "social": -0.2,
+            "autonomy": -0.2,
+            "procedure": 1.0
+          }
+        },
+        {
+          "semantic_key": "recheck",
+          "verb": "recheck",
+          "target": "cargo",
+          "tags": {
+            "risk": -0.3,
+            "deference": 0.0,
+            "social": 0.1,
+            "autonomy": 0.5,
+            "procedure": 0.3
+          }
+        },
+        {
+          "semantic_key": "escalate",
+          "verb": "escalate",
+          "target": "cargo",
+          "tags": {
+            "risk": -0.45,
+            "deference": 0.9,
+            "social": 0.35,
+            "autonomy": -0.55,
+            "procedure": 0.8
+          }
+        },
+        {
+          "semantic_key": "defer",
+          "verb": "defer",
+          "target": "cargo",
+          "tags": {
+            "risk": 0.9,
+            "deference": -0.85,
+            "social": 0.7,
+            "autonomy": 0.5,
+            "procedure": -1.0
+          }
+        }
+      ]
+    },
+    {
+      "menu_key": "offline.dilemma.routine_filter",
+      "scope": "offline_trial",
+      "safety_critical": false,
+      "options": [
+        {
+          "semantic_key": "record",
+          "verb": "record",
+          "target": "filter",
+          "tags": {
+            "risk": -0.6,
+            "deference": 0.6,
+            "social": -0.25,
+            "autonomy": 0.25,
+            "procedure": 1.0
+          }
+        },
+        {
+          "semantic_key": "recheck",
+          "verb": "recheck",
+          "target": "filter",
+          "tags": {
+            "risk": -0.3,
+            "deference": 0.0,
+            "social": 0.0,
+            "autonomy": 0.5,
+            "procedure": 0.2
+          }
+        },
+        {
+          "semantic_key": "assist",
+          "verb": "assist",
+          "target": "filter",
+          "tags": {
+            "risk": 0.1,
+            "deference": 0.1,
+            "social": 0.8,
+            "autonomy": -0.45,
+            "procedure": 0.45
+          }
+        },
+        {
+          "semantic_key": "defer",
+          "verb": "defer",
+          "target": "filter",
+          "tags": {
+            "risk": 0.6,
+            "deference": -0.6,
+            "social": 0.7,
+            "autonomy": 0.45,
+            "procedure": -0.85
+          }
+        }
+      ]
+    },
+    {
+      "menu_key": "offline.dilemma.duty_swap",
+      "scope": "offline_trial",
+      "safety_critical": false,
+      "options": [
+        {
+          "semantic_key": "attend",
+          "verb": "attend",
+          "target": "watch",
+          "tags": {
+            "risk": -0.25,
+            "deference": 0.7,
+            "social": -0.4,
+            "autonomy": 0.55,
+            "procedure": 0.9
+          }
+        },
+        {
+          "semantic_key": "request",
+          "verb": "request",
+          "target": "watch",
+          "tags": {
+            "risk": -0.2,
+            "deference": 0.9,
+            "social": 0.7,
+            "autonomy": -0.5,
+            "procedure": 0.9
+          }
+        },
+        {
+          "semantic_key": "cover",
+          "verb": "cover",
+          "target": "watch",
+          "tags": {
+            "risk": 0.8,
+            "deference": -0.9,
+            "social": 0.9,
+            "autonomy": 0.2,
+            "procedure": -1.0
+          }
+        },
+        {
+          "semantic_key": "decline",
+          "verb": "decline",
+          "target": "watch",
+          "tags": {
+            "risk": -0.2,
+            "deference": 0.3,
+            "social": 0.15,
+            "autonomy": 0.7,
+            "procedure": 0.65
+          }
+        }
+      ]
+    }
+  ]
+}

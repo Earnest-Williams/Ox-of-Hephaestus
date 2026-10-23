@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ox-contracts"
+version = "0.1.0"
+description = "Independent typed Ox handler/world contracts"
+requires-python = ">=3.12"
+dependencies = ["pydantic>=2.10,<3"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ox_contracts*"]
+
+[tool.setuptools.package-data]
+ox_contracts = ["data/*.json"]
