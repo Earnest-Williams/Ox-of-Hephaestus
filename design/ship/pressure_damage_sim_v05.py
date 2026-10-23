@@ -209,14 +209,26 @@ class PressureDamageTrial:
         c = self.cells[cell_id]
         return c.modeled_unsuited_air_safe() and c.fresh_observation(self.time_s)
 
-    def can_open(self, gate_id: str, *, local_authority: bool) -> tuple[bool, str]:
+    def can_open(self, gate_id: str, *, local_authority: bool,
+                 transfer_interlocks_proven: bool = False,
+                 freight_permit_proven: bool = False) -> tuple[bool, str]:
         g = self.gates[gate_id]
         if local_authority is not True:
             return False, "local_authority_not_proven"
-        if g.state == "jammed_closed":
-            return False, "gate_mechanically_jammed"
+        if g.state in ("jammed_closed", "jammed_open"):
+            return False, "gate_mechanically_failed"
         if g.a not in self.cells or g.b not in self.cells:
             return False, "unknown_or_vacuum_requires_separate_transfer"
+        # Pressure equality does not index a rotating drum or hard-lock an
+        # engineering freight collar. The witness is separate from air.
+        rotating = {"indexed_rotary_transfer", "indexed_freight_transfer",
+                    "indexer_hatch", "heavy_rotor_freight_lock"}
+        freight = {"indexed_freight_transfer", "heavy_rotor_freight_lock",
+                   "freight_pressure_shutter", "freight_branch_tunnel"}
+        if g.kind in rotating and transfer_interlocks_proven is not True:
+            return False, "rotor_capture_and_drive_inhibit_unproven"
+        if g.kind in freight and freight_permit_proven is not True:
+            return False, "heavy_freight_transfer_permit_unproven"
         a, b = self.cells[g.a], self.cells[g.b]
         if not a.fresh_observation(self.time_s) or not b.fresh_observation(self.time_s):
             return False, "local_samples_unverified_or_stale"
@@ -226,9 +238,14 @@ class PressureDamageTrial:
             return False, "atmosphere_not_compatible_for_unsuited_access"
         return True, "nominal_reference_permission_only"
 
-    def open_gate(self, gate_id: str, *, local_authority: bool) -> bool:
+    def open_gate(self, gate_id: str, *, local_authority: bool,
+                  transfer_interlocks_proven: bool = False,
+                  freight_permit_proven: bool = False) -> bool:
         g = self.gates[gate_id]
-        allowed, reason = self.can_open(gate_id, local_authority=local_authority)
+        allowed, reason = self.can_open(
+            gate_id, local_authority=local_authority,
+            transfer_interlocks_proven=transfer_interlocks_proven,
+            freight_permit_proven=freight_permit_proven)
         self.event("open_gate_requested", gate=gate_id, allowed=allowed, reason=reason)
         if allowed and g.state == "closed":
             g.state = "open"
@@ -449,6 +466,23 @@ class PressureDamageTrial:
         require(self.mass_balance_error_kg() < 1e-5,
                 "pressure-breach simulator creates or destroys gas mass")
 
+    def open_pressure_component(self, start: str) -> set[str]:
+        """Pressure-coupled gas cells, independent of permission to walk."""
+        require(start in self.cells, "unknown starting pressure cell")
+        seen = {start}
+        pending = deque([start])
+        graph: dict[str, set[str]] = defaultdict(set)
+        for g in self.gates.values():
+            if g.is_open() and g.a in self.cells and g.b in self.cells:
+                graph[g.a].add(g.b)
+                graph[g.b].add(g.a)
+        while pending:
+            for adjacent in graph[pending.popleft()]:
+                if adjacent not in seen:
+                    seen.add(adjacent)
+                    pending.append(adjacent)
+        return seen
+
     def set_bank_outlet(self, inventory_id: str, open_state: bool,
                         *, local_authority: bool) -> None:
         require(inventory_id in self.bank_kg
@@ -464,20 +498,22 @@ class PressureDamageTrial:
         require(inventory_id in self.bank_kg and zone in self.cells,
                 "invalid replenishment inventory or destination")
         cell = self.cells[zone]
+        coupled = self.open_pressure_component(zone)
         require(self.bank_outlet_open[inventory_id]
                 and path_locally_proven is True
                 and receiving_chemistry_verified is True
                 and cell.fresh_observation(self.time_s)
-                and not cell.unknown_exposure
-                and cell.trace_kg <= 1e-5 * max(cell.gas_kg, 0)
-                and all(not b.active for b in self.breaches.values()
-                        if b.cell_id == zone),
-                "replenishment lacks isolated leak, proven valve route or local sample")
-        require(all(not g.is_open() or g.b not in ("VACUUM", None)
-                    if g.a == zone else
-                    not g.is_open() or g.a not in ("VACUUM", None)
-                    for g in self.gates.values() if zone in (g.a, g.b)),
-                "cannot refill cell exposed to unknown space or exterior")
+                and all(not self.cells[id].unknown_exposure for id in coupled)
+                and cell.trace_kg <= 1e-5 * max(cell.gas_kg, 0),
+                "replenishment lacks proven valve route, sample or known receiver")
+        require(not any(b.active and b.cell_id in coupled
+                        for b in self.breaches.values()),
+                "refill path still connects to an active hull breach")
+        require(not any(g.is_open() and (
+                    (g.a in coupled and g.b not in self.cells) or
+                    (g.b in coupled and g.a not in self.cells))
+                    for g in self.gates.values()),
+                "refill path still exposed to vacuum or unknown receiver")
         target = 1.204118 * cell.free_volume_m3
         needed = max(0.0, target - cell.gas_kg)
         quantity = min(needed, self.bank_kg[inventory_id],

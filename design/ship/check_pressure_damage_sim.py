@@ -9,6 +9,7 @@ from __future__ import annotations
 from copy import deepcopy
 import json
 from math import isclose
+from random import Random
 
 from pressure_damage_sim_v05 import PressureDamageTrial, load_model
 
@@ -85,6 +86,33 @@ def validate():
     insist("PZ-BR-03" not in cold.traversable_zones("PZ-HAB-03"),
            "stale local samples incorrectly grant unsuited crew passage")
     report["access"] = "proven healthy bridge permits passage; unknown, vacuum and stale evidence deny"
+
+    # Rotary indexing and heavy freight are mechanically distinct from
+    # equalized compartment air. Prove both independent interlock types.
+    indexed = fresh_trial()
+    for zone in ("PZ-DR-01-LOCK", "PZ-DR-01-SVC"):
+        indexed.sample_local(zone, qualified_local_probe=True)
+    insist(not indexed.open_gate("ACC-DR-01-LOCK-ROT", local_authority=True),
+           "stationary pressure evidence bypassed drum indexer hard-lock")
+    insist(indexed.open_gate("ACC-DR-01-LOCK-ROT", local_authority=True,
+                            transfer_interlocks_proven=True),
+           "verified indexed personnel transfer denied")
+    freight = fresh_trial()
+    for zone in ("PZ-DR-01-FREIGHT", "PZ-DR-01-SVC"):
+        freight.sample_local(zone, qualified_local_probe=True)
+    insist(not freight.open_gate("ACC-DR-01-FREIGHT-CAPTURE",
+                                local_authority=True),
+           "heavy capture permitted without interlock or cargo authority")
+    insist(not freight.open_gate("ACC-DR-01-FREIGHT-CAPTURE",
+                                local_authority=True,
+                                transfer_interlocks_proven=True),
+           "hard-locked freight collar permitted without cargo authority")
+    insist(freight.open_gate("ACC-DR-01-FREIGHT-CAPTURE",
+                            local_authority=True,
+                            transfer_interlocks_proven=True,
+                            freight_permit_proven=True),
+           "verified freight transfer cannot open")
+    report["mechanical_transfer_interlocks"] = "indexer witness and heavy-freight authority required"
 
     # Closed hull breach must not produce mass loss from adjacent zones.
     sealed = fresh_trial()
@@ -200,6 +228,28 @@ def validate():
            and dirty.mass_balance_error_kg() < 1e-5,
            "contaminated atmosphere admitted or tracer created from nothing")
 
+    # Repeat leak propagation across different real gates with fixed
+    # random seeds. The gas ledger is never allowed to create pressure
+    # above its original maximum, even in tiny bridge cells.
+    stress_cases = 0
+    for seed in (7, 19, 619, 1009, 2026):
+        random = Random(seed)
+        varied = fresh_trial()
+        known_pairs = [g.id for g in varied.gates.values()
+                       if g.a in varied.cells and g.b in varied.cells]
+        for gate_id in random.sample(known_pairs, 8):
+            varied.fail_gate_open(gate_id)
+        target = random.choice(sorted(varied.cells))
+        varied.breach("SEED-HULL", target, random.uniform(5.0, 45.0))
+        varied.advance(65)
+        insist(varied.mass_balance_error_kg() < 1e-5
+               and all(-1e-6 <= c.pressure_kpa <= 101.326
+                       for c in varied.cells.values())
+               and varied.lost_to_vacuum_kg > 0,
+               "seeded multigate breach violates pressure or mass accounting")
+        stress_cases += 1
+    report["deterministic_multigate_stress_seeds"] = stress_cases
+
     # Delayed intervention changes the loss even without connected neighbors;
     # the smaller physical-volume bound loses pressure more rapidly.
     lower = fresh_trial("lower")
@@ -234,6 +284,27 @@ def validate():
         pass
     else:
         raise AssertionError("closed bank valve permitted transfer")
+    # The target hull can be locally patched yet remain connected through
+    # an open door to a different leaking cell. That is not safe refill.
+    downstream = fresh_trial()
+    for zone in ("PZ-HAB-03", "PZ-BR-03"):
+        downstream.sample_local(zone, qualified_local_probe=True)
+    insist(downstream.open_gate("ACC-BR-03-HAB-03",
+                               local_authority=True),
+           "adjacent bridge cannot be joined for connected-leak test")
+    downstream.breach("BRIDGE-LEAK", "PZ-BR-03", 5)
+    downstream.set_bank_outlet("INV-GAS-REFILL-A", True, local_authority=True)
+    try:
+        downstream.pump_replacement_air("INV-GAS-REFILL-A",
+                                       "PZ-HAB-03", 3600,
+                                       path_locally_proven=True,
+                                       receiving_chemistry_verified=True)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("refill used physically open route into another active leak")
+    insist(isclose(downstream.bank_kg["INV-GAS-REFILL-A"], 2750),
+           "refused connected-casualty refill spent gas inventory")
     recovery.set_bank_outlet("INV-GAS-REFILL-A", True, local_authority=True)
     try:
         recovery.pump_replacement_air("INV-GAS-REFILL-A", "PZ-HAB-03", 3600,

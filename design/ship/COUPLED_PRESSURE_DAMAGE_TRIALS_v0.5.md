@@ -74,6 +74,12 @@ Known vacuum and unclassified cargo thresholds do not gain a shortcut
 because an operator has PPE or a generic transfer approval. They require
 their separately engineered airlock/transfer sequence.
 
+An indexed rotary transfer requires an independent positive capture,
+hard-lock and drive-inhibit witness. Heavy freight also requires its
+own handling authority. Equal pressure and compatible air alone do not
+authorise either passage. Freight tube shutters are likewise separately
+permissioned; these are distinct from a failed-open mechanical gate.
+
 A mechanical fault can force a hatch **jammed open** regardless of
 permission. Commanding closure then fails and the leak or unwanted
 atmosphere connection persists. `isolate_zone` closes all
@@ -91,7 +97,10 @@ replacement-air credit is permitted only after isolation/repair,
 locally checked bank valve and route, and fresh receiving chemistry
 evidence. Refill is bounded by available bank gas, the selected pressure
 target and the existing 200 kg/h *combined* nominal reference
-throughput. Delivery is ledger-averaged over declared elapsed time;
+throughput. Any open pressure connection to another still-leaking
+cell also blocks reserve delivery: a patched receiver cannot silently
+repressurise an adjacent ruptured bridge. Delivery is ledger-averaged
+over declared elapsed time;
 it does not pretend to resolve moving valves, thermal ramp, or actuator
 transients. A runtime implementation must resolve live gas service
 network routes and world-authoritative permissions separately.
@@ -114,6 +123,9 @@ adversarial comparisons:
 | Dirty-air HAB-03 to bridge | Even at equal pressure, material tracer mixes through an open hatch and blocks unsuited access |
 | Lower vs upper air-volume assumptions | Equal breach parameters produce different pressure histories |
 | Puncture sealed, bank locally opened, route proved | Real bank stock decreases; compartment gas increases; refill rate/ceiling enforced |
+| Indexed passenger and cargo transfer | Pressure evidence alone does not bypass hard-lock/drive-inhibit or freight permit |
+| Connected leak during recovery | Bank will not pump into an open neighboring compartment with an active breach |
+| Five seeded multi-gate casualty runs | No fictitious overpressure, negative mass or unaccounted gas loss across random real-gate combinations |
 | Eleven damaging input variations | Wrong topology, false installed measurements, invented crew/rates/authority are rejected |
 
 The test is part of the standalone Ox ship-design GitHub workflow. The
