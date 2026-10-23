@@ -66,6 +66,7 @@ class ElectricalEvacuationTrial(FireSmokeThermalTrial):
         self.power_edge_selected = {
             x["id"]: x["normal_state"] != "standby" for x in power_edges
         }
+        self._cached_power_nodes = None
         self.generators_online = {"GEN-M": True, "GEN-A": False, "GEN-B": True}
         self.requested_load_MW = NORMAL_DEMAND_MW
         self.unrated_sources_not_dispatchable = EXCLUDED_POWER_SOURCES
@@ -117,12 +118,31 @@ class ElectricalEvacuationTrial(FireSmokeThermalTrial):
                 and self._active("power", edge)
                 and edge["current_condition"] == "serviceable")
 
+    def change_valve(self, network, valve_id, state, *,
+                     local_authority, control_mode="remote"):
+        # This low-level physical intervention API is for scenario setup.
+        # Crew-issued orders must use queue_valve_command(), where manual
+        # worker presence, sensor knowledge and actuator delay are checked.
+        moved = super().change_valve(
+            network, valve_id, state, local_authority=local_authority,
+            control_mode=control_mode)
+        if moved and network == "power":
+            self._cached_power_nodes = None
+        return moved
+
+    def fail_valve(self, network, valve_id, stuck_state):
+        super().fail_valve(network, valve_id, stuck_state)
+        if network == "power":
+            self._cached_power_nodes = None
+
     def power_reachability(self):
         """Directed feeds, bidirectional only where actual ring/tie can backfeed.
 
         In particular, the protected bus and its batteries cannot energize
         main boards by wrongly reversing a protected source-selection feed.
         """
+        if self._cached_power_nodes is not None:
+            return self._cached_power_nodes
         graph = defaultdict(set)
         for e in self.edges["power"]:
             if not self._edge_live(e):
@@ -141,7 +161,8 @@ class ElectricalEvacuationTrial(FireSmokeThermalTrial):
                 if adj not in reached:
                     reached.add(adj)
                     q.append(adj)
-        return reached
+        self._cached_power_nodes = frozenset(reached)
+        return self._cached_power_nodes
 
     def _generator_connected(self, id):
         # Physically open feeder breaker means generator does not deliver,
@@ -197,6 +218,7 @@ class ElectricalEvacuationTrial(FireSmokeThermalTrial):
                 and local_authority is True,
                 "unverified generator status or unauthorized dispatch")
         self.generators_online[id] = online
+        self._cached_power_nodes = None
         self.event("generator_state", id=id, on_load=online)
 
     def shed_load(self, new_MW, *, local_authority,
@@ -220,6 +242,7 @@ class ElectricalEvacuationTrial(FireSmokeThermalTrial):
                 "missing real two-feed protected panel")
         self.power_edge_selected[head + "A"] = bus == "A"
         self.power_edge_selected[head + "B"] = bus == "B"
+        self._cached_power_nodes = None
         self.event("protected_feed_transfer", arc=hab_arc, selected_bus=bus)
 
     def select_main_protected_feed(self, bus, *,
@@ -232,6 +255,7 @@ class ElectricalEvacuationTrial(FireSmokeThermalTrial):
             require(edge in self.power_edge_selected,
                     "missing existing main protected feeder")
             self.power_edge_selected[edge] = (side == bus)
+        self._cached_power_nodes = None
         self.event("main_protected_source_transfer", selected_bus=bus)
 
     def change_power_tie(self, enabled, *,
@@ -240,6 +264,7 @@ class ElectricalEvacuationTrial(FireSmokeThermalTrial):
                 and (not enabled or synchronisation_verified is True),
                 "unsafe unsynchronized main bus tie operation")
         self.power_edge_selected["EDGE-MSB-XTIE"] = enabled
+        self._cached_power_nodes = None
         self.event("main_bus_tie_selection", enabled=enabled)
 
     def _zone_auxiliary_power(self, zone):
@@ -425,6 +450,8 @@ class ElectricalEvacuationTrial(FireSmokeThermalTrial):
                     c["network"], c["valve"], c["desired"],
                     local_authority=True, control_mode=c["mode"])
             if moved:
+                if c["network"] == "power":
+                    self._cached_power_nodes = None
                 self.reported_switches[(c["network"], c["valve"])] = (
                     c["desired"], round(self.time_s, 3))
             self.event("control_order_result", id=c["id"],
