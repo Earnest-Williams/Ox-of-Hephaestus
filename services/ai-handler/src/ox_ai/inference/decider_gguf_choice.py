@@ -14,12 +14,30 @@ from typing import Any
 
 class DeciderGGUFChoiceModel:
     def __init__(self, gguf_path: str | Path, descriptions: Sequence[str],
-                 *, engine: Any | None = None, n_threads: int = 4):
+                 *, engine: Any | None = None, n_threads: int = 4,
+                 alternate_descriptions: dict[int, Sequence[str]] | None = None):
         self.descriptions=tuple(descriptions)
         if not 2<=len(self.descriptions)<=16 or any(
             not isinstance(x,str) or not x.strip() for x in self.descriptions
         ):
             raise ValueError("Model needs two to sixteen nonempty choices")
+        # A character may face distinct, explicitly enumerated, finite
+        # decision domains (seven speech intents versus three *existing*
+        # agreement replies). Bind each menu cardinality to its precise
+        # semantic descriptions. Never infer choices from arbitrary text,
+        # truncate criteria, or authorize a world operation.
+        self._menus = {len(self.descriptions): self.descriptions}
+        for size, options in (alternate_descriptions or {}).items():
+            if (type(size) is not int or not 2 <= size <= 16
+                    or not isinstance(options, (tuple, list))
+                    or len(options) != size
+                    or any(not isinstance(x, str) or not x.strip()
+                           for x in options)):
+                raise ValueError("Alternate Decider menu is not a finite typed choice set")
+            options = tuple(options)
+            if size in self._menus and self._menus[size] != options:
+                raise ValueError("Conflicting descriptions for the same menu size")
+            self._menus[size] = options
         if engine is None:
             from decider.infer import Decider
             path=Path(gguf_path)
@@ -37,8 +55,9 @@ class DeciderGGUFChoiceModel:
     def sample_choice(self, prompt: str, responses: Sequence[str], *, seed=None):
         del seed
         codes=tuple(responses)
+        descriptions=self._menus.get(len(codes))
         if (not isinstance(prompt,str) or not prompt.strip() or
-                len(codes)!=len(self.descriptions) or len(set(codes))!=len(codes)
+                descriptions is None or len(set(codes))!=len(codes)
                 or any(not isinstance(x,str) or not x for x in codes)):
             raise ValueError("Invalid Concordia finite decision menu")
         # The publisher's System One API scores option letters natively.
@@ -51,7 +70,7 @@ class DeciderGGUFChoiceModel:
                     "observed circumstances? Select an offered action, without "
                     "asserting that any action has already succeeded."
                 ),
-                "criteria":dict(zip(codes,self.descriptions)),
+                "criteria":dict(zip(codes,descriptions)),
             },
         })
         answer=result.get("answers",{}).get("next_action",{})
