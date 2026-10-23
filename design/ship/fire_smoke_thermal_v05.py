@@ -55,13 +55,13 @@ class FireSmokeThermalTrial(PressureDamageTrial):
         super().__init__(topology, gas, environmental, volume_basis=volume_basis)
         require(ship["model_version"] == "0.5-candidate", "wrong source ship")
         require(len(ship["spaces"]) == 421 and len(ship["access_links"]) == 517
-                and len(ship["equipment"]) == 802, "source ship identities shifted")
+                and len(ship["equipment"]) == 808, "source ship identities shifted")
         self.ship = ship
         self.space = {x["id"]: x for x in ship["spaces"]}
         self.equipment = {x["id"]: x for x in ship["equipment"]}
         self.node = {x["id"]: x for x in ship["service_nodes"]}
         self.isolator = {x["id"]: x for x in ship["isolation_points"]}
-        require(len(self.space) == 421 and len(self.equipment) == 802,
+        require(len(self.space) == 421 and len(self.equipment) == 808,
                 "source entity identity duplicated")
 
         expected = {"atmosphere": (212, 213, 221),
