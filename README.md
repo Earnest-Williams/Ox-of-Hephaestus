@@ -2,6 +2,8 @@
 
 **An autonomous spaceship MUD/simulation prototype built on [Evennia](https://www.evennia.com/).**
 
+**Full-ship integration stage one:** the canonical 421-room v0.4 spatial topology is materialised in Evennia with Developer-only exits and a read-only authenticated wire terminal. The seven-compartment proving ground remains the runtime for crew operations until the real ship's access, equipment, pressure and maintenance mechanics migrate.
+
 > **Current state — 22 October 2026 (through authenticated 40-character recovery PR #97).**
 > The primary proving-ground ship has seven compartments, three physical
 > systems, five independently authenticated technical crew and an optional
@@ -77,8 +79,9 @@ mode and **must not run simultaneously against the same ship**.
    decisions, GOAP proposals, pending request IDs and checkpoints. It accesses
    the world as ordinary individually authenticated characters.
 3. **Human observatory (deferred):** a future presentation layer joining
-   separately permissioned world and cognitive read models. No running
-   frontend, combined API or operator-control service exists.
+   separately permissioned world and cognitive read models. A limited authenticated
+   Developer-only **spatial terminal** is implemented; it exposes neither
+   private AI memory nor a combined handler/world observatory or operator control API.
 
 Unknown physical-action outcomes are reconciled using the **original
 request ID**. A timeout is not proof of failure and never justifies blindly
@@ -107,7 +110,7 @@ and captain-obligation contention. G11's opt-in hosted-model harness and
 G12's native dispatch profiler answer **different** questions from this
 integration testing. See [status and limits](design/STATUS.md).
 
-P5 (operator observatory) is postponed. A full-ship physical world model is now **prepared but not runtime-integrated** under [`design/ship/`](design/ship/README.md); the runnable Evennia world remains the smaller proving ground. Still unimplemented are full-ship runtime integration,
+P5 (joined handler/world observatory) is postponed. The [full-ship spatial topology](design/ship/README.md) **is now materialised in Evennia** and has an authenticated Developer-only read-only [wire terminal](design/ship/LIVE_TERMINAL.md). The seven-compartment proving ground still operates the crew and equipment mechanics. Still unimplemented are full-ship operational mechanics,
 freight trading/economics, graded real physical task attempts,
 an acquired-attribute engine, autonomous education agendas and comprehensive
 production operations. See [status](design/STATUS.md) and
