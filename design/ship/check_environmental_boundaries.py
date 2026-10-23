@@ -49,8 +49,11 @@ def may_release(record: dict, readings: dict, control: dict) -> tuple[bool,str]:
         return False,"no_local_release_permission"
     if not control.get("gate_mechanically_verified"):
         return False,"gate_capture_or_seal_unproven"
-    if not readings.get("environment_compatible") and not control.get("approved_sealed_transfer"):
-        return False,"incompatible_media_without_containment"
+    # A maintenance approval is not physical proof of a third sealed volume.
+    # No such independently bounded transfer cell is identified at these
+    # direct cargo/plant thresholds; a separate rated transfer sequence is needed.
+    if not readings.get("environment_compatible"):
+        return False,"incompatible_media_requires_separate_transfer_cell"
     role=record["environment_role"]
     if role == "manifest_dependent_cargo_sector":
         if not control.get("all_other_sector_boundaries_shut"):
@@ -195,6 +198,13 @@ def validate(ship: dict, pressure: dict, gas: dict, manifest: dict) -> dict:
         altered=dict(readings,**override)
         insist(may_release(example,altered,control)[0] is False,
                "unsafe sector release accepted: "+damaged)
+
+    # A forged generic "approved transfer" flag cannot make a direct hatch
+    # into incompatible cargo atmosphere safe without an actual isolated cell.
+    insist(may_release(example,
+           dict(readings, environment_compatible=False),
+           dict(control, approved_sealed_transfer=True))[0] is False,
+           "nonexistent sealed-transfer volume accepted for direct hatch")
     for damaged,override in [
         ("remote_only",{"local_authority_and_access_permit":False}),
         ("other_sector_gate_open",{"all_other_sector_boundaries_shut":False}),

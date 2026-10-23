@@ -148,6 +148,14 @@ def validate(ship: dict, ledger: dict) -> dict:
     require(len([c for c in pressure.values()
                  if c["gross_reference_envelope_m3"] is not None]) == 133,
             "unaccounted numerical gross-envelope sections")
+    summary = ledger["geometry_reconciliation"]
+    require(summary["reference"] == "pressure_geometry_reconciliation_v0.5.json"
+            and summary["sized_cells"] == len(pressure)
+            and summary["still_unsized_cells"] == 0
+            and summary["extra_sized_cells"] == 48
+            and ledger["totals"]["sized_geometric_cells"] == len(pressure)
+            and ledger["totals"]["pressure_cells"] == len(pressure),
+            "obsolete candidate pressure-cell sizing reconciliation")
     return {
         "distinct_pressure_cells": len(pressure),
         "pressure_rated_links": len(actual_doors),
@@ -178,6 +186,8 @@ def negative_tests(ship: dict, design: dict) -> None:
          .update(pressure_zone=None)),
         ("gross volume misdeclared", lambda s, d:
          d["totals"].update(gross_reference_envelopes_m3=1)),
+        ("obsolete geometry count", lambda s, d:
+         d["geometry_reconciliation"].update(sized_cells=101)),
         ("fake measured net gas inventory", lambda s, d:
          d["pressure_cells"][0].update(actual_usable_free_air_m3=999)),
     ]
@@ -196,4 +206,4 @@ if __name__ == "__main__":
     g = json.loads(CELLS.read_text(encoding="utf-8"))
     print(json.dumps(validate(s, g), indent=2, sort_keys=True))
     negative_tests(s, g)
-    print("OX_PRESSURE_CELL_MODEL_AND_SIX_NEGATIVE_TESTS_PASS")
+    print("OX_PRESSURE_CELL_MODEL_AND_SEVEN_NEGATIVE_TESTS_PASS")

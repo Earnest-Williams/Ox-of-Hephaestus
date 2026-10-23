@@ -63,6 +63,8 @@ use a properly isolated local transfer volume, controlled pressure
 cycling and approved exterior access; an inaccessible sector remains
 closed until that work can be done.
 
+**Transfer exception clarification:** none of these 131 direct access links currently identifies a separate, pressure-bounded transfer chamber. An `approved_sealed_transfer` flag is therefore not enough to open a hatch into incompatible cargo gas. The direct-gate screen rejects that attempt. Transfer to or from incompatible media requires a physically distinct isolated volume and its own verified route/sequence, or separately permitted exterior handling; it must not be inferred from a work permit alone.
+
 Industrial machinery doors demand a local energy/rotation lockout as
 well as pressure/chemistry evidence. Commercial exterior cargo portals
 must be positively captured and structurally locked. For a cargo sector,
