@@ -15,6 +15,8 @@ import json
 
 HERE = Path(__file__).resolve().parent
 P_REF_KPA = 101.325
+T_REF_K = 293.15
+AIR_CP_KJ_KG_K = 1.005
 REF_O2_MOLAR = 0.21
 O2_MOLAR_KG = 0.031998
 # Other dry air is an effective mixture, not pure nitrogen.
@@ -51,6 +53,9 @@ class GasCell:
     gas_kg: float
     oxygen_kg: float
     trace_kg: float = 0.0
+    temperature_K: float = T_REF_K
+    sampled_temperature_K: float | None = None
+    sampled_oxygen_kg: float | None = None
     sampled_at_s: float | None = None
     sampled_gas_kg: float | None = None
     sampled_trace_kg: float | None = None
@@ -60,8 +65,9 @@ class GasCell:
 
     @property
     def pressure_kpa(self) -> float:
-        # Isothermal, constant effective reference molecular weight.
-        return P_REF_KPA * self.gas_kg / (1.204118 * self.free_volume_m3)
+        # Lumped ideal-gas reference; thermal/fuel model updates temperature.
+        return (P_REF_KPA * self.gas_kg / (1.204118 * self.free_volume_m3)
+                * self.temperature_K / T_REF_K)
 
     @property
     def oxygen_partial_kpa(self) -> float:
@@ -75,6 +81,7 @@ class GasCell:
         return (not self.unknown_exposure
                 and 80.0 <= self.pressure_kpa <= 120.0
                 and 16.0 <= self.oxygen_partial_kpa <= 26.0
+                and 278.15 <= self.temperature_K <= 313.15
                 and self.trace_kg <= 1e-5 * max(self.gas_kg, 0.0))
 
     def fresh_observation(self, now_s: float) -> bool:
@@ -85,7 +92,12 @@ class GasCell:
                 and abs(self.gas_kg - self.sampled_gas_kg)
                 <= MAX_SAMPLE_MASS_CHANGE_FRACTION * max(self.sampled_gas_kg, 1.0)
                 and self.sampled_trace_kg is not None
-                and abs(self.trace_kg - self.sampled_trace_kg) <= 1e-9)
+                and abs(self.trace_kg - self.sampled_trace_kg) <= 1e-9
+                and self.sampled_temperature_K is not None
+                and abs(self.temperature_K - self.sampled_temperature_K) <= 1.0
+                and self.sampled_oxygen_kg is not None
+                and abs(self.oxygen_kg - self.sampled_oxygen_kg)
+                    <= 0.002 * max(self.sampled_oxygen_kg, 1.0))
 
 
 @dataclass
@@ -203,6 +215,8 @@ class PressureDamageTrial:
         c.sampled_at_s = self.time_s
         c.sampled_gas_kg = c.gas_kg
         c.sampled_trace_kg = c.trace_kg
+        c.sampled_temperature_K = c.temperature_K
+        c.sampled_oxygen_kg = c.oxygen_kg
         self.event("sample_local", cell=cell_id)
 
     def may_enter_unsuited(self, cell_id: str) -> bool:
@@ -372,6 +386,8 @@ class PressureDamageTrial:
             return
         oxygen = mass * source.oxygen_kg / source.gas_kg
         trace = mass * source.trace_kg / source.gas_kg
+        old_receiver_mass = receiver.gas_kg if receiver is not None else 0.0
+        parcel_temperature = source.temperature_K
         source.gas_kg = max(0.0, source.gas_kg - mass)
         source.oxygen_kg = max(0.0, source.oxygen_kg - oxygen)
         source.trace_kg = max(0.0, source.trace_kg - trace)
@@ -379,6 +395,8 @@ class PressureDamageTrial:
             self.lost_to_vacuum_kg += mass
             self.lost_oxygen_kg += oxygen
         else:
+            receiver.temperature_K = ((old_receiver_mass * receiver.temperature_K
+                + mass * parcel_temperature) / (old_receiver_mass + mass))
             receiver.gas_kg += mass
             receiver.oxygen_kg += oxygen
             receiver.trace_kg += trace
@@ -392,12 +410,15 @@ class PressureDamageTrial:
         x = min(mass_equivalent, 0.25 * a.gas_kg, 0.25 * b.gas_kg)
         oxygen_a, oxygen_b = a.oxygen_kg / a.gas_kg, b.oxygen_kg / b.gas_kg
         trace_a, trace_b = a.trace_kg / a.gas_kg, b.trace_kg / b.gas_kg
+        old_a_K, old_b_K = a.temperature_K, b.temperature_K
         oxygen_difference = x * (oxygen_b - oxygen_a)
         trace_difference = x * (trace_b - trace_a)
         a.oxygen_kg += oxygen_difference
         b.oxygen_kg -= oxygen_difference
         a.trace_kg += trace_difference
         b.trace_kg -= trace_difference
+        a.temperature_K += x / a.gas_kg * (old_b_K - old_a_K)
+        b.temperature_K += x / b.gas_kg * (old_a_K - old_b_K)
 
     def _step(self, dt: float) -> None:
         self._propagate_unknown_exposure()
@@ -423,10 +444,13 @@ class PressureDamageTrial:
                 if donor is not None:
                     requested = self._flow_kg(
                         p_high, p_low, g.open_flow_kg_s, dt)
+                    # Pressure equalisation must also respect the hot donor
+                    # gas's enthalpy as the receiver warms during transfer.
                     equalising_mass = (
-                        donor.gas_kg * receiver.free_volume_m3
-                        - receiver.gas_kg * donor.free_volume_m3
-                    ) / (donor.free_volume_m3 + receiver.free_volume_m3)
+                        donor.gas_kg * donor.temperature_K * receiver.free_volume_m3
+                        - receiver.gas_kg * receiver.temperature_K * donor.free_volume_m3
+                    ) / (donor.temperature_K *
+                         (donor.free_volume_m3 + receiver.free_volume_m3))
                     self._move_mass(donor, receiver,
                                     min(requested, max(equalising_mass, 0.0)))
                 # Composition still mixes through a hatch at equal P.
@@ -548,6 +572,8 @@ class PressureDamageTrial:
             "bank_remaining_kg": {k: round(v, 3) for k, v in self.bank_kg.items()},
             "gas_mass_balance_error_kg": round(self.mass_balance_error_kg(), 8),
             "cells": {id: {
+                "temperature_reference_C": (None if self.cells[id].unknown_exposure
+                    else round(self.cells[id].temperature_K - 273.15, 3)),
                 "pressure_reference_kpa": (None if self.cells[id].unknown_exposure
                     else round(self.cells[id].pressure_kpa, 3)),
                 "oxygen_partial_reference_kpa": (None if self.cells[id].unknown_exposure

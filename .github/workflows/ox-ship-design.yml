@@ -45,3 +45,4 @@ jobs:
           python design/ship/check_environmental_boundaries.py
           python design/ship/check_atmosphere_casualties.py
           python design/ship/check_pressure_damage_sim.py
+          python design/ship/check_fire_smoke_thermal.py
