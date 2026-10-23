@@ -1,0 +1,236 @@
+name: Ox G11 three-seed real-world Decider social commitments
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches: [main]
+    paths:
+      - "scenarios/g8_soap_opera/live_trial.py"
+      - "scenarios/g8_soap_opera/g11_evaluate.py"
+      - "scenarios/g8_soap_opera/g11_assess_seeds.py"
+      - "services/ai-handler/tests/test_g11_world_contracts.py"
+      - ".github/workflows/ox-g11-world-commitments.yml"
+      - "!**/*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ox-g11-world-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  g11-world-seed:
+    name: "G11 real Evennia seed ${{ matrix.seed }}"
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 105
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [241, 619, 1009]
+    env:
+      OX_G8_LIVE_CI: "1"
+      G11_SEED: ${{ matrix.seed }}
+      G11_ROOT: .ox-state/g11/seed-${{ matrix.seed }}
+      MODEL_DIR: .ox-state/g11/weights
+      OX_DECIDER_GGUF_PATH: .ox-state/g11/weights/decider-4b.Q4_K_M.gguf
+      HF_HUB_DISABLE_TELEMETRY: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            services/ai-handler/pyproject.toml
+            uv.lock
+            .github/ci/cache-profiles/concordia.txt
+      - name: Install native Evennia, real Concordia, local Decider choice backend
+        run: |
+          python -m pip install .
+          python -m pip install -e './services/ai-handler[concordia,transport]'
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers>=5,<6' 'numpy<3' 'huggingface_hub>=0.34,<2' jinja2 'llama-cpp-python>=0.3.35,<0.4'
+          python -m pip install --no-deps 'decider-ai==1.10.0'
+      - name: Run G8/G9/G11 identity, memory and receipt contract regressions
+        run: |
+          python -m unittest discover -s services/ai-handler/tests -p test_g11_world_contracts.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_g9_longitudinal.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_g8_longrun.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_personality_routing.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_cognition_scheduler.py -v
+      - name: Provision Q4 Decider GGUF pinned weights and publisher tokenizer
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$MODEL_DIR"
+          python - <<'PY'
+          from huggingface_hub import snapshot_download,hf_hub_download
+          from pathlib import Path
+          import os,shutil,hashlib,json
+          d=Path(os.environ["MODEL_DIR"])
+          qrev="3b02c98fa0b19e9daab247d633095b6e8a6cd4c5"
+          trev="d3a78581751d518bbfa9e871a6d84059554d53c5"
+          snapshot_download(repo_id="Mapika/decider-4b-GGUF",revision=trev,
+              local_dir=str(d),allow_patterns=["config.json","decider_config.json",
+                  "tokenizer.json","tokenizer_config.json","special_tokens_map.json",
+                  "*.jinja","vocab.json","merges.txt","added_tokens.json"])
+          from huggingface_hub import HfApi
+          names=[x.rfilename for x in HfApi().model_info(
+              "mradermacher/decider-4b-GGUF",revision=qrev).siblings]
+          qs=[n for n in names if n.lower().endswith("q4_k_m.gguf") and "/" not in n]
+          if len(qs)!=1:raise RuntimeError(f"Expected one Q4_K_M: {qs}")
+          src=hf_hub_download(repo_id="mradermacher/decider-4b-GGUF",
+              filename=qs[0],revision=qrev)
+          out=d/qs[0]
+          if not out.exists():shutil.copyfile(src,out)
+          expected=d/"decider-4b.Q4_K_M.gguf"
+          if out!=expected:
+              if expected.exists():raise RuntimeError("Unexpected existing model")
+              expected.symlink_to(out.name)
+          h=hashlib.sha256()
+          with out.open("rb") as f:
+              while piece:=f.read(8*1024*1024):h.update(piece)
+          m=dict(model="decider-q4",hf_revision=qrev,tokenizer_revision=trev,
+                 sha256=h.hexdigest(),size=out.stat().st_size,source_file=out.name)
+          (d.parent/"model-manifest.json").write_text(json.dumps(m,indent=2))
+          print(m)
+          PY
+      - name: Generate disposable six-client world credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$G11_ROOT"
+          PASSWORD="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          OWNER="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          echo "::add-mask::$PASSWORD"
+          echo "::add-mask::$OWNER"
+          echo "OX_PROBE_PASSWORD=$PASSWORD" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_PASSWORD=$OWNER" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_USERNAME=OxG11Operator" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_EMAIL=g11@example.invalid" >> "$GITHUB_ENV"
+      - name: Provision six independently authenticated characters
+        working-directory: game
+        shell: bash
+        run: |
+          set -euo pipefail
+          evennia migrate --noinput
+          evennia shell --command="from world.transport_probe import provision; from world.bootstrap import build_ship; ids=provision(include_specialists=True, include_captain=True); ship=build_ship(); [ship[key].move_to(ship['mess']) for key in ('watch','officer','chief','cargo','environment','captain')]; assert len(ids)==6; print('OX_G11_PROVISIONED')" > "../$G11_ROOT/provision.log"
+          grep -Fq OX_G11_PROVISIONED "../$G11_ROOT/provision.log"
+      - name: Start Evennia world and await stable WebSocket transport
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd game && evennia start)
+          python - <<'PY'
+          import socket,time
+          stop=time.monotonic()+120
+          stable=None
+          while time.monotonic()<stop:
+              try:
+                  with socket.create_connection(("127.0.0.1",4002),timeout=1):pass
+              except OSError:stable=None
+              else:
+                  stable=stable or time.monotonic()
+                  if time.monotonic()-stable>=12:break
+              time.sleep(1)
+          else:raise RuntimeError("Evennia did not become ready")
+          PY
+      - name: Perform 205 live turns with two world-authenticated repair incidents
+        shell: bash
+        run: |
+          set -euo pipefail
+          run="scenarios/g8_soap_opera/live_trial.py"
+          options="--root $G11_ROOT --cognition-mode decider --contract-routing --seed $G11_SEED"
+          inject() {
+            fixture="$1"
+            label="$2"
+            (cd game && evennia stop)
+            (cd game && evennia shell --command="from world.bootstrap import build_ship; ok,msg=build_ship()['$fixture'].inject_fault(); assert ok,msg; print('$label')") > "$G11_ROOT/$label.log"
+            grep -Fq "$label" "$G11_ROOT/$label.log"
+            (cd game && evennia start)
+            python - <<'PY'
+          import socket,time
+          stop=time.monotonic()+120
+          stable=None
+          while time.monotonic()<stop:
+              try:
+                  with socket.create_connection(("127.0.0.1",4002),timeout=1):pass
+              except OSError:stable=None
+              else:
+                  stable=stable or time.monotonic()
+                  if time.monotonic()-stable>=12:break
+              time.sleep(1)
+          else:raise RuntimeError("Evennia did not restart after G11 fault injection")
+          PY
+          }
+          python "$run" --start 1 --end 34 $options
+          inject cradle G11_CARGO_INCIDENT
+          python "$run" --start 35 --end 137 $options
+          inject scrubber G11_ATMOSPHERE_INCIDENT
+          python "$run" --start 138 --end 205 $options
+          python scenarios/g8_soap_opera/g11_evaluate.py \
+            --root "$G11_ROOT" --turns 205 | tee "$G11_ROOT/seed-summary.txt"
+          grep -Fq OX_G11_AUTHENTIC_WORLD_SOCIAL_PASS "$G11_ROOT/seed-summary.txt"
+      - name: Stop world for independent verification
+        if: always()
+        working-directory: game
+        run: evennia stop || true
+      - name: Independently inspect world equipment after model-directed social consequences
+        working-directory: game
+        shell: bash
+        run: |
+          evennia shell --command="from world.bootstrap import build_ship; s=build_ship(); assert s['cradle'].state=='secured',s['cradle'].state; assert s['scrubber'].state=='nominal',s['scrubber'].state; print('OX_G11_REAL_WORLD_RECOVERED')"
+      - name: Archive verified world receipts and actor-local cognitive evidence (no GGUF)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-g11-world-seed-${{ matrix.seed }}
+          path: |
+            .ox-state/g11/seed-${{ matrix.seed }}/g11-report.json
+            .ox-state/g11/seed-${{ matrix.seed }}/g9-report.json
+            .ox-state/g11/seed-${{ matrix.seed }}/state.json
+            .ox-state/g11/seed-${{ matrix.seed }}/*.brain.json
+            .ox-state/g11/seed-${{ matrix.seed }}/seed-summary.txt
+            .ox-state/g11/seed-${{ matrix.seed }}/*.log
+          retention-days: 21
+          if-no-files-found: ignore
+
+  g11-across-seeds:
+    name: G11 verify three separate real-world commitment outcomes
+    needs: [g11-world-seed]
+    if: ${{ success() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Retrieve all three worlds and reject missing seed evidence
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ox-g11-world-seed-*
+          path: .ox-state/g11/combined
+      - name: Compare all seeded authentic world results (no cherry-picked subset)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scenarios/g8_soap_opera/g11_assess_seeds.py \
+            --root .ox-state/g11/combined \
+            --out .ox-state/g11/three-seed-summary.json \
+            | tee .ox-state/g11/three-seed-summary.txt
+          grep -Fq OX_G11_THREE_SEED_WORLD_SUITE_PASS .ox-state/g11/three-seed-summary.txt
+      - name: Archive outcome comparison
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-g11-three-seed-world-results
+          path: |
+            .ox-state/g11/three-seed-summary.json
+            .ox-state/g11/three-seed-summary.txt
+          retention-days: 21
+          if-no-files-found: ignore
