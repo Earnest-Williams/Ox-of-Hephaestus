@@ -1,4 +1,4 @@
-**CURRENT 23 OCTOBER 2026 v0.5 CANDIDATE:** 133/133 physically bounded nominal pressure cells, 208 rated access boundaries, 100,772.940 m³ gross / 65,832.797–88,021.802 m³ planned free-air reference; **802 maintained equipment objects, 13 inventory accounts, 42 maintenance groups**. The six cargo-drums now have individual passenger indexers and freight docking collars; the four separate, finite industrial/hazardous bins begin empty. Read [machinery/industrial disposal closure](MACHINERY_AND_FINITE_DISPOSAL_CLOSURE_v0.5.md) and [physical closure](PHYSICAL_CLOSURE_v0.5.md). Earlier dates/counts later in these files refer to earlier v0.5 milestones only. All source volumes are design geometry, not as-installed measurements or certified safe access.
+**CURRENT 23 OCTOBER 2026 v0.5 CANDIDATE:** 133/133 physically bounded nominal pressure cells, 339 rated access boundaries, 100,772.940 m³ gross / 65,832.797–88,021.802 m³ planned free-air reference; **808 maintained equipment objects, 15 inventory accounts, 42 maintenance groups**. The six cargo-drums now have individual passenger indexers and freight docking collars; the four separate, finite industrial/hazardous bins begin empty. Read [machinery/industrial disposal closure](MACHINERY_AND_FINITE_DISPOSAL_CLOSURE_v0.5.md) and [physical closure](PHYSICAL_CLOSURE_v0.5.md). Earlier dates/counts later in these files refer to earlier v0.5 milestones only. All source volumes are design geometry, not as-installed measurements or certified safe access.
 
 # Pressure-volume reconciliation v0.5 — screened gross geometry
 
@@ -15,6 +15,10 @@
 > [pressure-access closure](PRESSURE_ACCESS_CLOSURE_v0.5.md).
 > Earlier volume/count figures below are retained as design history.
 
+
+## Adopted complete geometry (23 October 2026)
+
+**All 133/133 independently isolatable pressure cells now have selected gross envelopes**, totalling **100,772.940 m³**, with an intentionally broad **65,832.797–88,021.802 m³** planned free-gas range and **79.270–105.989 t** nominal dry air. All **339** rated pressure/unknown-environment interfaces are registered. Formerly unresolved 48 envelopes are now accounted for without parent/child volume duplication; their as-installed fitted displacement and measured gas remain unknown. The following 11-cell, 96/37 and 101/32 descriptions are *historical intermediate checks*, not the current selected model. The 83 separately unclassified industrial/cargo/shield spaces remain presumed hazardous until locally verified.
 
 ### First 11-cell audit, retained for comparison
 
