@@ -12,7 +12,7 @@
 
 ## Rationale / evidence
 
-[G13](g13-experimental-results.md) measured procedural vs original 4/72, independent vs original 7/72 action changes with strong order effects. [G14 v2](g14-experimental-results.md) corrected the position-cover confound and still found numeric trait 3/72 and prose trait 5/72 action differences; model chose first display position in 119/288 cases. The pre-existing `PersonalityRouter` changes GOAP-vs-model consultation probability (roughly 2–90%) without making ordinary shared-cost GOAP plans disposition-specific. These are distinct parameters: **consultation propensity ≠ choice propensity**.
+[G13](g13-experimental-results.md) measured procedural vs original 4/72, independent vs original 7/72 action changes with strong order effects. [G14 v2](g14-experimental-results.md) corrected the position-cover confound and found numeric trait 3/72 in each of two native runs, with prose trait 5/72 then 2/72 action differences; first display position was selected in 119/288 and 121/288 cases respectively. Treat these as separate samples, not an identical replication. The pre-existing `PersonalityRouter` changes GOAP-vs-model consultation probability (roughly 2–90%) without making ordinary shared-cost GOAP plans disposition-specific. These are distinct parameters: **consultation propensity ≠ choice propensity**.
 
 ## G16a — one source of authored option tags
 
