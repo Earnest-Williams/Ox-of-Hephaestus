@@ -72,6 +72,7 @@ class CrewAgent:
         blueprint: Any | None = None,
         initial_memories: Sequence[SeededMemory] = (),
         memory_projection_enabled: bool = True,
+        observation_history_length: int = 32,
     ) -> None:
         """Construct the Concordia component graph around a supplied model.
 
@@ -100,6 +101,10 @@ class CrewAgent:
         self.blueprint = blueprint
         if type(memory_projection_enabled) is not bool:
             raise TypeError("Memory projection mode must be boolean")
+        if (type(observation_history_length) is not int
+                or not 1 <= observation_history_length <= 32):
+            raise ValueError("Recent observation window must be 1..32")
+        self._observation_history_length = observation_history_length
         self._memory_projection_enabled = memory_projection_enabled
         # Authored recollections are private cognitive data, never world events.
         # Restored agents supply none here: native memory is restored verbatim.
@@ -139,7 +144,8 @@ class CrewAgent:
             "OxMemoryContext": OxMemoryContext(self),
             "ObservationToMemory": observation.ObservationToMemory(),
             observation.DEFAULT_OBSERVATION_COMPONENT_KEY: (
-                observation.LastNObservations(history_length=32)
+                observation.LastNObservations(
+                    history_length=self._observation_history_length)
             ),
             memory.DEFAULT_MEMORY_COMPONENT_KEY: memory.ListMemory(
                 [seed.render() for seed in seeded]
@@ -175,6 +181,11 @@ class CrewAgent:
     def cognition_revision(self) -> int:
         """Revision for decision-relevant private cognition, not observations."""
         return self._cognition_revision
+
+    @property
+    def observation_history_length(self) -> int:
+        """Bounded latest-observation act context; not a memory-retention limit."""
+        return self._observation_history_length
 
     @property
     def memory_projection_enabled(self) -> bool:
@@ -438,6 +449,7 @@ class CrewAgent:
         fork = CrewAgent(
             self.identity, self._model, blueprint=self.blueprint,
             memory_projection_enabled=self._memory_projection_enabled,
+            observation_history_length=self._observation_history_length,
         )
         fork._entity.set_state(deepcopy(self._entity.get_state()))
         fork._temporal_memories = TemporalMemoryBank.from_records(
@@ -465,7 +477,8 @@ class CrewAgent:
         """
         if (not isinstance(fork, CrewAgent) or fork is self
                 or fork.identity != self.identity or fork.blueprint != self.blueprint
-                or fork.memory_projection_enabled != self.memory_projection_enabled):
+                or fork.memory_projection_enabled != self.memory_projection_enabled
+                or fork.observation_history_length != self.observation_history_length):
             raise PermissionError("Detached inference belongs to another person")
         if (self._revision != expected_revision
                 or fork.revision != expected_revision
@@ -626,6 +639,7 @@ class CrewAgent:
         return {
             "checkpoint_version": self.CHECKPOINT_VERSION,
             "memory_projection_enabled": self._memory_projection_enabled,
+            "observation_history_length": self._observation_history_length,
             "identity": asdict(self.identity),
             **({"character_blueprint": self.blueprint.to_record()} if self.blueprint is not None else {}),
             "revision": self._revision,
@@ -692,6 +706,8 @@ class CrewAgent:
             blueprint=blueprint,
             memory_projection_enabled=checkpoint.get(
                 "memory_projection_enabled", True),
+            observation_history_length=checkpoint.get(
+                "observation_history_length", 32),
         )
         crew._entity.set_state(checkpoint["concordia_state"])
         # Existing pre-G8 checkpoints contain only native Concordia memory.

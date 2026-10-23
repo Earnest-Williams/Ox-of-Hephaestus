@@ -1,0 +1,228 @@
+name: Ox G9 live longitudinal Decider personality
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches: [main]
+    paths:
+      - "scenarios/g8_soap_opera/live_trial.py"
+      - "scenarios/g8_soap_opera/g9_evaluate.py"
+      - "scenarios/g8_soap_opera/g9_memory_counterfactual.py"
+      - "services/ai-handler/src/ox_ai/runtime/personality_routing.py"
+      - "services/ai-handler/src/ox_ai/inference/decider_gguf_choice.py"
+      - "services/ai-handler/tests/test_g9_longitudinal.py"
+      - ".github/workflows/ox-g9-live-personality.yml"
+      - "services/ai-handler/src/ox_ai/memory/seeds.py"
+      - "services/ai-handler/src/ox_ai/memory/temporal.py"
+      - "services/ai-handler/src/ox_ai/memory/interpretation.py"
+      - "services/ai-handler/src/ox_ai/agents/crew.py"
+      - "services/ai-handler/src/ox_ai/agents/live_concordia.py"
+      - "services/ai-handler/src/ox_ai/runtime/cognition_scheduler.py"
+      - "services/ai-handler/src/ox_ai/memory/concordia_context.py"
+      - "services/ai-handler/tests/test_cognition_scheduler.py"
+      - "services/ai-handler/tests/test_concordia_crew.py"
+      - "services/ai-handler/tests/test_memory_seeding.py"
+      - "services/ai-handler/tests/test_g8_longrun.py"
+      - "services/ai-handler/tests/test_memory_interpretation.py"
+      - ".github/workflows/ox-g8-live-soap.yml"
+      - "!**/*.md"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: g9-decider-longitudinal-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  g9-six-real-clients:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      OX_G8_LIVE_CI: "1"
+      MODEL_DIR: .ox-state/g9/weights
+      OX_DECIDER_GGUF_PATH: .ox-state/g9/weights/decider-4b.Q4_K_M.gguf
+      HF_HUB_DISABLE_TELEMETRY: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            services/ai-handler/pyproject.toml
+            uv.lock
+            .github/ci/cache-profiles/concordia.txt
+      - name: Install native Evennia, pinned Concordia and transport
+        run: |
+          python -m pip install .
+          python -m pip install -e './services/ai-handler[concordia,transport]'
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers>=5,<6' 'numpy<3' 'huggingface_hub>=0.34,<2' jinja2 'llama-cpp-python>=0.3.35,<0.4'
+          python -m pip install --no-deps 'decider-ai==1.10.0'
+      - name: Narrow memory and run-policy tests
+        run: |
+          python -m unittest discover -s services/ai-handler/tests -p test_memory_seeding.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_memory_interpretation.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_g8_longrun.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_g9_longitudinal.py -v
+      - name: Provision Q4 Decider GGUF pinned weights and publisher tokenizer
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$MODEL_DIR"
+          python - <<'PY'
+          from huggingface_hub import snapshot_download,hf_hub_download
+          from pathlib import Path
+          import os,shutil,hashlib,json
+          d=Path(os.environ["MODEL_DIR"])
+          qrev="3b02c98fa0b19e9daab247d633095b6e8a6cd4c5"
+          trev="d3a78581751d518bbfa9e871a6d84059554d53c5"
+          snapshot_download(repo_id="Mapika/decider-4b-GGUF",revision=trev,
+              local_dir=str(d),allow_patterns=["config.json","decider_config.json",
+                  "tokenizer.json","tokenizer_config.json","special_tokens_map.json",
+                  "*.jinja","vocab.json","merges.txt","added_tokens.json"])
+          from huggingface_hub import HfApi
+          names=[x.rfilename for x in HfApi().model_info(
+              "mradermacher/decider-4b-GGUF",revision=qrev).siblings]
+          qs=[n for n in names if n.lower().endswith("q4_k_m.gguf") and "/" not in n]
+          if len(qs)!=1:raise RuntimeError(f"Expected one Q4_K_M: {qs}")
+          src=hf_hub_download(repo_id="mradermacher/decider-4b-GGUF",
+              filename=qs[0],revision=qrev)
+          out=d/qs[0]
+          if not out.exists():shutil.copyfile(src,out)
+          expected=d/"decider-4b.Q4_K_M.gguf"
+          if out!=expected:
+              if expected.exists():raise RuntimeError("Unexpected existing model")
+              expected.symlink_to(out.name)
+          h=hashlib.sha256()
+          with out.open("rb") as f:
+              while piece:=f.read(8*1024*1024):h.update(piece)
+          m=dict(model="decider-q4",hf_revision=qrev,tokenizer_revision=trev,
+                 sha256=h.hexdigest(),size=out.stat().st_size,source_file=out.name)
+          (d.parent/"model-manifest.json").write_text(json.dumps(m,indent=2))
+          print(m)
+          PY
+      - name: Prepare disposable credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .ox-state/g8
+          PASSWORD="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          OWNER="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          echo "::add-mask::$PASSWORD"
+          echo "::add-mask::$OWNER"
+          echo "OX_PROBE_PASSWORD=$PASSWORD" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_PASSWORD=$OWNER" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_USERNAME=OxG9Operator" >> "$GITHUB_ENV"
+          echo "EVENNIA_SUPERUSER_EMAIL=g9@example.invalid" >> "$GITHUB_ENV"
+      - name: Provision six characters in a shared crew mess
+        working-directory: game
+        shell: bash
+        run: |
+          set -euo pipefail
+          evennia migrate --noinput
+          evennia shell --command="from world.transport_probe import provision; from world.bootstrap import build_ship; ids=provision(include_specialists=True, include_captain=True); ship=build_ship(); [ship[key].move_to(ship['mess']) for key in ('watch','officer','chief','cargo','environment','captain')]; assert len(ids)==6; print('OX_G9_PROVISIONED')" > ../.ox-state/g9/provision.log
+          grep -Fq OX_G9_PROVISIONED ../.ox-state/g9/provision.log
+      - name: Start Evennia and confirm stable WebSocket
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd game && evennia start)
+          python - <<'PY'
+          import socket, time
+          limit = time.monotonic() + 120
+          stable = None
+          while time.monotonic() < limit:
+              try:
+                  with socket.create_connection(("127.0.0.1", 4002), timeout=1):
+                      pass
+              except OSError:
+                  stable = None
+              else:
+                  stable = stable or time.monotonic()
+                  if time.monotonic() - stable >= 12:
+                      break
+              time.sleep(1)
+          else:
+              raise RuntimeError("Evennia never became ready")
+          PY
+      - name: Perform 205 observed six-client decisions and two world repairs
+        shell: bash
+        run: |
+          set -euo pipefail
+          run="scenarios/g8_soap_opera/live_trial.py"
+          options="--root .ox-state/g9 --cognition-mode decider"
+          inject() {
+            fixture="$1"
+            label="$2"
+            (cd game && evennia stop)
+            (cd game && evennia shell --command="from world.bootstrap import build_ship; ok,msg=build_ship()['$fixture'].inject_fault(); assert ok,msg; print('$label')") > ".ox-state/g9/$label.log"
+            grep -Fq "$label" ".ox-state/g9/$label.log"
+            (cd game && evennia start)
+            python - <<'PY'
+          import socket,time
+          limit=time.monotonic()+120
+          stable=None
+          while time.monotonic()<limit:
+              try:
+                  with socket.create_connection(("127.0.0.1",4002),timeout=1):pass
+              except OSError:stable=None
+              else:
+                  stable=stable or time.monotonic()
+                  if time.monotonic()-stable>=12:break
+              time.sleep(1)
+          else:raise RuntimeError("Evennia failed to restart after G9 operator injection")
+          PY
+          }
+          python "$run" --start 1 --end 34 $options
+          inject cradle G9_FAULT1
+          python "$run" --start 35 --end 137 $options
+          inject scrubber G9_FAULT2
+          python "$run" --start 138 --end 205 $options
+          python scenarios/g8_soap_opera/g9_evaluate.py --root .ox-state/g9 --turns 205 | tee .ox-state/g9/summary.txt
+          grep -Fq OX_G9_REAL_LONGITUDINAL_PASS .ox-state/g9/summary.txt
+      - name: No-world paired Decider memory projection ablation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scenarios/g8_soap_opera/g9_memory_counterfactual.py \
+            --root .ox-state/g9 \
+            --gguf-path "$OX_DECIDER_GGUF_PATH" \
+            | tee .ox-state/g9/memory-ablation-summary.txt
+          grep -Fq OX_G9_REAL_MEMORY_ABLATION_PASS .ox-state/g9/memory-ablation-summary.txt
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path(".ox-state/g9/g9-memory-ablation.json").read_text())
+          assert data["world_commands_sent"] == 0, data
+          assert len(data["rows"]) == 12 and len(data["pairs"]) == 6, data
+          assert all(p["remembered_episodes_eligible"] >= 1 for p in data["pairs"]), data
+          assert all(r["model_calls"] == 1 for r in data["rows"]), data
+          print("OX_G9_MEMORY_ABLATION_CONTRACT_PASS")
+          PY
+      - name: Stop Evennia
+        if: always()
+        working-directory: game
+        run: evennia stop || true
+      - name: Independently verify physical world conditions
+        working-directory: game
+        run: |
+          evennia shell --command="from world.bootstrap import build_ship; s=build_ship(); assert s['cradle'].state=='secured',s['cradle'].state; assert s['scrubber'].state=='nominal',s['scrubber'].state; print('OX_G9_WORLD_EVIDENCE_PASS')"
+      - name: Archive evidence and separate private snapshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-g9-real-decider-205-turns
+          # Intentionally never archive the multi-GB Decider GGUF/tokenizer.
+          # Only reproducible model metadata and private behavioural evidence.
+          path: |
+            .ox-state/g9/state.json
+            .ox-state/g9/g9-report.json
+            .ox-state/g9/g9-memory-ablation.json
+            .ox-state/g9/memory-ablation-summary.txt
+            .ox-state/g9/*.brain.json
+            .ox-state/g9/model-manifest.json
+            .ox-state/g9/summary.txt
+            .ox-state/g9/*.log
+          retention-days: 14
+          if-no-files-found: ignore
