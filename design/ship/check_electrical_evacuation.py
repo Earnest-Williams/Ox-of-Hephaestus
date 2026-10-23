@@ -155,37 +155,38 @@ def validate():
     # Deliberately exercise CAB-07's inherited corridor-fed fan coil.
     elect_fire = new_trial()
     load = "NODE-PWR-HAB-03-CAB-07-FANCOIL"
+    # A misleading "cabin electrically isolated" condition exists before
+    # the subsequent fire: the cabin panel is off, but its patched
+    # corridor-supplied fan coil is still live.
     elect_fire.sample_local("PZ-HAB-03", qualified_local_probe=True)
     elect_fire.stage_worker("HAB-03-CAB-07")
-    elect_fire.ignite("F-COIL", "PZ-HAB-03", fuel_kg=10,
-                       burn_kg_s=0.04, smoke_yield_fraction=0.10,
-                       hazard="energized_electrical", energized_load_node=load)
-    insist(not elect_fire.start_mist("PZ-HAB-03", kg_s=0.5,
-                                     local_authority=True,
-                                     compatible_agent=True,
-                                     energy_isolated=True),
-           "electrical fire received mist on a still-live SG2 fan-coil feed")
     elect_fire.queue_valve_command(
         "power", "ISO-HAB-03-CAB-07-LP", "closed",
         control_mode="manual", local_authority=True,
         worker_space="HAB-03-CAB-07", delay_s=1)
-    elect_fire.advance(2)
+    elect_fire.advance(3)
     insist(not elect_fire.has_power_path("NODE-HAB-03-CAB-07-LP")
-           and elect_fire.has_power_path(load)
-           and not elect_fire.start_mist(
-               "PZ-HAB-03", kg_s=0.5, local_authority=True,
-               compatible_agent=True, energy_isolated=True),
-           "cabin breaker incorrectly treated as fan-coil isolation receipt")
+           and elect_fire.has_power_path(load),
+           "pre-existing CAB-07 panel isolation failed to leave patched fan live")
+    elect_fire.ignite("F-COIL", "PZ-HAB-03", fuel_kg=10,
+                      burn_kg_s=0.04, smoke_yield_fraction=0.10,
+                      hazard="energized_electrical", energized_load_node=load)
+    insist(not elect_fire.start_mist(
+        "PZ-HAB-03", kg_s=0.5, local_authority=True,
+        compatible_agent=True, energy_isolated=True),
+        "a false work permit and unrelated cabin panel bypassed live-coil interlock")
+    elect_fire.sample_local("PZ-HAB-03", qualified_local_probe=True)
     elect_fire.queue_valve_command(
         "power", "ISO-PWR-HAB-03-CAB-07-FANCOIL", "closed",
         control_mode="manual", local_authority=True,
         worker_space="HAB-03-CAB-07", delay_s=1)
     elect_fire.advance(2)
-    insist(not elect_fire.has_power_path(load)
-           and elect_fire.start_mist(
-               "PZ-HAB-03", kg_s=0.5, local_authority=True,
-               compatible_agent=True, energy_isolated=True),
-           "locally isolated actual fan-coil feeder did not permit verified mist")
+    insist(not elect_fire.has_power_path(load),
+           "manual closure of actual fan-coil branch did not cut its source")
+    insist(elect_fire.start_mist(
+        "PZ-HAB-03", kg_s=0.5, local_authority=True,
+        compatible_agent=True, energy_isolated=True),
+        "verified real fan-coil isolation failed to enable compatible water mist")
     report["energized_refit_circuit_mist_interlock"] = {
         "false_work_permit_alone_denied": True,
         "cabin_panel_off_fan_coil_still_live": True,
