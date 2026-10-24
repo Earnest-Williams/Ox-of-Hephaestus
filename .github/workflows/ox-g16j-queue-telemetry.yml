@@ -1,0 +1,37 @@
+name: Ox G16j live semaphore queue telemetry contract
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches: [main]
+    paths:
+      - "services/ai-handler/src/ox_ai/runtime/cognition_scheduler.py"
+      - "services/ai-handler/tests/test_g16j_queue_telemetry.py"
+      - ".github/workflows/ox-g16j-queue-telemetry.yml"
+      - "!**/*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ox-g16j-queue-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  queue-telemetry:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install exact local Concordia character simulator dependencies
+        run: python -m pip install -e './services/ai-handler[concordia]'
+      - name: Verify detached async scheduling, no prompt leakage and timeout quarantine
+        run: |
+          python -m compileall -q services/ai-handler/src/ox_ai/runtime/cognition_scheduler.py
+          python -m unittest discover -s services/ai-handler/tests -p test_cognition_scheduler.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_g16j_queue_telemetry.py -v

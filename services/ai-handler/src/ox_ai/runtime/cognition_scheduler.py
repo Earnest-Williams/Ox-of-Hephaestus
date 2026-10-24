@@ -13,6 +13,7 @@ The model/provider must also enforce a real I/O timeout.
 from __future__ import annotations
 
 import asyncio
+from collections import deque
 from collections.abc import Callable, Sequence
 import math
 import time
@@ -76,6 +77,27 @@ class DecisionScheduler:
         self._orphaned: set[str] = set()
         self._attempts: dict[str, int] = {}
         self._total_attempts = 0
+        # Ephemeral, bounded, actor-role-only operational telemetry.
+        # Counters and samples are not evidence of completed ship work.
+        self._telemetry = {
+            "requests_accepted_for_scheduling": 0,
+            "inference_invocations_started": 0,
+            "inference_invocations_finished": 0,
+            "proposals_adopted": 0,
+            "inference_failed": 0,
+            "stale_proposals_rejected": 0,
+            "timed_out_waiting_for_slot": 0,
+            "timed_out_with_provider_active": 0,
+            "cancelled": 0,
+            "provider_finished_after_abandonment": 0,
+            "expired_queue_entries_discarded": 0,
+        }
+        self._pending_slot_roles: set[str] = set()
+        self._native_running_roles: set[str] = set()
+        self._maximum_simultaneous_inference_invocations = 0
+        self._queue_wait_seconds: deque[float] = deque(maxlen=256)
+        self._provider_elapsed_seconds: deque[float] = deque(maxlen=256)
+        self._adopted_elapsed_seconds: deque[float] = deque(maxlen=256)
 
     def _refresh_budget_window(self) -> None:
         # Model quota is a wall-time rate limit, not a cap on an entire
@@ -85,14 +107,47 @@ class DecisionScheduler:
             self._attempts.clear()
             self._total_attempts = 0
 
+    @staticmethod
+    def _sample_percentile(items: deque[float], quantile: float) -> float | None:
+        if not items:
+            return None
+        ordered = sorted(items)
+        return round(ordered[max(0, math.ceil(quantile * len(ordered)) - 1)], 5)
+
     @property
     def metrics(self) -> dict:
-        """Diagnostic metadata only; does not expose private prompts or memories."""
+        """Bounded process-local queue metrics; never world receipts or private text.
+
+        Existing 'started' is billed inference budget UNITS, not started
+        underlying model forwards. G16 three-pass scoring bills three units
+        for one detached Concordia invocation.
+        """
         return {
             "started": self._total_attempts,
             "per_actor_started": dict(self._attempts),
             "inflight_roles": sorted(self._inflight),
             "timed_out_or_cancelled_roles": sorted(self._orphaned),
+            "queue_observability": {
+                **self._telemetry,
+                "waiting_for_inference_slot": sorted(self._pending_slot_roles),
+                "provider_active_roles": sorted(self._native_running_roles),
+                "maximum_simultaneous_inference_invocations": (
+                    self._maximum_simultaneous_inference_invocations),
+                "queue_wait_samples": len(self._queue_wait_seconds),
+                "provider_elapsed_samples": len(self._provider_elapsed_seconds),
+                "adopted_elapsed_samples": len(self._adopted_elapsed_seconds),
+                "queue_wait_median_seconds": self._sample_percentile(
+                    self._queue_wait_seconds, 0.5),
+                "queue_wait_p95_seconds": self._sample_percentile(
+                    self._queue_wait_seconds, 0.95),
+                "provider_elapsed_p95_seconds": self._sample_percentile(
+                    self._provider_elapsed_seconds, 0.95),
+                "adopted_elapsed_p95_seconds": self._sample_percentile(
+                    self._adopted_elapsed_seconds, 0.95),
+                "samples_per_metric_bounded_at": 256,
+                "real_native_forward_count_not_established": True,
+                "process_restart_resets_observability": True,
+            },
         }
 
     async def choose(
@@ -156,23 +211,49 @@ class DecisionScheduler:
                   else agent.fork_for_inference(model_override=inference_model))
         self._attempts[role] = self._attempts.get(role, 0) + cost_units
         self._total_attempts += cost_units
+        self._telemetry["requests_accepted_for_scheduling"] += 1
+        queued_at = time.monotonic()
 
         abandoned = threading.Event()
+        provider_started = False
+
         async def infer():
-            async with self._sem:
-                # An expired/cancelled decision still waiting for a global
-                # inference slot should never consume quota at the provider.
-                if abandoned.is_set():
-                    raise CognitionTimedOut("Queued inference expired before execution")
-                choose_kwargs = {
-                    "expected_revision": revision,
-                    "decision_context": decision_context,
-                }
-                if prepared_request_id is not None:
-                    choose_kwargs["request_id"] = prepared_request_id
-                return await asyncio.to_thread(
-                    shadow.decide, offered, **choose_kwargs,
-                )
+            nonlocal provider_started
+            self._pending_slot_roles.add(role)
+            try:
+                async with self._sem:
+                    self._pending_slot_roles.discard(role)
+                    # An expired/cancelled decision still waiting for a
+                    # global inference slot cannot start native work.
+                    if abandoned.is_set():
+                        self._telemetry["expired_queue_entries_discarded"] += 1
+                        raise CognitionTimedOut(
+                            "Queued inference expired before execution")
+                    started_at = time.monotonic()
+                    self._queue_wait_seconds.append(started_at - queued_at)
+                    self._native_running_roles.add(role)
+                    provider_started = True
+                    self._telemetry["inference_invocations_started"] += 1
+                    self._maximum_simultaneous_inference_invocations = max(
+                        self._maximum_simultaneous_inference_invocations,
+                        len(self._native_running_roles))
+                    try:
+                        choose_kwargs = {
+                            "expected_revision": revision,
+                            "decision_context": decision_context,
+                        }
+                        if prepared_request_id is not None:
+                            choose_kwargs["request_id"] = prepared_request_id
+                        return await asyncio.to_thread(
+                            shadow.decide, offered, **choose_kwargs,
+                        )
+                    finally:
+                        self._native_running_roles.discard(role)
+                        self._telemetry["inference_invocations_finished"] += 1
+                        self._provider_elapsed_seconds.append(
+                            time.monotonic() - started_at)
+            finally:
+                self._pending_slot_roles.discard(role)
 
         task = asyncio.create_task(infer(), name="ox-infer-" + role)
         self._inflight[role] = task
@@ -183,6 +264,10 @@ class DecisionScheduler:
             if not finished_task.cancelled():
                 finished_task.exception()
             if role in self._orphaned and self._inflight.get(role) is finished_task:
+                # Expired tasks that never passed the semaphore are not
+                # late provider completions. Count only real started work.
+                if provider_started:
+                    self._telemetry["provider_finished_after_abandonment"] += 1
                 self._orphaned.discard(role)
                 del self._inflight[role]
 
@@ -200,21 +285,34 @@ class DecisionScheduler:
             # Only the live agent, on the event loop, can adopt the proposed
             # action. Both authenticated observations AND new private memories
             # can invalidate a detached actor while inference is underway.
-            return agent.adopt_inference(
+            adopted = agent.adopt_inference(
                 shadow, draft, offered,
                 expected_revision=revision,
                 expected_cognition_revision=cognition_revision,
             )
+            self._telemetry["proposals_adopted"] += 1
+            self._adopted_elapsed_seconds.append(
+                time.monotonic() - queued_at)
+            return adopted
         except asyncio.TimeoutError:
             abandoned.set()
+            bucket = ("timed_out_with_provider_active"
+                      if role in self._native_running_roles
+                      else "timed_out_waiting_for_slot")
+            self._telemetry[bucket] += 1
             raise CognitionTimedOut("Inference deadline passed; proposed action discarded") from None
         except asyncio.CancelledError:
             abandoned.set()
+            self._telemetry["cancelled"] += 1
             raise
-        except (StaleAgentRevision, PermissionError, CognitionBusy,
-                CognitionBudgetExceeded):
+        except StaleAgentRevision:
+            self._telemetry["stale_proposals_rejected"] += 1
+            raise
+        except (PermissionError, CognitionBusy, CognitionBudgetExceeded):
+            self._telemetry["inference_failed"] += 1
             raise
         except Exception:
+            self._telemetry["inference_failed"] += 1
             # Never echo provider exceptions: these may contain prompts or keys.
             raise CognitionUnavailable("Inference failed; no action submitted") from None
         finally:
