@@ -36,7 +36,7 @@ with `round_report ship {station:cargo}`, actual native Concordia components,
 synthetic logits, two-unit budgets, full prompt/order invariance, pre-adoption
 checkpointing, crash replay and late-worker containment. The shipped catalog
 is unchanged. No P4k or production supervisor is activated. Exact GOAP station
-arguments still depend on the separate G16n PR #130.
+arguments are supplied by G16n PR #130, merged at `4f21481`.
 
 ## Native capacity measurement registered before execution
 
@@ -76,13 +76,15 @@ CI results remain pending. One independently checked [local native run](g16o-loc
 
 ## Local structural verification
 
-The recovered branch passes **408 handler tests and seven strict contract
+The original recovered branch passed **408 handler tests and seven strict contract
 checks**, including sixteen G16o checks. The original ternary raw choice and
 metadata were additionally compared directly against the `3bfffc3` source and
 matched exactly under the same deterministic native-interface fixture.
 All 143 Ox Markdown documents have valid local links; workflow YAML parses,
 the CI scope guard passes, Python sources compile, and agent-context checks
-pass. These are local checks, not an asserted GitHub CI run.
+pass. After integrating merged G16n, **414 handler tests** pass; the seven strict
+contract checks remain green. These are local checks, not an asserted GitHub
+CI run.
 
 ## Remaining activation gates
 

@@ -29,6 +29,8 @@ class GoapAction:
     cost: float = 1
     verb: str = ""
     target: str | None = None
+    # Exact world-command arguments; not a prediction or authorisation.
+    arguments: tuple[tuple[str, str], ...] = ()
 
     def __post_init__(self) -> None:
         if (not self.name or not self.verb
@@ -37,6 +39,15 @@ class GoapAction:
             raise ValueError("GOAP action needs a name, verb and positive finite cost")
         if self.adds & self.removes:
             raise ValueError("An action may not add and delete the same fact")
+        if (type(self.arguments) is not tuple or len(self.arguments) > 16
+                or any(type(pair) is not tuple or len(pair) != 2
+                       or any(type(value) is not str for value in pair)
+                       or not pair[0] or not pair[1]
+                       or len(pair[0]) > 80 or len(pair[1]) > 160
+                       for pair in self.arguments)
+                or tuple(sorted(self.arguments)) != self.arguments
+                or len({key for key, _ in self.arguments}) != len(self.arguments)):
+            raise ValueError("Grounded GOAP arguments must be sorted unique string pairs")
 
     def applicable(self, facts: frozenset[str] | set[str]) -> bool:
         return self.requires.issubset(facts)

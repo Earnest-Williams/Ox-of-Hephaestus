@@ -90,6 +90,7 @@ async def decide_g16(
             chosen_operator = plan.actions[0]
             tagged = menu.by_command(
                 chosen_operator.verb, chosen_operator.target,
+                dict(chosen_operator.arguments),
             )
             choice = {
                 "planner_costs": prices,
@@ -109,7 +110,7 @@ async def decide_g16(
                 None,
             )
             if chosen_operator is None or (chosen_operator.verb,
-                    chosen_operator.target, ()) != tagged.signature:
+                    chosen_operator.target, chosen_operator.arguments) != tagged.signature:
                 raise PermissionError("Original persisted GOAP operator is unavailable")
         request = ActionRequest(
             request_id=request_id,

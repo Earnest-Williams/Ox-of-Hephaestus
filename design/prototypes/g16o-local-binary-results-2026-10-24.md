@@ -47,8 +47,10 @@ nine CPUs in its affinity set, and two configured native inference threads.
 Python was 3.12.14, decider-ai 1.10.0, llama-cpp-python 0.3.36,
 Transformers 5.20.2 and PyTorch 2.14.1+cpu. The source hashes of eleven relevant
 code/catalog files were checked against the archived record after execution.
-The worktree was unpublished; no GitHub run or new committed source SHA is
-claimed. Exact file hashes identify the executed implementation.
+The exact executed code is now preserved in [commit `36194cd`](https://github.com/Earnest-Williams/Ox-of-Hephaestus/commit/36194cd4ccb3099378361bce9240854b3b093fb4).
+The original archive retains its null GitHub run/source fields because it was
+measured locally before publication. Exact file hashes identify the executed
+implementation; a later integration commit adds the merged G16n baseline.
 
 The Q4 weights matched the original SHA-256
 `c03deb433d539ef49579fca5a015d5090c739a331448493aded7a57ad9b4261b`;
