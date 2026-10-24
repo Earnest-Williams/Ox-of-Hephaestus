@@ -1,0 +1,147 @@
+name: Ox G16l real native 6-20-40 actor deadline burst
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches: [main]
+    paths:
+      - "scenarios/profiling/g16l_real_native_burst.py"
+      - "services/ai-handler/tests/test_g16l_real_native_burst.py"
+      - "design/prototypes/g16l-native-burst-preregistration-v1.json"
+      - ".github/workflows/ox-g16l-native-burst.yml"
+      - "!**/*.md"
+  push:
+    branches: [experiment/g16l-native-run]
+    paths:
+      - "scenarios/profiling/g16l_real_native_burst.py"
+      - "services/ai-handler/tests/test_g16l_real_native_burst.py"
+      - "design/prototypes/g16l-native-burst-preregistration-v1.json"
+      - ".github/workflows/ox-g16l-native-burst.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ox-g16l-real-native-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  actor-and-deadline-contract:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      OX_PERSONALITY_CHOICE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install original Concordia actor/tag runtime, no GGUF
+        run: |
+          python -m pip install -e ./contracts
+          python -m pip install -e './services/ai-handler[concordia]'
+      - name: Verify original G16f three-pass route and actual scheduler timeout quarantine
+        run: |
+          python -m compileall -q scenarios/profiling/g16l_real_native_burst.py
+          python -m unittest discover -s services/ai-handler/tests -p test_g16j_queue_telemetry.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_g16l_real_native_burst.py -v
+
+  actual-q4-single-native-lane:
+    needs: [actor-and-deadline-contract]
+    if: ${{ github.ref == 'refs/heads/experiment/g16l-native-run' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      OX_PERSONALITY_CHOICE: "1"
+      MODEL_DIR: .ox-state/g16l/weights
+      OX_DECIDER_GGUF_PATH: .ox-state/g16l/weights/decider-4b.Q4_K_M.gguf
+      HF_HUB_DISABLE_TELEMETRY: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pinned genuine native Decider System One CPU backend
+        run: |
+          python -m pip install -e ./contracts
+          python -m pip install -e './services/ai-handler[concordia]'
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers>=5,<6' 'numpy<3' 'huggingface_hub>=0.34,<2' jinja2 'llama-cpp-python>=0.3.35,<0.4'
+          python -m pip install --no-deps 'decider-ai==1.10.0'
+      - name: Provision exact G16f pinned Decider GGUF and publisher tokenizer
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$MODEL_DIR"
+          python - <<'PY'
+          from huggingface_hub import snapshot_download, hf_hub_download, HfApi
+          from pathlib import Path
+          import os, shutil, hashlib, json
+          d=Path(os.environ["MODEL_DIR"])
+          qrev="3b02c98fa0b19e9daab247d633095b6e8a6cd4c5"
+          trev="d3a78581751d518bbfa9e871a6d84059554d53c5"
+          snapshot_download(repo_id="Mapika/decider-4b-GGUF",revision=trev,
+              local_dir=str(d),allow_patterns=["config.json","decider_config.json",
+                  "tokenizer.json","tokenizer_config.json","special_tokens_map.json",
+                  "*.jinja","vocab.json","merges.txt","added_tokens.json"])
+          names=[x.rfilename for x in HfApi().model_info(
+              "mradermacher/decider-4b-GGUF",revision=qrev).siblings]
+          qs=[x for x in names if x.lower().endswith("q4_k_m.gguf") and "/" not in x]
+          if len(qs)!=1: raise RuntimeError("One pinned native GGUF required")
+          path=Path(hf_hub_download(repo_id="mradermacher/decider-4b-GGUF",
+              filename=qs[0],revision=qrev))
+          local=d/qs[0]
+          if not local.exists(): shutil.copyfile(path,local)
+          stable=d/"decider-4b.Q4_K_M.gguf"
+          if local!=stable: stable.symlink_to(local.name)
+          sha=hashlib.sha256()
+          with local.open("rb") as stream:
+              while chunk:=stream.read(8*1024*1024): sha.update(chunk)
+          expected="c03deb433d539ef49579fca5a015d5090c739a331448493aded7a57ad9b4261b"
+          if sha.hexdigest()!=expected: raise PermissionError("Native Q4 digest changed")
+          manifest={"model":"decider-q4","hf_revision":qrev,
+                    "tokenizer_revision":trev,"sha256":sha.hexdigest(),
+                    "size":local.stat().st_size}
+          (d.parent/"model-manifest.json").write_text(json.dumps(manifest,indent=2))
+          print("OX_G16L_NATIVE_EXACT_SHA",expected)
+          PY
+      - name: Profile genuine 25-second deadline bursts of 6, 20 and 40 native three-pass crew minds
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scenarios/profiling/g16l_real_native_burst.py \
+            --engine decider-q4 --gguf-path "$OX_DECIDER_GGUF_PATH" \
+            --model-manifest .ox-state/g16l/model-manifest.json \
+            --output .ox-state/g16l/native-burst-results.json \
+            | tee .ox-state/g16l/native-burst.log
+          grep -Fq OX_G16L_ACTUAL_BURST_DEADLINE_VS_NATIVE_FORWARDS_VERIFIED .ox-state/g16l/native-burst.log
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          x=json.loads(Path(".ox-state/g16l/native-burst-results.json").read_text())
+          assert x["all_native_forwards_real"] is True
+          assert x["model"]=="decider-q4"
+          assert x["population"]==[6,20,40]
+          assert x["max_actual_concurrent_native_system_one_forwards"]==1
+          assert x["real_world_actions_submitted"]==0
+          assert x["world_receipts_claimed"]==0
+          assert not x["production_policy_adopted"]
+          assert all(z["all_underlying_native_workers_reaped"] for z in x["measured_cohorts"])
+          assert all(z["adopted_valid_nonworld_proposals"]
+                     +z["expired_no_world_proposals"]==z["actors"]
+                     for z in x["measured_cohorts"])
+          print("OX_G16L_REAL_NATIVE_CONCORDIA_DEADLINE_BURST_EVIDENCE_VERIFIED")
+          PY
+      - name: Archive genuine native scores and timeout telemetry, no world claims
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-g16l-real-native-six-twenty-forty-burst
+          path: |
+            .ox-state/g16l/native-burst-results.json
+            .ox-state/g16l/native-burst.log
+            .ox-state/g16l/model-manifest.json
+          retention-days: 21
+          if-no-files-found: ignore
