@@ -65,3 +65,9 @@ G16e must separately show coherent trait-sensitive behaviour,
 G16f must measure 40-character throughput, G16g must select
 a speech model, and the authenticated supervisor soak must verify
 real proposals and Evennia outcomes independently.
+
+## Native outcome (24 October 2026)
+
+The isolated [native comparison run #40049040761](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40049040761) **completed with all four jobs green**. Its independent aggregator matched every original/reversed actor prompt and factual evidence, verified all 192 underlying Decider native vectors and both correct-option positions, and retained no game commands. **Decider Q4: 94/96 correct; Qwen3.5-4B Q4: 87/96 correct**. Both-correct pairs were Decider 23/24 in each order and Qwen 19/24 canonical, 20/24 reversed. Decider was slower at 17.79 s median binary choice (two native forwards) versus 7.01 s for Qwen chat (one). Decider 46/48 raw caller-order consistency still falls short of full invariance; the actual G16c controller separately canonicalizes its menu. [Complete results, exceptions and limitations](g16h-verified-native-results-2026-10-24.md).
+
+This is **positive comparative support for the proposed finite-action Decider Q4 scorer**, not a claim of engineering safety, autonomous psychological realism, hardware scalability or an adopted production personality policy. Keep the feature disabled until the other G16 behavioural/soak gates pass.
