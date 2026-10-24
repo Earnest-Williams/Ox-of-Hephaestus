@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "status": "preregistered_before_native_G16e",
+  "previous_model_policy": "G16b v1 parameters frozen in design/prototypes/g16b-calibration-v1.json",
+  "design_facts": {
+    "source_world_run": 39872687597,
+    "source_persona_roles": [
+      "lin",
+      "ari",
+      "iona",
+      "mara",
+      "teo",
+      "captain"
+    ],
+    "models": [
+      "Decider 4B Q4_K_M native G15 three-pass scorer"
+    ],
+    "profiles": [
+      "procedural",
+      "independent"
+    ],
+    "source_g14_scenarios": 4,
+    "new_scenarios": 4,
+    "source_g16a_tags": "contracts/ox_contracts/data/personality_action_tags.v1.json",
+    "native_engine_calls_per_actor": 156,
+    "total_planned_native_forwards": 936,
+    "actors": 6,
+    "scenario_count": 8,
+    "caller_orders": [
+      "canonical",
+      "cycle_left",
+      "cycle_right"
+    ],
+    "repeat_controls": 24
+  },
+  "scoring": {
+    "same_native_vectors_for_raw_and_adjusted": true,
+    "canonical_semantic_key_order": true,
+    "each_semantic_action_in_every_letter_position_once": true,
+    "save_actor_private_evidence_digests": true,
+    "frozen_gain": 0.1,
+    "frozen_max_shift": 0.21,
+    "frozen_base_temperature": 0.33,
+    "frozen_urgent_temperature": 0.11,
+    "frozen_evidence_lock": 0.85,
+    "choice_draw_unchanged_for_same_actor_scenario_across_profile_and_order": true,
+    "unsafe_unlocked_case_must_refuse": true
+  },
+  "acceptance": {
+    "minimum_new_scenarios_with_balanced_top_two_margin_below_0_30": 4,
+    "minimum_adjusted_non_safety_disagreement_rate": 0.25,
+    "reference_only_unadjusted_disagreement_rate": 0.05,
+    "maximum_personality_overrides_in_locked_safety_cases": 0,
+    "caller_menu_permutation_semantic_invariance": 1,
+    "identical_input_repeats": 24,
+    "identical_repeat_choices_required": 24,
+    "world_commands_allowed": 0,
+    "action_unoffered_allowed": 0,
+    "original_g9_evidence_modified_allowed": 0,
+    "retune_on_failed_holdout": false
+  },
+  "scenarios": [
+    {
+      "id": "g14.verified_mutual_aid",
+      "menu_key": "g14.verified_mutual_aid",
+      "source": "g14",
+      "safety": false
+    },
+    {
+      "id": "g14.finite_spare_dispute",
+      "menu_key": "g14.finite_spare_dispute",
+      "source": "g14",
+      "safety": true
+    },
+    {
+      "id": "g14.approved_watch_relief",
+      "menu_key": "g14.approved_watch_relief",
+      "source": "g14",
+      "safety": false
+    },
+    {
+      "id": "g14.uncertain_private_apology",
+      "menu_key": "g14.uncertain_private_apology",
+      "source": "g14",
+      "safety": false
+    },
+    {
+      "id": "g16e.peer_review_after_error",
+      "menu_key": "g14.verified_mutual_aid",
+      "source": "preregistered_new",
+      "safety": false,
+      "context": "During last week's ordinary filing, you found a small noncritical error in duty notes you had reviewed alone. Today competent and available colleague {peer} offers an optional second look at new nonconfidential notes. Nothing requires you to accept, and refusing has no disciplinary effect. Working together may help your relationship and accuracy, but you value handling your own duties."
+    },
+    {
+      "id": "g16e.peer_review_after_disappointment",
+      "menu_key": "g14.verified_mutual_aid",
+      "source": "preregistered_new",
+      "safety": false,
+      "context": "Colleague {peer} has previously been careless about your preferences for independent work, although they have not disclosed confidential material or violated a formal duty. They now sincerely offer to double-check your ordinary nonconfidential duty notes. You can accept their skilled help, do the review alone, or reschedule it; each option is permitted and the deadline is not urgent."
+    },
+    {
+      "id": "g16e.authorized_watch_swap_personal_cost",
+      "menu_key": "g14.approved_watch_relief",
+      "source": "preregistered_new",
+      "safety": false,
+      "context": "Colleague {peer} requests an ordinary watch exchange so they can attend a personal appointment. Both are qualified, and the duty officer has authorized either decision. Covering their watch costs you some welcome free time but does not risk ship operations; keeping your assigned watch is explicitly acceptable and the colleague has another possible relief."
+    },
+    {
+      "id": "g16e.apology_after_broken_trust",
+      "menu_key": "g14.uncertain_private_apology",
+      "source": "preregistered_new",
+      "safety": false,
+      "context": "Colleague {peer} unintentionally embarrassed you in front of the crew during a harmless disagreement. They acknowledge the mistake and ask for a private conversation to apologize. You still resent the episode and are uncertain whether talking now will help, though no violence, operational hazard or obligation is involved. You may hear the apology, decline the meeting to preserve your boundary, or postpone it."
+    }
+  ]
+}
