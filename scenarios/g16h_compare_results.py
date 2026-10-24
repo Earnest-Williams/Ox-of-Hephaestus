@@ -14,6 +14,12 @@ CASES = tuple(c.name for c in fixtures())
 VARIANTS = ("earlier","changed")
 ORDERS = ("canonical","reversed")
 ROWS = {(c,v,o) for c in CASES for v in VARIANTS for o in ORDERS}
+CASE_BY_NAME = {c.name:c for c in fixtures()}
+DECIDER_GGUF_SHA256 = "c03deb433d539ef49579fca5a015d5090c739a331448493aded7a57ad9b4261b"
+QWEN_GGUF_SHA256 = "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4"
+DECIDER_WEIGHT_REVISION = "3b02c98fa0b19e9daab247d633095b6e8a6cd4c5"
+DECIDER_TOKENIZER_REVISION = "d3a78581751d518bbfa9e871a6d84059554d53c5"
+
 
 
 def check_native_record(row):
@@ -37,6 +43,10 @@ def check_native_record(row):
                        for x in scores.values())
                 or not math.isclose(sum(scores.values()),1,abs_tol=0.02)):
             raise ValueError("Malformed native Decider score/pass")
+        best = max(scores.values())
+        eligible = {key for key, prob in scores.items() if prob >= best - 1e-9}
+        if passed["selected_key"] not in eligible:
+            raise ValueError("A native System One pass selected a nonwinning score")
         rotated.add(order[0])
     if rotated != keys:
         raise PermissionError("Counterfactual scorer failed code-position balance")
@@ -45,6 +55,12 @@ def check_native_record(row):
             part["semantic_scores"][key] for part in model["passes"]
         )/2, abs_tol=1e-10):
             raise ValueError("Native balanced score not calculated from recorded passes")
+    mean_scores = model["semantic_scores"]
+    best = max(mean_scores.values())
+    winner = next(key for key in sorted(keys)
+                  if mean_scores[key] >= best - 1e-9)
+    if winner != row["chosen"]:
+        raise ValueError("The recorded chosen action differs from native semantic argmax")
 
 
 def verified_rows(obj, provider):
@@ -61,10 +77,37 @@ def verified_rows(obj, provider):
             or not isinstance(obj.get("model_provenance"),dict)
             or len(obj.get("rows",[])) != 96):
         raise PermissionError("Missing true native matched 24-case model evidence")
+    metadata = obj["model_provenance"]
+    if provider == "decider-q4":
+        if (metadata.get("model") != "decider-q4"
+                or metadata.get("sha256") != DECIDER_GGUF_SHA256
+                or metadata.get("hf_revision") != DECIDER_WEIGHT_REVISION
+                or metadata.get("tokenizer_revision") != DECIDER_TOKENIZER_REVISION
+                or metadata.get("size") != 2708804928):
+            raise PermissionError("Source native Decider weights or publisher revisions differ")
+    elif (metadata.get("model") != "qwen3.5-4b"
+          or metadata.get("sha256") != QWEN_GGUF_SHA256):
+        raise PermissionError("Qwen chat result was not the verified original GGUF")
     evidence = {}
     for row in obj["rows"]:
         key=(row.get("case"),row.get("variant"),row.get("caller_order"))
-        if (key not in ROWS or key in evidence
+        if key not in ROWS:
+            raise PermissionError("Unexpected historical authored case")
+        original = CASE_BY_NAME[key[0]]
+        source_observation = original.earlier if key[1] == "earlier" else original.changed
+        authored_expected = (original.expected_earlier if key[1] == "earlier"
+                             else original.expected_changed)
+        original_order = [original.first_verb, original.second_verb]
+        offered_order = (original_order if key[2] == "canonical"
+                         else list(reversed(original_order)))
+        if (key in evidence
+                or row.get("expected") != authored_expected
+                or row.get("category") != original.category
+                or row.get("offered_verb_order") != offered_order
+                or row.get("observed_sha256")
+                   != hashlib.sha256(source_observation.encode("utf-8")).hexdigest()
+                or row.get("recollection_sha256")
+                   != hashlib.sha256(original.recollection.encode("utf-8")).hexdigest()
                 or type(row.get("expected_position")) is not int
                 or row["expected_position"] not in (0,1)
                 or not isinstance(row.get("offered_verb_order"), list)
