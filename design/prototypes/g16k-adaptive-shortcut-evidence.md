@@ -73,7 +73,7 @@ Keep the complete **G15 three-position Decider scoring** in the
 proposed G16c path. Do **not** switch on an adaptive first-pass heuristic
 or treat it as a default optimization. [G16f measured throughput](g16f-native-throughput-results-2026-10-24.md),
 [G16i hypothetical queue modeling](g16i-scheduler-admission-envelope.md)
-and [G16j actual scheduler observability](g16j-scheduler-queue-observability.md)
+and [G16j actual scheduler observability](https://github.com/Earnest-Williams/Ox-of-Hephaestus/blob/experiment/g16j-scheduler-queue-telemetry/design/prototypes/g16j-scheduler-queue-observability.md)
 are independent capacity work; none establishes that a scoring shortcut
 preserves character behaviour. The original G16e preregistration and
 native results remain unchanged.
