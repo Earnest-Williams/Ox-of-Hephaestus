@@ -7,7 +7,6 @@ from ox_ai.inference.position_balanced_choice import (
     PositionBalancedDeciderChoiceModel,
 )
 
-
 OPTIONS = (
     ("accept", "Accept the pending offer."),
     ("defer", "Leave the pending offer unresolved."),
@@ -116,10 +115,10 @@ class BalanceTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.model(options=(OPTIONS[0], OPTIONS[0], OPTIONS[2]))
         with self.assertRaises(ValueError):
-            self.model(options=OPTIONS[:2])
-        with self.assertRaisesRegex(ValueError, "Three unique"):
+            self.model(options=OPTIONS[:1])
+        with self.assertRaisesRegex(ValueError, "unique model response"):
             self.model().sample_choice("state", ("a", "a", "c"))
-        with self.assertRaisesRegex(ValueError, "Three unique"):
+        with self.assertRaisesRegex(ValueError, "unique model response"):
             self.model().sample_choice("", ("a", "b", "c"))
         with self.assertRaisesRegex(RuntimeError, "cannot generate text"):
             self.model().sample_text("Respond with unrestricted advice")

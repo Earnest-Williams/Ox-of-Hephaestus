@@ -6,24 +6,26 @@ detached native scorer cannot commit an action to the live agent or world.
 """
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
 import os
+from collections.abc import Callable, Sequence
 from typing import Any
 
 from ox_ai.agents.crew import CommandOption, CrewAgent, StaleAgentRevision
 from ox_ai.inference.disposition_choice import (
-    PersonalityAdjustedDeciderChoiceModel, ReplayedPersonalityChoiceModel,
+    PersonalityAdjustedDeciderChoiceModel,
+    ReplayedPersonalityChoiceModel,
 )
 from ox_ai.planning.goap import GoapPlanner, PlanUnavailable
 from ox_ai.ports.base import ActionRequest
 from ox_ai.runtime.disposition_goap import personality_goap_costs
 from ox_ai.runtime.personality_choice_ledger import (
-    PersonalityChoiceLedger, deterministic_proposal_id,
+    PersonalityChoiceLedger,
+    deterministic_proposal_id,
 )
 from ox_ai.runtime.personality_routing import (
-    PersonalState, RoutedProposal,
+    PersonalState,
+    RoutedProposal,
 )
-
 
 async def decide_g16(
     controller: Any, *, agent: CrewAgent, planner: GoapPlanner,
@@ -120,12 +122,12 @@ async def decide_g16(
 
     if route.selected != "llm":
         raise PermissionError("Unknown checkpoint route")
-    if len(offered) != 3:
-        raise ValueError("G16c position-balanced Decider needs exactly three offered actions")
+    if len(offered) not in (2, 3):
+        raise ValueError("Position-balanced Decider needs two or three offered actions")
 
     # Concordia can include the caller's offered-order sequence in the
     # surrounding native prompt. Canonicalize that whole outer choice list,
-    # not merely G15's three internal criteria rotations, or a display-order
+    # not merely the internal criteria rotations, or a display-order
     # perturbation can change the native actor's prompt.
     canonical_offered = tuple(sorted(
         offered,
@@ -176,15 +178,17 @@ async def decide_g16(
             choice=result, persist=persist,
         )
 
-    # Three underlying native forwards are budgeted as three, while the
+    # Each underlying native forward is budgeted separately, while the
     # shadow Concordia model still sees one ordinary finite-choice request.
     # A prompt-validated ledger replay consumes zero native forwards.
     result = await controller.scheduler.decide(
-        controller.role, agent, canonical_offered,
+        controller.role,
+        agent,
+        canonical_offered,
         decision_context=description,
         inference_model=model,
         prepared_request_id=request_id,
         before_adopt=record_before_live_adoption,
-        cost_units=3 if previous is None else 1,
+        cost_units=len(offered) if previous is None else 1,
     )
-    return RoutedProposal(route, result, 3 if previous is None else 0, None)
+    return RoutedProposal(route, result, len(offered) if previous is None else 0, None)

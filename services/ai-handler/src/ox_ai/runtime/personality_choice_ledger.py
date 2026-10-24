@@ -7,11 +7,11 @@ or schema drift; no arbitrary text, foreign data or world DB access.
 """
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
-from hashlib import blake2b
 import json
 import math
 import re
+from collections.abc import Callable, Mapping
+from hashlib import blake2b
 from typing import Any
 
 from ox_ai.runtime.personality_routing import PersonalityRouter, Route
@@ -107,31 +107,50 @@ class PersonalityChoiceLedger:
             raise PermissionError("Saved personality choice changed actor, catalog or evidence")
         meta = entry["choice"]
         if entry["route"] == "llm":
+            size = len(keys)
+            position_field = (
+                "all_two_positions_per_semantic_option"
+                if size == 2
+                else "all_three_positions_per_semantic_option"
+            )
             required = {
-                "policy_version", "selected_semantic_key", "native_winner",
-                "raw_scores", "shifts", "adjusted_scores", "temperature",
-                "draw", "safety_locked", "underlying_native_calls",
-                "prompt_sha256", "balanced_native_picks",
-                "all_three_positions_per_semantic_option",
+                "policy_version",
+                "selected_semantic_key",
+                "native_winner",
+                "raw_scores",
+                "shifts",
+                "adjusted_scores",
+                "temperature",
+                "draw",
+                "safety_locked",
+                "underlying_native_calls",
+                "prompt_sha256",
+                "balanced_native_picks",
+                position_field,
             }
-            if (set(meta) != required
-                    or meta["policy_version"] != 1
-                    or meta["underlying_native_calls"] != 3
-                    or meta["selected_semantic_key"] != entry["selected_semantic_key"]
-                    or meta["native_winner"] not in keys
-                    or not isinstance(meta["prompt_sha256"], str)
-                    or not _SHA256.fullmatch(meta["prompt_sha256"])
-                    or type(meta["temperature"]) not in (float, int)
-                    or not math.isfinite(meta["temperature"])
-                    or not 0.0 < meta["temperature"] <= 1.0
-                    or type(meta["draw"]) not in (float, int)
-                    or not math.isfinite(meta["draw"])
-                    or not 0.0 <= meta["draw"] < 1.0
-                    or type(meta["safety_locked"]) is not bool
-                    or meta["all_three_positions_per_semantic_option"] is not True
-                    or not isinstance(meta["balanced_native_picks"], list)
-                    or len(meta["balanced_native_picks"]) != 3
-                    or any(pick not in keys for pick in meta["balanced_native_picks"])):
+            if (
+                size not in (2, 3)
+                or set(meta) != required
+                or type(meta["policy_version"]) is not int
+                or meta["policy_version"] != (2 if size == 2 else 1)
+                or type(meta["underlying_native_calls"]) is not int
+                or meta["underlying_native_calls"] != size
+                or meta["selected_semantic_key"] != entry["selected_semantic_key"]
+                or meta["native_winner"] not in keys
+                or not isinstance(meta["prompt_sha256"], str)
+                or not _SHA256.fullmatch(meta["prompt_sha256"])
+                or type(meta["temperature"]) not in (float, int)
+                or not math.isfinite(meta["temperature"])
+                or not 0.0 < meta["temperature"] <= 1.0
+                or type(meta["draw"]) not in (float, int)
+                or not math.isfinite(meta["draw"])
+                or not 0.0 <= meta["draw"] < 1.0
+                or type(meta["safety_locked"]) is not bool
+                or meta[position_field] is not True
+                or not isinstance(meta["balanced_native_picks"], list)
+                or len(meta["balanced_native_picks"]) != size
+                or any(pick not in keys for pick in meta["balanced_native_picks"])
+            ):
                 raise ValueError("Corrupt native choice audit ledger")
             _score_mapping(meta["raw_scores"], keys, normalized=True)
             _score_mapping(meta["adjusted_scores"], keys, normalized=True)
