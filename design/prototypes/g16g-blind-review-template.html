@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ox · G16g Blind Dialogue Review</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#242936;background:#f6f7fa;line-height:1.47}
+*{box-sizing:border-box}body{margin:0}button,input{font:inherit}button{cursor:pointer}button:disabled{cursor:not-allowed;opacity:.42}
+header{background:#1c2536;color:#fff;padding:22px max(24px,calc((100vw - 1060px)/2));display:flex;justify-content:space-between;gap:22px;align-items:center}
+header h1{font-size:1.27rem;font-weight:650;margin:0}header p{margin:4px 0 0;color:#bbc7d7;font-size:.91rem}
+.status{border:1px solid #66778c;border-radius:999px;padding:5px 12px;white-space:nowrap;font-size:.83rem;color:#e1e8ee}
+main{max-width:1060px;margin:30px auto;padding:0 20px 40px;display:grid;grid-template-columns:minmax(0,1fr) 275px;gap:22px;align-items:start}
+.panel{background:white;border:1px solid #e0e3ea;border-radius:13px;box-shadow:0 3px 14px #2a33420b}
+.info{padding:21px 24px}.info h2{font-size:1.06rem;margin:0 0 9px}.info p{font-size:.92rem;margin:0 0 12px;color:#505969}
+.topbar{padding:18px 24px;border-bottom:1px solid #edf0f3;display:flex;justify-content:space-between;align-items:center;gap:15px}
+.tiny{font-size:.79rem;color:#647084}.group{font-size:.86rem;font-weight:650;margin:4px 0}.progress-outer{height:7px;background:#eef0f6;border-radius:100px;overflow:hidden;margin:12px 0 0}.progress-inner{height:100%;width:0;background:#41679c;transition:width .2s}
+.scene{padding:19px 24px 23px}.scene h2{font-size:1.09rem;margin:0 0 13px}.context{margin:13px 0;border-left:3px solid #aebdd0;padding:0 13px}.context p{margin:4px 0 11px;font-size:.91rem}
+.caption{font-size:.73rem;font-weight:750;letter-spacing:.07em;text-transform:uppercase;color:#68758b}
+.utterance{font-size:1.12rem;font-weight:500;background:#f4f6f9;border-radius:9px;padding:19px 20px;margin:20px 0 18px;white-space:pre-wrap;overflow-wrap:anywhere}
+.traits{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.trait{border:1px solid #e0e5eb;border-radius:6px;padding:3px 8px;font-size:.76rem;color:#475163}
+fieldset{margin:0;padding:13px 0;border:0;border-bottom:1px solid #e9edf3;display:grid;grid-template-columns:minmax(165px,1fr) auto;align-items:center;gap:12px}
+legend{float:left;min-width:0;font-weight:600;font-size:.9rem;padding:0;margin:0}.scales{display:flex;gap:5px}
+.scales label{cursor:pointer;display:flex;align-items:center;justify-content:center;height:37px;width:37px;border:1px solid #ccd3de;border-radius:8px;font-size:.9rem;transition:background .12s}
+.scales input{position:absolute;opacity:0;width:1px;height:1px}.scales label:has(input:checked){background:#254d87;color:white;border-color:#254d87}.scales label:has(input:focus-visible){outline:3px solid #95c8ff;outline-offset:2px}
+.flags{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.flag{border:1px solid #d9dfe8;border-radius:7px;padding:7px 10px;font-size:.79rem;cursor:pointer}.flag:has(input:checked){background:#fff1ec;border-color:#a56957}.flag input{accent-color:#955743;margin-right:5px}
+.actions{display:flex;gap:10px;justify-content:space-between;align-items:center;padding:17px 24px;border-top:1px solid #e9edf3}
+button{background:#fff;border:1px solid #c6cedb;border-radius:8px;padding:9px 13px;color:#2c3b51}button.primary{background:#254d87;border-color:#254d87;color:white}button:hover:not(:disabled){filter:brightness(.96)}
+.side{padding:21px}.side h2{font-size:1rem;margin:0 0 10px}.side p,.side li{font-size:.86rem;color:#505b6c}.side p{margin:7px 0 15px}
+.side label{display:block;font-size:.83rem;font-weight:650;margin:16px 0 6px}.side input[type=text]{width:100%;border:1px solid #c7cedb;border-radius:8px;padding:9px}
+.side button{width:100%;margin:4px 0 6px}.hint{font-size:.79rem;color:#647084}
+.alert{margin-top:9px;font-size:.8rem;min-height:1em;white-space:pre-wrap;color:#9a3b27}.ok{color:#276144}
+.rubric-list{padding-left:17px;margin-top:4px}.rubric-list li{margin-bottom:10px}
+footer{max-width:1060px;margin:0 auto 18px;padding:0 20px;color:#707986;font-size:.78rem}
+@media(max-width:790px){main{grid-template-columns:1fr}.side{order:-1}header{padding:16px 20px}fieldset{grid-template-columns:1fr;gap:6px}.info,.scene,.side{padding:17px}.topbar,.actions{padding:14px 17px}}
+</style>
+</head>
+<body>
+<header><div><h1>Ox / G16g · Blind Dialogue Review</h1><p>Independent assessment of shipboard character speech</p></div><span class="status">48 anonymous utterances</span></header>
+<main>
+<section class="panel" aria-label="Dialogue samples">
+<div class="topbar"><div><div class="tiny" id="counter">Sample 1 of 48</div><div class="group" id="speaker">Anonymous speaker</div></div><div style="text-align:right"><div class="tiny" id="completion">0 fully scored</div><div class="tiny" id="case-id"></div></div></div>
+<div style="padding:0 24px"><div class="progress-outer"><div class="progress-inner" id="progress"></div></div></div>
+<div class="scene">
+<h2>Examine the utterance</h2>
+<div class="context"><span class="caption">Known situation</span><p id="context"></p><span class="caption">Preselected speech intent</span><p id="intent"></p></div>
+<div><span class="caption">Neutral original trait reference, 0–100</span><div class="traits" id="traits"></div></div>
+<div class="utterance" id="utterance"></div>
+<p class="tiny">Rate the speech as speech. It must not invent permissions, facts, sensor readings or completed world actions.</p>
+<div id="scores"></div>
+<div style="margin-top:17px"><span class="caption">Flag any unsupported claims (optional)</span><div class="flags" id="flags"></div></div>
+</div>
+<div class="actions"><button type="button" id="previous">← Previous</button><span class="tiny" id="rated-this">Not yet rated</span><button class="primary" type="button" id="next">Next →</button></div>
+</section>
+<aside class="panel side"><h2>Reviewer controls</h2><p>This file is self-contained. No samples or scores are sent to a server. The model, prompt treatment and actor identities remain hidden.</p>
+<label for="reviewer">Reviewer identifier</label><input id="reviewer" type="text" maxlength="80" placeholder="e.g. reviewer-blue" autocomplete="off"><p class="hint">Use a unique pseudonym. Two independent completed scorecards are required.</p>
+<button type="button" id="save">Save partial draft (JSON)</button><button type="button" class="primary" id="export">Export completed scorecard</button>
+<label for="restore">Resume from a saved JSON draft</label><input id="restore" type="file" accept="application/json,.json" aria-label="Resume saved reviewer scores">
+<div class="alert" id="notice" role="status"></div>
+<hr style="border:0;border-top:1px solid #e8ebf1;margin:23px 0">
+<h2>Scoring guide</h2><p>Every dimension receives a number from 1 (seriously deficient) to 5 (exceptionally appropriate). Three is adequate.</p><ul class="rubric-list" id="rubric"></ul>
+<p class="hint">Evaluate profile fidelity using the supplied anonymous trait reference, not assumptions about the actor's identity. Do not discuss scores with another reviewer until both sheets are submitted.</p>
+</aside>
+</main><footer>G16g experimental evidence only · Blinded treatments · No world commands or autonomous model decisions</footer>
+<script>
+"use strict";
+const sheet = __BLIND_SHEET__;
+const template = __BLANK_TEMPLATE__;
+const dims = Object.keys(sheet.rubric);
+const flags = sheet.permitted_flags;
+const scoreById = new Map(template.ratings.map(x => [x.blind_id, structuredClone(x)]));
+const $ = id => document.getElementById(id);
+let index = 0;
+const cleanLabel = s => s.replaceAll("_", " ").replace(/\b\w/g, x => x.toUpperCase());
+function notify(message, isError = false) { $('notice').textContent = message; $('notice').className = 'alert' + (isError?'':' ok'); }
+function full(row) { return dims.every(k => Number.isInteger(row[k]) && row[k]>=1 && row[k]<=5); }
+function progress() {
+ const n = [...scoreById.values()].filter(full).length;
+ $('completion').textContent = `${n} / ${sheet.items.length} fully scored`;
+ $('progress').style.width = `${100*n/sheet.items.length}%`;
+ $('rated-this').textContent = full(scoreById.get(sheet.items[index].blind_id)) ? 'All five ratings recorded' : 'Needs ratings';
+ return n;
+}
+function render() {
+ const item = sheet.items[index], row = scoreById.get(item.blind_id);
+ $('counter').textContent = `Sample ${index+1} of ${sheet.items.length}`;
+ $('speaker').textContent = `Anonymous speaker ${item.anonymous_speaker_group}`;
+ $('case-id').textContent = `Item ${item.blind_id.slice(0,8)}`;
+ $('context').textContent = item.known_context;
+ $('intent').textContent = item.preselected_speech_intent;
+ $('utterance').textContent = item.utterance;
+ $('traits').replaceChildren();
+ for (const [k,value] of Object.entries(item.neutral_original_trait_reference_0_to_100)) {
+  const el = document.createElement('span'); el.className='trait'; el.textContent=`${cleanLabel(k)}: ${value}`; $('traits').appendChild(el);
+ }
+ $('scores').replaceChildren();
+ for (const k of dims) {
+  const field = document.createElement('fieldset'), leg=document.createElement('legend'); leg.textContent=cleanLabel(k); field.appendChild(leg);
+  const group=document.createElement('div');group.className='scales';group.setAttribute('role','radiogroup');group.setAttribute('aria-label',cleanLabel(k));
+  for(let value=1;value<=5;value++){
+   const lab=document.createElement('label'),inp=document.createElement('input');inp.type='radio';inp.name=k;inp.value=String(value);inp.checked=row[k]===value;inp.setAttribute('aria-label',`${cleanLabel(k)} ${value} of 5`);
+   inp.addEventListener('change',()=>{row[k]=value;progress();});lab.append(inp,document.createTextNode(String(value)));group.appendChild(lab);
+  }field.appendChild(group);$('scores').appendChild(field);
+ }
+ $('flags').replaceChildren();
+ for(const f of flags){const lab=document.createElement('label'),inp=document.createElement('input');lab.className='flag';inp.type='checkbox';inp.checked=row.flags.includes(f);inp.setAttribute('aria-label',cleanLabel(f));inp.addEventListener('change',()=>{row.flags=inp.checked?[...row.flags,f]:row.flags.filter(x=>x!==f);});lab.append(inp,document.createTextNode(cleanLabel(f)));$('flags').appendChild(lab);}
+ $('previous').disabled=index===0;$('next').disabled=index===sheet.items.length-1;
+ progress();
+}
+function scorecard(){return {schema:1, reviewer_id:$('reviewer').value.trim(),blinded_sheet_sha256:template.blinded_sheet_sha256,ratings:sheet.items.map(i=>structuredClone(scoreById.get(i.blind_id)))};}
+function download(data,suffix){const blob=new Blob([JSON.stringify(data,null,2)+'\n'],{type:'application/json'});const url=URL.createObjectURL(blob);const link=document.createElement('a');const who=data.reviewer_id.replace(/[^a-z0-9_-]/gi,'_')||'anonymous';link.href=url;link.download=`g16g-${who}-${suffix}.json`;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);}
+$('previous').addEventListener('click',()=>{index=Math.max(0,index-1);render();});
+$('next').addEventListener('click',()=>{index=Math.min(sheet.items.length-1,index+1);render();});
+$('save').addEventListener('click',()=>{const x=scorecard();if(x.reviewer_id.length<2){notify('Enter a unique reviewer identifier (at least two characters) before saving.',true);return;}download(x,'draft');notify('Draft saved locally. Use Resume from a saved JSON draft to continue.');});
+$('export').addEventListener('click',()=>{
+ const x=scorecard();if(x.reviewer_id.length<2){notify('Enter a unique reviewer identifier (at least two characters).',true);return;}
+ const missing=sheet.items.findIndex(i=>!full(scoreById.get(i.blind_id)));
+ if(missing>=0){index=missing;render();notify(`Complete all five ratings for sample ${missing+1} before exporting.`,true);return;}
+ download(x,'complete');notify('Completed scorecard exported locally. Send only this JSON to the study organizer; do not send the private answer key.');
+});
+$('restore').addEventListener('change',async e=>{
+ const file=e.target.files?.[0];if(!file)return;
+ try {
+ const restored=JSON.parse(await file.text());if(restored.schema!==1||restored.blinded_sheet_sha256!==template.blinded_sheet_sha256||!Array.isArray(restored.ratings)||restored.ratings.length!==sheet.items.length)throw Error('Not a scorecard for this blind study.');
+ const expected=new Set(sheet.items.map(i=>i.blind_id)),seen=new Set();
+ for(const row of restored.ratings){if(!expected.has(row.blind_id)||seen.has(row.blind_id)||!Array.isArray(row.flags)||row.flags.some(v=>!flags.includes(v))||dims.some(k=>row[k]!==null && (!Number.isInteger(row[k])||row[k]<1||row[k]>5)))throw Error('Saved scores contain invalid items, flags or ratings.');seen.add(row.blind_id);}
+ for(const row of restored.ratings)scoreById.set(row.blind_id,structuredClone(row));$('reviewer').value=restored.reviewer_id||'';index=0;render();notify('Saved draft loaded locally.');
+ }catch(e){notify('Cannot import saved scores: '+e.message,true);}finally{e.target.value='';}
+});
+for(const [k,description] of Object.entries(sheet.rubric)){const li=document.createElement('li'),heading=document.createElement('strong');heading.textContent=cleanLabel(k)+': ';li.append(heading,document.createTextNode(description));$('rubric').appendChild(li);}
+render();
+</script>
+</body></html>

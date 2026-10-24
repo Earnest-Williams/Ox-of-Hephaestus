@@ -1,0 +1,118 @@
+name: Ox G16g genuine local Qwen3.5-4B dialogue-only evaluation
+
+on:
+  push:
+    branches: [experiment/g16g-native-run]
+    paths:
+      - "scenarios/g16g_speech_evaluation.py"
+      - "design/prototypes/g16g-speech-preregistration-v1.json"
+      - "services/ai-handler/tests/test_g16g_speech.py"
+      - ".github/workflows/ox-g16g-native.yml"
+      - "!**/*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ox-g16g-local-speech-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  genuine-generative-cpu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      MODEL_PATH: .ox-model-cache/Qwen3.5-4B-Q4_K_M.gguf
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            services/ai-handler/pyproject.toml
+            uv.lock
+      - name: Install original native Concordia actor-profile package
+        run: python -m pip install -e './services/ai-handler[concordia]'
+      - name: Check speech-only actor and bounded intent contract before model download
+        run: |
+          python -m unittest discover -s services/ai-handler/tests -p test_g16g_speech.py -v
+          mkdir -p .ox-state/g16g
+          python scenarios/g16g_speech_evaluation.py \
+            --provider fixture --out .ox-state/g16g/fixture.json \
+            | tee .ox-state/g16g/fixture.log
+          grep -Fq OX_G16G_SPEECH_ONLY_48_SAMPLES_RECORDED .ox-state/g16g/fixture.log
+      - name: Restore pinned 2.74 GB Qwen Q4 corpus cache
+        uses: actions/cache@v4
+        with:
+          path: .ox-model-cache/Qwen3.5-4B-Q4_K_M.gguf
+          key: ox-unsloth-qwen35-4b-q4km-00fe7986-v1
+      - name: Download and full-SHA verify Qwen3.5-4B local GGUF
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .ox-model-cache .ox-state/g16g/llama
+          if [ ! -s "$MODEL_PATH" ]; then
+            curl -fL --retry 3 --output "$MODEL_PATH" 'https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/main/Qwen3.5-4B-Q4_K_M.gguf'
+          fi
+          echo "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4  $MODEL_PATH" | sha256sum -c -
+          sha256sum "$MODEL_PATH" > .ox-state/g16g/model-sha256.txt
+      - name: Download and verify pinned llama.cpp CPU-only server
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 --output .ox-state/g16g/llama.tar.gz 'https://github.com/ggml-org/llama.cpp/releases/download/b11819/llama-b11819-bin-ubuntu-x64.tar.gz'
+          echo '98800bd7b1b7bd5f17ff32c0ee6ce2ea6dbcfe77eb58ff9fd96bdad967a4f286  .ox-state/g16g/llama.tar.gz' | sha256sum -c -
+          tar -xzf .ox-state/g16g/llama.tar.gz -C .ox-state/g16g/llama
+      - name: Serve pinned Qwen3.5-4B on loopback only, with reasoning disabled
+        shell: bash
+        run: |
+          set -euo pipefail
+          SERVER="$(find .ox-state/g16g/llama -type f -name llama-server -print -quit)"
+          test -n "$SERVER"
+          LD_LIBRARY_PATH="$(dirname "$SERVER")" "$SERVER" --model "$MODEL_PATH" --alias qwen3.5-4b --host 127.0.0.1 --port 8080 --ctx-size 4096 --threads 4 --parallel 1 --n-gpu-layers 0 --reasoning off > .ox-state/g16g/server.log 2>&1 &
+          echo $! > .ox-state/g16g/server.pid
+          for i in $(seq 1 120); do
+            if curl -fsS http://127.0.0.1:8080/health | grep -q '"status":"ok"'; then exit 0; fi
+            if ! kill -0 "$(cat .ox-state/g16g/server.pid)" 2>/dev/null; then tail -n 100 .ox-state/g16g/server.log; exit 1; fi
+            sleep 2
+          done
+          tail -n 100 .ox-state/g16g/server.log
+          exit 1
+      - name: Collect 48 genuine speech-only samples and measured output tokens
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scenarios/g16g_speech_evaluation.py \
+            --provider qwen-local --gguf-path "$MODEL_PATH" \
+            --out .ox-state/g16g/qwen4b-48-voices.json \
+            | tee .ox-state/g16g/results.txt
+          grep -Fq OX_G16G_SPEECH_ONLY_48_SAMPLES_RECORDED .ox-state/g16g/results.txt
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          x=json.loads(Path(".ox-state/g16g/qwen4b-48-voices.json").read_text())
+          assert x["provider"]=="qwen-local"
+          assert x["real_text_generation_measured"]
+          assert not x["fake_provider"] and x["samples"]==48
+          assert len(x["blind_review_sheet"])==48
+          assert x["evennia_commands_sent"]==0
+          assert x["action_requests_generated"]==0
+          assert not x["model_choice_adopted"]
+          assert x["total_completion_tokens_reported"]>0
+          print("OX_G16G_REAL_LOCAL_QWEN_SPEECH_COST_RECORDED")
+          PY
+      - name: Keep native speech, blinded sheets, timings and pinned model digest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-g16g-48-genuine-qwen35-4b-voice-samples
+          path: |
+            .ox-state/g16g/qwen4b-48-voices.json
+            .ox-state/g16g/results.txt
+            .ox-state/g16g/model-sha256.txt
+            .ox-state/g16g/fixture.log
+            .ox-state/g16g/server.log
+          retention-days: 21
+          if-no-files-found: ignore
