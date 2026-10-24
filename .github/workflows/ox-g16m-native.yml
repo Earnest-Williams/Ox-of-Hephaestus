@@ -1,0 +1,149 @@
+name: Ox G16m 6-20-40 actual Decider 25-second queue burst
+
+on:
+  push:
+    branches: [experiment/g16m-native-run]
+    paths:
+      - "scenarios/profiling/g16f_personality_throughput.py"
+      - "scenarios/profiling/g16m_native_queue_burst.py"
+      - "services/ai-handler/tests/test_g16m_native_queue_burst.py"
+      - "services/ai-handler/src/ox_ai/inference/disposition_choice.py"
+      - "services/ai-handler/src/ox_ai/runtime/cognition_scheduler.py"
+      - "services/ai-handler/src/ox_ai/runtime/g16_decision_controller.py"
+      - "contracts/ox_contracts/**"
+      - ".github/workflows/ox-g16m-native.yml"
+      - "!**/*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ox-g16m-native-queue-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  forty-actor-same-time-true-decider-queue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      OX_PERSONALITY_CHOICE: "1"
+      MODEL_DIR: .ox-state/g16m/weights
+      OX_DECIDER_GGUF_PATH: .ox-state/g16m/weights/decider-4b.Q4_K_M.gguf
+      HF_HUB_DISABLE_TELEMETRY: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            services/ai-handler/pyproject.toml
+            contracts/pyproject.toml
+      - name: Install real Concordia and exact Decider Q4 CPU backend
+        run: |
+          python -m pip install -e ./contracts
+          python -m pip install -e './services/ai-handler[concordia]'
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers>=5,<6' 'numpy<3' 'huggingface_hub>=0.34,<2' jinja2 'llama-cpp-python>=0.3.35,<0.4'
+          python -m pip install --no-deps 'decider-ai==1.10.0'
+      - name: Prove identical real-Concordia actor scheduler and provenance tests
+        run: |
+          python -m compileall -q scenarios/profiling/g16f_personality_throughput.py scenarios/profiling/g16m_native_queue_burst.py
+          python -m unittest discover -s services/ai-handler/tests -p test_g16j_queue_telemetry.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_g16m_native_queue_burst.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_g16_choice.py -v
+      - name: Provision exact pinned Decider GGUF and publisher tokenizer
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$MODEL_DIR"
+          python - <<'PY'
+          from huggingface_hub import snapshot_download, hf_hub_download, HfApi
+          from pathlib import Path
+          import os, shutil, hashlib, json
+          d = Path(os.environ["MODEL_DIR"])
+          qrev = "3b02c98fa0b19e9daab247d633095b6e8a6cd4c5"
+          trev = "d3a78581751d518bbfa9e871a6d84059554d53c5"
+          snapshot_download(
+              repo_id="Mapika/decider-4b-GGUF", revision=trev,
+              local_dir=str(d),
+              allow_patterns=[
+                  "config.json","decider_config.json","tokenizer.json",
+                  "tokenizer_config.json","special_tokens_map.json",
+                  "*.jinja","vocab.json","merges.txt","added_tokens.json",
+              ],
+          )
+          names = [x.rfilename for x in HfApi().model_info(
+              "mradermacher/decider-4b-GGUF",revision=qrev).siblings]
+          qs = [n for n in names if n.lower().endswith("q4_k_m.gguf")
+                and "/" not in n]
+          if len(qs) != 1:
+              raise RuntimeError(f"Expected exactly one pinned Q4_K_M: {qs}")
+          src = hf_hub_download(
+              repo_id="mradermacher/decider-4b-GGUF",
+              filename=qs[0], revision=qrev)
+          out = d / qs[0]
+          if not out.exists():
+              shutil.copyfile(src, out)
+          expected = d / "decider-4b.Q4_K_M.gguf"
+          if out != expected:
+              if expected.exists():
+                  raise RuntimeError("Conflicting native model")
+              expected.symlink_to(out.name)
+          digest = hashlib.sha256()
+          with out.open("rb") as data:
+              while chunk := data.read(8*1024*1024):
+                  digest.update(chunk)
+          manifest = dict(
+              model="decider-q4", hf_revision=qrev,
+              tokenizer_revision=trev, sha256=digest.hexdigest(),
+              size=out.stat().st_size, source_file=out.name,
+          )
+          (d.parent / "model-manifest.json").write_text(
+              json.dumps(manifest, indent=2), encoding="utf-8")
+          print("OX_G16M_REAL_GGUF_PROVISIONED", manifest)
+          PY
+      - name: Measure genuine 6 20 40 actor simultaneous 25-second native queues
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scenarios/profiling/g16m_native_queue_burst.py \
+            --engine decider-q4 \
+            --gguf-path "$OX_DECIDER_GGUF_PATH" \
+            --model-manifest .ox-state/g16m/model-manifest.json \
+            --output .ox-state/g16m/native-burst.json \
+            | tee .ox-state/g16m/native-burst.txt
+          grep -Fq OX_G16M_REAL_QUEUE_MEASUREMENT_OR_EXPLICIT_SYNTHETIC_FIXTURE_RECORDED .ox-state/g16m/native-burst.txt
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path(".ox-state/g16m/native-burst.json")
+          x=json.loads(p.read_text())
+          assert x["backend"]=="decider-q4" and x["native_model_verified"]
+          assert x["model_provenance"]["sha256"]=="c03deb433d539ef49579fca5a015d5090c739a331448493aded7a57ad9b4261b"
+          assert x["deadline_seconds"]==25
+          assert x["native_concurrency"]==1
+          assert x["synthetic_fixture_forward_calls"]==0
+          assert [r["actors"] for r in x["cohorts"]]==[6,20,40]
+          for r in x["cohorts"]:
+              assert r["accepted_unexecuted_proposals"]+r["timed_out_no_proposal"]==r["actors"]
+              assert r["provider_invocations_started"]==r["provider_invocations_finished"]
+              assert r["underlying_actual_System_One_forwards"]==3*r["provider_invocations_started"]
+              assert r["telemetry"]["proposals_adopted"]==r["accepted_unexecuted_proposals"]
+              assert r["world_commands_sent"]==0 and r["accepted_evennia_receipts"]==0
+          assert x["world_commands_sent"]==0 and x["world_receipts_claimed"]==0
+          assert x["actual_native_gguf_forward_calls"]>0
+          print("OX_G16M_ALL_THREE_ACTUAL_GGUF_BURST_COHORTS_GENUINELY_RECORDED")
+          PY
+      - name: Retain measured native latencies and exact model provenance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-g16m-actual-q4-25second-six-twenty-forty-burst
+          path: |
+            .ox-state/g16m/native-burst.json
+            .ox-state/g16m/native-burst.txt
+            .ox-state/g16m/model-manifest.json
+          retention-days: 21
+          if-no-files-found: ignore

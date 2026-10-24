@@ -1,0 +1,69 @@
+name: Ox G16m forty-actor genuine scheduler contention fixture
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches: [main]
+    paths:
+      - "scenarios/profiling/g16m_native_queue_burst.py"
+      - "services/ai-handler/tests/test_g16m_native_queue_burst.py"
+      - ".github/workflows/ox-g16m-queue.yml"
+      - "!**/*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ox-g16m-queue-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  full-durable-scheduler-fixture:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      OX_PERSONALITY_CHOICE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install original G16a action catalog and genuine Concordia actor package
+        run: |
+          python -m pip install -e ./contracts
+          python -m pip install -e './services/ai-handler[concordia]'
+      - name: Verify G16j queue telemetry, original G16c replay, and G16m burst
+        run: |
+          python -m compileall -q scenarios/profiling/g16m_native_queue_burst.py
+          python -m unittest discover -s services/ai-handler/tests -p test_g16j_queue_telemetry.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_g16m_native_queue_burst.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_g16_choice.py -v
+      - name: Produce explicitly synthetic 6-20-40 complete-burst structural output
+        run: |
+          set -euo pipefail
+          mkdir -p .ox-state/g16m
+          python scenarios/profiling/g16m_native_queue_burst.py \
+            --engine fixture --output .ox-state/g16m/fixture.json \
+            | tee .ox-state/g16m/fixture.log
+          grep -Fq OX_G16M_REAL_QUEUE_MEASUREMENT_OR_EXPLICIT_SYNTHETIC_FIXTURE_RECORDED .ox-state/g16m/fixture.log
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          x=json.loads(Path(".ox-state/g16m/fixture.json").read_text())
+          assert x["backend"]=="fixture" and not x["native_model_verified"]
+          assert x["actual_native_gguf_forward_calls"]==0
+          assert x["synthetic_fixture_forward_calls"]==198
+          assert [y["actors"] for y in x["cohorts"]]==[6,20,40]
+          assert x["evennia_world_connections"]==0
+          print("OX_G16M_FIXTURE_NOT_MISLABELED_AS_NATIVE_OR_WORLD")
+          PY
+      - name: Retain exact tagged-actor fixture and no-authority audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-g16m-40-actor-structural-fixture
+          path: .ox-state/g16m
+          retention-days: 21
+          if-no-files-found: ignore
