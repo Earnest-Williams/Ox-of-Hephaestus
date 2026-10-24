@@ -123,11 +123,21 @@ async def decide_g16(
     if len(offered) != 3:
         raise ValueError("G16c position-balanced Decider needs exactly three offered actions")
 
+    # Concordia can include the caller's offered-order sequence in the
+    # surrounding native prompt. Canonicalize that whole outer choice list,
+    # not merely G15's three internal criteria rotations, or a display-order
+    # perturbation can change the native actor's prompt.
+    canonical_offered = tuple(sorted(
+        offered,
+        key=lambda o: menu.by_command(
+            o.verb, o.target, o.arguments,
+        ).semantic_key,
+    ))
     options = tuple(
         (menu.by_command(
             o.verb, o.target, o.arguments,
         ).semantic_key, o.label)
-        for o in offered
+        for o in canonical_offered
     )
     if previous is None:
         gguf_path = os.environ.get("OX_DECIDER_GGUF_PATH", "")
@@ -170,7 +180,7 @@ async def decide_g16(
     # shadow Concordia model still sees one ordinary finite-choice request.
     # A prompt-validated ledger replay consumes zero native forwards.
     result = await controller.scheduler.decide(
-        controller.role, agent, offered,
+        controller.role, agent, canonical_offered,
         decision_context=description,
         inference_model=model,
         prepared_request_id=request_id,
