@@ -7,7 +7,10 @@ on:
     paths:
       - "scenarios/g16g_speech_evaluation.py"
       - "services/ai-handler/tests/test_g16g_speech.py"
+      - "services/ai-handler/tests/test_g16g_blind_review.py"
+      - "scenarios/g16g_blind_review.py"
       - "design/prototypes/g16g-speech-preregistration-v1.json"
+      - "design/prototypes/g16g-blind-review-protocol-v1.json"
       - ".github/workflows/ox-g16g-speech.yml"
       - "!**/*.md"
   workflow_dispatch:
@@ -35,6 +38,7 @@ jobs:
         run: |
           python -m compileall -q scenarios/g16g_speech_evaluation.py services/ai-handler/tests/test_g16g_speech.py
           python -m unittest discover -s services/ai-handler/tests -p test_g16g_speech.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_g16g_blind_review.py -v
       - name: Record 48 offline fixture utterances with NO real model-quality claim
         run: |
           mkdir -p .ox-state/g16g
