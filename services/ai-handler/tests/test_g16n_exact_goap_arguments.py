@@ -178,7 +178,7 @@ class ArgumentGroundedGoapTests(unittest.IsolatedAsyncioTestCase):
                     menu_key=self.menu.menu_key,persist=persist,
                 )
         self.assertFalse(saves)
-        self.assertNotIn("boundaries",router.record)
+        self.assertEqual(router.record["boundaries"],{})
         self.assertFalse(brain.pending_requests)
 
     async def test_authored_exact_argument_tags_price_only_matching_operators(self):
