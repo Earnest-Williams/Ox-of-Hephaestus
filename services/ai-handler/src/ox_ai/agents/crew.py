@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 import json
 import math
 import os
+import re
 from pathlib import Path
 import tempfile
 from typing import Any
@@ -440,14 +441,20 @@ class CrewAgent:
         )
         return True
 
-    def fork_for_inference(self) -> CrewAgent:
+    def fork_for_inference(self, *, model_override: Any | None = None) -> CrewAgent:
         """Detached copy of cognition state; no live pending world intents.
 
         Construct the fork on the event loop before scheduling the expensive
         model invocation in a thread. Only the fork is mutated in the worker.
         """
+        if model_override is not None and (
+            not callable(getattr(model_override, "sample_choice", None))
+            or not callable(getattr(model_override, "sample_text", None))
+        ):
+            raise TypeError("Detached choice model must implement the bounded interface")
         fork = CrewAgent(
-            self.identity, self._model, blueprint=self.blueprint,
+            self.identity, self._model if model_override is None else model_override,
+            blueprint=self.blueprint,
             memory_projection_enabled=self._memory_projection_enabled,
             observation_history_length=self._observation_history_length,
         )
@@ -529,6 +536,7 @@ class CrewAgent:
         *,
         expected_revision: int | None = None,
         decision_context: str | None = None,
+        request_id: str | None = None,
     ) -> ActionRequest:
         """Ask Concordia to choose a validated command attempt, not an outcome.
 
@@ -551,6 +559,12 @@ class CrewAgent:
             or not 1 <= len(decision_context) <= 1200
         ):
             raise ValueError("Decision context must be bounded nonempty text")
+        if request_id is not None and (
+            not isinstance(request_id, str)
+            or not re.fullmatch(r"[0-9a-f]{32}", request_id)
+            or request_id in self._pending
+        ):
+            raise ValueError("Prepared request ID must be unique 32-char lowercase hex")
         if not choices:
             raise ValueError("A choice requires at least one command option")
         by_label = {option.label: option for option in choices}
@@ -602,7 +616,7 @@ class CrewAgent:
 
         selected = by_label[choice]
         request = ActionRequest(
-            request_id=uuid.uuid4().hex,
+            request_id=request_id if request_id is not None else uuid.uuid4().hex,
             character_id=self.identity.character_id,
             verb=selected.verb,
             target=selected.target,

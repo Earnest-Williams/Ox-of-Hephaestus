@@ -13,11 +13,13 @@ The model/provider must also enforce a real I/O timeout.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 import math
 import time
 import threading
+from typing import Any
 
+from ox_ai.ports.base import ActionRequest
 from ox_ai.agents.crew import CommandOption, CrewAgent, StaleAgentRevision
 
 
@@ -108,17 +110,31 @@ class DecisionScheduler:
     async def decide(
         self, role: str, agent: CrewAgent, options: Sequence[CommandOption],
         *, decision_context: str | None = None,
+        inference_model: Any | None = None,
+        prepared_request_id: str | None = None,
+        before_adopt: Callable[[CrewAgent, ActionRequest], None] | None = None,
+        cost_units: int = 1,
     ):
-        """Infer off-thread, then synchronously validate and adopt on the loop."""
+        """Infer off-thread, checkpoint optional choice before main-loop adoption.
+
+        The optional G16c hook executes only on the event-loop owner, after
+        detached inference and revision checks but BEFORE the live agent gets
+        a pending ActionRequest. A failing callback cannot adopt a proposal.
+        All legacy callers use the unchanged default one-unit path.
+        """
         if not isinstance(role, str) or not role or len(role) > 64:
             raise ValueError("Invalid role")
         if not isinstance(agent, CrewAgent):
             raise TypeError("Cognition requires a real CrewAgent")
         if role in self._inflight:
             raise CognitionBusy("An earlier decision is still owned by this actor")
+        if type(cost_units) is not int or not 1 <= cost_units <= 16:
+            raise ValueError("Model call units must be 1..16")
+        if before_adopt is not None and not callable(before_adopt):
+            raise TypeError("Pre-adoption checkpoint hook must be callable")
         self._refresh_budget_window()
-        if (self._attempts.get(role, 0) >= self._per_actor_budget
-                or self._total_attempts >= self._total_budget):
+        if (self._attempts.get(role, 0) + cost_units > self._per_actor_budget
+                or self._total_attempts + cost_units > self._total_budget):
             raise CognitionBudgetExceeded("Inference quota exhausted; no action authorised")
         # Validate the menu before charging for or beginning inference. An
         # output will always be checked against this identical finite menu.
@@ -136,9 +152,10 @@ class DecisionScheduler:
             raise ValueError("Decision context must be bounded nonempty text")
         revision = agent.revision
         cognition_revision = agent.cognition_revision
-        shadow = agent.fork_for_inference()
-        self._attempts[role] = self._attempts.get(role, 0) + 1
-        self._total_attempts += 1
+        shadow = (agent.fork_for_inference() if inference_model is None
+                  else agent.fork_for_inference(model_override=inference_model))
+        self._attempts[role] = self._attempts.get(role, 0) + cost_units
+        self._total_attempts += cost_units
 
         abandoned = threading.Event()
         async def infer():
@@ -147,9 +164,14 @@ class DecisionScheduler:
                 # inference slot should never consume quota at the provider.
                 if abandoned.is_set():
                     raise CognitionTimedOut("Queued inference expired before execution")
+                choose_kwargs = {
+                    "expected_revision": revision,
+                    "decision_context": decision_context,
+                }
+                if prepared_request_id is not None:
+                    choose_kwargs["request_id"] = prepared_request_id
                 return await asyncio.to_thread(
-                    shadow.decide, offered, expected_revision=revision,
-                    decision_context=decision_context,
+                    shadow.decide, offered, **choose_kwargs,
                 )
 
         task = asyncio.create_task(infer(), name="ox-infer-" + role)
@@ -167,6 +189,14 @@ class DecisionScheduler:
         task.add_done_callback(finished)
         try:
             draft = await asyncio.wait_for(asyncio.shield(task), self._timeout)
+            # Only the event-loop owner may write a durable G16c choice.
+            # This guard avoids freezing a choice from a stale worker before
+            # the live agent's own adopt_inference repeats its full checks.
+            if before_adopt is not None:
+                if (agent.revision != revision
+                        or agent.cognition_revision != cognition_revision):
+                    raise StaleAgentRevision("Choice changed while inference was detached")
+                before_adopt(shadow, draft)
             # Only the live agent, on the event loop, can adopt the proposed
             # action. Both authenticated observations AND new private memories
             # can invalidate a detached actor while inference is underway.

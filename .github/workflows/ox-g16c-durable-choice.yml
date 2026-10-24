@@ -1,0 +1,73 @@
+name: Ox G16c durable personality choice gate
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches: [main, feature/g16d-disposition-weighted-goap]
+    paths:
+      - "contracts/**"
+      - "services/ai-handler/src/ox_ai/agents/crew.py"
+      - "services/ai-handler/src/ox_ai/runtime/cognition_scheduler.py"
+      - "services/ai-handler/src/ox_ai/runtime/personality_routing.py"
+      - "services/ai-handler/src/ox_ai/runtime/personality_choice_ledger.py"
+      - "services/ai-handler/src/ox_ai/runtime/g16_decision_controller.py"
+      - "services/ai-handler/src/ox_ai/runtime/disposition_goap.py"
+      - "services/ai-handler/src/ox_ai/inference/disposition_choice.py"
+      - "services/ai-handler/src/ox_ai/inference/position_balanced_choice.py"
+      - "services/ai-handler/tests/test_g16_choice.py"
+      - ".github/workflows/ox-g16c-durable-choice.yml"
+      - "!**/*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ox-g16c-choice-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  durable-choice:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    name: Pre-adoption durable ledger and native-stub Concordia choice
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            services/ai-handler/pyproject.toml
+            contracts/pyproject.toml
+      - name: Install one shared catalog and actual Concordia actor
+        run: |
+          python -m pip install -e ./contracts
+          python -m pip install -e './services/ai-handler[concordia]'
+      - name: Validate actual pre-adoption route, score, replay and safety contracts
+        run: |
+          python -m compileall -q services/ai-handler/src/ox_ai/runtime services/ai-handler/src/ox_ai/inference services/ai-handler/src/ox_ai/agents/crew.py
+          python -m unittest discover -s services/ai-handler/tests -p test_g16_choice.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_g16_goap.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_personality_routing.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_cognition_scheduler.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_position_balanced_choice.py -v
+      - name: Assert implementation cannot submit world effects
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          paths = [
+              Path("services/ai-handler/src/ox_ai/runtime/g16_decision_controller.py"),
+              Path("services/ai-handler/src/ox_ai/inference/disposition_choice.py"),
+              Path("services/ai-handler/src/ox_ai/runtime/personality_choice_ledger.py"),
+          ]
+          text = "\n".join(p.read_text() for p in paths)
+          assert "DurableEvenniaPort" not in text
+          assert "EvenniaWebSocketClient" not in text
+          assert "submit_work(" not in text
+          assert "OX_PERSONALITY_CHOICE" not in Path(
+              "services/ai-handler/src/ox_ai/runtime/g16_decision_controller.py"
+          ).read_text()
+          print("OX_G16C_NO_WORLD_AUTHORITY_BOUNDARY_PASS")
+          PY
