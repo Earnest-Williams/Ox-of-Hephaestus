@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "status": "g16h_preregistered_before_clean_native_comparison",
+  "origin": "24 historical authored G11 case pairs, source experiment/qwen3.5-0.8b-ci",
+  "purpose": "Remove option-position confound before confirming Decider Q4 as local finite-action scorer",
+  "cases": 24,
+  "variants": [
+    "earlier",
+    "changed"
+  ],
+  "caller_orders": [
+    "canonical",
+    "reversed"
+  ],
+  "providers": {
+    "decider-q4": {
+      "native_backend": "publisher System One",
+      "model": "Decider 4B Q4_K_M",
+      "gguf_revision": "3b02c98fa0b19e9daab247d633095b6e8a6cd4c5",
+      "tokenizer_revision": "d3a78581751d518bbfa9e871a6d84059554d53c5",
+      "native_passes_per_decision": 2,
+      "total_decisions": 96,
+      "total_native_forwards": 192
+    },
+    "qwen3.5-4b": {
+      "backend": "local llama.cpp OpenAI-compatible two-option chat",
+      "gguf_sha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4",
+      "total_decisions": 96,
+      "total_native_requests": 96
+    }
+  },
+  "paired_semantic_design": {
+    "expected_earlier_original_display_position": 1,
+    "expected_changed_original_display_position": 2,
+    "both_expected_positions_tested_for_each_variant": true,
+    "use_same_case_observation_and_seeded_recollection_for_both_providers": true,
+    "rotate_native_decider_response_codes_within_each_caller_order": true,
+    "map_every_score_and_selected_code_to_unchanged_semantic_action_key": true,
+    "no_free_text_chooses_equipment_outcomes": true,
+    "no_evennia_work_commands": true
+  },
+  "results_to_report": [
+    "48 both-correct case/order pairs per model",
+    "96 individual choices per model",
+    "accuracy split by expected display position",
+    "48 semantic action order-invariance comparisons per model",
+    "change-rate across 24 case counterfactuals for each outer menu order",
+    "actual per-decision latency, native-forward count and CPU model digest",
+    "all failed cases and ambiguous outcomes"
+  ],
+  "adoption_rule": "Do not adopt Decider from raw accuracy on original answer-option-one confound. Compare balanced semantic decisions and native-call cost, then require existing G16e/g/f and live safety acceptance. No retuning on these same 24 authored test cases.",
+  "safety": {
+    "all_choice_outcomes_are_unexecuted_handler_proposals": true,
+    "verified_world_work_receipts_expected": 0,
+    "actor_specific_private_world_evidence_not_fabricated": true
+  }
+}
