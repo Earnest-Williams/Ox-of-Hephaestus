@@ -1,0 +1,51 @@
+name: Ox G16l positive and negative safety-lock controller contract
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches: [main]
+    paths:
+      - "services/ai-handler/tests/test_g16l_safety_controller.py"
+      - ".github/workflows/ox-g16l-safety-controller.yml"
+      - "!**/*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ox-g16l-controller-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  full-controller-safety:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install original typed G16a and real Concordia brain/route packages
+        run: |
+          python -m pip install -e ./contracts
+          python -m pip install -e './services/ai-handler[concordia]'
+      - name: Preserve ordinary G16c durable selection and replay regressions
+        run: |
+          python -m unittest discover -s services/ai-handler/tests -p test_g16_choice.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_g16_goap.py -v
+      - name: Exercise full positive/negative safety route with synthetic controlled scores
+        run: |
+          python -m compileall -q services/ai-handler/tests/test_g16l_safety_controller.py
+          python -m unittest discover -s services/ai-handler/tests -p test_g16l_safety_controller.py -v
+      - name: Assert fixture-only scope and unchanged production flag
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          source=Path('services/ai-handler/tests/test_g16l_safety_controller.py').read_text()
+          assert 'DeterministicHighOrWeakSystemOne' in source
+          assert 'world_commands_sent' not in source
+          assert 'native_model_calibrated' not in source
+          print("OX_G16L_CONTROLLER_SAFETY_FIXTURE_ONLY_NOT_NATIVE_LOCK_EVIDENCE")
+          PY
