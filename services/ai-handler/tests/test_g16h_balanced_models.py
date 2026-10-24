@@ -1,6 +1,9 @@
 """G16h: reject 24-pair position confound without requiring model weights."""
 from __future__ import annotations
 
+from copy import deepcopy
+import json
+import tempfile
 import importlib.util
 from pathlib import Path
 import sys
@@ -76,6 +79,39 @@ class BalancedComparisonTests(unittest.TestCase):
         self.assertEqual(outcome["world_commands_sent"], 0)
         self.assertEqual(outcome["world_receipts_claimed"], 0)
         self.assertFalse(outcome["adopted_model_decision"])
+
+    def test_independent_aggregate_rejects_fake_and_balances_all_rows(self):
+        import g16h_compare_results as aggregate
+        source = self.cmp.run("fixture-decider")
+        with tempfile.TemporaryDirectory() as root:
+            dfile = Path(root) / "decider.json"
+            qfile = Path(root) / "qwen.json"
+            dfile.write_text(json.dumps(source))
+            qfile.write_text(json.dumps(source))
+            with self.assertRaises(PermissionError):
+                aggregate.compare(dfile, qfile)
+            # Pure schema exercise: these copies deliberately remain
+            # deterministic *test* data, not native quality evidence.
+            decider = deepcopy(source)
+            decider["provider"] = "decider-q4"
+            decider["fake_provider"] = False
+            decider["real_native_measurement"] = True
+            qwen = deepcopy(source)
+            qwen["provider"] = "qwen3.5-4b"
+            qwen["fake_provider"] = False
+            qwen["real_native_measurement"] = True
+            qwen["model_forwards"] = 96
+            for row in qwen["rows"]:
+                row["native_passes"] = 1
+                row["scorer_record"] = None
+            dfile.write_text(json.dumps(decider))
+            qfile.write_text(json.dumps(qwen))
+            result = aggregate.compare(dfile, qfile)
+            self.assertEqual(result["matched_bounded_decisions_per_model"], 96)
+            self.assertEqual(result["caller_positions_for_expected_answer"],
+                             {"0":48, "1":48})
+            self.assertFalse(result["production_personality_flag_enabled"])
+            self.assertIsNone(result["selected_production_action_scorer"])
 
     def test_reject_invalid_two_option_native_scorer_menus(self):
         scorer = self.cmp.BalancedBinaryDecider
