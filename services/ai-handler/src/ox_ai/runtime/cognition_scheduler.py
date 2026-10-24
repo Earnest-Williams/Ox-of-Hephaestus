@@ -215,8 +215,10 @@ class DecisionScheduler:
         queued_at = time.monotonic()
 
         abandoned = threading.Event()
+        provider_started = False
 
         async def infer():
+            nonlocal provider_started
             self._pending_slot_roles.add(role)
             try:
                 async with self._sem:
@@ -230,6 +232,7 @@ class DecisionScheduler:
                     started_at = time.monotonic()
                     self._queue_wait_seconds.append(started_at - queued_at)
                     self._native_running_roles.add(role)
+                    provider_started = True
                     self._telemetry["inference_invocations_started"] += 1
                     self._maximum_simultaneous_inference_invocations = max(
                         self._maximum_simultaneous_inference_invocations,
@@ -261,7 +264,10 @@ class DecisionScheduler:
             if not finished_task.cancelled():
                 finished_task.exception()
             if role in self._orphaned and self._inflight.get(role) is finished_task:
-                self._telemetry["provider_finished_after_abandonment"] += 1
+                # Expired tasks that never passed the semaphore are not
+                # late provider completions. Count only real started work.
+                if provider_started:
+                    self._telemetry["provider_finished_after_abandonment"] += 1
                 self._orphaned.discard(role)
                 del self._inflight[role]
 
