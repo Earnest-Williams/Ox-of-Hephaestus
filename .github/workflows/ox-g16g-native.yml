@@ -16,7 +16,7 @@ permissions:
 
 concurrency:
   group: ox-g16g-local-speech-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   genuine-generative-cpu:
