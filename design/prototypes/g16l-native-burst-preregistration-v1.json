@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "status": "preregistered_before_actual_g16l_native_burst",
+  "source": "G16f original native implementation and G16j exact-head queue instrumentation",
+  "model": {
+    "provider": "decider-q4",
+    "gguf_sha256": "c03deb433d539ef49579fca5a015d5090c739a331448493aded7a57ad9b4261b",
+    "gguf_revision": "3b02c98fa0b19e9daab247d633095b6e8a6cd4c5",
+    "tokenizer_revision": "d3a78581751d518bbfa9e871a6d84059554d53c5",
+    "native_threads": 2
+  },
+  "actor_cohorts": [
+    6,
+    20,
+    40
+  ],
+  "arrivals": "all roles scheduled for the same event loop tick per cohort",
+  "production_timeout_seconds": 25,
+  "actual_engine_slots": 1,
+  "position_balance_forwards_per_actual_started_choice": 3,
+  "offered_authored_catalog_menu": "g14.verified_mutual_aid",
+  "profile_source": "G16f validated 6/20/40 synthetic actor-private blueprints/memories; real Concordia actor inference but NOT real Evennia observations",
+  "metrics": [
+    "attempted_route_boundaries",
+    "real_system_one_forwards",
+    "model_invocations_started",
+    "model_invocations_completed",
+    "maximum_concurrent_model_invocations",
+    "proposals_adopted",
+    "timed_out_waiting_for_slot",
+    "timed_out_with_provider_active",
+    "expired_queue_entries_discarded",
+    "provider_finished_after_abandonment",
+    "max_queue_wait_seconds",
+    "total_burst_seconds",
+    "no_world_commands"
+  ],
+  "safety": {
+    "production_feature_flag_only_set_in_isolated_ci": true,
+    "original_scheduler_limit_unchanged": true,
+    "never_send_evennia_commands": true,
+    "never_modify_production_policy": true,
+    "treat_expiry_as_no_action": true,
+    "ledger_recorded_before_inference": true,
+    "no_automatic_goap_fallback": true,
+    "timeout_samples_are_not_believable_personality_evidence": true
+  },
+  "acceptance": {
+    "all_cohorts_tested": true,
+    "all_expected_actor_ids_unique": true,
+    "each_non_executed_result_is_valid_proposal_or_native_timeout": true,
+    "no_unauthorized_world_work": true,
+    "no_timed_out_actor_has_adopted_proposal": true,
+    "underlying_native_forwards_equal_three_times_finished_invocations": true,
+    "all_native_tasks_reaped": true,
+    "results_cannot_claim_live_evennia_soak": true
+  },
+  "limitations": "One measured serial CPU-native scoring lane; two simultaneously executing native forwards and actual world effects are not tested. The 40 actors all use synthetic private memories; only the Concordia/runtime scorer and deadline are genuine. Different runner hardware may change outcomes."
+}
