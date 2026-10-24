@@ -124,7 +124,7 @@ jobs:
           assert all(r["deadline_seconds"] == 25 for r in x["bursts"])
           assert x["world_commands_sent"] == x["world_receipts_claimed"] == 0
           assert not x["production_activation_accepted"]
-          print("OX_G16O_GENUINE_BINARY_HOST_MEASUREMENT_PASS", x["capacity_observation"])
+          print("OX_G16O_GENUINE_BINARY_HOST_MEASUREMENT_RECORDED", x["capacity_observation"])
           PY
       - name: Retain exact host and model provenance with uncensored measurements
         if: always()
