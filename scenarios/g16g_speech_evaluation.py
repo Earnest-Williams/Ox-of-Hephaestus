@@ -20,7 +20,7 @@ import time
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
 PROTOCOL_PATH = ROOT / "design/prototypes/g16g-speech-preregistration-v1.json"
 sys.path.insert(0, str(Path(__file__).resolve().parent / "g8_soap_opera"))
 
