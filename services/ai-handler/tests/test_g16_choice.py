@@ -333,6 +333,53 @@ class NativeControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("personality_choices", router.record)
         self.assertEqual(len(calls), 2)
 
+    async def test_real_concordia_prompt_is_order_invariant_for_caller_permutations(self):
+        from ox_ai.agents.crew import CrewAgent, CrewIdentity
+        template = self.router_for("llm")
+        source_seed = template.record["seed"]
+        async def one(order):
+            fresh = CrewAgent(
+                CrewIdentity("ox.person." + self.profile.person_id,
+                             "#301", self.profile.name, "Watch technician",
+                             "Inspect the offered options"),
+                LegacyModelMustNotRun(),
+                blueprint=self.profile,
+            )
+            router = PersonalityRouter(
+                self.profile, "#301", {}, seed=source_seed,
+            )
+            engine = SemanticNativeEngine()
+            controller = CharacterRouteController(
+                router, DecisionScheduler(
+                    max_parallel=1, timeout_seconds=30,
+                    per_actor_budget=6, total_budget=6,
+                ), role="g16c", decider_engine=engine,
+            )
+            with mock.patch.dict("os.environ", {"OX_PERSONALITY_CHOICE": "1"}):
+                proposal = await controller.decide(
+                    agent=fresh, planner=self.planner,
+                    beliefs=frozenset({"offer_active"}),
+                    goals=frozenset({"handled"}),
+                    options=order, boundary_id=self.boundary,
+                    kind="social", state=self.state,
+                    menu_key=self.menu.menu_key,
+                    persist=lambda: None,
+                )
+            self.assertEqual(engine.calls, 3)
+            data = router.record["personality_choices"][self.boundary]
+            return proposal, data["choice"]
+        first, first_choice = await one(self.offered)
+        reversed_result, reversed_choice = await one(tuple(reversed(self.offered)))
+        self.assertEqual(first_choice["prompt_sha256"],
+                         reversed_choice["prompt_sha256"])
+        self.assertEqual(first_choice["raw_scores"],
+                         reversed_choice["raw_scores"])
+        self.assertEqual(first_choice["adjusted_scores"],
+                         reversed_choice["adjusted_scores"])
+        self.assertEqual(first_choice["draw"], reversed_choice["draw"])
+        self.assertEqual(first.action.request_id, reversed_result.action.request_id)
+        self.assertEqual(first.action.verb, reversed_result.action.verb)
+
     async def test_crash_between_ledger_commit_and_agent_adoption_replays_original_id(self):
         from ox_ai.agents.crew import CrewAgent
         router = self.router_for("llm")
