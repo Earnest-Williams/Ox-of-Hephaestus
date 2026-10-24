@@ -1,0 +1,44 @@
+name: Ox G16n exact GOAP station arguments and replay
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches: [main]
+    paths:
+      - "services/ai-handler/src/ox_ai/planning/goap.py"
+      - "services/ai-handler/src/ox_ai/runtime/disposition_goap.py"
+      - "services/ai-handler/src/ox_ai/runtime/g16_decision_controller.py"
+      - "services/ai-handler/src/ox_ai/runtime/personality_routing.py"
+      - "services/ai-handler/tests/test_g16n_exact_goap_arguments.py"
+      - ".github/workflows/ox-g16n-goap-arguments.yml"
+      - "!**/*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ox-g16n-grounded-arguments-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  exact-world-command-tagging:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install strict G16a catalog and the actual Concordia brain source
+        run: |
+          python -m pip install -e ./contracts
+          python -m pip install -e './services/ai-handler[concordia]'
+      - name: Verify grounded argument matching through normal and opt-in GOAP
+        run: |
+          python -m compileall -q services/ai-handler/src/ox_ai
+          python -m unittest discover -s services/ai-handler/tests -p test_g16n_exact_goap_arguments.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_g16_goap.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_g16_choice.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_personality_routing.py -v
