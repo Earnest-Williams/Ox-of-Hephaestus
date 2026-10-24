@@ -96,10 +96,21 @@ class BalancedComparisonTests(unittest.TestCase):
             decider["provider"] = "decider-q4"
             decider["fake_provider"] = False
             decider["real_native_measurement"] = True
+            decider["model_provenance"] = {
+                "model": "decider-q4",
+                "sha256": aggregate.DECIDER_GGUF_SHA256,
+                "hf_revision": aggregate.DECIDER_WEIGHT_REVISION,
+                "tokenizer_revision": aggregate.DECIDER_TOKENIZER_REVISION,
+                "size": 2708804928,
+            }
             qwen = deepcopy(source)
             qwen["provider"] = "qwen3.5-4b"
             qwen["fake_provider"] = False
             qwen["real_native_measurement"] = True
+            qwen["model_provenance"] = {
+                "model": "qwen3.5-4b",
+                "sha256": aggregate.QWEN_GGUF_SHA256,
+            }
             qwen["model_forwards"] = 96
             for row in qwen["rows"]:
                 row["native_passes"] = 1
@@ -112,6 +123,36 @@ class BalancedComparisonTests(unittest.TestCase):
                              {"0":48, "1":48})
             self.assertFalse(result["production_personality_flag_enabled"])
             self.assertIsNone(result["selected_production_action_scorer"])
+            # Explicit adversarial controls; mutating BOTH model records
+            # must not be able to rewrite authored expected world evidence.
+            for field, replacement in (
+                ("expected", "a_forged_correct_action"),
+                ("observed_sha256", "0" * 64),
+                ("recollection_sha256", "0" * 64),
+            ):
+                changed_decider = deepcopy(decider)
+                changed_qwen = deepcopy(qwen)
+                changed_decider["rows"][0][field] = replacement
+                changed_qwen["rows"][0][field] = replacement
+                dfile.write_text(json.dumps(changed_decider))
+                qfile.write_text(json.dumps(changed_qwen))
+                with self.subTest(field=field), self.assertRaises(PermissionError):
+                    aggregate.compare(dfile, qfile)
+            changed_qwen = deepcopy(qwen)
+            changed_qwen["model_provenance"]["sha256"] = "f" * 64
+            dfile.write_text(json.dumps(decider))
+            qfile.write_text(json.dumps(changed_qwen))
+            with self.assertRaises(PermissionError):
+                aggregate.compare(dfile, qfile)
+            changed_decider = deepcopy(decider)
+            changed_decider["rows"][0]["scorer_record"]["semantic_scores"] = {
+                key: .5 for key in changed_decider["rows"][0]["offered_verb_order"]
+            }
+            # A forged mean cannot replace the actual two native pass means.
+            dfile.write_text(json.dumps(changed_decider))
+            qfile.write_text(json.dumps(qwen))
+            with self.assertRaises(ValueError):
+                aggregate.compare(dfile, qfile)
 
     def test_reject_invalid_two_option_native_scorer_menus(self):
         scorer = self.cmp.BalancedBinaryDecider
