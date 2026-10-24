@@ -14,6 +14,7 @@ from dataclasses import dataclass
 import hashlib
 import json
 import math
+import os
 import re
 from collections.abc import Callable, Sequence
 import uuid
@@ -282,12 +283,14 @@ class CharacterRouteController:
     A caller must use the existing durable WorkStepLedger and Evennia port
     for actual effects. No automatic fallback on inference failure.
     """
-    def __init__(self, router: PersonalityRouter, scheduler, *, role: str):
+    def __init__(self, router: PersonalityRouter, scheduler, *, role: str,
+                 decider_engine=None):
         if not isinstance(router, PersonalityRouter):
             raise TypeError("Character routing needs a persistent router")
         if not isinstance(role, str) or not role or len(role) > 64:
             raise ValueError("Invalid actor role")
         self.router, self.scheduler, self.role = router, scheduler, role
+        self.decider_engine = decider_engine  # Opt-in per-boundary native scorer backend.
 
     async def decide(
         self, *, agent: CrewAgent, planner: GoapPlanner,
@@ -295,6 +298,7 @@ class CharacterRouteController:
         options: Sequence[CommandOption], boundary_id: str,
         kind: str, state: PersonalState,
         persist: Callable[[], None],
+        menu_key: str | None = None,
     ) -> RoutedProposal:
         if not isinstance(agent, CrewAgent) or agent.identity.character_id != self.router.character_id:
             raise PermissionError("Cannot route another character's cognition")
@@ -308,6 +312,19 @@ class CharacterRouteController:
         signatures = [(o.verb, o.target, tuple(sorted(o.arguments.items()))) for o in offered]
         if len(set(signatures)) != len(signatures) or len({o.label for o in offered}) != len(offered):
             raise ValueError("Duplicate available actions")
+        feature = os.environ.get("OX_PERSONALITY_CHOICE", "0")
+        if feature not in ("0", "1"):
+            raise ValueError("OX_PERSONALITY_CHOICE must be exactly 0 or 1")
+        if feature == "1":
+            if not isinstance(menu_key, str) or not menu_key:
+                raise ValueError("Opt-in personality choice requires an explicit tagged menu key")
+            from ox_ai.runtime.g16_decision_controller import decide_g16
+            return await decide_g16(
+                self, agent=agent, planner=planner,
+                beliefs=beliefs, goals=goals, offered=offered,
+                boundary_id=boundary_id, kind=kind, state=state,
+                persist=persist, menu_key=menu_key,
+            )
         route = self.router.select(
             boundary_id=boundary_id, kind=kind, state=state,
             observation_revision=agent.revision,
