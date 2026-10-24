@@ -1,4 +1,5 @@
 name: Ox G16m 6-20-40 actual Decider 25-second queue burst
+# Native exploratory run pinned to G16m PR source 4030fc55b867
 
 on:
   push:
