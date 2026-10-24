@@ -26,11 +26,13 @@ jobs:
   g16e-native-persona:
     name: "G16e native procedural/independent arms: ${{ matrix.role }}"
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    timeout-minutes: 330
     strategy:
       fail-fast: false
       matrix:
-        role: [lin, ari, iona, mara, teo, captain]
+        # Recovery reuses the five complete original native actor shards.
+        # Iona's original 150-minute job exhausted its timeout mid-inference.
+        role: [iona]
     env:
       MODEL_DIR: .ox-state/g16e/weights
       OX_DECIDER_GGUF_PATH: .ox-state/g16e/weights/decider-4b.Q4_K_M.gguf
@@ -163,18 +165,46 @@ jobs:
     needs: [g16e-native-persona]
     if: ${{ success() }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Restore five immutable original successful native G16e actor artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .ox-state/g16e/combined/results
+          for role in lin ari mara teo captain; do
+            gh run download 40047642031 --repo "$GITHUB_REPOSITORY" \
+              --name "ox-g16e-role-$role" \
+              --dir .ox-state/g16e/combined
+          done
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          expected = {
+              "ari": "cb1b7a3e70229d2a2e9cf45d9099aa4341f0922a896ebd63e03646465c999330",
+              "captain": "27229145e2cd0a1a2a04c5c1c80052f8da2c0761fcccc0f4c9c515a6ea1868c0",
+              "lin": "4d321fc562c5bae50e27f8b9b903b95028d8026645ce92c09a49fa2afc4363cc",
+              "mara": "a1fe1be237eb6cef6c6a36dd531a0be0ac9876fe7db527336437e8fb47bca386",
+              "teo": "15087dd373030901330d90c6938b5de9b26ced07e76167ea9e4f622b2981f702",
+          }
+          for role, digest in expected.items():
+              path = Path(".ox-state/g16e/combined/results")/(role+".json")
+              if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest()!=digest:
+                  raise PermissionError("G16e source native shard mutated: "+role)
+          print("OX_G16E_FIVE_ARCHIVED_NATIVE_SHARDS_BYTE_FOR_BYTE_AUTHENTICATED")
+          PY
       - uses: actions/download-artifact@v4
         with:
           pattern: ox-g16e-role-*
           path: .ox-state/g16e/combined
           merge-multiple: true
-      - name: Validate 936 native forwards and preregistered behavioural gates
+      - name: Validate all six original G9 actor shards and 936 actual native forwards
         shell: bash
         run: |
           set -euo pipefail
