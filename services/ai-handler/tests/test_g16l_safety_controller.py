@@ -16,7 +16,7 @@ import unittest
 from ox_ai.agents.crew import CommandOption
 from ox_ai.agents.crew_blueprints import compose_blueprint
 from ox_ai.planning.goap import GoapAction, GoapPlanner
-from ox_ai.runtime.cognition_scheduler import CognitionUnavailable, DecisionScheduler
+from ox_ai.runtime.cognition_scheduler import DecisionScheduler
 from ox_ai.runtime.personality_choice_ledger import PersonalityChoiceLedger
 from ox_ai.runtime.personality_routing import (
     CharacterRouteController, PersonalState, PersonalityRouter,
