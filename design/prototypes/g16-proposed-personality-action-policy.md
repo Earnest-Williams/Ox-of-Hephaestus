@@ -65,3 +65,9 @@ Rerun the previous 24-pair Qwen3.5-4B versus Decider Q4 comparison with counterb
 - No model inference as a proxy for consent, social commitment, instruction, skill or verified diagnosis.
 - No unauthorized role access via stronger personality, procedural compliance or deference.
 - Fictional ship verisimilitude and durable consequences—not a real-spacecraft certification process—remain the physical-system design objectives.
+
+## G16c/d engineering implementation (24 October 2026)
+
+[PR #116](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/116) merged the positive, finite character-tag-weighted GOAP cost primitive, with all 32 checks passing. [PR #117](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/117) merged the disabled-by-default G16c controller, positional Decider scorer, actor-bound decision ledger and immutable replay after **all 35 checks** passed on the exact final head. This is **structural integration**, *not* demonstrated native trait-sensitive character realism or a live supervisor activation. `OX_PERSONALITY_CHOICE` remains unset/off in production and changing it to `1` requires an explicitly authored, catalog-matching menu.
+
+Independent gates remain: [G16e preregistered six-actor native holdout](g16e-preregistered-native-experiment.md), [G16f real 6/20/40 throughput](g16f-personality-throughput.md), [G16g dialogue comparison](g16g-dialogue-evaluation.md), [G16h non-confounded local model comparison](g16h-balanced-native-model-comparison.md) and authenticated-supervisor soak. A passed CI harness, unexecuted actor proposal or native logit must never be represented as an Evennia completion, a safety clearance, an accepted agreement or a psychologically plausible autonomous personality.
