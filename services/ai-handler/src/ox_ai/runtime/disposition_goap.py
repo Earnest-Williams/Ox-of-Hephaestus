@@ -86,7 +86,7 @@ def personality_goap_costs(
         # A full multistep planner needs tags for *every* intermediate action,
         # not just one possible first step. A duplicate verb/target in a
         # distinct symbolic planning phase needs an explicit future contract.
-        signature = (operator.verb, operator.target, ())
+        signature = (operator.verb, operator.target, operator.arguments)
         tag = by_signature.get(signature)
         if tag is None:
             raise ValueError(f"Untagged GOAP operator {operator.name!r}")
