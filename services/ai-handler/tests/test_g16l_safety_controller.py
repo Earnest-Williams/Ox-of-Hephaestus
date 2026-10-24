@@ -273,8 +273,12 @@ class G16lSafetyControllerTests(unittest.IsolatedAsyncioTestCase):
             if mutation=="safety_locked":
                 value["safety_locked"]=False
             elif mutation=="raw_scores":
-                value["raw_scores"]["reserve_spare"]-=.01
-                value["raw_scores"]["support_loan"]+=.01
+                # A forged switch of the native evidence winner must
+                # never be replayed as the original locked proposal.
+                value["raw_scores"]={
+                    "reserve_spare":.01, "support_loan":.98,
+                    "seek_review":.01,
+                }
             elif mutation=="shifts":
                 value["shifts"]["reserve_spare"]=.01
             else:
