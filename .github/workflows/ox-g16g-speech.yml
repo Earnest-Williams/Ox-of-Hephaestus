@@ -1,0 +1,62 @@
+name: Ox G16g speech-only interface and source persona protocol
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches: [main]
+    paths:
+      - "scenarios/g16g_speech_evaluation.py"
+      - "services/ai-handler/tests/test_g16g_speech.py"
+      - "design/prototypes/g16g-speech-preregistration-v1.json"
+      - ".github/workflows/ox-g16g-speech.yml"
+      - "!**/*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ox-g16g-speech-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  offline-speech-only:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install native Concordia character profile source, no generator
+        run: python -m pip install -e './services/ai-handler[concordia]'
+      - name: Verify actor provenance, fixed intents and untrusted text boundaries
+        run: |
+          python -m compileall -q scenarios/g16g_speech_evaluation.py services/ai-handler/tests/test_g16g_speech.py
+          python -m unittest discover -s services/ai-handler/tests -p test_g16g_speech.py -v
+      - name: Record 48 offline fixture utterances with NO real model-quality claim
+        run: |
+          python scenarios/g16g_speech_evaluation.py \
+            --provider fixture --out .ox-state/g16g/fixture-results.json \
+            | tee .ox-state/g16g/fixture.log
+          grep -Fq OX_G16G_SPEECH_ONLY_48_SAMPLES_RECORDED .ox-state/g16g/fixture.log
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path(".ox-state/g16g/fixture-results.json").read_text())
+          assert r["samples"]==48 and r["fake_provider"]
+          assert not r["real_text_generation_measured"]
+          assert r["action_requests_generated"]==0
+          assert r["evennia_commands_sent"]==0
+          assert not r["model_choice_adopted"]
+          print("OX_G16G_FIXTURE_ONLY_NO_WORLD_AUTHORITY_PASS")
+          PY
+      - name: Archive private-role-safe fixture diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-g16g-48-speech-fixture
+          path: .ox-state/g16g
+          retention-days: 21
+          if-no-files-found: ignore
