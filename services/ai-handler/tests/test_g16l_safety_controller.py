@@ -219,7 +219,7 @@ class G16lSafetyControllerTests(unittest.IsolatedAsyncioTestCase):
     async def test_low_safety_confidence_refuses_and_never_falls_back_to_goap(self):
         agent, router, engine, ctrl, cp, saves = self._setup(
             independent=True, selected="llm", high=False)
-        with self.assertRaises(CognitionUnavailable):
+        with self.assertRaisesRegex(PermissionError, "Safety-critical choice"):
             await self._decide(agent, ctrl, cp)
         self.assertEqual(engine.calls, 3)
         self.assertEqual(router.record["boundaries"][self.boundary]["selected"],"llm")
@@ -228,7 +228,7 @@ class G16lSafetyControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(saves), 1)
         # A failure of the stored deliberation route must NOT silently
         # generate a different GOAP proposal under the original boundary.
-        with self.assertRaises(CognitionUnavailable):
+        with self.assertRaisesRegex(PermissionError, "Safety-critical choice"):
             await self._decide(agent, ctrl, cp)
         self.assertEqual(router.record["boundaries"][self.boundary]["selected"],"llm")
         self.assertEqual(len(agent.pending_requests), 0)
