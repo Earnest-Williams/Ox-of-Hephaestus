@@ -92,7 +92,7 @@ class OfflineReviewerSourceTests(unittest.TestCase):
         rehash(sheet, blank)
         html = reviewer.render(sheet, blank)
         self.assertNotIn("</script><script>alert", html)
-        self.assertIn(r"\\u003c/script\\u003e", html)
+        self.assertIn(r"\u003c/script\u003e", html)
         self.assertIn("const template = {", html)
 
     def test_reject_private_data_forged_hash_and_pre_scored_respondent(self):
