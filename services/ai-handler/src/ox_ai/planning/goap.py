@@ -10,7 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from heapq import heappop, heappush
 from itertools import count
-from typing import Iterable
+import math
+from typing import Iterable, Mapping
 
 
 class PlanUnavailable(RuntimeError):
@@ -25,13 +26,15 @@ class GoapAction:
     requires: frozenset[str] = field(default_factory=frozenset)
     adds: frozenset[str] = field(default_factory=frozenset)
     removes: frozenset[str] = field(default_factory=frozenset)
-    cost: int = 1
+    cost: float = 1
     verb: str = ""
     target: str | None = None
 
     def __post_init__(self) -> None:
-        if not self.name or not self.verb or self.cost <= 0:
-            raise ValueError("GOAP action needs a name, verb and positive cost")
+        if (not self.name or not self.verb
+                or type(self.cost) not in (int, float)
+                or not math.isfinite(self.cost) or self.cost <= 0):
+            raise ValueError("GOAP action needs a name, verb and positive finite cost")
         if self.adds & self.removes:
             raise ValueError("An action may not add and delete the same fact")
 
@@ -46,7 +49,7 @@ class GoapAction:
 @dataclass(frozen=True, slots=True)
 class GoapPlan:
     actions: tuple[GoapAction, ...]
-    total_cost: int
+    total_cost: float
     expanded_states: int
 
 
@@ -72,16 +75,31 @@ class GoapPlanner:
         goals: Iterable[str],
         *,
         excluded: Iterable[str] = (),
+        cost_overrides: Mapping[str, float] | None = None,
     ) -> GoapPlan:
         start = frozenset(beliefs)
         goal = frozenset(goals)
         if goal.issubset(start):
             return GoapPlan((), 0, 0)
         disabled = frozenset(excluded)
+        # Validate the entire explicit override before search; omissions and
+        # stale operator names must not silently become neutral personality.
+        # The original operator costs remain intact for other characters.
+        if cost_overrides is None:
+            prices = {action.name: action.cost for action in self.actions}
+        else:
+            if not isinstance(cost_overrides, Mapping):
+                raise TypeError("GOAP cost overrides must map all operator names")
+            if set(cost_overrides) != {action.name for action in self.actions}:
+                raise ValueError("GOAP cost overrides must cover exactly the planner")
+            prices = dict(cost_overrides)
+            if any(type(price) not in (int, float) or
+                   not math.isfinite(price) or price <= 0 for price in prices.values()):
+                raise ValueError("GOAP cost overrides must be finite and positive")
         work = count()
-        queue: list[tuple[int, int, frozenset[str], tuple[GoapAction, ...]]] = []
+        queue: list[tuple[float, int, frozenset[str], tuple[GoapAction, ...]]] = []
         heappush(queue, (0, next(work), start, ()))
-        best = {start: 0}
+        best: dict[frozenset[str], float] = {start: 0}
         expanded = 0
 
         while queue:
@@ -99,7 +117,7 @@ class GoapPlanner:
                 projected = action.project(facts)
                 if projected == facts:
                     continue
-                new_cost = price + action.cost
+                new_cost = price + prices[action.name]
                 if new_cost >= best.get(projected, float("inf")):
                     continue
                 best[projected] = new_cost
