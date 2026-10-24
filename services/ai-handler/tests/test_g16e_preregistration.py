@@ -76,7 +76,7 @@ class ActualSourceTests(unittest.TestCase):
     def test_tagged_native_menu_matches_all_eight_cases(self):
         record, scenes, catalog = self.native.fixed_protocol()
         self.assertEqual(len(scenes), 8)
-        self.assertEqual(len({id for id, _, _ in scenes}), 8)
+        self.assertEqual(len({row["id"] for row, _, _ in scenes}), 8)
         self.assertEqual(len({catalog.menu(x["menu_key"]).menu_key
                               for x, _, _ in scenes}), 4)
         self.assertEqual(sum(x["safety"] for x, _, _ in scenes), 1)

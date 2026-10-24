@@ -85,6 +85,17 @@ jobs:
                 len(report["verified_world_work"]))
           PY
 
+      - name: Exercise complete actor-private G16e fixture before fetching native weights
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .ox-state/g16e/fixture
+          python scenarios/g8_soap_opera/g16e_native.py \
+            --root .ox-state/g9 --role "${{ matrix.role }}" \
+            --engine fixture \
+            --output ".ox-state/g16e/fixture/${{ matrix.role }}.json" \
+            | tee ".ox-state/g16e/fixture/${{ matrix.role }}.log"
+          grep -Fq OX_G16E_ACTOR_RECORDED_ALL_156_NATIVE_FORWARDS ".ox-state/g16e/fixture/${{ matrix.role }}.log"
       - name: Provision Q4 Decider GGUF pinned weights and publisher tokenizer
         shell: bash
         run: |
@@ -143,6 +154,7 @@ jobs:
           path: |
             .ox-state/g16e/results/${{ matrix.role }}.json
             .ox-state/g16e/${{ matrix.role }}.log
+            .ox-state/g16e/fixture/${{ matrix.role }}.log
           retention-days: 21
           if-no-files-found: ignore
 
