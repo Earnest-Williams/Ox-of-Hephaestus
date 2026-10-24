@@ -17,6 +17,8 @@
 | Mean generation latency (522.14/48) | 10.88 s |
 | Evennia action requests/commands issued | **0 / 0** |
 
+A [preliminary unblinded line-level fidelity audit](g16g-preliminary-voice-fidelity-audit-2026-10-24.md) found strong reuse of stock speech (10/12 reconciliation lines include “clear the air”), one identical numeric/prose output pair, and some unsupported details; these are audit warnings, not independent human rating scores.
+
 The native local provider generated 48 bounded, untrusted utterances using a previously selected speech intent. Text was **never** used to choose an action, certify a repair, accept a commitment or create any game receipt. This proves an operational local generation pathway and provides hardware-specific token/latency measurements; it does not prove natural or distinct personalities.
 
 The [G16g review implementation](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/121) is still a draft. It separates the confidential provider/role/treatment answer key from a randomized reviewer sheet; each anonymous voice group receives the **same neutral original personality reference** in both profile treatments. Two independent human scorecards are required to assess voice distinctiveness, profile fidelity, grounding, naturalness, emotional appropriateness and prohibited factual/authority claims. Review has **not** been carried out: no provider or profile presentation wins from these measurements alone.
