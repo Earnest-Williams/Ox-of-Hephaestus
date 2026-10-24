@@ -271,7 +271,7 @@ def evaluate(backend, *, max_output: int | None = None) -> dict:
         "profile_arms": protocol["profiles"],
         "samples": len(rows),
         "median_generation_seconds": statistics.median(durations),
-        "p95_generation_seconds": sorted(durations)[47],
+        "p95_generation_seconds": sorted(durations)[45],
         "total_generation_seconds": sum(durations),
         "total_prompt_tokens_reported": sum(
             x["prompt_tokens"] or 0 for x in rows
