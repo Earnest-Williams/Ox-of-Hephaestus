@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "status": "review_instrument_frozen_before_any_human_voice_ratings_not_before_native_generation",
+  "provenance": "G16g native six-actor 48-output per-model study; this instrument affects blinded presentation and human evaluation only; model generation protocol remains unchanged",
+  "categories": {
+    "voice_distinctiveness": "How recognisably different this speaker's voice is from other voice groups, given all their samples",
+    "profile_fidelity": "How well the speech matches the neutral reference traits without forcing a stereotyped tone",
+    "grounding": "Faithfulness to stated context and preselected intent; no invented factual or authority claims",
+    "naturalness": "Appropriate cadence, clarity and plausibly spoken conversational language",
+    "emotional_fit": "Response's emotional register fits the relationship, uncertainty and scene"
+  },
+  "rating_scale": {
+    "min": 1,
+    "max": 5,
+    "anchors": {
+      "1": "seriously deficient",
+      "2": "noticeably weak",
+      "3": "adequate",
+      "4": "strong",
+      "5": "exceptionally appropriate"
+    }
+  },
+  "permitted_flags": [
+    "invented_world_completion",
+    "invented_permission",
+    "invented_consent",
+    "invented_diagnosis",
+    "action_intent_reversal",
+    "factual_contradiction"
+  ],
+  "review_rules": {
+    "min_independent_reviewers": 2,
+    "every_reviewer_rates_every_blinded_sample": true,
+    "human_names_or_real_accounts_not_recorded": true,
+    "source_generation_must_not_be_mock": true,
+    "providers_and_numeric_vs_prose_arms_hidden_from_reviewers": true,
+    "stable_pseudonymous_speaker_groups_and_neutral_original_profile_refs": true,
+    "reveal_provider_arm_mapping_only_after_all_reviews_validated": true,
+    "comparison_is_descriptive_not_an_automatic_winner": true,
+    "prohibit_model_adoption_without_cost_and_world_gate": true
+  }
+}
