@@ -18,7 +18,7 @@ permissions:
 
 concurrency:
   group: ox-g16h-native-model-comparison-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   source-verified-fixture:
