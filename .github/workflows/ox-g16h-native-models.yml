@@ -1,0 +1,236 @@
+name: Ox G16h balanced native Decider Q4 vs Qwen3.5-4B
+
+on:
+  push:
+    branches: [experiment/g16h-native-run]
+    paths:
+      - "scenarios/g16h_counterfactual_cases.py"
+      - "scenarios/g16h_balanced_model_comparison.py"
+      - "scenarios/g16h_compare_results.py"
+      - "services/ai-handler/tests/test_g16h_balanced_models.py"
+      - "design/prototypes/g16h-balanced-model-comparison-preregistration.json"
+      - ".github/workflows/ox-g16h-native-models.yml"
+      - "!**/*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ox-g16h-native-model-comparison-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  source-verified-fixture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install native Concordia and test 24 unchanged historical G11 cases
+        run: |
+          python -m pip install -e './services/ai-handler[concordia]'
+          python -m unittest discover -s services/ai-handler/tests -p test_g16h_balanced_models.py -v
+      - name: Exercise 192 synthetically scored two-position native API passes
+        run: |
+          mkdir -p .ox-state/g16h
+          python scenarios/g16h_balanced_model_comparison.py \
+            --provider fixture-decider --output .ox-state/g16h/fixture.json \
+            | tee .ox-state/g16h/fixture.log
+          grep -Fq OX_G16H_BOTH_POSITIONS_24_COUNTERFACTUAL_PAIRS_COMPLETE .ox-state/g16h/fixture.log
+      - name: Archive actor-source fixture contract
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-g16h-24-pairs-fixture
+          path: .ox-state/g16h
+          retention-days: 21
+          if-no-files-found: ignore
+
+  decider-q4:
+    needs: [source-verified-fixture]
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      MODEL_DIR: .ox-state/g16h/decider-weights
+      MODEL_PATH: .ox-state/g16h/decider-weights/decider-4b.Q4_K_M.gguf
+      HF_HUB_DISABLE_TELEMETRY: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pinned publisher native System One CPU dependencies
+        run: |
+          python -m pip install -e './services/ai-handler[concordia]'
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+          python -m pip install 'transformers>=5,<6' 'numpy<3' 'huggingface_hub>=0.34,<2' jinja2 'llama-cpp-python>=0.3.35,<0.4'
+          python -m pip install --no-deps 'decider-ai==1.10.0'
+      - name: Download exact publisher tokenizer and native Decider Q4 model
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$MODEL_DIR"
+          python - <<'PY'
+          from huggingface_hub import snapshot_download,hf_hub_download,HfApi
+          from pathlib import Path
+          import os,shutil,hashlib,json
+          d=Path(os.environ["MODEL_DIR"])
+          qrev="3b02c98fa0b19e9daab247d633095b6e8a6cd4c5"
+          trev="d3a78581751d518bbfa9e871a6d84059554d53c5"
+          snapshot_download(
+              repo_id="Mapika/decider-4b-GGUF", revision=trev,
+              local_dir=str(d), allow_patterns=[
+                  "config.json","decider_config.json","tokenizer.json",
+                  "tokenizer_config.json","special_tokens_map.json","*.jinja",
+                  "vocab.json","merges.txt","added_tokens.json",
+              ],
+          )
+          files=[x.rfilename for x in HfApi().model_info(
+              "mradermacher/decider-4b-GGUF", revision=qrev).siblings]
+          qs=[n for n in files if n.lower().endswith("q4_k_m.gguf") and "/" not in n]
+          if len(qs)!=1:
+              raise RuntimeError("Unrecognized Decider Q4 publisher files")
+          source=hf_hub_download(
+              repo_id="mradermacher/decider-4b-GGUF",
+              filename=qs[0],revision=qrev)
+          out=d/qs[0]
+          if not out.exists():
+              shutil.copyfile(source,out)
+          expected=d/"decider-4b.Q4_K_M.gguf"
+          if out!=expected:
+              if expected.exists():
+                  raise RuntimeError("Conflicting model")
+              expected.symlink_to(out.name)
+          h=hashlib.sha256()
+          with out.open("rb") as f:
+              while block:=f.read(8*1024*1024):
+                  h.update(block)
+          record={"model":"decider-q4","hf_revision":qrev,
+                  "tokenizer_revision":trev,"sha256":h.hexdigest(),
+                  "size":out.stat().st_size}
+          (d.parent/"decider-model-manifest.json").write_text(json.dumps(record,indent=2))
+          print("OX_G16H_PINNED_DECIDER_GGUF",record)
+          PY
+      - name: Run 192 genuine Decider native forwards across original/reversed menus
+        run: |
+          python scenarios/g16h_balanced_model_comparison.py \
+            --provider decider-q4 --gguf-path "$MODEL_PATH" \
+            --model-manifest .ox-state/g16h/decider-model-manifest.json \
+            --output .ox-state/g16h/decider-results.json \
+            | tee .ox-state/g16h/decider.log
+          grep -Fq OX_G16H_BOTH_POSITIONS_24_COUNTERFACTUAL_PAIRS_COMPLETE .ox-state/g16h/decider.log
+      - name: Archive all Decider semantic scores and source evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-g16h-decider-q4-native
+          path: |
+            .ox-state/g16h/decider-results.json
+            .ox-state/g16h/decider-model-manifest.json
+            .ox-state/g16h/decider.log
+          retention-days: 21
+          if-no-files-found: ignore
+
+  qwen4b:
+    needs: [source-verified-fixture]
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      MODEL_PATH: .ox-model-cache/Qwen3.5-4B-Q4_K_M.gguf
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install actual Concordia two-option local chat adapter
+        run: python -m pip install -e './services/ai-handler[concordia]' 'openai>=1,<3'
+      - name: Restore SHA-256 verified historical Qwen3.5-4B weights
+        uses: actions/cache@v4
+        with:
+          path: .ox-model-cache/Qwen3.5-4B-Q4_K_M.gguf
+          key: ox-unsloth-qwen35-4b-q4km-00fe7986-v1
+      - name: Verify pinned Qwen3.5-4B Q4_K_M GGUF bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .ox-model-cache .ox-state/g16h/qwen-llama
+          if [ ! -s "$MODEL_PATH" ]; then
+            curl -fL --retry 3 --output "$MODEL_PATH" 'https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/main/Qwen3.5-4B-Q4_K_M.gguf'
+          fi
+          echo "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4  $MODEL_PATH" | sha256sum -c -
+      - name: Load pinned CPU llama.cpp server, strictly localhost
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 --output .ox-state/g16h/llama.tar.gz 'https://github.com/ggml-org/llama.cpp/releases/download/b11819/llama-b11819-bin-ubuntu-x64.tar.gz'
+          echo '98800bd7b1b7bd5f17ff32c0ee6ce2ea6dbcfe77eb58ff9fd96bdad967a4f286  .ox-state/g16h/llama.tar.gz' | sha256sum -c -
+          tar -xzf .ox-state/g16h/llama.tar.gz -C .ox-state/g16h/qwen-llama
+          SERVER="$(find .ox-state/g16h/qwen-llama -type f -name llama-server -print -quit)"
+          test -n "$SERVER"
+          LD_LIBRARY_PATH="$(dirname "$SERVER")" "$SERVER" --model "$MODEL_PATH" --alias qwen3.5-4b --host 127.0.0.1 --port 8080 --ctx-size 4096 --threads 4 --parallel 1 --n-gpu-layers 0 --reasoning off > .ox-state/g16h/qwen-server.log 2>&1 &
+          echo $! > .ox-state/g16h/qwen-server.pid
+          for i in $(seq 1 120); do
+            if curl -fsS http://127.0.0.1:8080/health | grep -q '"status":"ok"'; then exit 0; fi
+            if ! kill -0 "$(cat .ox-state/g16h/qwen-server.pid)" 2>/dev/null; then tail -n 100 .ox-state/g16h/qwen-server.log; exit 1; fi
+            sleep 2
+          done
+          tail -n 100 .ox-state/g16h/qwen-server.log
+          exit 1
+      - name: Run 96 real Qwen decisions under both caller orders
+        run: |
+          python scenarios/g16h_balanced_model_comparison.py \
+            --provider qwen3.5-4b --gguf-path "$MODEL_PATH" \
+            --output .ox-state/g16h/qwen-results.json \
+            | tee .ox-state/g16h/qwen.log
+          grep -Fq OX_G16H_BOTH_POSITIONS_24_COUNTERFACTUAL_PAIRS_COMPLETE .ox-state/g16h/qwen.log
+      - name: Archive exact original/reversed Qwen choices
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-g16h-qwen4b-native
+          path: |
+            .ox-state/g16h/qwen-results.json
+            .ox-state/g16h/qwen.log
+            .ox-state/g16h/qwen-server.log
+          retention-days: 21
+          if-no-files-found: ignore
+
+  comparison:
+    needs: [decider-q4, qwen4b]
+    if: ${{ success() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          name: ox-g16h-decider-q4-native
+          path: .ox-state/g16h/decider
+      - uses: actions/download-artifact@v4
+        with:
+          name: ox-g16h-qwen4b-native
+          path: .ox-state/g16h/qwen
+      - name: Verify all 24 paired situations, two positions and identical actor evidence
+        run: |
+          python scenarios/g16h_compare_results.py \
+            --decider .ox-state/g16h/decider/decider-results.json \
+            --qwen .ox-state/g16h/qwen/qwen-results.json \
+            --output .ox-state/g16h/clean-comparison.json \
+            | tee .ox-state/g16h/summary.txt
+          grep -Fq OX_G16H_REAL_MATCHED_OPTION_ORDER_MODEL_COMPARISON_PASS .ox-state/g16h/summary.txt
+      - name: Archive full position-balanced result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-g16h-clean-qwen-versus-decider
+          path: |
+            .ox-state/g16h/clean-comparison.json
+            .ox-state/g16h/summary.txt
+          retention-days: 21
+          if-no-files-found: ignore
