@@ -107,6 +107,16 @@ class DecisionScheduler:
             self._attempts.clear()
             self._total_attempts = 0
 
+    def remaining_budget(self, role: str) -> tuple[int, int]:
+        """Return unbilled actor/global units after refreshing the rate window."""
+        if not isinstance(role, str) or not role or len(role) > 64:
+            raise ValueError("Invalid role")
+        self._refresh_budget_window()
+        return (
+            self._per_actor_budget - self._attempts.get(role, 0),
+            self._total_budget - self._total_attempts,
+        )
+
     @staticmethod
     def _sample_percentile(items: deque[float], quantile: float) -> float | None:
         if not items:
@@ -163,12 +173,17 @@ class DecisionScheduler:
         )
 
     async def decide(
-        self, role: str, agent: CrewAgent, options: Sequence[CommandOption],
-        *, decision_context: str | None = None,
+        self,
+        role: str,
+        agent: CrewAgent,
+        options: Sequence[CommandOption],
+        *,
+        decision_context: str | None = None,
         inference_model: Any | None = None,
         prepared_request_id: str | None = None,
         before_adopt: Callable[[CrewAgent, ActionRequest], None] | None = None,
         cost_units: int = 1,
+        service_timeout_seconds: float | None = None,
     ):
         """Infer off-thread, checkpoint optional choice before main-loop adoption.
 
@@ -187,6 +202,13 @@ class DecisionScheduler:
             raise ValueError("Model call units must be 1..16")
         if before_adopt is not None and not callable(before_adopt):
             raise TypeError("Pre-adoption checkpoint hook must be callable")
+        deadline = self._timeout if service_timeout_seconds is None else service_timeout_seconds
+        if (
+            type(deadline) not in (int, float)
+            or not math.isfinite(deadline)
+            or not 0 < deadline <= self._timeout
+        ):
+            raise ValueError("Service deadline may only narrow the configured worker limit")
         self._refresh_budget_window()
         if (self._attempts.get(role, 0) + cost_units > self._per_actor_budget
                 or self._total_attempts + cost_units > self._total_budget):
@@ -273,7 +295,7 @@ class DecisionScheduler:
 
         task.add_done_callback(finished)
         try:
-            draft = await asyncio.wait_for(asyncio.shield(task), self._timeout)
+            draft = await asyncio.wait_for(asyncio.shield(task), deadline)
             # Only the event-loop owner may write a durable G16c choice.
             # This guard avoids freezing a choice from a stale worker before
             # the live agent's own adopt_inference repeats its full checks.
