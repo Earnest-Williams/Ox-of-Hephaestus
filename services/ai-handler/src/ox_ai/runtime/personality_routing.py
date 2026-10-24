@@ -336,7 +336,9 @@ class CharacterRouteController:
             if not plan.actions:
                 raise PlanUnavailable("GOAP reached its goal; no new action proposal")
             action = plan.actions[0]
-            choices = [o for o in offered if o.verb == action.verb and o.target == action.target]
+            choices = [o for o in offered if (
+                o.verb, o.target, tuple(sorted(o.arguments.items()))
+            ) == (action.verb, action.target, action.arguments)]
             if len(choices) != 1:
                 raise PlanUnavailable("Planned action is not in the offered world menu")
             choice = choices[0]
