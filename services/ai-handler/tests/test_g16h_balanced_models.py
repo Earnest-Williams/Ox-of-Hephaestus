@@ -145,8 +145,9 @@ class BalancedComparisonTests(unittest.TestCase):
             with self.assertRaises(PermissionError):
                 aggregate.compare(dfile, qfile)
             changed_decider = deepcopy(decider)
+            keys = changed_decider["rows"][0]["offered_verb_order"]
             changed_decider["rows"][0]["scorer_record"]["semantic_scores"] = {
-                key: .5 for key in changed_decider["rows"][0]["offered_verb_order"]
+                keys[0]: .65, keys[1]: .35,
             }
             # A forged mean cannot replace the actual two native pass means.
             dfile.write_text(json.dumps(changed_decider))
