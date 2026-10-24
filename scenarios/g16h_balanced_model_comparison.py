@@ -106,8 +106,7 @@ class BalancedBinaryDecider:
                 "selected_key": order[codes.index(chosen)],
             })
         means = {key: sums[key] / 2 for key in keys}
-        if any({x["code_positions"][0] for x in passes} != set(keys)
-               for _ in (0,)):
+        if {item["code_positions"][0] for item in passes} != set(keys):
             raise AssertionError("Binary position-balance failed")
         high = max(means.values())
         winner = next(key for key in keys if means[key] >= high - 1e-9)
