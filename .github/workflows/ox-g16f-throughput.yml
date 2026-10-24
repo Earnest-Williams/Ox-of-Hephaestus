@@ -1,0 +1,80 @@
+name: Ox G16f real-Concordia 6-20-40 scheduler profile
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches: [main, feature/g16c-durable-personality-choice]
+    paths:
+      - "scenarios/profiling/g16f_personality_throughput.py"
+      - "services/ai-handler/tests/test_g16f_throughput.py"
+      - "services/ai-handler/src/ox_ai/runtime/g16_decision_controller.py"
+      - "services/ai-handler/src/ox_ai/runtime/cognition_scheduler.py"
+      - ".github/workflows/ox-g16f-throughput.yml"
+      - "!**/*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ox-g16f-scheduler-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  real-concordia-fixture:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            services/ai-handler/pyproject.toml
+            contracts/pyproject.toml
+      - name: Install shared G16a tags and actual pinned Concordia
+        run: |
+          python -m pip install -e ./contracts
+          python -m pip install -e './services/ai-handler[concordia]'
+      - name: Check real actor scheduler and immutable world boundaries
+        run: |
+          python -m compileall -q scenarios/profiling/g16f_personality_throughput.py
+          python -m unittest discover -s services/ai-handler/tests -p test_g16f_throughput.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_g16_choice.py -v
+      - name: Record 6 20 40 actor fixture dispatch separately from native latency
+        env:
+          OX_PERSONALITY_CHOICE: "1"
+        run: |
+          mkdir -p .ox-state/g16f
+          python scenarios/profiling/g16f_personality_throughput.py \
+            --engine fixture --mode sequential \
+            --output .ox-state/g16f/fixture-sequential.json \
+            | tee .ox-state/g16f/sequential.log
+          python scenarios/profiling/g16f_personality_throughput.py \
+            --engine fixture --mode burst \
+            --output .ox-state/g16f/fixture-burst.json \
+            | tee .ox-state/g16f/burst.log
+          grep -Fq OX_G16F_THREE_COHORT_PROFILE_COMPLETE .ox-state/g16f/sequential.log
+          grep -Fq OX_G16F_THREE_COHORT_PROFILE_COMPLETE .ox-state/g16f/burst.log
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          for mode in ("sequential","burst"):
+              x=json.loads(Path(f".ox-state/g16f/fixture-{mode}.json").read_text())
+              assert x["backend"]=="fixture"
+              assert x["native_gguf_forwards_measured"] is False
+              assert x["forward_calls"]==198
+              assert [c["actors"] for c in x["measured_cohorts"]]==[6,20,40]
+              assert all(c["decisions_completed"]==c["actors"] for c in x["measured_cohorts"])
+              print("OX_G16F_FIXTURE_PROFILE_PASS",mode)
+          PY
+      - name: Archive both measured fixture cohorts without native claims
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-g16f-six-twenty-forty-concordia-fixture
+          path: .ox-state/g16f
+          retention-days: 21
+          if-no-files-found: ignore
