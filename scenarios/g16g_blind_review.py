@@ -76,6 +76,10 @@ def _verified_native_rows(result: dict) -> list[dict]:
         for role in spec["roles"] for scene in spec["scenes"]
         for arm in spec["profiles"]
     }
+    if (result["provider"] == "qwen-local"
+            and (result.get("total_completion_tokens_reported", 0) <= 0
+                 or result.get("total_prompt_tokens_reported", 0) <= 0)):
+        raise PermissionError("Real Qwen speech must include measured token usage")
     seen = set()
     for row in result["rows"]:
         key = (row.get("role"), row.get("scene"), row.get("profile_arm"))
@@ -88,6 +92,10 @@ def _verified_native_rows(result: dict) -> list[dict]:
                 or not isinstance(row.get("text"), str)
                 or not 1 <= len(row["text"].strip()) <= 1200
                 or not isinstance(row.get("model_id"), str)
+                or (result["provider"] == "qwen-local"
+                    and row.get("model_id") != "qwen3.5-4b-local-q4km")
+                or (result["provider"] == "gemini-hosted"
+                    and not row.get("model_id", "").startswith("gemini-"))
                 or not isinstance(row.get("prompt_sha256"), str)
                 or len(row["prompt_sha256"]) != SHA256_HEX_LEN):
             raise PermissionError("A native utterance is missing, forged or mismatched")
