@@ -1,4 +1,5 @@
 name: Ox G16h balanced native Decider Q4 vs Qwen3.5-4B
+# First isolated position-balanced 24-case experiment from f29ca85a7c68
 
 on:
   push:
