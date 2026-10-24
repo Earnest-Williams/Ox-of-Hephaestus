@@ -72,7 +72,7 @@ are actually observed, not extrapolated from that estimate.
 
 Successful execution of the experiment means measurements and containment
 were recorded. It does not mean the operational deadline passed. Native
-CI results remain pending. One independently checked [local native run](g16o-local-binary-results-2026-10-24.md) measured a 27.024-second median binary choice and zero on-time proposals across the 6/20/40 bursts; all late workers drained. The 25-second operational capacity gate failed on that host.
+All three [independent native CI samples](g16o-three-host-native-results-2026-10-24.md) are complete: median service times 13.804 / 23.638 / 39.797 seconds, 6/198 on-time burst proposals, all late workers drained. The operational capacity gate failed on every host. One independently checked [local native run](g16o-local-binary-results-2026-10-24.md) measured a 27.024-second median binary choice and zero on-time proposals across the 6/20/40 bursts; all late workers drained. The 25-second operational capacity gate failed on that host.
 
 ## Local structural verification
 
@@ -80,11 +80,12 @@ The original recovered branch passed **408 handler tests and seven strict contra
 checks**, including sixteen G16o checks. The original ternary raw choice and
 metadata were additionally compared directly against the `3bfffc3` source and
 matched exactly under the same deterministic native-interface fixture.
-All 143 Ox Markdown documents have valid local links; workflow YAML parses,
+All 145 Ox Markdown documents have valid local links; workflow YAML parses,
 the CI scope guard passes, Python sources compile, and agent-context checks
 pass. After integrating merged G16n, **414 handler tests** pass; the seven strict
 contract checks remain green. These are local checks, not an asserted GitHub
-CI run.
+CI run. The integrated code head subsequently passed **56/56 regular CI
+checks**; the three-host native measurements are separately recorded above.
 
 ## Remaining activation gates
 
