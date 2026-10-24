@@ -58,3 +58,53 @@ canned synthetic text and reports `real_text_generation_measured=false`.
 The expensive local native study is isolated on a dedicated experimental
 branch. G16g is separate from G16e's scored semantic action choices
 and cannot change G16b's frozen personality-routing policy.
+
+## Blinded review and the private answer key
+
+The generation-time `blind_review_sheet` intentionally did **not**
+include a neutral trait reference or a stable speaker grouping; that is
+not sufficient to judge profile fidelity and voice distinctiveness.
+After native generation, use the separate
+[`g16g_blind_review.py`](../../scenarios/g16g_blind_review.py)
+review-instrument exporter. This does **not** modify the original
+model-generation protocol or rerun/retune any native prompt.
+
+The [human review instrument](g16g-blind-review-protocol-v1.json) was
+written **before seeing any human ratings, but after model generation
+had started**. It requires two distinct complete reviewers, integer
+1–5 scores on distinctiveness, profile fidelity, grounding,
+naturalness and emotional fit, plus a fixed list of independently
+flagged invented permissions, consent, diagnoses, completed repairs,
+action reversals and contradictory facts.
+
+The exporter generates three files: (1) a shareable reviewer sheet
+with no actor identity, input arm or model-provider labels; (2) a
+**separate confidential answer key** containing the provider, actor,
+input arm and random 128-bit salt; and (3) an empty reviewer rating
+template. Each speaker has one opaque group ID across profile arms
+and providers. Every utterance has a separate opaque ID and the same
+neutral six-trait reference regardless of which presentation arm
+generated the words, making cross-arm comparison possible without
+telling reviewers which arm they are reading. The private key must
+not be published with the reviewer sheet.
+
+Example after retrieving a successful native results artifact:
+
+```bash
+python scenarios/g16g_blind_review.py prepare \
+  --native-results /path/to/qwen4b-48-voices.json \
+  --public-sheet /path/to/anonymous-voice-review.json \
+  --private-key /secure/voice-answer-key.json \
+  --blank-template /path/to/reviewer-template.json
+```
+
+After two independent reviewers fill their entire templates, run
+`g16g_blind_review.py assess --private-key ... --reviewer-files
+reviewer-one.json reviewer-two.json --output review-summary.json`.
+The assessor rejects missing utterances, duplicate reviewers, missing
+scores and unknown fidelity flags. It reports comparative ratings
+**without selecting a production provider**; a local Qwen-only run
+cannot establish hosted pricing or hosted speech quality.
+
+Synthetic fixtures explicitly fail genuine-source verification and
+cannot be exported as a completed human speech assessment.
