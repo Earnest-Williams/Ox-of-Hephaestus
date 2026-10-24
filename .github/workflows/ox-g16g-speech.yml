@@ -37,6 +37,7 @@ jobs:
           python -m unittest discover -s services/ai-handler/tests -p test_g16g_speech.py -v
       - name: Record 48 offline fixture utterances with NO real model-quality claim
         run: |
+          mkdir -p .ox-state/g16g
           python scenarios/g16g_speech_evaluation.py \
             --provider fixture --out .ox-state/g16g/fixture-results.json \
             | tee .ox-state/g16g/fixture.log
