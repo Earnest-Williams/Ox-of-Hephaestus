@@ -1,0 +1,82 @@
+name: Ox G16i native-informed forty-actor deadline and admission model
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches: [main]
+    paths:
+      - "scenarios/profiling/g16i_scheduler_envelope.py"
+      - "services/ai-handler/tests/test_g16i_scheduler_envelope.py"
+      - ".github/workflows/ox-g16i-capacity.yml"
+      - "!**/*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ox-g16i-measured-queue-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  native-reference-hypothetical-queue:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate modeled deadline semantics and full population grid
+        run: |
+          python -m compileall -q scenarios/profiling/g16i_scheduler_envelope.py
+          python -m unittest discover -s services/ai-handler/tests -p test_g16i_scheduler_envelope.py -v
+      - name: Restore immutable 198-GGUF-forward G16f source measurement
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .ox-state/g16i/native-evidence
+          gh run download 40048062817 --repo "$GITHUB_REPOSITORY" \
+            --name ox-g16f-actual-q4-cpu-six-twenty-forty \
+            --dir .ox-state/g16i/native-evidence
+          test -s .ox-state/g16i/native-evidence/native-throughput.json
+      - name: Compute constrained one-worker native queue envelope and mark two-worker as ONLY hypothetical
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scenarios/profiling/g16i_scheduler_envelope.py \
+            --native-g16f .ox-state/g16i/native-evidence/native-throughput.json \
+            --output .ox-state/g16i/queue-envelope.json \
+            | tee .ox-state/g16i/queue-summary.log
+          grep -Fq OX_G16I_HYPOTHETICAL_QUEUE_CAPACITY_NOT_NATIVE_CONCURRENCY .ox-state/g16i/queue-summary.log
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          x=json.loads(Path(".ox-state/g16i/queue-envelope.json").read_text())
+          assert x["real_native_forwards_in_this_model"]==0
+          assert x["source_native_run"]==40048062817
+          assert x["two_workers_are_only_optimistic_unverified"]
+          assert len(x["burst_tables"])==96
+          assert len(x["hourly_hypothetical_demand_sweep"])==96
+          for mode in ("queued","bounded"):
+              exact=[z for z in x["burst_tables"] if (
+                  z["population"]==40 and z["burst_spacing_seconds"]==0.0
+                  and z["service_source"]=="p95"
+                  and z["assumed_workers"]==1 and z["mode"]==mode)]
+              assert len(exact)==1 and exact[0]["completed_before_deadline"]==1
+          print("OX_G16I_BURST_DEADLINE_CONSTRAINTS_GROUNDED_IN_REAL_NATIVE_LATENCY")
+          PY
+      - name: Archive source-model summary and all assumed queue scenarios
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-g16i-40-actor-hypothetical-admission-envelope
+          path: |
+            .ox-state/g16i/queue-envelope.json
+            .ox-state/g16i/queue-summary.log
+          retention-days: 21
+          if-no-files-found: ignore
