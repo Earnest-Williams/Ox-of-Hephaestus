@@ -13,6 +13,15 @@ on:
       - "design/prototypes/g16g-blind-review-protocol-v1.json"
       - ".github/workflows/ox-g16g-speech.yml"
       - "!**/*.md"
+  push:
+    branches: [experiment/g16g-speech-model-evaluation]
+    paths:
+      - "scenarios/g16g_speech_evaluation.py"
+      - "scenarios/g16g_blind_review.py"
+      - "services/ai-handler/tests/test_g16g_speech.py"
+      - "services/ai-handler/tests/test_g16g_blind_review.py"
+      - "design/prototypes/g16g-blind-review-protocol-v1.json"
+      - ".github/workflows/ox-g16g-speech.yml"
   workflow_dispatch:
 
 permissions:
