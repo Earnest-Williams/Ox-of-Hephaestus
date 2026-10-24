@@ -1,0 +1,88 @@
+name: Ox G16h offline original-case and real-artifact reconciliation
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches: [main]
+    paths:
+      - "scenarios/g16h_counterfactual_cases.py"
+      - "scenarios/g16h_balanced_model_comparison.py"
+      - "scenarios/g16h_compare_results.py"
+      - "services/ai-handler/tests/test_g16h_balanced_models.py"
+      - "design/prototypes/g16h-balanced-model-comparison-preregistration.json"
+      - ".github/workflows/ox-g16h-fixture.yml"
+      - "!**/*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ox-g16h-offline-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  authored-evidence-native-result-audit:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install genuine Concordia source package (no weights)
+        run: python -m pip install -e './services/ai-handler[concordia]'
+      - name: Verify original 24-case fixture, two native orders and independent anti-forgery checks
+        run: |
+          python -m compileall -q scenarios/g16h_counterfactual_cases.py scenarios/g16h_balanced_model_comparison.py scenarios/g16h_compare_results.py
+          python -m unittest discover -s services/ai-handler/tests -p test_g16h_balanced_models.py -v
+      - name: Retrieve BOTH immutable original native model artifacts for independent head audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .ox-state/g16h/decider .ox-state/g16h/qwen
+          gh run download 40049040761 --repo "$GITHUB_REPOSITORY" \
+            --name ox-g16h-decider-q4-native --dir .ox-state/g16h/decider
+          gh run download 40049040761 --repo "$GITHUB_REPOSITORY" \
+            --name ox-g16h-qwen4b-native --dir .ox-state/g16h/qwen
+          test -s .ox-state/g16h/decider/decider-results.json
+          test -s .ox-state/g16h/qwen/qwen-results.json
+      - name: Check original evidence hash, full GGUF digest, every actual two-pass mean and all 96 matched decisions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scenarios/g16h_compare_results.py \
+            --decider .ox-state/g16h/decider/decider-results.json \
+            --qwen .ox-state/g16h/qwen/qwen-results.json \
+            --output .ox-state/g16h/final-head-comparison.json \
+            | tee .ox-state/g16h/final-head.log
+          grep -Fq OX_G16H_REAL_MATCHED_OPTION_ORDER_MODEL_COMPARISON_PASS .ox-state/g16h/final-head.log
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          x=json.loads(Path(".ox-state/g16h/final-head-comparison.json").read_text())
+          d=x["observed_metrics"]["decider-q4"]
+          q=x["observed_metrics"]["qwen3.5-4b"]
+          assert d["decisions_correct_of_96"]==94
+          assert q["decisions_correct_of_96"]==87
+          assert d["semantic_order_consistency_of_48"]==46
+          assert q["semantic_order_consistency_of_48"]==43
+          assert x["world_commands_sent"]==0
+          assert x["selected_production_action_scorer"] is None
+          assert not x["production_personality_flag_enabled"]
+          print("OX_G16H_96_GENUINE_MATCHED_SOURCE_RECORDS_REVERIFIED_ON_PR_HEAD")
+          PY
+      - name: Retain independent exact-head audit, without private prompt text
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ox-g16h-native-artifact-independently-reverified
+          path: |
+            .ox-state/g16h/final-head-comparison.json
+            .ox-state/g16h/final-head.log
+          retention-days: 21
+          if-no-files-found: ignore
