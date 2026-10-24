@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "status": "g16g_speech_preregistered_before_model_generation",
+  "mode": "offline_speech_only_no_evennia_authority",
+  "roles": [
+    "lin",
+    "ari",
+    "iona",
+    "mara",
+    "teo",
+    "captain"
+  ],
+  "profiles": [
+    "numeric_original",
+    "prose_original"
+  ],
+  "source": "g9 authenticated character blueprint role composition; no model-decided actions or private world receipts",
+  "providers": {
+    "local_qwen": {
+      "model": "Qwen3.5-4B-Q4_K_M",
+      "gguf_sha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4",
+      "transport": "llama.cpp OpenAI-compatible localhost"
+    },
+    "hosted_gemini": {
+      "model_configured_by_environment": true,
+      "token_pricing_requires_verified_provider_quote": true,
+      "available_only_with_explicit_secret": true
+    }
+  },
+  "generation": {
+    "temperature": 0.4,
+    "seed": 16887,
+    "max_output_tokens": 120,
+    "expected_sample_count_per_provider": 48,
+    "outputs_are_only_speech": true,
+    "format": "1 to 3 spoken sentences",
+    "no_action_selection": true
+  },
+  "scenes": [
+    {
+      "id": "uncertain_system_alarm",
+      "speech_intent": "Acknowledge the reported environmental warning and ask for the next authorized verification step, without claiming the system is repaired or naming a cause.",
+      "known_context": "A pressure deviation appeared on an environmental display during the watch. A colleague has reported it but the source has not been diagnosed. No repair or safety clearance has yet been verified.",
+      "required_grounding": [
+        "pressure deviation",
+        "cause unverified",
+        "no repair receipt"
+      ]
+    },
+    {
+      "id": "decline_unwanted_invitation",
+      "speech_intent": "Politely decline a voluntary gathering without creating an agreement or insulting the inviting colleague.",
+      "known_context": "An off-duty crewmember has invited you to a voluntary gathering after your current shift. Attendance is optional and you wish to keep the evening free.",
+      "required_grounding": [
+        "optional invitation",
+        "no acceptance"
+      ]
+    },
+    {
+      "id": "request_optional_help",
+      "speech_intent": "Ask a qualified colleague for help checking ordinary shift paperwork, making clear that accepting is optional and the paperwork is not yet signed off.",
+      "known_context": "You are reviewing ordinary duty notes. A competent colleague is nearby but has no obligation to help. The notes are not yet signed, so do not imply someone has completed or approved them.",
+      "required_grounding": [
+        "notes unsigned",
+        "colleague can refuse"
+      ]
+    },
+    {
+      "id": "social_reconciliation",
+      "speech_intent": "Invite a private conversation after an awkward past disagreement without fabricating forgiveness, a prior commitment or consent.",
+      "known_context": "You and a colleague disagreed in public last week. Neither person has definitively resolved the disagreement, and you are considering suggesting a private talk. No appointment has been arranged.",
+      "required_grounding": [
+        "relationship unresolved",
+        "no meeting agreed"
+      ]
+    }
+  ],
+  "acceptance": {
+    "verify_48_complete_native_outputs": true,
+    "preserve_model_digest_and_timing": true,
+    "no_action_request_generated": true,
+    "no_world_command_sent": true,
+    "preserve_actor_original_blueprints": true,
+    "blind_voice_review_required": true,
+    "blind_categories": [
+      "distinct character voice",
+      "matches provided profile",
+      "faithful to known facts",
+      "natural speech",
+      "appropriate emotional register"
+    ],
+    "min_human_reviewers": 2,
+    "no_auto_adoption_on_syntax_gate": true,
+    "hosted_vs_local_cost_must_be_measured_before_firm_choice": true
+  }
+}
