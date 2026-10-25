@@ -1,6 +1,6 @@
 # G19: finite potable water, wastewater and sealed waste operation
 
-**Status:** code integrated on draft PR #138, final installed-world casualty acceptance in progress. The single existing G19 integration PR remains unmerged.
+**Status: WATER/WASTE/RECYCLING SUBSYSTEM ACCEPTED (25 October 2026).** Its finite-resource model, installed-world operations and G18 compatibility regressions passed on the G19 branch. **PR #138 remains draft and unmerged** until the *other* ship systems complete their own integration gates.
 
 ## Scope and source of truth
 
@@ -141,6 +141,19 @@ positively `seal`ed or `unseal`ed only within their local safe
 work restrictions. Both the clock and WorkReceipt rows survive
 restart and duplicate commands cannot repeat work.
 
+## Verified subsystem acceptance — 25 October 2026
+
+**Code revision validated:** `d3d2f9c537a7e03dbe9366821c5af241376f30a6`. Subsequent documentation-only commits do not modify that tested runtime. The dedicated [GitHub Actions evidence run](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40245103836) completed **both jobs successfully**:
+
+| Gate | Result | Verified coverage |
+| --- | --- | --- |
+| Pure deterministic water/material engine | **17/17 pass** | 730-day normal leg; 80% degraded recovery and the 73 t extra draw; dual-train failures; fixed/local receiver saturation; guarded 70 t reserve and nonessential rationing; material custody; finite treatment filters; seeded multi-casualty fuzz, corruption rejection and replay determinism |
+| Installed Evennia G19 water/waste | **12/12 pass** | Live rotary wet valves, single-union failover, local qualified controls and duplicate receipts, physical filter collection/delivery, water sampling and hazardous capture, industrial scrap, H₂ outlet verification, brownout survival and 60%/80% degradation |
+| Existing G18 fire/air/thermal/damage compatibility | **14/14 pass** | Actual-world generator, service valves, pressure boundaries, fires, thermal trips, finite suppression and the independently seeded 80-tick casualty campaign |
+| Design waste/physical validators | **Pass** | `check_waste_byproducts.py` and `check_physical_operations.py` through the same workflow |
+
+**Total: 43 tests passing**, plus the physical-design validators. The branch's fast PR and documentation checks also passed. Water/waste/recycling is therefore **subsystem-complete** under the project's *verisimilitude, not NASA certification* requirement. It is not an assertion that every other G19 ship system or the final autonomous voyage has passed. The full-ship completion gate stays closed and the PR stays unmerged.
+
 ## Acceptance evidence and failure drills
 
 The new `.github/workflows/ox-g19-water.yml` runs:
@@ -173,5 +186,4 @@ finite-material equipment-recovery package rather than an invented local
 instant reset. None of these cross-system dependencies is represented as
 already completed.
 
-**No final whole-ship acceptance or merge has been claimed.** G19 still
-requires the other ship systems and the complete integrated voyage gate.
+**This subsystem is accepted; no final whole-ship acceptance or merge has been claimed.** The other G19 systems, their cross-system crew/cargo/repair dependencies and the final integrated voyage gate remain separate obligations within the *same* PR.

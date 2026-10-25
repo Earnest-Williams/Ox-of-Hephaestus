@@ -48,6 +48,12 @@ CFD, structural FEA or fabrication-grade qualification is required.
 | Navigation and access | Crew traversal of authored exits only, pressure-boundary/interlock checks, suit and transfer constraints, access to actual workstations |
 | Recovery | Fault detection by available instruments, investigation, isolation, maintenance, spare parts, delayed restart and audit receipts |
 
+### Accepted G19 implementation slice — water, waste and recycling
+
+**Closed at subsystem level on 25 October 2026.** The same G19 branch now has verified finite potable/grey/black water processing, 39 t working / 162 t normal / separately guarded 70 t protected water, two independent treatment trains, verified local and fixed receivers and redundant valved wet rotary crossings, honest 90%/80% recovery, bounded sealed sanitary/industrial/hazardous waste, carried filter supplies, local permissions/receipts and a causally coupled power/fire/hydrogen relationship. [Evidence run 40245103836](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40245103836) passed **17 pure tests, 12 installed Evennia tests and 14 inherited G18 compatibility tests**, plus physical-design validators, on tested code revision `d3d2f9c537a7e03dbe9366821c5af241376f30a6`. Read [G19 water/waste system contract](G19_WATER_WASTE_RECYCLING.md) for operating controls, conservation, degraded modes and remaining cross-system dependencies.
+
+**This acceptance closes only the Water and waste implementation row.** The final whole-ship acceptance voyage, crew exposure consequences, complete port-side waste offloading, shared equipment repair, and all other G19 completion criteria remain open until their respective integration tests pass. No partial subsystem pass authorises merging PR #138.
+
 Every row requires a real integrated implementation, not merely documentation,
 static JSON entries, an isolated demonstration or operator-injected outcomes.
 Keep the existing G18 mechanisms where valid and extend them; do not create
