@@ -659,6 +659,7 @@ def tick_continuous_physics(*, now_game_time=None):
     d["lost_to_space_kg"] += lost
     d["burned_fuel_kg"] += burned
     d["water_suppression_kg"] += water
+    d["co2_captured_kg"] = captured_co2
     d["summary"] = {
         **summary,
         "gas_kg": round(sum(c["mass"] for c in cells.values()), 6),
