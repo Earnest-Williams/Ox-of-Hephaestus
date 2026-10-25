@@ -11,7 +11,7 @@ from world.bootstrap import build_ship
 from world.continuous_ship_physics import (
     PhysicsError, arm_continuous_physics, commission_g19_movement,
     _clock,
-    survey_cargo_lot, commission_ftl_route,
+    survey_cargo_lot, commission_ftl_route, commission_commercial_port,
     crew_physical_action, local_physics_readout, tick_continuous_physics,
 )
 from world.full_ship_operations import (
@@ -204,6 +204,39 @@ class InstalledMovementTests(EvenniaTestCase):
         self.assertNotEqual(
             _clock().details[
                 "motion"]["nav_location"], "TARGET")
+
+    def test_docked_berth_prevents_helm_ftl_and_drum_release(self):
+        with self.assertRaises(PermissionError):
+            commission_commercial_port(
+                operation="dock", portal_id="DR-01-P1", berth_id="BERTH-1")
+        contact = commission_commercial_port(
+            operator_approved=True, operation="dock",
+            portal_id="DR-01-P1", berth_id="BERTH-1")
+        self.assertEqual(contact["docked"], ["DR-01-P1"])
+        officer = build_ship()["officer"]
+        officer.move_to(find_ship_space("CMD-PRIMARY"), quiet=True)
+        with self.assertRaises(PhysicsError):
+            crew_physical_action(
+                officer, "0" * 32, "helm", "HELM", "x+")
+        commission_ftl_route(
+            operator_approved=True, route_id="MOOR01", destination="ASTAR",
+            distance_ly=0.5, cruise_c=5)
+        with self.assertRaises(PhysicsError):
+            crew_physical_action(
+                officer, "e" * 32, "ftl", "MOOR01", "engage")
+        tech = build_ship()["watch"]
+        tech.move_to(find_ship_space("DR-01-FREIGHT-LOCK"), quiet=True)
+        for cmd in ("start", "release", "index", "freight_extend"):
+            with self.assertRaises(PhysicsError):
+                crew_physical_action(
+                    tech, {"start": "1", "release": "2", "index": "3",
+                           "freight_extend": "4"}[cmd] * 32,
+                    "rotor", "DR-01", cmd)
+        commission_commercial_port(
+            operator_approved=True, operation="undock",
+            portal_id="DR-01-P1", berth_id="BERTH-1")
+        crew_physical_action(
+            officer, "5" * 32, "helm", "HELM", "x+")
 
     def test_explicit_migration_preserves_motion_and_reconciles_mass(self):
         clock = _clock()

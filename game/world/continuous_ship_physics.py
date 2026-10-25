@@ -1641,6 +1641,8 @@ def crew_physical_action(actor, request_id, action, target, value):
         before = _snapshot(item)
         d = dict(item.details)
         if value == "engage":
+            if contacts_active(d.get("cargo", {})):
+                raise PhysicsError("FTL translation prohibited while moored to cargo berth")
             field = state("equipment", "FTL-TRANSLATION-FIELD")
             station = state("equipment", "LCS-FTL")
             if field.condition in _BROKEN or station.condition in _BROKEN:
@@ -1696,12 +1698,13 @@ def crew_physical_action(actor, request_id, action, target, value):
                 getattr(actor.db, "crew_role", None) not in roles and
                 not actor.check_permstring("Developer")):
             raise PermissionError("Operator is not at that rotor's local machinery controls")
-        if target in DRUMS and value == "start":
+        if target in DRUMS and value in {
+                "start", "release", "index", "freight_extend", "passenger_extend"}:
             manifest = _clock().details.get("cargo", {})
             if any(portal[:5] == target
                    for portal in manifest.get("port_contacts", {})):
-                raise PhysicsError("Cannot start a drum while attached to commercial berth")
-            if unsecured_drum_loads(manifest, target):
+                raise PhysicsError("Cannot release, index or motor an externally moored drum")
+            if value == "start" and unsecured_drum_loads(manifest, target):
                 raise PhysicsError("Loose or unstowed freight prevents drum spin-up")
         if target in DRUMS and target in _clock().details.get("cargo", {}).get("jobs", {}):
             if value in {"start", "release", "freight_retract", "passenger_extend"}:
