@@ -1715,8 +1715,13 @@ def crew_physical_action(actor, request_id, action, target, value):
         elif value == "release":
             if current != "inhibited":
                 raise PhysicsError("Only a locally inhibited sound drive can be released")
+            if (state("equipment", "LCS-PROP").condition in _BROKEN
+                    or state("equipment", "LP-PROP-CTRL").condition in _BROKEN):
+                raise PhysicsError("Cannot re-arm propulsion through damaged local controls")
             # Inhibiting a drive does not repair underlying damage.
             motion[key] = "operational"
+            if target == "MAIN" and motion.get("drive_trip_reason") == "propulsion_control_loss":
+                motion["drive_trip_reason"] = None
         else:
             if current not in {"operational", "inhibited"}:
                 raise PhysicsError("Damaged or tripped drive cannot bypass repair via inhibit")
@@ -1771,6 +1776,9 @@ def crew_physical_action(actor, request_id, action, target, value):
         if target != "HELM" or value not in ATTITUDE_COMMANDS:
             raise PhysicsError("Unknown ship attitude command")
         _helm_at(actor)
+        if (value != "hold"
+                and state("equipment", "LCS-PROP").condition in _BROKEN):
+            raise PhysicsError("Attitude-control command blocked by damaged propulsion station")
         item = _clock(lock=True)
         before = _snapshot(item)
         d = dict(item.details)
@@ -1791,6 +1799,9 @@ def crew_physical_action(actor, request_id, action, target, value):
         if target != "HELM" or value not in HELM_DIRECTIONS:
             raise PhysicsError("Unknown ship thrust direction")
         _helm_at(actor)
+        if (value != "coast"
+                and state("equipment", "LCS-PROP").condition in _BROKEN):
+            raise PhysicsError("Main drive command blocked by damaged propulsion station")
         item = _clock(lock=True)
         before = _snapshot(item)
         d = dict(item.details)
