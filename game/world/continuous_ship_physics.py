@@ -47,6 +47,9 @@ from world.ship_water_recycling import (
     WaterError, initial_water, step_water, validate_water,
     FIXED_KG as WASTE_FIXED_CAPACITY_KG,
 )
+from world.ship_water_materials import (
+    register_source_survey, take_filter, load_filter, local_classified_deposit,
+)
 
 CLOCK_KEY = "meta:continuous-physics"
 SCRIPT_KEY = "OxContinuousShipPhysics"
@@ -252,6 +255,9 @@ def _snapshot(item):
                 "local": water["local"], "fixed": water["fixed"],
                 "cassettes": water["cassettes"],
                 "cumulative": water["cumulative"],
+                "filter_staged_kg": water["filter_staged_kg"],
+                "filter_carried_kg": water["filter_carried_kg"],
+                "source_surveys": water["source_surveys"],
                 "potable_quarantined": water["potable_quarantined"],
                 "reserve_released": water["reserve_released"],
             }
@@ -553,6 +559,41 @@ def _water_hardware(water, equipment, edges, isolators, nodes, power):
         "bins": bins,
     }
 
+
+
+
+@transaction.atomic
+def survey_g19_water_material(*, operator_approved=False, source=None,
+                              room_id=None, verified_kg=None):
+    """Physically locate an existing material supply, never invent more."""
+    if not operator_approved:
+        raise PermissionError("Physical material survey is operator-only")
+    if source not in {"INV-SPARES", "INV-DC-CONSUMABLES"}:
+        raise PhysicsError("Unclassified material source")
+    store = state("inventory", source, lock=True)
+    from world.ship_world import find_ship_space
+    if (room_id not in store.reference.get("location_ids", ())
+            or not isinstance(room_id, str) or find_ship_space(room_id) is None):
+        raise PhysicsError("No installed source stock at that room")
+    amount = _positive(verified_kg)
+    clock = _clock(lock=True)
+    w = clock.details.get("water")
+    if w is None:
+        raise PhysicsError("Water/waste system not commissioned")
+    try:
+        w = register_source_survey(
+            w, source=source, room=room_id,
+            verified_kg=amount, inventory_kg=store.quantity * 1000.0)
+    except WaterError as exc:
+        raise PhysicsError(str(exc)) from exc
+    before = _snapshot(clock)
+    d = dict(clock.details)
+    d["water"] = w
+    clock.details = d
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "operator_material_location_survey", before)
+    return {"source": source, "room": room_id, "verified_kg": amount}
 
 
 @transaction.atomic
@@ -1007,6 +1048,7 @@ def tick_continuous_physics(*, now_game_time=None):
     water_stocks = {
         "normal": inventory,
         "filter": state("inventory", "INV-DC-CONSUMABLES", lock=True),
+        "spares": state("inventory", "INV-SPARES", lock=True),
         "reserve": state("inventory", "INV-WATER-RESERVE", lock=True),
         "sanitary": state("inventory", "INV-WASTE-RESIDUE", lock=True),
         "industrial": state("inventory", "INV-INDUSTRIAL-SCRAP", lock=True),
@@ -1881,7 +1923,34 @@ def crew_physical_action(actor, request_id, action, target, value):
         if "water" not in d:
             raise PhysicsError("G19 water/waste plant has not been commissioned")
         w = copy.deepcopy(d["water"])
-        if action == "water" and target == "POTABLE-TANK-MAIN":
+        if action == "water" and target == "INV-DC-CONSUMABLES":
+            room = getattr(getattr(actor, "location", None).db, "ox_space_id", None) if getattr(actor, "location", None) else None
+            if room is None:
+                raise PermissionError("Source filter handoff needs a real local worker")
+            wet_crew_at(room)
+            stock_item = state("inventory", "INV-DC-CONSUMABLES", lock=True)
+            if room not in stock_item.reference.get("location_ids", ()):
+                raise PhysicsError("Cannot withdraw filters from a remote stores inventory")
+            command, sep, amount = str(value).partition(":")
+            if command != "pickup_filter" or not sep:
+                raise PhysicsError("Local filter stores require pickup_filter:<kg>")
+            try:
+                qty = _positive(float(amount))
+            except (TypeError, ValueError) as exc:
+                raise PhysicsError("Invalid portable filter quantity") from exc
+            stock_before = _snapshot(stock_item)
+            try:
+                w, new_amount = take_filter(
+                    w, actor_dbref=actor.dbref, room=room, kg=qty,
+                    stock_kg=stock_item.quantity * 1000.0)
+            except WaterError as exc:
+                raise PhysicsError(str(exc)) from exc
+            stock_item.quantity = new_amount / 1000.0
+            stock_item.revision += 1
+            stock_item.save(update_fields=["quantity", "revision"])
+            _event(stock_item, "local_filter_issued_to_carrier", stock_before,
+                   actor=actor)
+        elif action == "water" and target == "POTABLE-TANK-MAIN":
             wet_crew_at("WATER-FWD")
             if state("equipment", "LP-WATER-FWD").condition in _BROKEN:
                 raise PhysicsError("Forward local water panel damaged")
@@ -1914,7 +1983,16 @@ def crew_physical_action(actor, request_id, action, target, value):
             processor = state("equipment", target, lock=True)
             wet_crew_at(processor.space_id)
             side = target[-1]
-            if value in {"on", "off", "quarantine"}:
+            if isinstance(value, str) and value.startswith("load_filter:"):
+                if processor.condition in _BROKEN:
+                    raise PhysicsError("Damaged purifier cannot accept service filter")
+                try:
+                    qty = _positive(float(value.partition(":")[2]))
+                    w = load_filter(w, actor_dbref=actor.dbref,
+                                    side=side, kg=qty)
+                except (WaterError, ValueError, TypeError) as exc:
+                    raise PhysicsError("Verified carried filter and rack space required") from exc
+            elif value in {"on", "off", "quarantine"}:
                 if value == "on" and processor.condition in _BROKEN:
                     raise PhysicsError("Damaged purifier cannot resume work")
                 w["water_train"][side] = (
@@ -1946,16 +2024,65 @@ def crew_physical_action(actor, request_id, action, target, value):
                 "HAZ-ISO-HOLD-A", "HAZ-ISO-HOLD-B"}:
             receiver = state("equipment", target, lock=True)
             wet_crew_at(receiver.space_id)
-            if value not in {"seal", "unseal"}:
-                raise PhysicsError("Waste receiver requires seal or unseal")
             group = ("sanitary" if target.startswith("WASTE-") else
                      "industrial" if target.startswith("IND-") else "hazardous")
             side = target[-1]
-            if value == "unseal" and w["cassettes"][group][side] > 0:
-                raise PhysicsError("Loaded sealed waste cassette needs a real offload cycle")
-            if value == "seal" and receiver.condition in _BROKEN:
-                raise PhysicsError("Damaged cassette cannot be proven sealed")
-            w["cassette_sealed"][group][side] = value == "seal"
+            if isinstance(value, str) and value.startswith("deposit:"):
+                if group == "sanitary" or receiver.condition in _BROKEN or not (
+                        w["cassette_sealed"][group][side]):
+                    raise PhysicsError("Material not compatible with this sealed waste receiver")
+                parts = value.split(":")
+                if len(parts) != 3:
+                    raise PhysicsError("Waste deposit requires deposit:<inventory-id>:<kg>")
+                _, source, mass = parts
+                try:
+                    qty = _positive(float(mass))
+                except (TypeError, ValueError) as exc:
+                    raise PhysicsError("Waste load is not a valid positive quantity") from exc
+                if source not in {"INV-SPARES", "INV-DC-CONSUMABLES"}:
+                    raise PhysicsError("Unknown material custody account")
+                original = state("inventory", source, lock=True)
+                sink = state("inventory", (
+                    "INV-INDUSTRIAL-SCRAP" if group == "industrial"
+                    else "INV-HAZARDOUS-RESIDUE"), lock=True)
+                if receiver.space_id not in original.reference.get("location_ids", ()):
+                    raise PhysicsError("Source inventory not physically in this room")
+                source_before = _snapshot(original)
+                sink_before = _snapshot(sink)
+                balances = {
+                    "normal": state("inventory", "INV-WATER-NORMAL").quantity * 1000,
+                    "reserve": state("inventory", "INV-WATER-RESERVE").quantity * 1000,
+                    "sanitary": state("inventory", "INV-WASTE-RESIDUE").quantity * 1000,
+                    "industrial": state("inventory", "INV-INDUSTRIAL-SCRAP").quantity * 1000,
+                    "hazardous": state("inventory", "INV-HAZARDOUS-RESIDUE").quantity * 1000,
+                    "filter": state("inventory", "INV-DC-CONSUMABLES").quantity * 1000,
+                    "spares": state("inventory", "INV-SPARES").quantity * 1000,
+                }
+                try:
+                    w, new_balances = local_classified_deposit(
+                        w, balances, category=group, source=source,
+                        actor_room=receiver.space_id, target_side=side,
+                        kg=qty, hardware={"bins": {group: {
+                            side: receiver.condition not in _BROKEN and
+                            w["cassette_sealed"][group][side]}}})
+                except WaterError as exc:
+                    raise PhysicsError(str(exc)) from exc
+                original.quantity = new_balances[
+                    "spares" if source == "INV-SPARES" else "filter"] / 1000.0
+                sink.quantity = new_balances[group] / 1000.0
+                for row, prior in ((original, source_before), (sink, sink_before)):
+                    row.revision += 1
+                    row.save(update_fields=["quantity", "revision"])
+                    _event(row, "classified_local_waste_deposit",
+                           prior, actor=actor)
+            elif value in {"seal", "unseal"}:
+                if value == "unseal" and w["cassettes"][group][side] > 0:
+                    raise PhysicsError("Loaded sealed waste cassette needs a real offload cycle")
+                if value == "seal" and receiver.condition in _BROKEN:
+                    raise PhysicsError("Damaged cassette cannot be proven sealed")
+                w["cassette_sealed"][group][side] = value == "seal"
+            else:
+                raise PhysicsError("Waste receiver requires seal|unseal|deposit:<id>:<kg>")
         else:
             raise PhysicsError("Water or waste target is not an installed local control")
         stocks = {
@@ -1967,6 +2094,7 @@ def crew_physical_action(actor, request_id, action, target, value):
                 ("industrial", "INV-INDUSTRIAL-SCRAP"),
                 ("hazardous", "INV-HAZARDOUS-RESIDUE"),
                 ("filter", "INV-DC-CONSUMABLES"),
+                ("spares", "INV-SPARES"),
             )
         }
         validate_water(w, stocks)
@@ -2359,6 +2487,11 @@ def local_physics_readout(actor, target):
             "potable_quarantined": water["potable_quarantined"],
             "quality_sample": water["quality_sample"],
             "hydrogen_outlets_verified": water["oxygen_outlet_verified"],
+            "staged_purifier_filter_kg": water["filter_staged_kg"],
+            "carried_filter_kg": water["filter_carried_kg"].get(actor.dbref, 0.0),
+            "surveyed_here_kg": {
+                source: rows.get(room, 0.0)
+                for source, rows in water["source_surveys"].items()},
             "fixed_holding_kg": water["fixed"],
             "local_holding_kg": water["local"],
             "sealed_receivers_kg": water["cassettes"],
