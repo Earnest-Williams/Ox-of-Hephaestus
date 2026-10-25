@@ -601,6 +601,65 @@ def tick_continuous_physics(*, now_game_time=None):
     return {"advanced": True, "last_game_time": d["last_game_time"], **d["summary"]}
 
 
+def _air_safe(cell):
+    """Conservative screen for UNsuited local work and pressure-hatch opening."""
+    if cell.quantity is None or cell.quantity <= 0:
+        return False
+    d = cell.details
+    if not all(k in d for k in (
+            "gas_volume_m3", "temperature_k", "physics_oxygen_kg",
+            "physics_co2_kg", "physics_smoke_kg", "physics_damage_index",
+            "physics_leak_kg_s", "physics_burn_kg_s")):
+        return False
+    p = cell.quantity * R_SPECIFIC_AIR * d["temperature_k"] / d["gas_volume_m3"]
+    o2 = d["physics_oxygen_kg"] / 0.032
+    remaining = max(0.0, cell.quantity - d["physics_oxygen_kg"]) / 0.029
+    po2 = p * o2 / (o2 + remaining) if o2 + remaining else 0.0
+    return (
+        80000.0 <= p <= 120000.0 and 16000.0 <= po2 <= 26000.0
+        and 278.15 <= d["temperature_k"] <= 313.15
+        and d["physics_co2_kg"] <= 0.005 * cell.quantity
+        and d["physics_smoke_kg"] <= 0.00001 * cell.quantity
+        and d["physics_damage_index"] < 0.20
+        and d["physics_leak_kg_s"] == 0
+        and d["physics_burn_kg_s"] == 0
+    )
+
+
+def _hatch_open_preflight(hatch):
+    """Only physically ordinary HAB bridge hatches; never rotary/cargo/EVA."""
+    spec = hatch.reference
+    if (not hatch.source_id.startswith("ACC-BR-")
+            or spec.get("pressure_boundary") is not True
+            or "hatch" not in str(spec.get("kind", "")).lower()):
+        raise PhysicsError("This boundary requires a dedicated mechanical transfer controller")
+    zones, _, _ = _topology()
+    a, b = zones.get(spec["from"]), zones.get(spec["to"])
+    if a is None or b is None or a == b or a == "VACUUM" or b == "VACUUM":
+        raise PhysicsError("Unknown or unverified pressure receiver")
+    if not a.startswith("PZ-") or not b.startswith("PZ-"):
+        raise PhysicsError("Unclassified atmosphere cannot be joined")
+    left = state("pressure", a, lock=True)
+    right = state("pressure", b, lock=True)
+    if not _air_safe(left) or not _air_safe(right):
+        raise PhysicsError("Air sampling, pressure, fire or local integrity not safe")
+    pa = left.quantity * R_SPECIFIC_AIR * left.details["temperature_k"] / left.details["gas_volume_m3"]
+    pb = right.quantity * R_SPECIFIC_AIR * right.details["temperature_k"] / right.details["gas_volume_m3"]
+    if abs(pa - pb) > 2000.0:
+        raise PhysicsError("Hatch differential pressure exceeds verified opening limit")
+    # The BR cell is a dual-ended pressure buffer, not a shortcut joining
+    # both HAB arcs. Fail closed if its other rated door is open.
+    bridge = a if a.startswith("PZ-BR-") else b if b.startswith("PZ-BR-") else None
+    if bridge is None:
+        raise PhysicsError("Not an ordinary habitation bridge transfer")
+    for peer in CanonicalShipState.objects.filter(category="access", setting="open"):
+        if peer.key == hatch.key:
+            continue
+        p = peer.reference
+        if bridge in (zones.get(p["from"]), zones.get(p["to"])):
+            raise PhysicsError("Opposite bridge pressure hatch must close first")
+
+
 def _crew_at(actor, space_id):
     if (actor is None or getattr(actor, "location", None) is None
             or getattr(actor.location.db, "ox_space_id", None) != space_id):
@@ -627,7 +686,7 @@ def crew_physical_action(actor, request_id, action, target, value):
     """
     if not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
         raise PhysicsError("Expected one 32-character lowercase request UUID")
-    if action not in {"switch", "plant", "schedule", "mist"}:
+    if action not in {"switch", "plant", "schedule", "mist", "hatch", "service"}:
         raise PhysicsError("Unknown physical operation")
     if actor is None or getattr(actor.db, "ox_terminal_dead", False):
         raise PermissionError("A deceased or missing character cannot operate machinery")
@@ -645,10 +704,12 @@ def crew_physical_action(actor, request_id, action, target, value):
     if previous is not None:
         if (previous.actor_dbref != getattr(actor, "dbref", None)
                 or previous.operation != "crew_" + action
-                or previous.component_key != ("isolator:" if action == "switch"
+                or previous.component_key != (
+                    "isolator:" if action == "switch"
                     else "pressure:" if action == "mist"
-                    else CLOCK_KEY if action == "schedule"
-                    else "equipment:") + target
+                    else "access:" if action == "hatch"
+                    else "" if action == "schedule"
+                    else "equipment:") + (CLOCK_KEY if action == "schedule" else target)
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
@@ -669,7 +730,7 @@ def crew_physical_action(actor, request_id, action, target, value):
             raise PhysicsError("No approved local plant control for that unit")
         item = state("equipment", target, lock=True)
         _crew_at(actor, item.space_id)
-        if item.condition in _BROKEN:
+        if item.condition in _BROKEN and value == "on":
             raise PhysicsError("Failed plant cannot be started")
         before = _snapshot(item)
         on = value == "on"
@@ -695,6 +756,53 @@ def crew_physical_action(actor, request_id, action, target, value):
             item.details = d
             item.revision += 1
             item.save(update_fields=["details", "revision"])
+    elif action == "hatch":
+        if value not in {"open", "closed"}:
+            raise PhysicsError("Hatch must be opened or closed explicitly")
+        item = state("access", target, lock=True)
+        spec = item.reference
+        room_id = getattr(getattr(actor, "location", None).db, "ox_space_id", None) if getattr(actor, "location", None) else None
+        if room_id not in {spec["from"], spec["to"]}:
+            raise PermissionError("Worker is not at the actual hatch")
+        _crew_at(actor, room_id)
+        if (not item.source_id.startswith("ACC-BR-") or
+                "hatch" not in str(spec.get("kind", "")).lower()):
+            raise PhysicsError("Machinery-indexed and cargo doors are not ordinary hatches")
+        if item.condition in _BROKEN:
+            raise PhysicsError("Damaged hatch cannot be safely actuated")
+        if value == "open" and item.setting != "open":
+            _hatch_open_preflight(item)
+        before = _snapshot(item)
+        if item.setting != value:
+            item.setting = value
+            item.revision += 1
+            item.save(update_fields=["setting", "revision"])
+    elif action == "service":
+        if target not in PLANTS or value != "reset":
+            raise PhysicsError("Only a local protection reset is currently modelled")
+        item = state("equipment", target, lock=True)
+        _crew_at(actor, item.space_id)
+        d = dict(item.details)
+        if (item.condition != "faulted"
+                or d.get("physics_trip_reason") != "local_overtemperature_protection"
+                or d.get("physics_online")
+                or d.get("physics_commanded_on")
+                or d.get("physics_startup_s", 0.0) != 0):
+            raise PhysicsError("No safely isolated thermal protection trip to reset")
+        zone = _topology()[1].get(target)
+        if not zone or not _air_safe(state("pressure", zone, lock=True)):
+            raise PhysicsError("Local air, temperature or persistent physical damage unsafe")
+        if target in GENERATION_MW:
+            breaker = state("isolator", "ISO-" + target, lock=True)
+            if breaker.setting != "open" or breaker.condition in _BROKEN:
+                raise PhysicsError("Generator feeder not positively isolated")
+        before = _snapshot(item)
+        d.pop("physics_trip_reason", None)
+        d.pop("physics_trip_game_time", None)
+        item.details = d
+        item.condition = "serviceable"
+        item.revision += 1
+        item.save(update_fields=["details", "condition", "revision"])
     else:
         if value not in {"stop", "start"} or not target.startswith("PZ-HAB-"):
             raise PhysicsError("Only real HAB mist outlets can be commanded")
@@ -774,6 +882,7 @@ def local_physics_readout(actor, target):
                 "id": target, "category": category, "condition": item.condition,
                 "setting": item.setting,
                 "online": item.details.get("physics_online"),
+                "trip_reason": item.details.get("physics_trip_reason"),
                 "scope": "local_scenario_reading_sensor_reliability_unmodelled",
             }
     raise PermissionError("That machinery is not at this character's location")
