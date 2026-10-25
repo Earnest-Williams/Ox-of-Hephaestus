@@ -505,6 +505,35 @@ def survey_cargo_lot(*, operator_approved=False, operation, lot_id=None,
     }
 
 
+@transaction.atomic
+def commission_ftl_route(*, operator_approved=False, route_id, destination,
+                         distance_ly, cruise_c):
+    """World-issued reference navigation leg; crew subsequently engage it."""
+    if not operator_approved:
+        raise PermissionError("Mission route must be independently commissioned")
+    clock = _clock(lock=True)
+    before = _snapshot(clock)
+    d = dict(clock.details)
+    try:
+        d["motion"] = prepare_leg(
+            d["motion"], route_id=route_id, destination=destination,
+            distance_ly=distance_ly, speed_c=cruise_c)
+    except NavigationError as exc:
+        raise PhysicsError(str(exc)) from exc
+    clock.details = d
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    event = _event(clock, "operator_ftl_route_plan", before)
+    audit = dict(event.after)
+    audit["ftl_plan"] = {
+        "route_id": route_id, "destination": destination,
+        "distance_ly": distance_ly, "cruise_c": cruise_c,
+    }
+    event.after = audit
+    event.save(update_fields=["after"])
+    return dict(d["motion"]["ftl_leg"])
+
+
 def _physical_passage(iso):
     """A mechanically jammed-open air valve still leaks even if actuators fail."""
     kind = str(iso.reference.get("kind", "")).lower()
@@ -1296,7 +1325,7 @@ def crew_physical_action(actor, request_id, action, target, value):
     """
     if not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
         raise PhysicsError("Expected one 32-character lowercase request UUID")
-    if action not in {"switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight"}:
+    if action not in {"switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl"}:
         raise PhysicsError("Unknown physical operation")
     if actor is None or getattr(actor.db, "ox_terminal_dead", False):
         raise PermissionError("A deceased or missing character cannot operate machinery")
@@ -1318,8 +1347,8 @@ def crew_physical_action(actor, request_id, action, target, value):
                     "isolator:" if action == "switch"
                     else "pressure:" if action == "mist"
                     else "access:" if action == "hatch"
-                    else "" if action in {"schedule", "helm", "attitude", "rotor", "drive", "freight"}
-                    else "equipment:") + (CLOCK_KEY if action in {"schedule", "helm", "attitude", "rotor", "drive", "freight"} else target)
+                    else "" if action in {"schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl"}
+                    else "equipment:") + (CLOCK_KEY if action in {"schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl"} else target)
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
@@ -1403,6 +1432,29 @@ def crew_physical_action(actor, request_id, action, target, value):
         item.details = d
         item.revision += 1
         item.save(update_fields=["details", "revision"])
+    elif action == "ftl":
+        room = getattr(getattr(getattr(actor, "location", None), "db", None),
+                       "ox_space_id", None)
+        role = getattr(actor.db, "crew_role", None)
+        if (room not in {"CMD-PRIMARY", "NAV-PLANNING"} or
+                role not in {"captain", "bridge_officer"} and
+                not actor.check_permstring("Developer")):
+            raise PermissionError("FTL requires a qualified navigator at command or navigation station")
+        item = _clock(lock=True)
+        before = _snapshot(item)
+        d = dict(item.details)
+        if value == "engage":
+            field = state("equipment", "FTL-TRANSLATION-FIELD")
+            station = state("equipment", "LCS-FTL")
+            if field.condition in _BROKEN or station.condition in _BROKEN:
+                raise PhysicsError("Installed translation-field machinery unavailable")
+        try:
+            d["motion"] = command_leg(d["motion"], target, value)
+        except NavigationError as exc:
+            raise PhysicsError(str(exc)) from exc
+        item.details = d
+        item.revision += 1
+        item.save(update_fields=["details", "revision"])
     elif action == "drive":
         if target not in {"MAIN", "RCS"} or value not in {"inhibit", "release", "reset"}:
             raise PhysicsError("Unknown propulsion safety operation")
@@ -1477,6 +1529,8 @@ def crew_physical_action(actor, request_id, action, target, value):
         motion = dict(d.get("motion", {}))
         if not motion:
             raise PhysicsError("Ship motion has not been commissioned")
+        if (motion.get("ftl_leg") or {}).get("status") == "engaged":
+            raise PhysicsError("Attitude controls locked during FTL translation")
         motion["attitude_command"] = value
         d["motion"] = motion
         if d != item.details:
@@ -1493,6 +1547,8 @@ def crew_physical_action(actor, request_id, action, target, value):
         motion = dict(d.get("motion", {}))
         if not motion:
             raise PhysicsError("Ship motion has not been commissioned")
+        if (motion.get("ftl_leg") or {}).get("status") == "engaged":
+            raise PhysicsError("Sublight controls locked during FTL translation")
         motion["command"] = value
         d["motion"] = motion
         if d != item.details:
