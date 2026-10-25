@@ -145,6 +145,38 @@ class CoupledShipCasualtyTests(EvenniaTestCase):
         with self.assertRaises(PhysicsError):
             crew_physical_action(tech, "f" * 32, "hatch", first.source_id, "open")
 
+
+    def test_pressure_differential_and_industrial_hatch_fail_closed(self):
+        gate = state("access", "ACC-BR-03-HAB-03")
+        # Create a real pressure difference, then stop the leak. The zone
+        # remains at finite lower pressure; stopping loss does not refill it.
+        configure_scenario_casualty(
+            "PZ-HAB-03", leak_kg_s=10.0, operator=True)
+        tick_continuous_physics(now_game_time=1010)
+        configure_scenario_casualty(
+            "PZ-HAB-03", leak_kg_s=0.0, operator=True)
+        a = state("pressure", "PZ-HAB-03")
+        b = state("pressure", "PZ-BR-03")
+        p_a = a.quantity * 287.05 * a.details["temperature_k"] / a.details["gas_volume_m3"]
+        p_b = b.quantity * 287.05 * b.details["temperature_k"] / b.details["gas_volume_m3"]
+        self.assertGreater(abs(p_a - p_b), 2000)
+        tech = self._tech()
+        tech.move_to(find_ship_space(gate.reference["from"]), quiet=True)
+        with self.assertRaisesRegex(PhysicsError, "differential"):
+            crew_physical_action(
+                tech, "7" * 32, "hatch", gate.source_id, "open")
+        self.assertEqual(state("access", gate.source_id).setting, "closed")
+        self.assertFalse(WorkReceipt.objects.filter(pk="7" * 32).exists())
+
+        # Industrial/flywheel and rotary mechanisms cannot be converted into
+        # an ordinary crew hatch by merely knowing their access-link ID.
+        industrial = state("access", "ACC-LOGI-F1-BAY")
+        tech.move_to(find_ship_space(industrial.reference["from"]), quiet=True)
+        with self.assertRaises(PhysicsError):
+            crew_physical_action(
+                tech, "8" * 32, "hatch", industrial.source_id, "open")
+        self.assertFalse(WorkReceipt.objects.filter(pk="8" * 32).exists())
+
     def test_power_cooling_fire_and_damage_remain_causally_coupled(self):
         set_isolator("ISO-GEN-M", "closed", operator=True)
         baseline = tick_continuous_physics(now_game_time=1010)
