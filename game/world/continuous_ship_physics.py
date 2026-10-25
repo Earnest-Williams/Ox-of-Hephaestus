@@ -30,6 +30,7 @@ from world.ship_ftl_navigation import (
 from world.ship_port_operations import (
     PORTALS, PORT_AUX_MW, contacts_active, commission_port_contact,
     register_external_consignment, start_port_job, step_port_jobs,
+    command_port_job,
 )
 from world.ship_cargo_manifest import (
     CargoError, DRUMS as CARGO_DRUMS, initial_cargo, validate_cargo,
@@ -883,7 +884,9 @@ def tick_continuous_physics(*, now_game_time=None):
         # These are separate full-size commercial portals, not the 50-tonne
         # internal spine. A real contact, stationary indexed drum, a sealed
         # inner gallery door and sound radial rail are all prerequisites.
-        requested_ports = sorted(cargo.get("port_jobs", {}))
+        requested_ports = sorted(
+            portal for portal, job in cargo.get("port_jobs", {}).items()
+            if not job.get("paused", False))
         free_mw = max(0.0, power["available_mw"] - power["requested_mw"])
         ready_ports = set()
         for portal in requested_ports:
@@ -1533,8 +1536,9 @@ def crew_physical_action(actor, request_id, action, target, value):
         if target not in PORTALS or not isinstance(value, str):
             raise PhysicsError("Unknown commercial loading portal")
         parts = value.split(":")
-        if len(parts) != 2 or parts[0] not in {"load", "unload"}:
-            raise PhysicsError("Port action requires load:<lot> or unload:<lot>")
+        if len(parts) != 2 or parts[0] not in {
+                "load", "unload", "pause", "resume", "abort"}:
+            raise PhysicsError("Port action requires load|unload|pause|resume|abort:<lot>")
         direction, lot_id = parts
         drum = target[:5]
         room = getattr(getattr(getattr(actor, "location", None), "db", None),
@@ -1547,8 +1551,10 @@ def crew_physical_action(actor, request_id, action, target, value):
         station = state("equipment", "LP-CARGO-CTRL-FWD")
         handler = state("equipment", drum + "-RADIAL-FREIGHT-HANDLER")
         inner = state("access", "ACC-" + target)
-        if (station.condition in _BROKEN or handler.condition in _BROKEN
-                or inner.condition in _BROKEN):
+        if station.condition in _BROKEN:
+            raise PhysicsError("Commercial port local control panel damaged")
+        if direction in {"load", "unload"} and (
+                handler.condition in _BROKEN or inner.condition in _BROKEN):
             raise PhysicsError("Commercial port or cargo-handling machinery damaged")
         item = _clock(lock=True)
         before = _snapshot(item)
@@ -1560,11 +1566,19 @@ def crew_physical_action(actor, request_id, action, target, value):
                 or any(abs(v) > 0.0001 for v in motion["angular_velocity_rad_s"])):
             raise PhysicsError("Cargo operations prohibited while ship manoeuvring")
         try:
-            d["cargo"] = start_port_job(
-                d["cargo"], d["rotors"], lot_id=lot_id,
-                portal_id=target, direction=direction,
-                capacity_kg=motion["cargo_capacity_kg"],
-                equipment_ready=True, inner_gate_sealed=inner.setting == "closed")
+            if direction in {"load", "unload"}:
+                d["cargo"] = start_port_job(
+                    d["cargo"], d["rotors"], lot_id=lot_id,
+                    portal_id=target, direction=direction,
+                    capacity_kg=motion["cargo_capacity_kg"],
+                    equipment_ready=True, inner_gate_sealed=inner.setting == "closed")
+            else:
+                # Stopping an unsafe handler must remain possible during
+                # an actuator casualty. Reverse travel resumes only when
+                # physical machinery, contacts and power return.
+                d["cargo"] = command_port_job(
+                    d["cargo"], portal_id=target,
+                    lot_id=lot_id, command=direction)
             validate_cargo(d["cargo"], motion["cargo_mass_kg"])
         except CargoError as exc:
             raise PhysicsError(str(exc)) from exc
