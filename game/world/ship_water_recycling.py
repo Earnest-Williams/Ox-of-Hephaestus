@@ -59,6 +59,11 @@ def initial_water():
         "cassettes": {
             k: {"A": 0.0, "B": 0.0} for k in CASSETTE_KG
         },
+        # Source surveys are the operator's physically verified unspent local
+        # holdings, not additional material above the inventory ledger.
+        "source_surveys": {},
+        "filter_carried_kg": {},
+        "filter_staged_kg": {"A": 0.0, "B": 0.0},
         "water_train": {"A": "on", "B": "on"},
         "waste_train": {"A": "on", "B": "on"},
         "decontaminate": {"A": False, "B": False},
@@ -108,6 +113,26 @@ def validate_water(water, stocks):
                 raise WaterError("Unknown train command")
         if not isinstance(water["decontaminate"][side], bool):
             raise WaterError("Invalid local water decontamination command")
+    if not isinstance(water["source_surveys"], dict) or not isinstance(
+            water["filter_carried_kg"], dict):
+        raise WaterError("Missing physical material custody records")
+    for source, sites in water["source_surveys"].items():
+        if not isinstance(source, str) or not source.startswith("INV-") or not isinstance(sites, dict):
+            raise WaterError("Invalid surveyed material account")
+        for room, amount in sites.items():
+            if not isinstance(room, str) or not room or _quantity(amount) < 0:
+                raise WaterError("Invalid local material holding")
+        if source in {"INV-DC-CONSUMABLES", "INV-SPARES"}:
+            key = "filter" if source == "INV-DC-CONSUMABLES" else "spares"
+            if key in stocks and sum(sites.values()) > stocks[key] + EPS:
+                raise WaterError("Verified material stock exceeds unspent source")
+    for actor_id, kg in water["filter_carried_kg"].items():
+        if (not isinstance(actor_id, str) or not actor_id or
+                _quantity(kg) > 4.0 + EPS):
+            raise WaterError("Unbounded or anonymous carried filter")
+    for side in "AB":
+        if _quantity(water["filter_staged_kg"][side]) > 10.0 + EPS:
+            raise WaterError("Water processor filter rack overfilled")
     for medium in STREAM_FRACTION:
         if _quantity(water["fixed"][medium]) > FIXED_KG[medium] + EPS:
             raise WaterError("Fixed wastewater receiver overfill")
@@ -208,13 +233,13 @@ def step_water(water, seconds, *, stocks, hardware, crew_count=40):
             fraction = 0.002
             amount = min(
                 w["suspected_contamination_kg"], 0.1 * seconds,
-                stock.get("filter", 0.0) / fraction,
+                w["filter_staged_kg"][side] / fraction,
                 _cassette_space(w, "hazardous", hardware) / fraction)
             if amount <= EPS:
                 continue
             spent = amount * fraction
             _fill_cassette(w, "hazardous", spent, hardware)
-            stock["filter"] -= spent
+            w["filter_staged_kg"][side] -= spent
             stock["hazardous"] += spent
             w["suspected_contamination_kg"] -= amount
             w["quality_sample"] = None
@@ -386,6 +411,8 @@ def water_inventory_total(water, stocks):
         + sum(sum(m.values()) for m in water["local"].values())
         + sum(stocks[category] for category in CASSETTE_KG)
         + stocks.get("filter", 0.0)
+        + sum(water["filter_staged_kg"].values())
+        + sum(water["filter_carried_kg"].values())
     )
 
 
