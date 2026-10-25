@@ -2,6 +2,24 @@
 
 **Historical planning baseline:** `main` commit `100f4ff6eb5acdcfccb73fba7e2651e80c0cdf9a` (18 October 2026), with 13 focused workflows *at that time*. This roadmap preserves original task history and acceptance intent; it is **not** a live feature inventory. For merged G6–G12, PostgreSQL PRs #82–83 and remaining limitations see [STATUS](STATUS.md) (21 October 2026). GitHub Issues were disabled when this plan was recorded.
 
+## Active ship-physics work (25 October 2026)
+
+The authoritative ship spatial topology and installed v0.5 register remain
+distinct; G18 continuous physics is merged. G18b ([PR #136](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/136))
+is the current **unmerged** cascading-casualty and conservative local
+recovery gate. Acceptance requires actual world gas/fire/thermal/power
+propagation; finite resource conservation; local request receipts; closing
+a real physical valve rather than a magical hull patch; safe dual-ended
+HAB hatch interlocks; and restart/fuzz tests.
+
+After acceptance: integrate the 42 authored maintenance groups with staged
+parts, tools, skills, permit-to-work and travel; model atmosphere/ECLSS
+consumables; then enable ordinary world traversal only with actual seal,
+suit, pressure, rotor and indexer witnesses. The full 40-character
+operational recovery scenario remains an **acceptance objective**, not an
+accomplished simulated voyage. Qualify for believable fiction/game behavior,
+not NASA approval.
+
 ## Invariants
 
 1. Evennia is authoritative for physical world state, time, character identity, permissions, items, skill outcomes, assignments, and consequential action receipts.
