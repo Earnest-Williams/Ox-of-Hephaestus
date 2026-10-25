@@ -25,7 +25,8 @@ There is no implicit retrofit when a model, handler or server restarts.
 The working-potable reference begins at **39,000 kg** within the original
 ship mass, not from a newly invented inventory. The existing authoritative
 inventories are **162 t** normal makeup and **70 t** separate protected
-reserve. The other 15 original physical inventory accounts remain unchanged.
+reserve. The remaining existing inventory categories retain their separately
+owned source quantities and identities.
 
 ## Finite physical circuit
 
@@ -66,15 +67,24 @@ reserve. The other 15 original physical inventory accounts remain unchanged.
   independent **4 + 4 t industrial** and **1 + 1 t hazardous** receivers
   cannot borrow sanitary capacity. The transition library for segregated
   discarded material debits already-owned compatible stock first.
-  Finite filter use during potable decontamination is transferred from
-  `INV-DC-CONSUMABLES` to sealed hazardous waste, not created from air.
+  Purifier filters require a location-surveyed source at an actual stores
+  compartment. An authenticated qualified crewmember takes a finite portable
+  batch, carries it in the world-owned cargo/custody ledger to the real ECLSS
+  purifier, and physically loads its bounded cartridge rack before the plant
+  can consume filter media. The spent filter goes into a sound, sealed
+  hazardous receiver; simply having 8 t of shipwide consumables does not
+  provide magically delivered chemistry at an isolated processor.
 - A contamination casualty quarantines potable circulation. Locally
   ordered purification uses actual water processing service and finite
   replacement filter stock; a qualified local technician must obtain a
   passing sample before clearing a quarantine. Turning a pump back on
   does not remove contamination. Failed or unsealed cassettes are not
   legitimate receivers. Waste, water and sealed-cassette intervention is
-  subject to durable shared request-ID receipts.
+  subject to durable shared request-ID receipts. Actual local industrial
+  or hazardous waste deposits must additionally come from an existing,
+  operator-surveyed compatible source *in the same room*, consume that
+  source inventory and occupy finite sealed receiver capacity. Unlocated
+  manifest stock cannot be discarded by name alone.
 
 ## Couplings and limits
 
@@ -90,8 +100,12 @@ reserve. The other 15 original physical inventory accounts remain unchanged.
   support oxygen generation, water electrolysis consumes real treated
   water and returns its oxygen product to the actual bounded gas cell.
   Only physically vented hydrogen decreases ship inertial mass.
-  No closed or unverified hydrogen nozzle gets credited as safe exterior
-  discharge merely because its reference design contains an outlet.
+  The operator-only `verify_g19_hydrogen_outlet` records an actual
+  as-installed clearance survey before either H2 port can be used; both
+  separate source and hull valves, the exhaust edge and sound equipment
+  must still conduct on every physics step. No closed or unverified nozzle
+  gets credited as safe exterior discharge merely because the design
+  contains an outlet.
   Normal life-support respiration and CO2 regeneration remain the
   separate atmosphere/crew-exposure G19 closure work, not a duplicate
   sanitary network here.
@@ -123,12 +137,27 @@ The new `.github/workflows/ox-g19-water.yml` runs:
 2. Single- and dual-processor failures, fixed receiver isolation,
    finite buffer exhaustion, sanitary-cassette exhaustion, protection
    of the reserved 70 t, negative-input and stock-mismatch rejection.
-3. Real Evennia initialization, installed water equipment/edges,
-   local authenticated receipt replay, contamination, filter
-   consumption, hazardous capture, and no uncommitted mass transfer.
-4. Existing G18 continuous-physics and coupled-casualty suites,
+3. Seeded multi-casualty/property fuzzing across variable time steps,
+   processor failures, isolation, buffer saturation, material corruption
+   and double evaluation without authority over persistent world state.
+4. Real Evennia initialization, installed water equipment/edges,
+   local authenticated receipt replay, actual surveyed material custody,
+   cartridge installation, contamination, finite filter consumption,
+   segregated hazardous/industrial capture, H2 outlet proof, rotary
+   failover and no uncommitted mass transfer.
+5. Existing G18 continuous-physics and coupled-casualty suites,
    including smoke, thermal protection, power failures and finite
    fire suppression, to detect accidental regressions.
+
+**Scope boundary:** A full port-side offload manifest for sealed solid waste
+requires the separate cargo-port handling and crew traversals to be completed;
+no in-flight disappearance of full waste cassettes is permitted. Crew-specific
+health consequences from water shortage are consumed by the separate G19
+physiology/exposure subsystem; this subsystem reports every unserved kilogram.
+Mechanical repairs of failed water machinery are handled by the shared G19
+finite-material equipment-recovery package rather than an invented local
+instant reset. None of these cross-system dependencies is represented as
+already completed.
 
 **No final whole-ship acceptance or merge has been claimed.** G19 still
 requires the other ship systems and the complete integrated voyage gate.
