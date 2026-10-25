@@ -9,9 +9,9 @@ inventory account or 39 t of new departure mass. The normal 162 t and protected
 70 t remain the existing authoritative inventory quantities.
 
 The 10% unrecovered fraction of sanitary throughput is *not potable*: 1%
-becomes finite, sealed sanitary residue, 9% is recorded as externally accounted
-mission process/reject loss. This deliberately coarse physical disposition is
-visible in the mass ledger; the model never turns it into drinkable water.
+becomes finite, sealed sanitary residue, 9% is reclassified as accounted
+nonpotable process/reject mass outside this subsystem. This coarse cross-ledger
+transfer is visible; it never turns into drinkable water or a phantom tank.
 """
 from __future__ import annotations
 
@@ -61,6 +61,7 @@ def initial_water():
         },
         "water_train": {"A": "on", "B": "on"},
         "waste_train": {"A": "on", "B": "on"},
+        "decontaminate": {"A": False, "B": False},
         "cassette_sealed": {k: {"A": True, "B": True} for k in CASSETTE_KG},
         "oxygen_outlet_verified": {"A": False, "B": False},
         "reserve_released": False,
@@ -104,6 +105,8 @@ def validate_water(water, stocks):
         for subsystem in ("water_train", "waste_train"):
             if water[subsystem][side] not in ("on", "off", "quarantined"):
                 raise WaterError("Unknown train command")
+        if not isinstance(water["decontaminate"][side], bool):
+            raise WaterError("Invalid local water decontamination command")
     for medium in STREAM_FRACTION:
         if _quantity(water["fixed"][medium]) > FIXED_KG[medium] + EPS:
             raise WaterError("Fixed wastewater receiver overfill")
@@ -180,7 +183,8 @@ def step_water(water, seconds, *, stocks, hardware, crew_count=40):
         "processed_kg": 0.0, "recovered_kg": 0.0, "reject_kg": 0.0,
         "sanitary_kg": 0.0, "makeup_kg": 0.0,
         "oxygen_kg": 0.0, "hydrogen_kg": 0.0,
-        "technical_kg": 0.0, "power_required": False,
+        "technical_kg": 0.0, "decontaminated_kg": 0.0,
+        "power_required": False,
     }
     if seconds == 0:
         return w, stock, report
@@ -192,6 +196,30 @@ def step_water(water, seconds, *, stocks, hardware, crew_count=40):
         and w["waste_train"][side] == "on"
         for side in "AB"
     }
+    # An explicitly commanded local purifier can slowly treat quarantined
+    # working water. It consumes real filter stock, deposits captured material
+    # in a compatible sealed *hazardous* cassette, and does not magic the
+    # whole working tank into pure water on a reset.
+    if w["potable_quarantined"] and w["suspected_contamination_kg"] > EPS:
+        for side in "AB":
+            if not process[side] or not w["decontaminate"][side]:
+                continue
+            fraction = 0.002
+            amount = min(
+                w["suspected_contamination_kg"], 0.1 * seconds,
+                stock.get("filter", 0.0) / fraction,
+                _cassette_space(w, "hazardous", hardware) / fraction)
+            if amount <= EPS:
+                continue
+            spent = amount * fraction
+            _fill_cassette(w, "hazardous", spent, hardware)
+            stock["filter"] -= spent
+            stock["hazardous"] += spent
+            w["suspected_contamination_kg"] -= amount
+            w["quality_sample"] = None
+            report["decontaminated_kg"] += amount
+        if w["suspected_contamination_kg"] <= EPS:
+            w["suspected_contamination_kg"] = 0.0
     limits = {side: {stream: (PROCESS_KG_DAY[stream] * daily if process[side]
                         else 0.0) for stream in STREAM_FRACTION} for side in "AB"}
     report["power_required"] = potable_ready or any(process.values())
@@ -346,6 +374,7 @@ def water_inventory_total(water, stocks):
         + sum(water["fixed"].values())
         + sum(sum(m.values()) for m in water["local"].values())
         + sum(stocks[category] for category in CASSETTE_KG)
+        + stocks.get("filter", 0.0)
     )
 
 
