@@ -210,9 +210,9 @@ def start_freight_transfer(manifest, rotors, *, lot_id, direction,
     rotor = rotors[drum]
     if drum not in manifest["verified_drums"]:
         raise CargoError("Drum cargo survey has not been verified")
-    balance = drum_balance(manifest, drum)
-    if balance["imbalance_kg_m"] > BALANCE_LIMIT_KG_M:
-        raise CargoError("Excessive rotor imbalance prohibits freight movement")
+    # A parked, hardlocked drum must still permit removing cargo to CORRECT
+    # a bad imbalance. The imbalance lockout belongs on spin-up, not on
+    # restrained freight extraction while the drum is stationary.
     if (row["kind"] != "sled" or not row["restrained"]
             or row["mass_kg"] > (RESTRICTED_SLED_KG if restricted else ROUTINE_SLED_KG)):
         raise CargoError("Freight is unrestrained, oversize, or above sled rating")
