@@ -5,6 +5,8 @@ on:
     types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - "game/world/continuous_ship_physics.py"
+      - "game/world/full_ship_operations.py"
+      - "game/world/models.py"
       - "game/world/tests/test_continuous_ship_physics.py"
       - "game/commands/ship_physics.py"
       - "game/commands/default_cmdsets.py"
