@@ -52,6 +52,9 @@ INITIAL_PROPELLANT_KG = 240_000.0
 DRIVE_THRUST_N = 360_000.0
 DRIVE_EXHAUST_M_S = 18_000.0
 DRIVE_POWER_MW = 0.60
+# Cargo manifests may supply a nonnegative installed payload mass. This
+# explicit mass belongs to the ship motion ledger, never an LLM estimate.
+MAX_CARGO_MASS_KG = 8_000_000.0
 HELM_DIRECTIONS = {
     "x+": (1.0, 0.0, 0.0), "x-": (-1.0, 0.0, 0.0),
     "y+": (0.0, 1.0, 0.0), "y-": (0.0, -1.0, 0.0),
@@ -75,6 +78,7 @@ def _advance_motion(motion, dt, power):
     position = list(result["position_m"])
     velocity = list(result["velocity_m_s"])
     fuel = float(result["propellant_kg"])
+    cargo = float(result["cargo_mass_kg"])
     direction = HELM_DIRECTIONS[result["command"]]
     # Body-frame thrust must follow the vessel's orientation.
     pitch, yaw, roll = result["attitude_rad"]
@@ -87,13 +91,13 @@ def _advance_motion(motion, dt, power):
     direction = (cy * px - sy * py, sy * px + cy * py, pz)
     attitude_direction = ATTITUDE_COMMANDS[result["attitude_command"]]
     if len(position) != 3 or len(velocity) != 3 or not all(
-            math.isfinite(x) for x in (*position, *velocity, fuel)) or fuel < 0:
+            math.isfinite(x) for x in (*position, *velocity, fuel)) or fuel < 0 or not math.isfinite(cargo) or not 0 <= cargo <= MAX_CARGO_MASS_KG:
         raise PhysicsError("Invalid ship motion or propellant state")
     powered = power["assured"] and power["dispatched_mw"] >= DRIVE_POWER_MW
     burn_time = min(dt, fuel * DRIVE_EXHAUST_M_S / DRIVE_THRUST_N) if (
         powered and any(direction)) else 0.0
     spent = burn_time * DRIVE_THRUST_N / DRIVE_EXHAUST_M_S
-    acceleration = DRIVE_THRUST_N / (DRY_SHIP_MASS_KG + fuel - spent / 2) if spent else 0.0
+    acceleration = DRIVE_THRUST_N / (DRY_SHIP_MASS_KG + cargo + fuel - spent / 2) if spent else 0.0
     for axis in range(3):
         a = acceleration * direction[axis]
         position[axis] += velocity[axis] * dt + a * burn_time * (dt - burn_time / 2)
@@ -258,6 +262,7 @@ def arm_continuous_physics(*, operator_approved=False, now_game_time=None):
                 "position_m": [0.0, 0.0, 0.0],
                 "velocity_m_s": [0.0, 0.0, 0.0],
                 "propellant_kg": INITIAL_PROPELLANT_KG,
+                "cargo_mass_kg": 0.0,
                 "expended_propellant_kg": 0.0,
                 "command": "coast", "drive_firing": False,
                 "attitude_rad": [0.0, 0.0, 0.0],
@@ -761,6 +766,7 @@ def tick_continuous_physics(*, now_game_time=None):
         "ship_position_m": [round(x, 3) for x in motion["position_m"]],
         "ship_velocity_m_s": [round(x, 6) for x in motion["velocity_m_s"]],
         "ship_propellant_kg": round(motion["propellant_kg"], 3),
+        "ship_cargo_mass_kg": round(motion["cargo_mass_kg"], 3),
         "drive_firing": motion["drive_firing"],
         "ship_attitude_rad": [round(x, 8) for x in motion["attitude_rad"]],
         "ship_angular_velocity_rad_s": [round(x, 10) for x in motion["angular_velocity_rad_s"]],
