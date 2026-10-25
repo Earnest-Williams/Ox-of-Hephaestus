@@ -7,6 +7,8 @@ This is a coarse causal freighter simulation, not a CFD/spacecraft solver.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 import re
 from collections import defaultdict, deque
@@ -223,7 +225,18 @@ def _snapshot(item):
     if item.key == CLOCK_KEY:
         result["motion"] = item.details.get("motion")
         result["rotors"] = item.details.get("rotors")
-        result["cargo"] = item.details.get("cargo")
+        cargo = item.details.get("cargo")
+        if cargo:
+            # Preserve full integrity evidence but do not copy up to 2,048
+            # manifest lots into every ten-second journal event.
+            encoded = json.dumps(cargo, sort_keys=True, separators=(",", ":"))
+            result["cargo"] = {
+                "manifest_sha256": hashlib.sha256(encoded.encode()).hexdigest(),
+                "unlocated_onboard_kg": cargo["unlocated_onboard_kg"],
+                "lot_count": len(cargo["lots"]),
+                "jobs": cargo["jobs"],
+                "verified_drums": cargo["verified_drums"],
+            }
     return result
 
 
@@ -459,7 +472,16 @@ def survey_cargo_lot(*, operator_approved=False, operation, lot_id=None,
         clock.details = d
         clock.revision += 1
         clock.save(update_fields=["details", "revision"])
-        _event(clock, "operator_cargo_" + operation, before)
+        event = _event(clock, "operator_cargo_" + operation, before)
+        audit = dict(event.after)
+        audit["survey"] = {
+            "operation": operation, "lot_id": lot_id, "source_id": source_id,
+            "mass_kg": mass_kg, "drum": drum, "azimuth_deg": azimuth_deg,
+            "radius_m": radius_m, "kind": kind, "restrained": restrained,
+            "recorded_lot": revised["lots"].get(lot_id),
+        }
+        event.after = audit
+        event.save(update_fields=["after"])
     return {
         "operation": operation,
         "onboard_kg": onboard_mass_kg(revised),
