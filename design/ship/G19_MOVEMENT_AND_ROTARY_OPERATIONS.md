@@ -83,7 +83,10 @@ A separate, explicitly fictional FTL field is installed as
 `FTL-TRANSLATION-FIELD`, with `LCS-FTL` local control. The selected v0.5
 contract is **5–100c** and a reference economy cost of **400 tonnes per
 light-year**, scaled by frozen leg departure mass and
-`1 + 4 ln(speed_c / 5)`. Each leg is independently commissioned against a
+`1 + 4 ln(speed_c / 5)`. The fuel estimate is recomputed **at engagement**
+from the actual ship mass, after any port loading, sublight burn or bunker
+changes since route planning. If that actual cost would spend the protected
+FTL reserve, engagement is rejected without departing. Each leg is independently commissioned against a
 destination and distance by the world operator, then engaged or aborted by
 an authorised crew navigator at `CMD-PRIMARY` or `NAV-PLANNING`.
 The **1,200-tonne FTL bunker reserve** is protected against routine
@@ -100,6 +103,11 @@ and **11.645 MN** reference thrust in order to reproduce the selected
 5,000-tonne reaction mass. Those are *fictional* drive parameters, not a
 claim about real exhaust technology. The 3.3 MW hotel plant supplies
 control auxiliaries, not energy that creates the reaction plume.
+Both sublight drive and attitude-control actuation now require a healthy
+installed `LCS-PROP` safing/controller and at least one sound bridge or aft
+propulsion panel. Command issuance also requires a healthy local helm panel.
+Control-panel damage prevents new commands; controller casualties stop
+thrust without erasing the persistent inertial velocity.
 
 **Still outside implemented operational closure:** measured per-package
 hull/rotor center of gravity, dynamic cargo-port rendezvous and autonomous
@@ -162,7 +170,11 @@ physical reversal**, not a reset: the rig spends another startup interval
 and pumps the partially transferred consignment back to the original berth
 or hold at the same finite rate. Lost electrical service or damaged handling
 equipment stalls recovery rather than silently completing it. Only after
-the reverse cycle finishes can the berth be released.
+the reverse cycle finishes can the berth be released. A return-to-hold
+reversal cannot exceed the ship's remaining commercial cargo capacity:
+other berths may have filled newly freed space in the interim. Recovery then
+stalls until physical capacity becomes available, without creating or
+losing cargo.
 
 Actual ship mass and external custody are reconciled at every intermediate
 step, including reversals. A deterministic, seeded interruption test checks
