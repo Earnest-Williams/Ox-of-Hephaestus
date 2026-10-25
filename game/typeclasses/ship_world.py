@@ -21,8 +21,20 @@ class CanonicalShipAccess(DefaultExit):
 
     def at_object_creation(self) -> None:
         super().at_object_creation()
-        self.locks.add("traverse:perm(Developer)")
-        self.db.ox_integration_state = "developer_topology_only"
+        self.locks.add("traverse:all()")
+        self.db.ox_integration_state = "live_world_gated"
+
+    def at_traverse(self, traversing_object, target_location, **kwargs):
+        if self.db.ox_access_kind == "development_entry":
+            if traversing_object.check_permstring("Developer"):
+                return super().at_traverse(traversing_object, target_location, **kwargs)
+            traversing_object.msg("Development boarding is restricted to operators.")
+            return
+        from world.ship_crew_access import CrewTransitError, traverse_canonical_exit
+        try:
+            traverse_canonical_exit(traversing_object, self, target_location)
+        except (CrewTransitError, PermissionError) as exc:
+            traversing_object.msg(str(exc))
 
 
 class ShipWorldRoot(DefaultObject):
