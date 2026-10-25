@@ -41,10 +41,8 @@ class PhysicsRuntimeTests(EvenniaTestCase):
         before = a.quantity
         configure_scenario_casualty("PZ-HAB-03", leak_kg_s=0.1, operator=True)
         result = tick_continuous_physics(now_game_time=1010)
-        self.assertAlmostEqual(result["gas_kg"] + result["fuel_kg"] +
-                               state("meta", "installation").quantity if False else
-                               state("pressure", "PZ-HAB-03").quantity, before - 1,
-                               delta=0.1)
+        self.assertAlmostEqual(state("pressure", "PZ-HAB-03").quantity,
+                               before - 1, delta=0.1)
         again = tick_continuous_physics(now_game_time=1010)
         self.assertFalse(again["advanced"])
         self.assertEqual(state("meta", "installation").condition, "installed")
