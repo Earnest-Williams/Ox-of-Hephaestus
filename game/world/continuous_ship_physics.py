@@ -72,7 +72,7 @@ ATTITUDE_INERTIA_KG_M2 = 2.4e11
 ATTITUDE_PROPELLANT_KG_S = 0.08
 
 
-def _advance_motion(motion, dt, power):
+def _advance_motion(motion, dt, power, *, drive_operational=True, rcs_operational=True):
     """Finite-mass velocity-Verlet-like constant-thrust step in inertial axes."""
     result = dict(motion)
     position = list(result["position_m"])
@@ -100,7 +100,7 @@ def _advance_motion(motion, dt, power):
     powered = (power["assured"] and
                power["available_mw"] - power["requested_mw"] >= DRIVE_POWER_MW)
     burn_time = min(dt, fuel * DRIVE_EXHAUST_M_S / DRIVE_THRUST_N) if (
-        powered and any(direction)) else 0.0
+        powered and drive_operational and any(direction)) else 0.0
     spent = burn_time * DRIVE_THRUST_N / DRIVE_EXHAUST_M_S
     acceleration = DRIVE_THRUST_N / (DRY_SHIP_MASS_KG + cargo + fuel - spent / 2) if spent else 0.0
     for axis in range(3):
@@ -113,7 +113,7 @@ def _advance_motion(motion, dt, power):
             math.isfinite(x) for x in (*angles, *angular_velocity)):
         raise PhysicsError("Invalid attitude state")
     attitude_burn = min(dt, max(0.0, fuel - spent) / ATTITUDE_PROPELLANT_KG_S) if (
-        power["essential_assured"] and any(attitude_direction)) else 0.0
+        power["essential_assured"] and rcs_operational and any(attitude_direction)) else 0.0
     attitude_spent = attitude_burn * ATTITUDE_PROPELLANT_KG_S
     for axis in range(3):
         a = ATTITUDE_TORQUE_NM / ATTITUDE_INERTIA_KG_M2 * attitude_direction[axis]
@@ -272,6 +272,8 @@ def arm_continuous_physics(*, operator_approved=False, now_game_time=None):
                 "expended_propellant_kg": 0.0,
                 "command": "coast", "drive_firing": False,
                 "drive_power_mw": 0.0,
+                "drive_condition": "operational",
+                "rcs_condition": "operational",
                 "attitude_rad": [0.0, 0.0, 0.0],
                 "angular_velocity_rad_s": [0.0, 0.0, 0.0],
                 "attitude_command": "hold", "attitude_firing": False,
@@ -481,7 +483,14 @@ def tick_continuous_physics(*, now_game_time=None):
                 changed_equipment.add(item.key)
 
         power = _power(equipment, edges, isolators, clock.details["load_profile"])
-        motion = _advance_motion(motion, dt, power)
+        # Propulsion hardware is represented by durable world-owned motion
+        # condition flags until dedicated drive/RCS installations are mapped.
+        # A failed drive can coast, but cannot silently resume thrust.
+        drive_operational = motion.get("drive_condition", "operational") == "operational"
+        rcs_operational = motion.get("rcs_condition", "operational") == "operational"
+        motion = _advance_motion(
+            motion, dt, power, drive_operational=drive_operational,
+            rcs_operational=rcs_operational)
         # Charge a firing drive to the electrical dispatch and generator
         # waste heat in this very same physics step.
         drive_load = motion["drive_power_mw"]
@@ -786,6 +795,8 @@ def tick_continuous_physics(*, now_game_time=None):
         "ship_cargo_mass_kg": round(motion["cargo_mass_kg"], 3),
         "drive_firing": motion["drive_firing"],
         "drive_power_mw": motion["drive_power_mw"],
+        "drive_condition": motion["drive_condition"],
+        "rcs_condition": motion["rcs_condition"],
         "ship_attitude_rad": [round(x, 8) for x in motion["attitude_rad"]],
         "ship_angular_velocity_rad_s": [round(x, 10) for x in motion["angular_velocity_rad_s"]],
     }
