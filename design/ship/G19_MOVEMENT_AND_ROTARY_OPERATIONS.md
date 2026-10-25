@@ -36,6 +36,79 @@ An already armed G18 world needs explicit operator-only `commission_g19_movement
 
 **Important boundaries:** indexer motion currently tracks interlocks and extension state, not yet the precise moving-carriage path or person traversal. Freight release/air equalisation has to integrate the separate pressure/access boundary checks; a hardlocked collar does **not** alone authorize opening a pressure hatch. The six drum rates and working radii remain provisional game parameters until each installed drum contract is mapped, and WR-01's telescoping carriage radius is currently fixed at 60 m.
 
+## Reference commercial cargo and finite shipboard movement
+
+The 900,000-tonne commercial cargo reference is preserved *on board*, but no
+six-drum mass split is invented. The G19 cargo ledger starts with a single
+unlocated onboard amount. An explicitly approved physical stowage survey moves
+existing mass from that unlocated holding into named package or bulk lot
+positions (drum, radial arm, azimuth, restraint). The operator can split known
+restrained bulk into individual rated sled lots; such subdivision conserves
+mass and cannot import or fabricate freight. Only independently surveyed
+drums produce trusted moment/imbalance calculations.
+
+Real 50-tonne normal / 100-tonne restricted sled transfers require an actual
+local cargo worker, real `DR-xx-RADIAL-FREIGHT-HANDLER` and
+`DR-xx-FREIGHT-COLLAR` hardware, a stopped indexed structural lock, retracted
+personnel interface, real pressure-readiness for the occupied control room
+and an independently rated capture boundary to enter the spine. Work moves
+only after finite simulated handling time. Failures, isolated doors and loss of
+power pause the actual job; cargo remains at the last committed location.
+Unbalanced drums can unload under a hardlock to *correct* the imbalance, but
+are barred from spinning up when above the selected balance limit. There is
+no arbitrary off-ship disposal of material.
+
+World-clock snapshot events retain cargo manifest hash, summary, current
+transfer jobs and actual mass; operator survey events additionally preserve
+the exact surveyed identifiers, masses, angular positions and source lot.
+These are intentionally bounded rather than dumping 2,048 lot records into
+every ten-second tick event.
+
+## Installed drive, bearing, lubrication and handler faults
+
+All six drum rotors now consult their two physically separate bearing
+lubrication stations (`BE-01..12-LUBE-N/S`) and each drum's
+`DR-xx-ROT-PWR` electrical interface. The habitation ring requires both
+`HAB-BEARING-FORE/AFT`, while either sound
+`HAB-DRIVE-FORE/AFT` can provide motor effort. The workshop requires
+both `WR-BEARING-A/B`, one sound `WR-DRIVE-A/B`, the actual
+`WR-01` mechanism and `WR-ROT-PWR-IF`. Failed
+`WR-EXTEND-SHOP/STORES` prevent telescope motion independently of
+workshop rotation. A failed indexer, freight collar, handler or bearing skid
+has its own local consequence rather than globally destroying every drum.
+
+## FTL movement and navigation
+
+A separate, explicitly fictional FTL field is installed as
+`FTL-TRANSLATION-FIELD`, with `LCS-FTL` local control. The selected v0.5
+contract is **5–100c** and a reference economy cost of **400 tonnes per
+light-year**, scaled by frozen leg departure mass and
+`1 + 4 ln(speed_c / 5)`. Each leg is independently commissioned against a
+destination and distance by the world operator, then engaged or aborted by
+an authorised crew navigator at `CMD-PRIMARY` or `NAV-PLANNING`.
+The **1,200-tonne FTL bunker reserve** is protected against routine
+dispatch. The field consumes finite fuel progressively during simulated
+voyage time, requires 0.20 MW electrical auxiliaries and thermal rejection,
+and aborts safely if the actual field/control equipment, power or cooling
+cease to be usable. Attitude and sublight commands are locked during
+translation. Arrival changes a named navigation reference only after the
+full timed passage; no fictional sky coordinates are minted by the solver.
+
+The sublight drive uses effective **960 km/s** reaction exhaust velocity
+and **11.645 MN** reference thrust in order to reproduce the selected
+**~4 km/s total delta-v / <=0.001 g loaded** setting from its finite
+5,000-tonne reaction mass. Those are *fictional* drive parameters, not a
+claim about real exhaust technology. The 3.3 MW hotel plant supplies
+control auxiliaries, not energy that creates the reaction plume.
+
+**Still outside implemented operational closure:** measured per-package
+hull/rotor center of gravity, full external commercial cargo portals and
+dock service, high-fidelity trajectory targeting, traffic/collision
+avoidance, full character movements and EVA, autonomous condition-based
+repair of every unit, and long-duration 40-crew integrated casualty acceptance.
+The route's named destination is an operator-supplied reference rather than
+an inferred astronomical location.
+
 ## Acceptance gates before merge
 
 1. Run pure `test_ship_movement.py` regressions: mass-dependent thrust, fuel conservation under dual-drive operation, orientation vector rotation, blackout, rotor independence and index/hardlock sequencing.
