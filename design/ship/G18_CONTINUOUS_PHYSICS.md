@@ -52,8 +52,12 @@ drawings. \`oxplant <32-hex-id> switch <isolator-id> <open|closed>\`,
 and \`oxplant <id> mist PZ-HAB-XX <start|stop>\`
 go through one world-owned transaction. Permissions, literal equipment
 presence, damage and realistic physical actuator delays are enforced
-server-side. A global request ID replays the original canonical event
-receipt rather than performing an action twice. Failed authorization cannot
+server-side. Each successful local intervention commits its physical event and a row in the
+existing global `WorkReceipt` ledger in the same transaction. An identical
+request replays the original outcome; a request ID already used for legacy
+ship or social work is rejected. Dead characters cannot operate equipment.
+G17 operator-only gas vent/equalisation helpers are forbidden once the new
+oxygen/smoke ledger is armed, avoiding silent constituent desynchronisation. Failed authorization cannot
 grant a receipt or modify physics.
 
 **No unrestricted repair, traversal, refuelling or force-open commands.**
