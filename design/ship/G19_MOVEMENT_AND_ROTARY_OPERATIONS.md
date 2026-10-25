@@ -151,6 +151,25 @@ of unseen port-side cranes or a construction-grade supply terminal.
 The port tests run alongside previously passing ship movement and
 G18/G17 coupled-physics regression jobs in the draft G19 PR.
 
+## Commercial port interruption and recovery
+
+A crew member at an installed cargo-control station can now send receipted
+`oxplant <request-id> port DR-01-P1 pause:<lot>`,
+`resume:<lot>`, or `abort:<lot>` operations. A paused or disabled handler
+draws no active motor load and transfers no mass, but its occupied handling
+rail remains unavailable to other consignments. **Abort is a commanded
+physical reversal**, not a reset: the rig spends another startup interval
+and pumps the partially transferred consignment back to the original berth
+or hold at the same finite rate. Lost electrical service or damaged handling
+equipment stalls recovery rather than silently completing it. Only after
+the reverse cycle finishes can the berth be released.
+
+Actual ship mass and external custody are reconciled at every intermediate
+step, including reversals. A deterministic, seeded interruption test checks
+that repeated blackouts and recoveries never create cargo. This remains a
+fictional gameplay model of commercial facilities rather than a port-side
+crane construction specification.
+
 ## Acceptance gates before merge
 
 1. Run pure `test_ship_movement.py` regressions: mass-dependent thrust, fuel conservation under dual-drive operation, orientation vector rotation, blackout, rotor independence and index/hardlock sequencing.

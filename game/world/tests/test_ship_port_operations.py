@@ -1,5 +1,6 @@
 """G19 external commercial cargo port conservation and interlock tests."""
 import unittest
+import random
 
 from world.ship_cargo_manifest import (
     CargoError, declare_cargo_lot, initial_cargo, onboard_mass_kg,
@@ -191,6 +192,39 @@ class CommercialPortTest(unittest.TestCase):
             capacity_kg=self.capacity)
         self.assertEqual(running["port_jobs"]["DR-01-P1"]["startup_remaining_s"], 0)
         self.assertTrue(validate_cargo(running, self.capacity))
+
+    def test_seeded_random_blackout_and_port_reversal_conserve_every_kg(self):
+        for seed in range(24):
+            rng = random.Random(seed)
+            cargo = self.outbound()
+            cargo = start_port_job(
+                cargo, self.rotors, lot_id="ORE-1",
+                portal_id="DR-01-P1", direction="unload",
+                capacity_kg=self.capacity, equipment_ready=True,
+                inner_gate_sealed=True)
+            issued_abort = False
+            for step in range(100):
+                if step == 5:
+                    cargo = command_port_job(
+                        cargo, portal_id="DR-01-P1",
+                        lot_id="ORE-1", command="abort")
+                    issued_abort = True
+                powered = {"DR-01-P1"} if rng.random() > 0.30 else set()
+                previous = onboard_mass_kg(cargo)
+                cargo, _ = step_port_jobs(
+                    cargo, 10, available_portals=powered,
+                    capacity_kg=self.capacity)
+                onboard = onboard_mass_kg(cargo)
+                self.assertTrue(validate_cargo(cargo, onboard))
+                self.assertAlmostEqual(
+                    onboard + cargo["delivered_offship_kg"], self.capacity,
+                    places=3)
+                self.assertLessEqual(abs(onboard - previous), 15_000.001)
+                if issued_abort and not cargo["port_jobs"]:
+                    break
+            self.assertFalse(cargo["port_jobs"], f"seed {seed} stalled")
+            self.assertEqual(onboard_mass_kg(cargo), self.capacity)
+            self.assertEqual(cargo["delivered_offship_kg"], 0.0)
 
     def test_no_loading_without_hardlock_or_gallery_seal(self):
         cargo = self.outbound()
