@@ -31,17 +31,19 @@ STOCK_KEYS = {
 
 
 def initial_offload():
-    return {"acceptances": {}, "jobs": {}, "delivered_kg": {
+    return {"acceptances": {}, "routes": {}, "jobs": {}, "delivered_kg": {
         k: 0.0 for k in CASSETTE_KG}}
 
 
 def validate_offload(water, stocks):
     off = water["waste_offload"]
     if not isinstance(off, dict) or set(off) != {
-            "acceptances", "jobs", "delivered_kg"}:
+            "acceptances", "routes", "jobs", "delivered_kg"}:
         raise WaterError("Invalid external waste custody state")
     for category in CASSETTE_KG:
         _quantity(off["delivered_kg"][category])
+    if not isinstance(off["routes"], dict):
+        raise WaterError("Missing installed waste freight-route evidence")
     reserved = {}
     occupied_drums = set()
     for key, entry in off["acceptances"].items():
@@ -119,6 +121,22 @@ def accept_berth(water, *, acceptance_id, portal_id, berth_id, category, limit_k
     return w
 
 
+def approve_route(water, *, receiver, portal_id, route):
+    if (receiver not in RECEIVERS or not isinstance(portal_id, str)
+            or not isinstance(route, list) or not 0 < len(route) <= 64
+            or len(set(route)) != len(route)
+            or not all(isinstance(link, str) and link.startswith("ACC-")
+                       for link in route)):
+        raise WaterError("No verified bounded installed waste haul route")
+    w = copy.deepcopy(water)
+    key = receiver + ":" + portal_id
+    if any(job["portal_id"] == portal_id and job["route"] != route
+           for job in w["waste_offload"]["jobs"].values()):
+        raise WaterError("Cannot alter the route of a live waste offload")
+    w["waste_offload"]["routes"][key] = list(route)
+    return w
+
+
 def prepare(water, *, receiver, acceptance_id, route):
     if receiver not in RECEIVERS:
         raise WaterError("Not a removable installed waste receiver")
@@ -126,6 +144,10 @@ def prepare(water, *, receiver, acceptance_id, route):
         raise WaterError("Physical waste route was not surveyed")
     w = copy.deepcopy(water)
     category, side = RECEIVERS[receiver]
+    permit = w["waste_offload"]["acceptances"].get(acceptance_id)
+    if not permit or w["waste_offload"]["routes"].get(
+            receiver + ":" + permit["portal_id"]) != route:
+        raise WaterError("Physical route has not been explicitly surveyed")
     if not w["cassette_sealed"][category][side]:
         raise WaterError("A loaded waste receiver must be positively sealed")
     if receiver in w["waste_offload"]["jobs"]:
@@ -181,8 +203,11 @@ def command(water, *, receiver, verb):
         job["remaining_s"] = RETURN_SECONDS
         job["paused"] = False
     elif verb == "abort" and stage in {"port_ready", "offloading"}:
-        # Already passed to the cargo-side holder. What left the ship stays
-        # delivered. Remaining contents must come BACK through real freight.
+        # A partly exported hazardous consignment cannot be recalled from
+        # the outside station by a mere switch. Finish the registered
+        # delivery first; until then it remains safely under berth custody.
+        if job["offship_kg"] > 1e-7:
+            raise WaterError("Partial export requires completion, not magical reversal")
         job["phase"] = "return_ready"
         job["paused"] = False
     else:

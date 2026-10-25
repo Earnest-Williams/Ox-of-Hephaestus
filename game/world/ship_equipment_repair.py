@@ -45,6 +45,13 @@ def validate_repairs(repairs):
         if (not isinstance(worker, str) or not worker.startswith("#")
                 or _quantity(value) > MAX_HAND_PARTS_KG + 1e-7):
             raise WaterError("Unknown spare-parts custodian or overburden")
+    if not math.isclose(
+            repairs["delivered_spares_kg"],
+            repairs["installed_kg"]
+            + sum(repairs["carried_kg"].values())
+            + sum(j["staged_kg"] for j in repairs["jobs"].values()),
+            abs_tol=1e-6, rel_tol=1e-10):
+        raise WaterError("Maintenance spare custody does not reconcile")
     if not isinstance(repairs["jobs"], dict) or len(repairs["jobs"]) > MAX_JOBS:
         raise WaterError("Unbounded machine maintenance orders")
     for target, job in repairs["jobs"].items():
