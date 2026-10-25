@@ -455,6 +455,31 @@ def _water_hardware(water, equipment, edges, isolators, nodes, power):
                 if n.reference.get("network") == network
                 and n.reference.get("owner_id") == owner]
 
+    def wet_edge_can_flow(edge):
+        if _live_edge(edge, isolators):
+            return True
+        # Authored rotary wet unions and segregated gas exhausts are
+        # NORMALLY CLOSED at rest, not mechanically impossible to open.
+        # Their real individual normally-closed valves own the live seal.
+        # Never override an explicitly damaged edge or accept an arbitrary
+        # standby/unverified byproduct route as conducting.
+        ident = edge.source_id
+        explicitly_valved = (
+            ident in {f"EDGE-WET-{fluid}-{side}-ROTARY"
+                      for fluid in ("GREYWATER", "BLACKWATER")
+                      for side in "AB"}
+            or ident in {f"EDGE-BYP-{side}-H2" for side in "AB"}
+        )
+        return bool(
+            explicitly_valved and edge.setting == "normally_closed"
+            and edge.reference.get("normal_state") == "normally_closed"
+            and edge.condition not in _BROKEN
+            and edge.reference.get("isolator_ids")
+            and all(identifier in isolators and
+                    _physical_passage(isolators[identifier])
+                    for identifier in edge.reference["isolator_ids"])
+        )
+
     def connected(network, sources, destinations):
         if not sources or not destinations:
             return False
@@ -467,7 +492,7 @@ def _water_hardware(water, equipment, edges, isolators, nodes, power):
         if network in {"potable_water", "greywater", "blackwater"}:
             graph = defaultdict(set)
             for edge in edges:
-                if edge.reference["network"] != network or not _live_edge(edge, isolators):
+                if edge.reference["network"] != network or not wet_edge_can_flow(edge):
                     continue
                 path_id = edge.source_id
                 skip = False
@@ -552,7 +577,7 @@ def _water_hardware(water, equipment, edges, isolators, nodes, power):
                 and _on(equipment, f"ECLSS-{side}") and
                 outlet and outlet.condition not in _BROKEN and
                 field and field.condition not in _BROKEN
-                and edge and _live_edge(edge, isolators)
+                and edge and wet_edge_can_flow(edge)
                 and water["oxygen_outlet_verified"][side]):
             oxygen_side = side
     return {
