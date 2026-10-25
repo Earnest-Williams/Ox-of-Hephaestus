@@ -125,10 +125,14 @@ def _advance_motion(motion, dt, power, *, drive_operational=True, rcs_operationa
     px, py, pz = cp * rx + sp * rz, ry, -sp * rx + cp * rz
     direction = (cy * px - sy * py, sy * px + cy * py, pz)
     attitude_direction = ATTITUDE_COMMANDS[result["attitude_command"]]
-    if len(position) != 3 or len(velocity) != 3 or not all(
-            math.isfinite(x) for x in (*position, *velocity, fuel)) or fuel < 0 or not all(math.isfinite(x) and x >= 0 for x in
-                (cargo, dry, ftl, fluids, capacity))
-            or not 0 <= cargo <= capacity or dry <= 0:
+    if (
+        len(position) != 3 or len(velocity) != 3
+        or not all(math.isfinite(x) for x in (*position, *velocity, fuel))
+        or fuel < 0
+        or not all(math.isfinite(x) and x >= 0
+                   for x in (cargo, dry, ftl, fluids, capacity))
+        or cargo > capacity or dry <= 0
+    ):
         raise PhysicsError("Invalid ship motion or propellant state")
     # Drive energy is separate fictional machinery. Ship power supplies only
     # the real auxiliary electrical demand for valves and engine controls.
