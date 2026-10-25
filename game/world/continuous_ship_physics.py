@@ -644,12 +644,16 @@ def tick_continuous_physics(*, now_game_time=None):
         if not math.isfinite(heat) or not 0 <= heat <= DRIVE_THERMAL_BUFFER_KJ:
             raise PhysicsError("Invalid propulsion thermal inventory")
         heat += DRIVE_HEAT_KW * dt if motion["drive_firing"] else 0.0
+        drive_cooling_kw = 0.0
+        connected_lt = _reachable(
+            edges, isolators, "lt_cooling", ["NODE-LT-PLANT"])
         cooling = (
-            _on(equipment, "LT-PLANT")
+            len(connected_lt) > 1 and _on(equipment, "LT-PLANT")
             and any(_on(equipment, f"RAD-LT-{n}") for n in range(1, 5))
             and power["assured"])
         if cooling:
-            heat = max(0.0, heat - DRIVE_COOLING_KW * dt)
+            drive_cooling_kw = min(DRIVE_COOLING_KW, heat / dt)
+            heat = max(0.0, heat - drive_cooling_kw * dt)
         if heat >= DRIVE_THERMAL_BUFFER_KJ:
             heat = DRIVE_THERMAL_BUFFER_KJ
             motion["drive_condition"] = "thermal_trip"
@@ -744,6 +748,9 @@ def tick_continuous_physics(*, now_game_time=None):
         total_cool_kw = (min(3750.0, 937.5 * sum(
             _on(equipment, "RAD-LT-" + str(i)) for i in range(1, 5)))
             if powered and _on(equipment, "LT-PLANT") else 0.0)
+        # The propulsion thermal store and ordinary equipment share the
+        # finite radiator budget: never reject the same heat twice.
+        total_cool_kw = max(0.0, total_cool_kw - drive_cooling_kw)
         per_zone_kw = total_cool_kw / len(cool_zones) if cool_zones else 0.0
 
         fire_starts = [n for pump in ("FIRE-PUMP-FWD", "FIRE-PUMP-AFT")
