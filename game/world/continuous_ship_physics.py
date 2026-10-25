@@ -604,6 +604,21 @@ def tick_continuous_physics(*, now_game_time=None):
     return {"advanced": True, "last_game_time": d["last_game_time"], **d["summary"]}
 
 
+def _leak_active(cell):
+    """A closed actual source valve contains a line leak without erasing damage."""
+    details = cell.details
+    if details.get("physics_leak_kg_s", 0.0) <= 0:
+        return False
+    isolator_id = details.get("physics_leak_isolator_id")
+    if not isolator_id:
+        return True  # a direct hull breach has no magic isolator
+    try:
+        isolator = state("isolator", isolator_id)
+    except ShipOperationsError:
+        return True  # unknown control cannot prove a leak stopped
+    return _physical_passage(isolator)
+
+
 def _air_safe(cell):
     """Conservative screen for UNsuited local work and pressure-hatch opening."""
     if cell.quantity is None or cell.quantity <= 0:
@@ -624,7 +639,7 @@ def _air_safe(cell):
         and d["physics_co2_kg"] <= 0.005 * cell.quantity
         and d["physics_smoke_kg"] <= 0.00001 * cell.quantity
         and d["physics_damage_index"] < 0.20
-        and d["physics_leak_kg_s"] == 0
+        and not _leak_active(cell)
         and d["physics_burn_kg_s"] == 0
     )
 
