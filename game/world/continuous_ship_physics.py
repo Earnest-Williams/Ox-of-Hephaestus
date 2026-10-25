@@ -90,6 +90,7 @@ def _now(value):
 def _snapshot(item):
     return {"condition": item.condition, "setting": item.setting,
             "quantity": item.quantity, "revision": item.revision,
+            "temperature_k": item.details.get("temperature_k"),
             "physics": {k: v for k, v in item.details.items()
                         if k.startswith("physics_")}}
 
@@ -290,6 +291,7 @@ def tick_continuous_physics(*, now_game_time=None):
                           .filter(category="equipment").order_by("key"))
     inventory = CanonicalShipState.objects.select_for_update().get(
         pk="inventory:INV-WATER-NORMAL")
+    inventory_before = _snapshot(inventory)
     isolators = {x.source_id: x for x in
                  CanonicalShipState.objects.filter(category="isolator")}
     edges = list(CanonicalShipState.objects.filter(category="edge"))
@@ -322,10 +324,25 @@ def tick_continuous_physics(*, now_game_time=None):
         # No unproven infinite battery/flywheel bridge or magic auto load shedding.
         powered = power["assured"] and bool(
             {"PWR-MSB-A", "PWR-MSB-B", "PWR-PROT"} & power["nodes"])
-        air_on = powered and any(
-            _on(equipment, eclss) and node in power["nodes"]
-            for eclss, node in (("ECLSS-A", "NODE-HAB-06-ECLSS-A-LP"),
-                                ("ECLSS-B", "NODE-HAB-08-ECLSS-B-LP")))
+        active_air_trains = {
+            eclss for eclss, node in
+            (("ECLSS-A", "NODE-HAB-06-ECLSS-A-LP"),
+             ("ECLSS-B", "NODE-HAB-08-ECLSS-B-LP"))
+            if powered and _on(equipment, eclss) and node in power["nodes"]
+        }
+        # A powered processor cannot drive fans in another isolated duct
+        # network. Motorised mixing requires a source on the same *currently
+        # conducting* atmosphere graph; passive pressure movement does not.
+        air_source_nodes = [
+            node.source_id
+            for node in CanonicalShipState.objects.filter(category="node")
+            if node.reference.get("network") == "atmosphere"
+            and node.reference.get("owner_type") == "equipment"
+            and node.reference.get("owner_id") in active_air_trains
+        ] if active_air_trains else []
+        air_on = bool(air_source_nodes)
+        fan_nodes = (_reachable(edges, isolators, "atmosphere", air_source_nodes)
+                     if air_on else set())
         atm_edges = [e for e in edges
                      if e.reference["network"] == "atmosphere"
                      and _live_edge(e, isolators)]
@@ -336,7 +353,8 @@ def tick_continuous_physics(*, now_game_time=None):
             if a_id == b_id or a_id not in cells or b_id not in cells:
                 continue
             a, b = cells[a_id], cells[b_id]
-            if air_on:
+            if (air_on and edge.reference["from_node"] in fan_nodes
+                    and edge.reference["to_node"] in fan_nodes):
                 # Counterflow is an exchange, not doubled net mass.
                 x = min(2.0 * dt, 0.05 * a["mass"], 0.05 * b["mass"])
                 _parcel(a, b, x)
@@ -473,10 +491,9 @@ def tick_continuous_physics(*, now_game_time=None):
             [e for e in equipment_rows if e.key in changed_equipment],
             ["details", "condition", "revision"], batch_size=100)
     if water:
-        old_stock = _snapshot(inventory)
         inventory.revision += 1
         inventory.save(update_fields=["quantity", "revision"])
-        _event(inventory, "finite_fire_mist_water", old_stock)
+        _event(inventory, "finite_fire_mist_water", inventory_before)
 
     old = _snapshot(clock)
     d = dict(clock.details)
@@ -634,10 +651,15 @@ def local_physics_readout(actor, target):
         d = item.details
         if "physics_oxygen_kg" not in d:
             raise PhysicsError("Atmosphere has not been instrumented by a scenario")
+        pressure_pa = (item.quantity * R_SPECIFIC_AIR * d["temperature_k"]
+                       / d["gas_volume_m3"])
+        oxygen_moles = d["physics_oxygen_kg"] / 0.032
+        other_moles = max(0.0, item.quantity - d["physics_oxygen_kg"]) / 0.029
+        o2_partial_pa = (pressure_pa * oxygen_moles / (oxygen_moles + other_moles)
+                         if oxygen_moles + other_moles else 0.0)
         return {
-            "zone": zone, "pressure_pa": round(
-                item.quantity * R_SPECIFIC_AIR * d["temperature_k"] /
-                d["gas_volume_m3"], 1),
+            "zone": zone, "pressure_pa": round(pressure_pa, 1),
+            "oxygen_partial_pa": round(o2_partial_pa, 1),
             "temperature_k": round(d["temperature_k"], 2),
             "oxygen_kg": round(d["physics_oxygen_kg"], 3),
             "smoke_kg": round(d["physics_smoke_kg"], 5),
