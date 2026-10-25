@@ -291,3 +291,14 @@ class CoupledShipCasualtyTests(EvenniaTestCase):
         self.assertTrue(CanonicalShipEvent.objects.filter(
             operation="thermal_protection_trip",
             component_key="equipment:ECLSS-A").exists())
+        # Sustained exposure eventually becomes *permanent* equipment
+        # failure. That state must override the earlier protection-only trip,
+        # and cannot be made healthy with the same manual reset.
+        for instant in (1100, 1160, 1220, 1280, 1340, 1400):
+            tick_continuous_physics(now_game_time=instant)
+        self.assertEqual(state("equipment", "ECLSS-A").condition, "failed")
+        self.assertTrue(CanonicalShipEvent.objects.filter(
+            operation="severe_thermal_damage",
+            component_key="equipment:ECLSS-A").exists())
+        with self.assertRaises(PhysicsError):
+            crew_physical_action(tech, "6" * 32, "service", "ECLSS-A", "reset")
