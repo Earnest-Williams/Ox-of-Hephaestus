@@ -2541,7 +2541,8 @@ def crew_physical_action(actor, request_id, action, target, value):
         item.save(update_fields=["details", "revision"])
     elif action == "wasteport":
         if target not in WASTE_RECEIVERS or value not in {
-                "haul", "offload", "return", "pause", "resume", "abort"}:
+                "haul", "offload", "return", "pause", "resume", "abort",
+                "capture_open", "capture_close"}:
             raise PhysicsError("Unknown local waste freight-handling command")
         item = _clock(lock=True)
         before = _snapshot(item)
@@ -2564,7 +2565,7 @@ def crew_physical_action(actor, request_id, action, target, value):
             raise PermissionError("Port waste work requires actual cargo/engineering authority")
         required_room = (
             drum + "-FREIGHT-LOCK"
-            if value in {"haul", "return"} or
+            if value in {"haul", "return", "capture_open", "capture_close"} or
             value == "abort" and job["phase"] in {"prepared", "hauling"}
             else "CARGO-CTRL-FWD")
         if room != required_room:
@@ -2572,6 +2573,36 @@ def crew_physical_action(actor, request_id, action, target, value):
         cell = _topology()[0].get(room)
         if not cell or not _air_safe(state("pressure", cell)):
             raise PhysicsError("Waste transfer station atmosphere is unsafe")
+        if value in {"capture_open", "capture_close"}:
+            rotor = d["rotors"][drum]
+            gate = state("access", "ACC-" + drum + "-FREIGHT-CAPTURE", lock=True)
+            if gate.condition in _BROKEN:
+                raise PhysicsError("Damaged rated freight hatch cannot cycle")
+            if value == "capture_open":
+                if (contacts_active(d["cargo"]) or not (
+                        rotor["freight_collar"] and rotor["hardlock"]
+                        and rotor["brake"] and rotor["target_rpm"] == 0
+                        and abs(rotor["rpm"]) < 0.001
+                        and not rotor["passenger_indexer"])):
+                    raise PhysicsError("Freight capture requires a stationary indexed drum")
+                spec = gate.reference
+                z = _topology()[0]
+                za, zb = z.get(spec["from"]), z.get(spec["to"])
+                if not za or not zb or not za.startswith("PZ-") or not zb.startswith("PZ-"):
+                    raise PhysicsError("Freight capture into unclassified atmosphere refused")
+                ca, cb = state("pressure", za), state("pressure", zb)
+                if not _air_safe(ca) or not _air_safe(cb):
+                    raise PhysicsError("Freight capture air or heat unsafe")
+                pa = ca.quantity * R_SPECIFIC_AIR * ca.details["temperature_k"] / ca.details["gas_volume_m3"]
+                pb = cb.quantity * R_SPECIFIC_AIR * cb.details["temperature_k"] / cb.details["gas_volume_m3"]
+                if abs(pa-pb) > 2000:
+                    raise PhysicsError("Freight capture pressure difference too high")
+            if gate.setting != ("open" if value == "capture_open" else "closed"):
+                gate_before = _snapshot(gate)
+                gate.setting = "open" if value == "capture_open" else "closed"
+                gate.revision += 1
+                gate.save(update_fields=["setting", "revision"])
+                _event(gate, "local_sealed_waste_freight_gate", gate_before, actor=actor)
         if value in {"haul", "return"}:
             if value == "haul" and contacts_active(d["cargo"]):
                 raise PhysicsError("First load a sealed cassette through freight before docking")
@@ -2596,8 +2627,9 @@ def crew_physical_action(actor, request_id, action, target, value):
                     access=access, cargo=d["cargo"]):
                 raise PhysicsError("No verified berth or sealed functioning cargo port")
         try:
-            d["water"] = command_waste_offload(
-                water, receiver=target, verb=value)
+            d["water"] = (water if value in {"capture_open", "capture_close"}
+                          else command_waste_offload(
+                              water, receiver=target, verb=value))
             stocks = {cat: state("inventory", ident).quantity * 1000
                       for cat, ident in (
                           ("sanitary", "INV-WASTE-RESIDUE"),
