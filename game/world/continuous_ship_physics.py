@@ -21,6 +21,12 @@ from world.full_ship_operations import (
     _require_installed, load_candidate, state,
 )
 from world.models import CanonicalShipEvent, CanonicalShipState, WorkReceipt
+from world.ship_cargo_manifest import (
+    CargoError, DRUMS as CARGO_DRUMS, initial_cargo, validate_cargo,
+    onboard_mass_kg, declare_cargo_lot, split_cargo_lot, verify_drum,
+    drum_balance, start_freight_transfer, step_freight,
+    active_freight_mw,
+)
 from world.ship_motion_machinery import (
     DRUMS, ROTORS, RotorError, initial_rotors, set_rotor_command,
     step_rotors, motion_power_mw, rotor_gravity,
@@ -217,6 +223,7 @@ def _snapshot(item):
     if item.key == CLOCK_KEY:
         result["motion"] = item.details.get("motion")
         result["rotors"] = item.details.get("rotors")
+        result["cargo"] = item.details.get("cargo")
     return result
 
 
@@ -303,6 +310,7 @@ def arm_continuous_physics(*, operator_approved=False, now_game_time=None):
             "water_suppression_kg": 0.0,
             "co2_captured_kg": 0.0,
             "rotors": initial_rotors(),
+            "cargo": initial_cargo(contract["commercial_cargo_t"] * 1000.0),
             "motion": {
                 "position_m": [0.0, 0.0, 0.0],
                 "velocity_m_s": [0.0, 0.0, 0.0],
@@ -391,6 +399,10 @@ def commission_g19_movement(*, operator_approved=False):
         changed = True
     if "rotors" not in d:
         d["rotors"] = initial_rotors()
+        changed = True
+    if "cargo" not in d:
+        # A candidate's unpositioned cargo is not six fabricated drum loads.
+        d["cargo"] = initial_cargo(d["motion"]["cargo_mass_kg"])
         changed = True
     if changed:
         old = _snapshot(clock)
@@ -585,6 +597,11 @@ def tick_continuous_physics(*, now_game_time=None):
     if not motion:
         raise PhysicsError("Ship motion state not initialised")
     rotors = dict(clock.details.get("rotors", {}))
+    cargo = dict(clock.details.get("cargo", {}))
+    try:
+        validate_cargo(cargo, motion["cargo_mass_kg"])
+    except CargoError as exc:
+        raise PhysicsError(str(exc)) from exc
     if set(rotors) != set(ROTORS):
         raise PhysicsError("Rotary machinery not commissioned")
     summary = {}
@@ -612,6 +629,37 @@ def tick_continuous_physics(*, now_game_time=None):
         # A failed drive can coast, but cannot silently resume thrust.
         drive_operational = motion.get("drive_condition", "operational") == "operational"
         rcs_operational = motion.get("rcs_condition", "operational") == "operational"
+        # A real, declared, restrained and captured cargo sled can be
+        # advanced only while power and the separate collar/pressure
+        # interfaces remain available. Mass doesn't disappear during travel.
+        freight_load = active_freight_mw(cargo)
+        freight_can_power = (
+            power["assured"] and
+            power["available_mw"] - power["requested_mw"] >= freight_load)
+        freight_collars = {
+            name for name in CARGO_DRUMS
+            if equipment.get(name + "-FREIGHT-COLLAR") is not None
+            and equipment[name + "-FREIGHT-COLLAR"].condition not in _BROKEN
+            and rotors[name]["hardlock"] and rotors[name]["brake"]
+            and rotors[name]["freight_collar"]
+            and abs(rotors[name]["rpm"]) < 0.001
+            and rotors[name]["target_rpm"] == 0
+            and not rotors[name]["passenger_indexer"]
+        }
+        open_freight = {
+            name for name in CARGO_DRUMS
+            if any(door.source_id == "ACC-" + name + "-FREIGHT-CAPTURE"
+                   and door.condition not in _BROKEN
+                   and door.setting == "open" for door in access_rows)
+        }
+        cargo, completed_freight = step_freight(
+            cargo, dt, power_ready=freight_can_power,
+            available_collars=freight_collars, open_fixed_gates=open_freight)
+        if freight_load and freight_can_power and freight_collars:
+            power["requested_mw"] += freight_load
+            power["dispatched_mw"] += freight_load
+            power["generation_fraction"] = (
+                power["dispatched_mw"] / power["available_mw"])
         rotary_load = motion_power_mw(rotors)
         rotary_can_power = (
             power["assured"] and
@@ -951,6 +999,7 @@ def tick_continuous_physics(*, now_game_time=None):
     d["co2_captured_kg"] = captured_co2
     d["motion"] = motion
     d["rotors"] = rotors
+    d["cargo"] = cargo
     d["summary"] = {
         **summary,
         "gas_kg": round(sum(c["mass"] for c in cells.values()), 6),
@@ -966,6 +1015,8 @@ def tick_continuous_physics(*, now_game_time=None):
             ("dry_mass_kg", "cargo_mass_kg", "ftl_fuel_kg",
              "mission_fluids_kg", "propellant_kg")), 3),
         "ship_cargo_mass_kg": round(motion["cargo_mass_kg"], 3),
+        "cargo_unlocated_kg": round(cargo["unlocated_onboard_kg"], 3),
+        "freight_jobs": len(cargo["jobs"]),
         "drive_firing": motion["drive_firing"],
         "drive_power_mw": motion["drive_power_mw"],
         "drive_condition": motion["drive_condition"],
@@ -1358,6 +1409,18 @@ def local_physics_readout(actor, target):
     room = getattr(getattr(location, "db", None), "ox_space_id", None)
     if not room:
         raise PermissionError("Stand at an installed ship compartment")
+    if target == "cargo":
+        if room not in {"CMD-CARGO", "ENG-CONTROL"} and not (
+                room and room.endswith("-FREIGHT-LOCK")):
+            raise PermissionError("Freight manifest is local to a cargo station")
+        cargo = _clock().details.get("cargo", {})
+        return {
+            "unlocated_onboard_kg": cargo.get("unlocated_onboard_kg"),
+            "declared_lots": len(cargo.get("lots", {})),
+            "active_jobs": dict(cargo.get("jobs", {})),
+            "verified_drums": list(cargo.get("verified_drums", [])),
+            "scope": "local_cargo_manifest",
+        }
     if target in ROTORS:
         permitted = ("ENG-CONTROL", "WR-ROTOR-MACHINERY") if target == "WR-01" else (
             ("ENG-CONTROL",) if target == "HAB" else
