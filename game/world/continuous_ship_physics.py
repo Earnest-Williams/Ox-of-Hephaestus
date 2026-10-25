@@ -76,6 +76,15 @@ def _advance_motion(motion, dt, power):
     velocity = list(result["velocity_m_s"])
     fuel = float(result["propellant_kg"])
     direction = HELM_DIRECTIONS[result["command"]]
+    # Body-frame thrust must follow the vessel's orientation.
+    pitch, yaw, roll = result["attitude_rad"]
+    cp, sp = math.cos(pitch), math.sin(pitch)
+    cy, sy = math.cos(yaw), math.sin(yaw)
+    cr, sr = math.cos(roll), math.sin(roll)
+    bx, by, bz = direction
+    rx, ry, rz = bx, cr * by - sr * bz, sr * by + cr * bz
+    px, py, pz = cp * rx + sp * rz, ry, -sp * rx + cp * rz
+    direction = (cy * px - sy * py, sy * px + cy * py, pz)
     attitude_direction = ATTITUDE_COMMANDS[result["attitude_command"]]
     if len(position) != 3 or len(velocity) != 3 or not all(
             math.isfinite(x) for x in (*position, *velocity, fuel)) or fuel < 0:
@@ -103,12 +112,11 @@ def _advance_motion(motion, dt, power):
         angular_velocity[axis] += a * attitude_burn
     result["attitude_rad"] = angles
     result["angular_velocity_rad_s"] = angular_velocity
-    result["propellant_kg"] = fuel - spent - attitude_spent
+    result["propellant_kg"] = max(0.0, fuel - spent - attitude_spent)
     result["expended_propellant_kg"] += attitude_spent
     result["attitude_firing"] = attitude_burn > 0
     result["position_m"] = position
     result["velocity_m_s"] = velocity
-    result["propellant_kg"] = fuel - spent
     result["expended_propellant_kg"] += spent
     result["drive_firing"] = burn_time > 0
     return result
@@ -886,8 +894,8 @@ def crew_physical_action(actor, request_id, action, target, value):
                     "isolator:" if action == "switch"
                     else "pressure:" if action == "mist"
                     else "access:" if action == "hatch"
-                    else "" if action == "schedule"
-                    else "equipment:") + (CLOCK_KEY if action == "schedule" else target)
+                    else "" if action in {"schedule", "helm", "attitude"}
+                    else "equipment:") + (CLOCK_KEY if action in {"schedule", "helm", "attitude"} else target)
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
