@@ -1,0 +1,49 @@
+name: Ox G18 continuous ship physics
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - "game/world/continuous_ship_physics.py"
+      - "game/world/tests/test_continuous_ship_physics.py"
+      - "game/commands/ship_physics.py"
+      - "game/commands/default_cmdsets.py"
+      - "game/server/conf/at_server_startstop.py"
+      - ".github/workflows/ox-continuous-ship-physics.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  physics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install and compile
+        run: |
+          python -m pip install .
+          python -m compileall -q game/world/continuous_ship_physics.py game/commands/ship_physics.py game/world/tests/test_continuous_ship_physics.py
+      - name: Prepare database
+        working-directory: game
+        env:
+          EVENNIA_SUPERUSER_USERNAME: OxCI
+          EVENNIA_SUPERUSER_EMAIL: oxci@example.invalid
+        run: |
+          export EVENNIA_SUPERUSER_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+          evennia migrate --noinput
+      - name: World physics and G17 regression
+        working-directory: game
+        run: |
+          python -m world.test_runner world.tests.test_continuous_ship_physics world.tests.test_full_ship_operations --verbosity=2
+      - name: Cross-process persistence
+        working-directory: game
+        run: |
+          evennia shell --command="from world.full_ship_operations import install_candidate,install_pressure_cells,initialize_nominal_atmosphere; from world.ship_world import ensure_canonical_ship; from world.continuous_ship_physics import arm_continuous_physics,configure_scenario_casualty; ensure_canonical_ship(); install_candidate(operator_approved=True); install_pressure_cells(operator_approved=True); initialize_nominal_atmosphere(operator_approved=True); arm_continuous_physics(operator_approved=True,now_game_time=1000); configure_scenario_casualty('PZ-HAB-03',leak_kg_s=0.1,operator=True); print('OX_G18_ARMED_PERSISTED')"
+          evennia shell --command="from world.continuous_ship_physics import tick_continuous_physics; from world.full_ship_operations import pressure_reading; before=pressure_reading('PZ-HAB-03')['mass_kg']; result=tick_continuous_physics(now_game_time=1010); assert result['advanced']; assert before>pressure_reading('PZ-HAB-03')['mass_kg']; print('OX_G18_COLD_RESTART_LEAK_PASS')"
