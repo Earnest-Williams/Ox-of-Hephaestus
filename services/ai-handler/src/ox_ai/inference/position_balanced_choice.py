@@ -1,20 +1,21 @@
-"""Experimental three-way position-balanced Decider option scorer.
+"""Experimental two/three-way position-balanced Decider option scorer.
 
 This is a nonproduction Concordia-compatible choice adapter. It calls the
-publisher's actual native System One scorer three times for the same
-three-option social decision, once with every semantic option in every code
-position. It averages probabilities by stable semantic identity, not letter
-or display index, and returns one ordinary bounded CommandOption choice.
+publisher's actual native System One scorer once per offered action, with
+every semantic option in every code position: two binary forwards or three
+ternary forwards. It averages probabilities by stable semantic identity,
+not letter or display index, and returns one ordinary bounded CommandOption choice.
 
 No Evennia authority; no model-generated text; no fallback after a failed
 partial consultation. G13 measured substantial single-pass position effects.
 This adapter is an experimental response, NOT evidence that a character's
 personality is psychologically convincing.
 """
+
 from __future__ import annotations
 
-from collections.abc import Sequence
 import math
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -22,7 +23,7 @@ from ox_ai.inference.decider_gguf_choice import DeciderGGUFChoiceModel
 
 
 class PositionBalancedDeciderChoiceModel:
-    """Three native forwards, balanced code positions, one proposed action.
+    """Two or three native forwards, balanced code positions, one proposed action.
 
     options must be in caller display order and have distinct stable,
     semantic action keys. The responses provided by Concordia correspond
@@ -30,8 +31,8 @@ class PositionBalancedDeciderChoiceModel:
     the aggregated semantic result independent of caller menu order.
 
     This does not alter the actor's original prompt, admit observations,
-    mutate memory or send world commands. It does triple native inference
-    cost per choice. Callers must account for three engine forwards even
+    mutate memory or send world commands. It costs one native forward per
+    offered action. Callers must account for each engine forward even
     though Concordia records one top-level sample_choice request.
     """
 
@@ -43,21 +44,28 @@ class PositionBalancedDeciderChoiceModel:
         engine: Any | None = None,
         n_threads: int = 4,
     ) -> None:
-        if (not isinstance(options, (list, tuple))
-                or len(options) != 3
-                or any(not isinstance(x, (list, tuple)) or len(x) != 2
-                       or not all(isinstance(part, str) and part.strip()
-                                  for part in x)
-                       for x in options)):
-            raise ValueError("Exactly three typed semantic options required")
-        triples = tuple((str(key), str(description)) for key, description in options)
-        if (len({key for key, _ in triples}) != 3
-                or len({description for _, description in triples}) != 3):
+        if (
+            not isinstance(options, (list, tuple))
+            or len(options) not in (2, 3)
+            or any(
+                not isinstance(x, (list, tuple))
+                or len(x) != 2
+                or not all(isinstance(part, str) and part.strip() for part in x)
+                for x in options
+            )
+        ):
+            raise ValueError("Exactly two or three typed semantic options required")
+        choices = tuple((str(key), str(description)) for key, description in options)
+        if len({key for key, _ in choices}) != len(choices) or len(
+            {description for _, description in choices}
+        ) != len(choices):
             raise ValueError("Ambiguous or duplicate semantic options")
-        self.options = triples
+        self.options = choices
         self.engine = DeciderGGUFChoiceModel(
-            gguf_path, tuple(description for _, description in triples),
-            engine=engine, n_threads=n_threads,
+            gguf_path,
+            tuple(description for _, description in choices),
+            engine=engine,
+            n_threads=n_threads,
         ).engine
         self.last: dict | None = None
 
@@ -71,21 +79,24 @@ class PositionBalancedDeciderChoiceModel:
         del seed
         self.last = None
         codes = tuple(responses)
-        if (not isinstance(prompt, str) or not prompt.strip()
-                or len(codes) != 3
-                or len(set(codes)) != 3
-                or any(not isinstance(code, str) or not code.strip()
-                       for code in codes)):
-            raise ValueError("Three unique model response codes are required")
+        if (
+            not isinstance(prompt, str)
+            or not prompt.strip()
+            or len(codes) != len(self.options)
+            or any(not isinstance(code, str) or not code.strip() for code in codes)
+            or len(set(codes)) != len(codes)
+        ):
+            raise ValueError("Two or three unique model response codes must match the menu")
         by_key = dict(self.options)
         canonical_keys = tuple(sorted(by_key))
         sums = {key: 0.0 for key in canonical_keys}
         native_picks = []
         positions = {key: set() for key in canonical_keys}
 
-        for offset in range(3):
+        size = len(self.options)
+        for offset in range(size):
             # A true cyclic Latin square: each semantic option appears once
-            # in each of the three response-token positions.
+            # in every response-token position.
             order = canonical_keys[offset:] + canonical_keys[:offset]
             questions = {
                 "next_action": {
@@ -126,9 +137,9 @@ class PositionBalancedDeciderChoiceModel:
                 positions[key].add(position)
             native_picks.append(order[codes.index(picked)])
 
-        if any(positions[key] != {0, 1, 2} for key in canonical_keys):
+        if any(positions[key] != set(range(size)) for key in canonical_keys):
             raise AssertionError("Option order failed position balance")
-        mean = {key: sums[key] / 3 for key in canonical_keys}
+        mean = {key: sums[key] / size for key in canonical_keys}
         # Stable semantic-key tie break, never first displayed option or
         # first option-token index. Returning only a caller-offered response
         # preserves the finite typed command boundary.
@@ -139,9 +150,13 @@ class PositionBalancedDeciderChoiceModel:
         record = {
             "selected_semantic_key": winner,
             "semantic_probabilities": mean,
-            "underlying_native_calls": 3,
+            "underlying_native_calls": size,
             "permutation_native_picks": tuple(native_picks),
-            "all_three_positions_per_semantic_option": True,
+            (
+                "all_two_positions_per_semantic_option"
+                if size == 2
+                else "all_three_positions_per_semantic_option"
+            ): True,
         }
         self.last = record
         return codes.index(selected_code), selected_code, {

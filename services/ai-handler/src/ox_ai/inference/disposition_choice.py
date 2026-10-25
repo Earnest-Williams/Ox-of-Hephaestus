@@ -1,16 +1,19 @@
 """G16c experimental finite-action personality choice, never dialogue.
 
-Model inference scores three immutable semantic actions with G15's actual
-three-pass Decider engine. The same G16a authored tags shift those *scores*
-within frozen G16b bounds, then a keyed character-specific BLAKE2b draw
+Model inference scores two or three immutable semantic actions using the
+actual two/three-pass Decider engine. Binary policy v2 is experimental and
+has no G16b/G16e calibration claim; ternary policy v1 remains unchanged.
+The same G16a authored tags shift those *scores* within frozen experimental
+bounds, then a keyed character-specific BLAKE2b draw
 selects one offered action. No world permissions or receipts are inferred.
 """
+
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from hashlib import blake2b, sha256
 import json
 import math
+from collections.abc import Mapping, Sequence
+from hashlib import blake2b, sha256
 from pathlib import Path
 from typing import Any
 
@@ -18,13 +21,13 @@ from ox_ai.agents.crew_blueprints import CrewBlueprint
 from ox_ai.inference.position_balanced_choice import PositionBalancedDeciderChoiceModel
 from ox_ai.runtime.disposition_goap import actor_dispositions
 
-
 GAIN = 0.10
 MAX_SHIFT = 0.21
 BASE_TEMP = 0.33
 URGENT_TEMP = 0.11
 EVIDENCE_LOCK = 0.85
 MODEL_POLICY_VERSION = 1
+BINARY_MODEL_POLICY_VERSION = 2
 
 
 def choice_temperature(profile: CrewBlueprint, *, urgent: bool) -> float:
@@ -65,14 +68,14 @@ def score_personality_choice(
     if kind not in ("routine", "ambiguous", "social", "urgent"):
         raise ValueError("Unknown decision boundary kind")
     keys = tuple(sorted(option.semantic_key for option in menu.options))
-    if len(keys) != 3 or set(native_scores) != set(keys):
-        raise ValueError("A complete three-way semantic score set is required")
+    if len(keys) not in (2, 3) or set(native_scores) != set(keys):
+        raise ValueError("A complete two/three-way semantic score set is required")
     if any(type(v) not in (int, float) or not math.isfinite(v) or not 0 <= v <= 1
            for v in native_scores.values()):
         raise ValueError("Native probabilities must be finite within 0..1")
     total = sum(native_scores.values())
     if not math.isclose(total, 1, abs_tol=0.02):
-        raise ValueError("Native three-position score vector is not normalized")
+        raise ValueError("Native position-balanced score vector is not normalized")
     # G15 has already rejected any malformed native intermediate pass.
     normalized = {key: float(native_scores[key]) / total for key in keys}
     native_max = max(normalized.values())
@@ -116,7 +119,7 @@ def score_personality_choice(
                 chosen = key
                 break
     return {
-        "policy_version": MODEL_POLICY_VERSION,
+        "policy_version": (BINARY_MODEL_POLICY_VERSION if len(keys) == 2 else MODEL_POLICY_VERSION),
         "selected_semantic_key": chosen,
         "native_winner": native_winner,
         "raw_scores": normalized,
@@ -125,7 +128,7 @@ def score_personality_choice(
         "temperature": temperature,
         "draw": draw,
         "safety_locked": bool(lock),
-        "underlying_native_calls": 3,
+        "underlying_native_calls": len(keys),
     }
 
 
@@ -141,9 +144,9 @@ class PersonalityAdjustedDeciderChoiceModel(PositionBalancedDeciderChoiceModel):
         from ox_contracts import TaggedMenu
         if not isinstance(menu, TaggedMenu):
             raise TypeError("Typed catalog menu required")
-        if {key for key, _ in options} != {
-            action.semantic_key for action in menu.options
-        } or len(options) != 3:
+        if {key for key, _ in options} != {action.semantic_key for action in menu.options} or len(
+            options
+        ) not in (2, 3):
             raise ValueError("Scorer options differ from the authored menu")
         super().__init__(
             gguf_path, options, engine=engine, n_threads=n_threads,
@@ -163,8 +166,10 @@ class PersonalityAdjustedDeciderChoiceModel(PositionBalancedDeciderChoiceModel):
         self.last = None
         _, _, _meta = super().sample_choice(prompt, responses, seed=seed)
         native = self.last
-        if not isinstance(native, dict) or native.get("underlying_native_calls") != 3:
-            raise RuntimeError("A complete G15 native inference is required")
+        if not isinstance(native, dict) or native.get("underlying_native_calls") != len(
+            self.options
+        ):
+            raise RuntimeError("A complete position-balanced native inference is required")
         try:
             result = score_personality_choice(
                 native_scores=native["semantic_probabilities"],
@@ -177,7 +182,12 @@ class PersonalityAdjustedDeciderChoiceModel(PositionBalancedDeciderChoiceModel):
             raise
         result["prompt_sha256"] = sha256(prompt.encode("utf-8")).hexdigest()
         result["balanced_native_picks"] = list(native["permutation_native_picks"])
-        result["all_three_positions_per_semantic_option"] = True
+        position_field = (
+            "all_two_positions_per_semantic_option"
+            if len(self.options) == 2
+            else "all_three_positions_per_semantic_option"
+        )
+        result[position_field] = True
         # The response codes index the original caller order, while the choice
         # draw and all score adjustments operate in stable semantic-key order.
         original_keys = tuple(key for key, _ in self.options)
@@ -206,11 +216,15 @@ class ReplayedPersonalityChoiceModel:
         del seed
         self.last = None
         codes = tuple(responses)
-        if (len(codes) != 3 or len(set(codes)) != 3
-                or tuple(sorted(key for key, _ in self.options))
-                   != tuple(sorted(self.saved["raw_scores"]))
-                or sha256(prompt.encode("utf-8")).hexdigest()
-                   != self.saved["prompt_sha256"]):
+        if (
+            len(self.options) not in (2, 3)
+            or len(codes) != len(self.options)
+            or any(not isinstance(code, str) or not code.strip() for code in codes)
+            or len(set(codes)) != len(codes)
+            or tuple(sorted(key for key, _ in self.options))
+            != tuple(sorted(self.saved["raw_scores"]))
+            or sha256(prompt.encode("utf-8")).hexdigest() != self.saved["prompt_sha256"]
+        ):
             raise PermissionError("Replayed native prompt/menu changed")
         keys = tuple(key for key, _ in self.options)
         chosen = self.saved["selected_semantic_key"]

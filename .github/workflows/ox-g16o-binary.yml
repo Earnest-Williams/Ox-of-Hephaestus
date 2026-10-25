@@ -1,0 +1,48 @@
+name: Ox G16o balanced binary durable choice
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches: [main]
+    paths:
+      - "services/ai-handler/src/ox_ai/inference/position_balanced_choice.py"
+      - "services/ai-handler/src/ox_ai/inference/disposition_choice.py"
+      - "services/ai-handler/src/ox_ai/runtime/g16_decision_controller.py"
+      - "services/ai-handler/src/ox_ai/runtime/personality_choice_ledger.py"
+      - "services/ai-handler/tests/test_g16o*.py"
+      - "scenarios/profiling/g16o_binary_capacity.py"
+      - "scenarios/profiling/g16f_personality_throughput.py"
+      - "scenarios/profiling/g16m_native_queue_burst.py"
+      - "contracts/**"
+      - ".github/workflows/ox-g16o-binary.yml"
+      - "!**/*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ox-g16o-binary-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  binary-controller-and-capacity-fixture:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install actual Concordia and strict authored contracts
+        run: |
+          python -m pip install -e ./contracts
+          python -m pip install -e './services/ai-handler[concordia]'
+      - name: Check binary budget replay containment and unchanged ternary policy
+        run: |
+          python -m unittest discover -s services/ai-handler/tests -p 'test_g16o*.py' -v
+          python -m unittest discover -s services/ai-handler/tests -p test_g16_choice.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_position_balanced_choice.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_g16l_safety_controller.py -v
+          python -m unittest discover -s services/ai-handler/tests -p test_g16m_native_queue_burst.py -v
