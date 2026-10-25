@@ -1210,6 +1210,21 @@ def local_physics_readout(actor, target):
     room = getattr(getattr(location, "db", None), "ox_space_id", None)
     if not room:
         raise PermissionError("Stand at an installed ship compartment")
+    if target in ROTORS:
+        permitted = ("ENG-CONTROL", "WR-ROTOR-MACHINERY") if target == "WR-01" else (
+            ("ENG-CONTROL",) if target == "HAB" else
+            (target + "-FREIGHT-LOCK", target + "-SERVICE-LOCK"))
+        if room not in permitted:
+            raise PermissionError("Rotary gauges are local to their machine")
+        row = dict(_clock().details.get("rotors", {}).get(target, {}))
+        if not row:
+            raise PhysicsError("Rotor not commissioned")
+        row["gravity_g"] = round(rotor_gravity({target: row}, target), 4)
+        return {"rotor": target, **row, "scope": "local_rotary_gauge"}
+    if target == "helm":
+        _helm_at(actor)
+        motion = dict(_clock().details.get("motion", {}))
+        return {"motion": motion, "scope": "local_helm_gauge"}
     if target == "air":
         zone = _topology()[0].get(room)
         if not zone:
