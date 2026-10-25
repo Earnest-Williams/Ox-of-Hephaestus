@@ -4,7 +4,7 @@ from evennia.utils.test_resources import EvenniaTestCase
 from world.bootstrap import build_ship
 from world.continuous_ship_physics import (
     PhysicsError, arm_continuous_physics, commission_g19_water,
-    verify_g19_hydrogen_outlet,
+    verify_g19_hydrogen_outlet, survey_g19_water_material,
     configure_water_casualty, crew_physical_action, local_physics_readout,
     tick_continuous_physics,
 )
@@ -106,15 +106,28 @@ class InstalledWaterRecyclingTests(EvenniaTestCase):
         with self.assertRaises(PhysicsError):
             crew_physical_action(
                 self.tech, "2" * 32, "water", "POTABLE-TANK-MAIN", "clear")
-        # The actual purifier must be visited; no remote toggle.
+        # Chemistry filters are not available merely because an inventory
+        # account exists. Physically survey the correct storage room, have
+        # the worker carry them, and load the actual purifier in person.
+        start_filters = state("inventory", "INV-DC-CONSUMABLES").quantity
+        survey_g19_water_material(
+            operator_approved=True, source="INV-DC-CONSUMABLES",
+            room_id="STORE-CRIT-SPARES", verified_kg=1)
+        self.tech.move_to(find_ship_space("STORE-CRIT-SPARES"), quiet=True)
+        crew_physical_action(
+            self.tech, "6" * 32, "water", "INV-DC-CONSUMABLES", "pickup_filter:1")
+        self.assertLess(state("inventory", "INV-DC-CONSUMABLES").quantity, start_filters)
+        self.assertEqual(self._water()["filter_carried_kg"][self.tech.dbref], 1)
         self.tech.move_to(find_ship_space("HAB-06-ECLSS-A"), quiet=True)
         crew_physical_action(
+            self.tech, "7" * 32, "water", "WATER-PROC-A", "load_filter:1")
+        self.assertEqual(self._water()["filter_carried_kg"][self.tech.dbref], 0)
+        crew_physical_action(
             self.tech, "3" * 32, "water", "WATER-PROC-A", "decontaminate")
-        start_filters = state("inventory", "INV-DC-CONSUMABLES").quantity
         result = tick_continuous_physics(now_game_time=1060)
         self.assertGreater(result["water"]["last_step"]["decontaminated_kg"], 0)
         self.assertGreater(self._water()["cumulative"]["decontaminated_kg"], 0)
-        self.assertLess(state("inventory", "INV-DC-CONSUMABLES").quantity, start_filters)
+        self.assertLess(self._water()["filter_staged_kg"]["A"], 1.0)
         self.assertGreater(state("inventory", "INV-HAZARDOUS-RESIDUE").quantity, 0)
         self.tech.move_to(find_ship_space("WATER-FWD"), quiet=True)
         crew_physical_action(
@@ -155,6 +168,55 @@ class InstalledWaterRecyclingTests(EvenniaTestCase):
         result = tick_continuous_physics(now_game_time=1060)
         self.assertEqual(result["water"]["cumulative"]["domestic_used_kg"], 0)
         self.assertAlmostEqual(self._water()["working_kg"], before)
+
+
+    def test_local_classified_spares_disposal_requires_survey_and_receipt(self):
+        survey_g19_water_material(
+            operator_approved=True, source="INV-SPARES",
+            room_id="SPARES-CENTRAL", verified_kg=3.0)
+        self.tech.move_to(find_ship_space("SPARES-CENTRAL"), quiet=True)
+        before = state("inventory", "INV-SPARES").quantity
+        receipt = crew_physical_action(
+            self.tech, "e" * 32, "waste",
+            "IND-SCRAP-HOLD-A", "deposit:INV-SPARES:2")
+        self.assertEqual(receipt["status"], "succeeded")
+        self.assertAlmostEqual(
+            state("inventory", "INV-SPARES").quantity, before - .002, places=7)
+        self.assertAlmostEqual(
+            state("inventory", "INV-INDUSTRIAL-SCRAP").quantity, .002, places=7)
+        self.assertAlmostEqual(self._water()["cassettes"]["industrial"]["A"], 2)
+        self.assertEqual(self._water()["source_surveys"]["INV-SPARES"]["SPARES-CENTRAL"], 1)
+        self.assertEqual(
+            crew_physical_action(self.tech, "e" * 32, "waste",
+                "IND-SCRAP-HOLD-A", "deposit:INV-SPARES:2"), receipt)
+        with self.assertRaises(PhysicsError):
+            crew_physical_action(self.tech, "f" * 32, "waste",
+                "HAZ-ISO-HOLD-A", "deposit:INV-SPARES:1")
+        self.assertFalse(WorkReceipt.objects.filter(pk="f" * 32).exists())
+
+    def test_broken_rotary_waste_interface_cannot_reach_fixed_receiver(self):
+        from world.continuous_ship_physics import _water_hardware, _power
+        equipment = {x.source_id: x for x in
+                     CanonicalShipState.objects.filter(category="equipment")}
+        edges = list(CanonicalShipState.objects.filter(category="edge"))
+        isolators = {x.source_id: x for x in
+                     CanonicalShipState.objects.filter(category="isolator")}
+        nodes = list(CanonicalShipState.objects.filter(category="node"))
+        power = _power(equipment, edges, isolators, "normal")
+        healthy = _water_hardware(self._water(), equipment, edges, isolators, nodes, power)
+        self.assertTrue(healthy["fixed"]["grey"])
+        self.assertTrue(healthy["fixed"]["black"])
+        set_component_condition("equipment", "ROT-GREYWATER-A",
+                                "failed", operator=True)
+        equipment["ROT-GREYWATER-A"] = state("equipment", "ROT-GREYWATER-A")
+        one_left = _water_hardware(self._water(), equipment, edges, isolators, nodes, power)
+        self.assertTrue(one_left["fixed"]["grey"])
+        set_component_condition("equipment", "ROT-GREYWATER-B",
+                                "failed", operator=True)
+        equipment["ROT-GREYWATER-B"] = state("equipment", "ROT-GREYWATER-B")
+        stopped = _water_hardware(self._water(), equipment, edges, isolators, nodes, power)
+        self.assertFalse(stopped["fixed"]["grey"])
+        self.assertTrue(stopped["fixed"]["black"])
 
     def test_unsealed_cassette_cannot_collect_sanitary_or_hazardous_waste(self):
         self.tech.move_to(find_ship_space("STORE-FLUID-AFT"), quiet=True)
