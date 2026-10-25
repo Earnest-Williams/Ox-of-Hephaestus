@@ -170,10 +170,19 @@ def arm_continuous_physics(*, operator_approved=False, now_game_time=None):
     return {"armed": True, "last_game_time": started, "cells": 133}
 
 
+def _physical_passage(iso):
+    """A mechanically jammed-open air valve still leaks even if actuators fail."""
+    kind = str(iso.reference.get("kind", "")).lower()
+    if (iso.condition == "jammed" and iso.setting == "open"
+            and ("valve" in kind or "damper" in kind)):
+        return True
+    return _conducts(iso)
+
+
 def _live_edge(edge, isolators):
     r = edge.reference
     return (edge.condition not in _BROKEN and edge.setting == "available"
-            and all(i in isolators and _conducts(isolators[i])
+            and all(i in isolators and _physical_passage(isolators[i])
                     for i in r["isolator_ids"]))
 
 
@@ -295,9 +304,22 @@ def tick_continuous_physics(*, now_game_time=None):
     isolators = {x.source_id: x for x in
                  CanonicalShipState.objects.filter(category="isolator")}
     edges = list(CanonicalShipState.objects.filter(category="edge"))
+    access_rows = list(CanonicalShipState.objects.filter(category="access"))
     equipment = {x.source_id: x for x in equipment_rows}
-    _, owners, node_zones = _topology()
+    zones, owners, node_zones = _topology()
     cells = {r.source_id: _load_cell(r) for r in pressure_rows}
+    leak_isolators = {r.source_id: r.details.get("physics_leak_isolator_id")
+                      for r in pressure_rows}
+    # Only real physically open, rated links between *known* gas cells may
+    # exchange mass. Unknown cargo atmosphere is never invented as vacuum.
+    open_hatches = []
+    for door in access_rows:
+        if door.setting != "open" or not door.reference.get("pressure_boundary"):
+            continue
+        a = zones.get(door.reference["from"])
+        b = zones.get(door.reference["to"])
+        if a != b and a in cells and b in cells:
+            open_hatches.append((door.source_id, a, b))
     total_before = sum(c["mass"] + c["fuel"] for c in cells.values())
     lost = burned = water = 0.0
     changed_equipment = set()
@@ -343,10 +365,23 @@ def tick_continuous_physics(*, now_game_time=None):
         air_on = bool(air_source_nodes)
         fan_nodes = (_reachable(edges, isolators, "atmosphere", air_source_nodes)
                      if air_on else set())
+        # Open pressure hatches are a separate flow path; closing a hatch
+        # does not close an independent duct, or vice versa.
+        for _door_id, a_id, b_id in open_hatches:
+            a, b = cells[a_id], cells[b_id]
+            exchange = min(0.25 * dt, 0.02 * a["mass"], 0.02 * b["mass"])
+            _parcel(a, b, exchange)
+            _parcel(b, a, exchange)
+            pa, pb = _cell_pressure(a), _cell_pressure(b)
+            if abs(pa - pb) > 1.0:
+                donor, receiver = (a, b) if pa > pb else (b, a)
+                _parcel(donor, receiver, min(
+                    0.60 * dt * abs(pa - pb) / 101325.0,
+                    0.1 * donor["mass"]))
         atm_edges = [e for e in edges
                      if e.reference["network"] == "atmosphere"
                      and _live_edge(e, isolators)]
-        # Flow follows actual duct edges, not open pressure hatches.
+        # Flow follows actual duct edges independently of open hatches.
         for edge in sorted(atm_edges, key=lambda e: e.source_id):
             a_id = node_zones.get(edge.reference["from_node"])
             b_id = node_zones.get(edge.reference["to_node"])
@@ -381,7 +416,18 @@ def tick_continuous_physics(*, now_game_time=None):
         fire_nodes = _reachable(edges, isolators, "fire_main", fire_starts)
         for cell_id, cell in cells.items():
             mass = cell["mass"]
-            leak = min(mass, cell["leak"] * dt)
+            leak_rate = cell["leak"]
+            source_valve = leak_isolators.get(cell_id)
+            if source_valve:
+                isolator = isolators.get(source_valve)
+                if isolator is None:
+                    raise PhysicsError("Missing authored leak isolation point")
+                # A valve closed at its real station arrests a service-line
+                # leak; a valve mechanically stuck open cannot be saved by
+                # a remote OFF indication.
+                if not _physical_passage(isolator):
+                    leak_rate = 0.0
+            leak = min(mass, leak_rate * dt)
             if leak:
                 portion = leak / mass
                 for name in ("oxygen", "co2", "smoke"):
@@ -442,6 +488,12 @@ def tick_continuous_physics(*, now_game_time=None):
             "ventilation_powered": air_on,
             "cooling_kw": round(total_cool_kw, 3),
             "burning_cells": sum(c["burn"] > 0 for c in cells.values()),
+            "open_pressure_hatches": len(open_hatches),
+            "active_leaking_cells": sum(
+                c["leak"] > 0 and (
+                    not leak_isolators.get(zone)
+                    or _physical_passage(isolators[leak_isolators[zone]]))
+                for zone, c in cells.items()),
         }
 
     total_after = sum(c["mass"] + c["fuel"] for c in cells.values())
@@ -475,12 +527,43 @@ def tick_continuous_physics(*, now_game_time=None):
         pressure_changed, ["quantity", "details", "condition", "revision"],
         batch_size=133)
 
-    # Overheated pressure cells damage *authored equipment at that location*,
-    # not invented generic failure objects. No automatic repair or refuel.
+    # Consequences act on authored plant records. Transient overtemperature
+    # trips protection; sustained exposure makes *lasting* damage. A reset
+    # may clear a protection trip only after physical cooling and isolation,
+    # never erase the cumulative damage index or rebuild destroyed hardware.
     for item in equipment_rows:
         zone = owners.get(item.source_id)
         c = cells.get(zone)
-        if c and c["damage"] >= 0.20 and item.condition == "serviceable":
+        if c is None:
+            continue
+        if (item.source_id in PLANTS and item.condition == "serviceable"
+                and c["temperature"] >= 333.15
+                and item.details.get("physics_online") is True):
+            previous = _snapshot(item)
+            details = dict(item.details)
+            details["physics_online"] = False
+            details["physics_commanded_on"] = False
+            details["physics_startup_s"] = 0.0
+            details["physics_trip_reason"] = "local_overtemperature_protection"
+            details["physics_trip_game_time"] = last + seconds
+            item.details = details
+            item.condition = "faulted"
+            item.revision += 1
+            _event(item, "thermal_protection_trip", previous)
+            changed_equipment.add(item.key)
+        elif c["damage"] >= 0.60 and item.condition in {"serviceable", "degraded"}:
+            previous = _snapshot(item)
+            item.condition = "failed"
+            details = dict(item.details)
+            if item.source_id in PLANTS:
+                details["physics_online"] = False
+                details["physics_commanded_on"] = False
+                details["physics_startup_s"] = 0.0
+            item.details = details
+            item.revision += 1
+            _event(item, "severe_thermal_damage", previous)
+            changed_equipment.add(item.key)
+        elif c["damage"] >= 0.20 and item.condition == "serviceable":
             previous = _snapshot(item)
             item.condition = "degraded"
             item.revision += 1
@@ -699,7 +782,7 @@ def local_physics_readout(actor, target):
 @transaction.atomic
 def configure_scenario_casualty(cell_id, *, operator=False, leak_kg_s=None,
                                 heat_kw=None, fire_fuel_kg=None,
-                                fire_burn_kg_s=None):
+                                fire_burn_kg_s=None, leak_isolator_id=None):
     """Explicit operator test fault. No crew command exposes this interface."""
     if not operator:
         raise PermissionError("Only world operators may introduce scenario casualties")
@@ -709,6 +792,18 @@ def configure_scenario_casualty(cell_id, *, operator=False, leak_kg_s=None,
     d = dict(item.details)
     if leak_kg_s is not None:
         d["physics_leak_kg_s"] = _positive(leak_kg_s, zero=True, maximum=50)
+    if leak_isolator_id is not None:
+        if leak_kg_s is None or leak_kg_s <= 0:
+            raise PhysicsError("A valved leak needs a positive leak rate")
+        iso = state("isolator", leak_isolator_id, lock=True)
+        zones, _, _ = _topology()
+        kind = str(iso.reference.get("kind", "")).lower()
+        if (iso.reference.get("network") != "atmosphere"
+                or zones.get(iso.space_id) != cell_id
+                or not iso.reference.get("manual_operation")
+                or not ("valve" in kind or "damper" in kind)):
+            raise PhysicsError("Not an authored local manual atmosphere isolator")
+        d["physics_leak_isolator_id"] = leak_isolator_id
     if heat_kw is not None:
         d["physics_background_kw"] = _positive(heat_kw, zero=True, maximum=1000)
     if fire_fuel_kg is not None or fire_burn_kg_s is not None:
