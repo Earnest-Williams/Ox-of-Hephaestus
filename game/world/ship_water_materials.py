@@ -97,8 +97,12 @@ def local_classified_deposit(water, stocks, *, category, source,
             hardware.get("bins", {}).get(category, {}).get(target_side))}}
     }
     balance_key = "spares" if source == "INV-SPARES" else "filter"
+    # Update the source survey *before* stock validation in the pure
+    # conversion, or a fully surveyed last unit would briefly appear to
+    # exceed its remaining source inventory and fail a valid handoff.
+    staged = copy.deepcopy(water)
+    staged["source_surveys"][source][actor_room] -= kg
     w, balances = transfer_discard(
-        water, stocks, category=category, source=balance_key,
+        staged, stocks, category=category, source=balance_key,
         kg=kg, hardware=specific)
-    w["source_surveys"][source][actor_room] -= kg
     return w, balances
