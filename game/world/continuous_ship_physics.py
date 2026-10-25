@@ -672,6 +672,15 @@ def tick_continuous_physics(*, now_game_time=None):
             # They do not magically seize the independent drum drive.
             **{name: True for name in DRUMS},
         }
+        # Only individually surveyed placements can set a drum's cargo
+        # imbalance. Unknown bulk mass is not silently made symmetrical.
+        for drum in CARGO_DRUMS:
+            measurement = drum_balance(cargo, drum)
+            if measurement["surveyed"]:
+                rotors[drum] = {
+                    **rotors[drum],
+                    "imbalance_kg_m": measurement["imbalance_kg_m"],
+                }
         rotors = step_rotors(
             rotors, dt, powered=rotary_can_power, equipment_ok=rotor_equipment)
         if rotary_load and rotary_can_power:
@@ -999,6 +1008,7 @@ def tick_continuous_physics(*, now_game_time=None):
     d["co2_captured_kg"] = captured_co2
     d["motion"] = motion
     d["rotors"] = rotors
+    validate_cargo(cargo, motion["cargo_mass_kg"])
     d["cargo"] = cargo
     d["summary"] = {
         **summary,
@@ -1150,7 +1160,7 @@ def crew_physical_action(actor, request_id, action, target, value):
     """
     if not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
         raise PhysicsError("Expected one 32-character lowercase request UUID")
-    if action not in {"switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive"}:
+    if action not in {"switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight"}:
         raise PhysicsError("Unknown physical operation")
     if actor is None or getattr(actor.db, "ox_terminal_dead", False):
         raise PermissionError("A deceased or missing character cannot operate machinery")
@@ -1172,8 +1182,8 @@ def crew_physical_action(actor, request_id, action, target, value):
                     "isolator:" if action == "switch"
                     else "pressure:" if action == "mist"
                     else "access:" if action == "hatch"
-                    else "" if action in {"schedule", "helm", "attitude", "rotor", "drive"}
-                    else "equipment:") + (CLOCK_KEY if action in {"schedule", "helm", "attitude", "rotor", "drive"} else target)
+                    else "" if action in {"schedule", "helm", "attitude", "rotor", "drive", "freight"}
+                    else "equipment:") + (CLOCK_KEY if action in {"schedule", "helm", "attitude", "rotor", "drive", "freight"} else target)
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
@@ -1207,6 +1217,53 @@ def crew_physical_action(actor, request_id, action, target, value):
             item.details = d
             item.revision += 1
             item.save(update_fields=["details", "revision"])
+    elif action == "freight":
+        item = _clock(lock=True)
+        before = _snapshot(item)
+        d = dict(item.details)
+        cargo = d.get("cargo", {})
+        lot = cargo.get("lots", {}).get(target)
+        if not lot:
+            raise PhysicsError("Cargo lot has not been physically surveyed")
+        drum = lot["drum"]
+        room = getattr(getattr(getattr(actor, "location", None), "db", None),
+                       "ox_space_id", None)
+        if (room != drum + "-FREIGHT-LOCK" or
+                getattr(actor.db, "crew_role", None) not in {
+                    "cargo_officer", "chief_engineer", "watch_engineer"
+                } and not actor.check_permstring("Developer")):
+            raise PermissionError("Freight requires qualified operator at this drum's collar")
+        zone = _topology()[0].get(room)
+        if not zone or zone == "VACUUM" or not _air_safe(state("pressure", zone)):
+            raise PhysicsError("Freight control atmosphere is unverified or unsafe")
+        collar = state("equipment", drum + "-FREIGHT-COLLAR")
+        gate = state("access", "ACC-" + drum + "-FREIGHT-CAPTURE")
+        gate_open = gate.setting == "open" and gate.condition not in _BROKEN
+        if gate_open and value in {"to_spine", "from_spine"}:
+            spec = gate.reference
+            zones = _topology()[0]
+            za, zb = zones.get(spec["from"]), zones.get(spec["to"])
+            if not za or not zb or za == "VACUUM" or zb == "VACUUM":
+                raise PhysicsError("Freight boundary environment is unverified")
+            ca, cb = state("pressure", za), state("pressure", zb)
+            if not _air_safe(ca) or not _air_safe(cb):
+                raise PhysicsError("Freight boundary cannot prove safe chemistry")
+            pa = ca.quantity * R_SPECIFIC_AIR * ca.details["temperature_k"] / ca.details["gas_volume_m3"]
+            pb = cb.quantity * R_SPECIFIC_AIR * cb.details["temperature_k"] / cb.details["gas_volume_m3"]
+            if abs(pa - pb) > 2000:
+                raise PhysicsError("Freight pressure differential too high")
+        try:
+            d["cargo"] = start_freight_transfer(
+                cargo, d["rotors"], lot_id=target, direction=value,
+                collar_healthy=collar.condition not in _BROKEN,
+                gate_open=gate_open,
+                restricted=lot["mass_kg"] > 50_000)
+            validate_cargo(d["cargo"], d["motion"]["cargo_mass_kg"])
+        except CargoError as exc:
+            raise PhysicsError(str(exc)) from exc
+        item.details = d
+        item.revision += 1
+        item.save(update_fields=["details", "revision"])
     elif action == "drive":
         if target not in {"MAIN", "RCS"} or value not in {"inhibit", "release", "reset"}:
             raise PhysicsError("Unknown propulsion safety operation")
@@ -1251,6 +1308,9 @@ def crew_physical_action(actor, request_id, action, target, value):
                 getattr(actor.db, "crew_role", None) not in roles and
                 not actor.check_permstring("Developer")):
             raise PermissionError("Operator is not at that rotor's local machinery controls")
+        if target in DRUMS and target in _clock().details.get("cargo", {}).get("jobs", {}):
+            if value in {"start", "release", "freight_retract", "passenger_extend"}:
+                raise PhysicsError("Freight operation underway; cannot release its capture")
         if target in DRUMS and value in {"freight_extend", "passenger_extend"}:
             suffix = ("-FREIGHT-COLLAR" if value == "freight_extend"
                       else "-PERSONNEL-INDEXER")
