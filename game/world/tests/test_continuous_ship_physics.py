@@ -9,11 +9,13 @@ from world.continuous_ship_physics import (
     crew_physical_action, local_physics_readout, tick_continuous_physics,
 )
 from world.full_ship_operations import (
-    install_candidate, install_pressure_cells, initialize_nominal_atmosphere,
-    state, set_component_condition,
+    ShipOperationsError, install_candidate, install_pressure_cells,
+    initialize_nominal_atmosphere, state, set_component_condition,
+    set_isolator, vent_pressure_cell, equalize_cells,
 )
-from world.models import CanonicalShipEvent
+from world.models import CanonicalShipEvent, CanonicalShipState
 from world.ship_world import build_canonical_ship, find_ship_space
+from world.bootstrap import build_ship
 
 
 class PhysicsRuntimeTests(EvenniaTestCase):
@@ -45,7 +47,12 @@ class PhysicsRuntimeTests(EvenniaTestCase):
                                before - 1, delta=0.1)
         again = tick_continuous_physics(now_game_time=1010)
         self.assertFalse(again["advanced"])
-        self.assertEqual(state("meta", "installation").condition, "installed")
+        self.assertEqual(CanonicalShipState.objects.get(pk="meta:installation").condition,
+                         "installed")
+        with self.assertRaises(ShipOperationsError):
+            vent_pressure_cell("PZ-HAB-03", 1.0, operator=True)
+        with self.assertRaises(ShipOperationsError):
+            equalize_cells("PZ-HAB-03", "PZ-BR-03", operator=True)
 
     def test_fire_thermal_and_finite_water(self):
         before = state("inventory", "INV-WATER-NORMAL").quantity
@@ -58,8 +65,7 @@ class PhysicsRuntimeTests(EvenniaTestCase):
         self.assertGreater(cell.details["temperature_k"], 293.15)
         self.assertAlmostEqual(result["fuel_kg"] + result["gas_kg"],
                                sum(c.quantity + c.details["physics_fuel_kg"]
-                                   for c in __import__("world.models", fromlist=["CanonicalShipState"])
-                                   .CanonicalShipState.objects.filter(category="pressure")),
+                                   for c in CanonicalShipState.objects.filter(category="pressure")),
                                places=4)
         self.assertEqual(state("inventory", "INV-WATER-NORMAL").quantity, before)
 
@@ -71,24 +77,39 @@ class PhysicsRuntimeTests(EvenniaTestCase):
         self.assertFalse(result["power_assured"])
 
     def test_local_operator_authority_and_request_replay(self):
-        room = find_ship_space("CMD-PRIMARY")
-        self.char1.location = room
+        crew = build_ship()
+        watch, officer = crew["watch"], crew["officer"]
+        watch.move_to(find_ship_space("CMD-PRIMARY"), quiet=True)
         with self.assertRaises(PermissionError):
-            crew_physical_action(self.char1, "1" * 32, "plant", "GEN-M", "off")
+            crew_physical_action(watch, "1" * 32, "plant", "GEN-M", "off")
         gen = state("equipment", "GEN-M")
-        self.char1.location = find_ship_space(gen.space_id)
-        self.char1.db.crew_role = "chief_engineer"
+        watch.move_to(find_ship_space(gen.space_id), quiet=True)
         before_events = CanonicalShipEvent.objects.count()
-        receipt = crew_physical_action(self.char1, "1" * 32, "plant", "GEN-M", "off")
+        receipt = crew_physical_action(watch, "1" * 32, "plant", "GEN-M", "off")
         self.assertEqual(receipt["status"], "succeeded")
-        self.assertEqual(crew_physical_action(self.char1, "1" * 32, "plant", "GEN-M", "off"), receipt)
+        self.assertEqual(
+            crew_physical_action(watch, "1" * 32, "plant", "GEN-M", "off"),
+            receipt,
+        )
         self.assertEqual(CanonicalShipEvent.objects.count(), before_events + 1)
         with self.assertRaises(PermissionError):
-            crew_physical_action(self.char1, "1" * 32, "plant", "GEN-M", "on")
+            crew_physical_action(watch, "1" * 32, "plant", "GEN-M", "on")
         with self.assertRaises(PermissionError):
-            crew_physical_action(self.char2, "1" * 32, "plant", "GEN-M", "off")
+            crew_physical_action(officer, "1" * 32, "plant", "GEN-M", "off")
         self.assertFalse(state("equipment", "GEN-M").details["physics_online"])
-        self.assertEqual(local_physics_readout(self.char1, "GEN-M")["online"], False)
+        self.assertEqual(local_physics_readout(watch, "GEN-M")["online"], False)
+
+    def test_generator_connected_feeder_is_required_for_assured_power(self):
+        # The G17 candidate's main feeder is normally open; a healthy
+        # generator cannot energise a board until its real breaker closes.
+        set_isolator("ISO-GEN-M", "closed", operator=True)
+        ready = tick_continuous_physics(now_game_time=1010)
+        self.assertGreaterEqual(ready["available_mw"], 3.0)
+        self.assertTrue(ready["power_assured"])
+        set_component_condition("edge", "EDGE-GEN-M", "severed", operator=True)
+        failed = tick_continuous_physics(now_game_time=1020)
+        self.assertLessEqual(failed["available_mw"], 0.65)
+        self.assertFalse(failed["power_assured"])
 
     def test_rollbacks_preserve_gas_and_receipts(self):
         before = state("pressure", "PZ-HAB-03").quantity
