@@ -55,6 +55,12 @@ owned source quantities and identities.
   explicitly counted nonrecovered mission-process/reject output.
   This coarse nonpotable output is counted as an operational budget,
   **not** a fictional second potable stock or an unbounded reusable tank.
+  A damaged-but-running water or sanitation processor derates to **60%**
+  throughput and **80%** recovery, with the extra reject charged to the
+  same finite water allowance. At forty crew, a whole-leg change from
+  90% to 80% adds **73 tonnes** of makeup demand over 730 days.
+  Normal supplies may therefore run out and actual crew demand is rationed;
+  no automatic debit from the protected reserve disguises that casualty.
   More detailed water chemistry and receivers are deliberately outside
   the coarse simulator's verisimilitude requirements.
 - Ordinary demand and makeup are metered over simulation time; buffer
@@ -141,10 +147,10 @@ The new `.github/workflows/ox-g19-water.yml` runs:
 
 1. Standard-library 730-day endurance and conservation through the
    entire normal voyage, with domestic and oxygen-water allocations.
-2. Single- and dual-processor failures, fixed receiver isolation,
-   finite buffer exhaustion, sanitary-cassette exhaustion, protection
-   of the reserved 70 t, enforced nonessential emergency rationing,
-   negative-input and stock-mismatch rejection.
+2. Single- and dual-processor failures, damaged-train throughput,
+   80% degraded recovery, fixed receiver isolation, finite buffer
+   exhaustion, sanitary-cassette saturation, emergency-reserve rationing,
+   protection of the reserved 70 t, and negative-input rejection.
 3. Seeded multi-casualty/property fuzzing across variable time steps,
    processor failures, isolation, buffer saturation, material corruption
    and double evaluation without authority over persistent world state.
