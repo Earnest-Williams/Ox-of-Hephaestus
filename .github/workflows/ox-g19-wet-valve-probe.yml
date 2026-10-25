@@ -1,0 +1,33 @@
+name: G19 wet valve class probe
+
+on:
+  push:
+    branches: [g19-complete-ship-systems]
+    paths:
+      - ".github/workflows/ox-g19-wet-valve-probe.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  trace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Print wet valve and link kinds
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          s=json.loads(Path("design/ship/ox_full_ship_v0.5_candidate.json").read_text())
+          for section in ("isolation_points","service_edges"):
+              for r in s[section]:
+                  if (r["id"].startswith("ISO-WET-") or
+                      r["id"].startswith("ISO-FIXED-") or
+                      r["id"].startswith("EDGE-WET-") or
+                      r["id"].startswith("EDGE-FIXED-")):
+                      print(section, r["id"], "network",r.get("network"),"kind",r.get("kind"),
+                            "normal",r.get("normal_state"),"current",r.get("current_state"),
+                            "isolators",r.get("isolator_ids"),"condition",r.get("current_condition"))
+          PY
