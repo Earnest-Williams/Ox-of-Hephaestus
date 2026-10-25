@@ -107,7 +107,11 @@ Both sublight drive and attitude-control actuation now require a healthy
 installed `LCS-PROP` safing/controller and at least one sound bridge or aft
 propulsion panel. Command issuance also requires a healthy local helm panel.
 Control-panel damage prevents new commands; controller casualties stop
-thrust without erasing the persistent inertial velocity.
+thrust without erasing the persistent inertial velocity. A lost shared
+propulsion controller **safes both drive and RCS commands and inhibits
+restart**. Replacing or restoring the controller does not reactivate a
+previously latched firing instruction; an engineer must release the local
+inhibit and an authorised helm operator must issue a new command.
 
 **Still outside implemented operational closure:** measured per-package
 hull/rotor center of gravity, dynamic cargo-port rendezvous and autonomous

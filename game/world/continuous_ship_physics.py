@@ -856,6 +856,16 @@ def tick_continuous_physics(*, now_game_time=None):
             equipment.get(key) is not None and
             equipment[key].condition not in _BROKEN
             for key in ("LP-CMD-PRIMARY", "LP-PROP-CTRL"))
+        if not controller_sound:
+            # A shared controller failure must not quietly resume a latched
+            # thrust order after somebody replaces the broken electronics.
+            motion["command"] = "coast"
+            motion["attitude_command"] = "hold"
+            if motion["drive_condition"] == "operational":
+                motion["drive_condition"] = "inhibited"
+                motion["drive_trip_reason"] = "propulsion_control_loss"
+            if motion["rcs_condition"] == "operational":
+                motion["rcs_condition"] = "inhibited"
         drive_operational = (
             motion.get("drive_condition", "operational") == "operational"
             and controller_sound and remote_panel_sound)

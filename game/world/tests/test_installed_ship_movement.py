@@ -171,9 +171,20 @@ class InstalledMovementTests(EvenniaTestCase):
         controller.save(update_fields=["condition"])
         tick_continuous_physics(now_game_time=1010)
         self.assertFalse(_clock().details["motion"]["drive_firing"])
+        self.assertEqual(_clock().details["motion"]["command"], "coast")
+        self.assertEqual(_clock().details["motion"]["drive_condition"],
+                         "inhibited")
         controller.condition = "serviceable"
         controller.save(update_fields=["condition"])
         tick_continuous_physics(now_game_time=1020)
+        self.assertFalse(_clock().details["motion"]["drive_firing"])
+        tech = build_ship()["watch"]
+        tech.move_to(find_ship_space("PROP-CTRL"), quiet=True)
+        crew_physical_action(
+            tech, "a" * 31 + "2", "drive", "MAIN", "release")
+        crew_physical_action(
+            officer, "a" * 31 + "3", "helm", "HELM", "x+")
+        tick_continuous_physics(now_game_time=1030)
         self.assertTrue(_clock().details["motion"]["drive_firing"])
         self.assertGreater(_clock().details["motion"]["velocity_m_s"][0], 0)
 
