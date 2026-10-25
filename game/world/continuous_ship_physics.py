@@ -846,8 +846,22 @@ def tick_continuous_physics(*, now_game_time=None):
         # Propulsion hardware is represented by durable world-owned motion
         # condition flags until dedicated drive/RCS installations are mapped.
         # A failed drive can coast, but cannot silently resume thrust.
-        drive_operational = motion.get("drive_condition", "operational") == "operational"
-        rcs_operational = motion.get("rcs_condition", "operational") == "operational"
+        # Authored local propulsion stations are real operating equipment.
+        # A damaged local safing/controller makes both thruster families
+        # unavailable, irrespective of the last commanded software state.
+        controller_sound = (
+            equipment.get("LCS-PROP") is not None
+            and equipment["LCS-PROP"].condition not in _BROKEN)
+        remote_panel_sound = any(
+            equipment.get(key) is not None and
+            equipment[key].condition not in _BROKEN
+            for key in ("LP-CMD-PRIMARY", "LP-PROP-CTRL"))
+        drive_operational = (
+            motion.get("drive_condition", "operational") == "operational"
+            and controller_sound and remote_panel_sound)
+        rcs_operational = (
+            motion.get("rcs_condition", "operational") == "operational"
+            and controller_sound and remote_panel_sound)
         # A real, declared, restrained and captured cargo sled can be
         # advanced only while power and the separate collar/pressure
         # interfaces remain available. Mass doesn't disappear during travel.
@@ -1447,6 +1461,9 @@ def _helm_at(actor):
     if room not in allowed or (role not in allowed[room] and
                                not actor.check_permstring("Developer")):
         raise PermissionError("Helm requires an authorised operator at a real command station")
+    panel = state("equipment", "LP-" + room)
+    if panel.condition in _BROKEN:
+        raise PhysicsError("Physical helm control panel damaged; use another authorised station")
 
 
 def _crew_at(actor, space_id):

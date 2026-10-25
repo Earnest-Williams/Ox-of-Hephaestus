@@ -81,6 +81,18 @@ def command_leg(motion, route_id, command):
                 or result["attitude_command"] != "hold"
                 or any(abs(v) > 0.0001 for v in result["angular_velocity_rad_s"])):
             raise NavigationError("Stable coast and attitude required to translate")
+        # The authoritative departure mass is the *current* loaded ship,
+        # not the mass measured when a navigator first prepared the route.
+        # Commercial cargo, reaction mass and fluids may have changed.
+        departure = sum(result[key] for key in (
+            "dry_mass_kg", "cargo_mass_kg", "ftl_fuel_kg",
+            "mission_fluids_kg", "propellant_kg"))
+        cost = leg_fuel_kg(leg["distance_ly"], leg["cruise_c"], departure)
+        if result["ftl_fuel_kg"] - cost < PROTECTED_FTL_KG:
+            raise NavigationError("Departure cargo or bunker change exceeds viable FTL reserve")
+        leg["departure_mass_kg"] = departure
+        leg["total_fuel_kg"] = cost
+        leg["consumed_fuel_kg"] = 0.0
         leg["status"] = "engaged"
     elif command == "abort":
         if leg["status"] not in {"planned", "engaged"}:

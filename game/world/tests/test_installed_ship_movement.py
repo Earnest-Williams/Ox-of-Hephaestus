@@ -16,7 +16,7 @@ from world.continuous_ship_physics import (
 )
 from world.full_ship_operations import (
     install_candidate, install_pressure_cells,
-    initialize_nominal_atmosphere, load_candidate, set_isolator,
+    initialize_nominal_atmosphere, load_candidate, set_isolator, state,
 )
 from world.ship_world import build_canonical_ship, find_ship_space
 
@@ -152,6 +152,30 @@ class InstalledMovementTests(EvenniaTestCase):
                 operator_approved=True, operation="declare",
                 lot_id="IMPOSSIBLE", mass_kg=900_000_000,
                 drum="DR-02", azimuth_deg=0, radius_m=20)
+
+    def test_installed_propulsion_controller_casualty_prevents_thrust(self):
+        officer = build_ship()["officer"]
+        officer.move_to(find_ship_space("CMD-PRIMARY"), quiet=True)
+        panel = state("equipment", "LP-CMD-PRIMARY")
+        panel.condition = "failed"
+        panel.save(update_fields=["condition"])
+        with self.assertRaises(PhysicsError):
+            crew_physical_action(
+                officer, "a" * 31 + "0", "helm", "HELM", "x+")
+        panel.condition = "serviceable"
+        panel.save(update_fields=["condition"])
+        crew_physical_action(
+            officer, "a" * 31 + "1", "helm", "HELM", "x+")
+        controller = state("equipment", "LCS-PROP")
+        controller.condition = "failed"
+        controller.save(update_fields=["condition"])
+        tick_continuous_physics(now_game_time=1010)
+        self.assertFalse(_clock().details["motion"]["drive_firing"])
+        controller.condition = "serviceable"
+        controller.save(update_fields=["condition"])
+        tick_continuous_physics(now_game_time=1020)
+        self.assertTrue(_clock().details["motion"]["drive_firing"])
+        self.assertGreater(_clock().details["motion"]["velocity_m_s"][0], 0)
 
     def test_freight_action_requires_local_environmental_proof(self):
         survey_cargo_lot(
