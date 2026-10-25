@@ -1371,6 +1371,10 @@ def tick_continuous_physics(*, now_game_time=None):
                                      for k, v in water_stocks.items()})
     water_report = None
     water_tick_report = None
+    repairs = clock.details.get("repairs")
+    if repairs is not None:
+        validate_repairs(repairs)
+    waste_export_kg = 0.0
     changed_equipment = set()
     motion = dict(clock.details.get("motion", {}))
     if not motion:
@@ -1518,9 +1522,14 @@ def tick_continuous_physics(*, now_game_time=None):
         # These are separate full-size commercial portals, not the 50-tonne
         # internal spine. A real contact, stationary indexed drum, a sealed
         # inner gallery door and sound radial rail are all prerequisites.
+        busy_waste_drums = (
+            {job["portal_id"][:5] for job in
+             water_state.get("waste_offload", {}).get("jobs", {}).values()}
+            if water_state is not None else set())
         requested_ports = sorted(
             portal for portal, job in cargo.get("port_jobs", {}).items()
-            if not job.get("paused", False))
+            if not job.get("paused", False)
+            and portal[:5] not in busy_waste_drums)
         free_mw = max(0.0, power["available_mw"] - power["requested_mw"])
         ready_ports = set()
         for portal in requested_ports:
@@ -1553,6 +1562,61 @@ def tick_continuous_physics(*, now_game_time=None):
             power["dispatched_mw"] += port_load
             power["generation_fraction"] = (
                 power["dispatched_mw"] / power["available_mw"])
+
+        # Sealed solid-waste removal reuses the same fitted radial freight
+        # handler and commercial port. Mass first follows the surveyed fixed
+        # spine, remains INBOARD in a time-bound carrier, and leaves the ship
+        # only when its separately authorised berth actually accepts it.
+        # These phases never spend cargo inventory or fabricate a spare bin.
+        if water_state is not None and water_state["waste_offload"]["jobs"]:
+            by_access = {x.source_id: x for x in access_rows}
+            by_pressure = {x.source_id: x for x in pressure_rows}
+            freight_ready = set()
+            waste_ports_ready = set()
+            available = max(0.0, power["available_mw"] - power["requested_mw"])
+            for receiver_id, job in sorted(
+                    water_state["waste_offload"]["jobs"].items()):
+                if job["paused"]:
+                    continue
+                if job["phase"] in {"hauling", "aborting", "returning"}:
+                    if (power["assured"] and available + 1e-9 >= CARGO_TRANSFER_MW
+                            and _waste_freight_ready(
+                                job, water_state, rotors=rotors,
+                                equipment=equipment, access=by_access,
+                                pressure=by_pressure, zones=zones,
+                                cargo=cargo)):
+                        freight_ready.add(receiver_id)
+                        available -= CARGO_TRANSFER_MW
+                elif job["phase"] == "offloading":
+                    if (power["assured"] and available + 1e-9 >= WASTE_PORT_AUX_MW
+                            and _waste_port_ready(
+                                job, rotors=rotors, equipment=equipment,
+                                access=by_access, cargo=cargo)):
+                        waste_ports_ready.add(receiver_id)
+                        available -= WASTE_PORT_AUX_MW
+            try:
+                water_state, new_stocks, waste_step = step_offload(
+                    water_state, dt, freight_ready=freight_ready,
+                    port_ready=waste_ports_ready,
+                    stocks={cat: water_stocks[cat].quantity * 1000.0
+                            for cat in ("sanitary", "industrial", "hazardous")})
+            except WaterError as exc:
+                raise PhysicsError(str(exc)) from exc
+            for cat, qty in new_stocks.items():
+                water_stocks[cat].quantity = qty / 1000.0
+            exported = waste_step["exported_kg"]
+            if exported:
+                if motion["dry_mass_kg"] + 1e-7 < exported:
+                    raise PhysicsError("Sealed waste export exceeds finite ship mass")
+                motion["dry_mass_kg"] -= exported
+                waste_export_kg += exported
+            waste_load = (len(freight_ready) * CARGO_TRANSFER_MW +
+                          len(waste_ports_ready) * WASTE_PORT_AUX_MW)
+            if waste_load:
+                power["requested_mw"] += waste_load
+                power["dispatched_mw"] += waste_load
+                power["generation_fraction"] = (
+                    power["dispatched_mw"] / power["available_mw"])
         rotary_load = motion_power_mw(rotors)
         rotary_can_power = (
             power["assured"] and
@@ -1946,6 +2010,69 @@ def tick_continuous_physics(*, now_game_time=None):
             stock.save(update_fields=["quantity", "revision"])
             _event(stock, "water_or_waste_mass_transfer", before_stock)
 
+    # Maintenance progresses only with qualified workers still physically
+    # on site, and equipment still provably isolated and environmentally safe.
+    # A recorded fault cannot be repaired by simply toggling a status flag.
+    if repairs is not None and repairs["jobs"]:
+        from evennia.objects.models import ObjectDB
+        refs = {ref for job in repairs["jobs"].values()
+                for ref in job["workers"]}
+        ids = [int(ref[1:]) for ref in refs if isinstance(ref, str)
+               and ref.startswith("#") and ref[1:].isdigit()]
+        by_id = {obj.dbref: obj for obj in ObjectDB.objects.filter(id__in=ids)}
+        present = defaultdict(set)
+        for ref, actor in by_id.items():
+            if (getattr(actor, "location", None) is not None
+                    and getattr(actor.db, "crew_role", None) in AUTHORISED_ROLES
+                    and not getattr(actor.db, "ox_terminal_dead", False)):
+                room_id = getattr(actor.location.db, "ox_space_id", None)
+                if room_id:
+                    present[room_id].add(ref)
+        by_pressure = {row.source_id: row for row in pressure_rows}
+        by_isolator = {x.source_id: x for x in isolators.values()}
+        by_access = {x.source_id: x for x in access_rows}
+        safe = set()
+        for key, job in repairs["jobs"].items():
+            category, identifier = key.split(":", 1)
+            row = (equipment.get(identifier) if category == "equipment" else
+                   by_isolator.get(identifier) if category == "isolator" else
+                   by_access.get(identifier))
+            if (row is not None and row.space_id == job["room"] and
+                    row.condition == job["condition"] and
+                    safe_repair_target(
+                        row, pressure_rows=by_pressure, zones=zones,
+                        rotors=rotors, motion=motion, water=water_state,
+                        cargo=cargo, equipment=equipment,
+                        isolators=isolators)):
+                safe.add(key)
+        try:
+            repairs, repair_completed = step_repairs(
+                repairs, seconds, present_workers=present,
+                safe_targets=safe)
+        except WaterError as exc:
+            raise PhysicsError(str(exc)) from exc
+        for key, original, installed_spares in repair_completed:
+            category, identifier = key.split(":", 1)
+            item = (equipment[identifier] if category == "equipment" else
+                    by_isolator[identifier] if category == "isolator" else
+                    by_access[identifier])
+            if item.condition != original:
+                raise PhysicsError("Underlying machine condition changed before repair")
+            prior = _snapshot(item)
+            info = dict(item.details)
+            info["repair_cumulative_kg"] = (
+                info.get("repair_cumulative_kg", 0.0) + installed_spares)
+            info["repair_completed_game_time"] = last + seconds
+            # A real replacement does not restart pumps/generators by magic.
+            if item.source_id in PLANTS:
+                info["physics_online"] = False
+                info["physics_commanded_on"] = False
+                info["physics_startup_s"] = 0.0
+            item.details = info
+            item.condition = "serviceable"
+            item.revision += 1
+            item.save(update_fields=["details", "condition", "revision"])
+            _event(item, "crew_finite_equipment_repair_complete", prior)
     old = _snapshot(clock)
     d = dict(clock.details)
     d["last_game_time"] = last + seconds
@@ -1955,6 +2082,8 @@ def tick_continuous_physics(*, now_game_time=None):
     d["water_suppression_kg"] += water
     d["co2_captured_kg"] = captured_co2
     d["motion"] = motion
+    if repairs is not None:
+        d["repairs"] = repairs
     if water_state is not None:
         d["water"] = water_state
     d["rotors"] = rotors
@@ -1982,6 +2111,11 @@ def tick_continuous_physics(*, now_game_time=None):
         "commercial_port_jobs": len(cargo.get("port_jobs", {})),
         "commercial_ports_docked": len(cargo.get("port_contacts", {})),
         "cargo_offship_kg": round(cargo["delivered_offship_kg"], 3),
+        "waste_exported_this_tick_kg": round(waste_export_kg, 4),
+        "waste_exported_total_kg": (dict(water_state["waste_offload"]["delivered_kg"])
+                                    if water_state is not None else None),
+        "repair_work_orders": (len(repairs["jobs"]) if repairs is not None else None),
+        "repairs_completed": (repairs["completed"] if repairs is not None else None),
         "drive_firing": motion["drive_firing"],
         "drive_power_mw": motion["drive_power_mw"],
         "drive_condition": motion["drive_condition"],
@@ -2001,6 +2135,8 @@ def tick_continuous_physics(*, now_game_time=None):
             "local_kg": water_state["local"],
             "cumulative": water_state["cumulative"],
             "potable_quarantined": water_state["potable_quarantined"],
+            "port_jobs": water_state["waste_offload"]["jobs"],
+            "port_delivered_kg": water_state["waste_offload"]["delivered_kg"],
             "last_step": water_tick_report,
         } if water_state is not None else None),
     }
