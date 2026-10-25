@@ -417,6 +417,58 @@ def commission_g19_movement(*, operator_approved=False):
 
 
 
+@transaction.atomic
+def survey_cargo_lot(*, operator_approved=False, operation, lot_id=None,
+                     mass_kg=None, drum=None, azimuth_deg=None,
+                     radius_m=None, kind="bulk", restrained=True,
+                     source_id=None):
+    """Operator's actual cargo observation, never a synthetic load/unload.
+
+    A manifest survey assigns known mass from the previously unlocated
+    commercial cargo to a physical stowage datum. Splitting creates a small
+    package within existing mass; verifying one drum does not assert anything
+    about the other five. Every mutation is atomic and event-journalled.
+    """
+    if not operator_approved:
+        raise PermissionError("Cargo placement requires an operator's surveyed evidence")
+    clock = _clock(lock=True)
+    before = _snapshot(clock)
+    d = dict(clock.details)
+    cargo = d.get("cargo")
+    if cargo is None:
+        raise PhysicsError("Cargo ledger not commissioned")
+    try:
+        if operation == "declare":
+            revised = declare_cargo_lot(
+                cargo, lot_id=lot_id, mass_kg=mass_kg, drum=drum,
+                azimuth_deg=azimuth_deg, radius_m=radius_m,
+                kind=kind, restrained=restrained)
+        elif operation == "split":
+            revised = split_cargo_lot(
+                cargo, source_id=source_id, new_id=lot_id,
+                mass_kg=mass_kg)
+        elif operation == "verify":
+            revised = verify_drum(cargo, drum)
+        else:
+            raise CargoError("Unknown cargo survey operation")
+        validate_cargo(revised, d["motion"]["cargo_mass_kg"])
+    except CargoError as exc:
+        raise PhysicsError(str(exc)) from exc
+    if revised != cargo:
+        d["cargo"] = revised
+        clock.details = d
+        clock.revision += 1
+        clock.save(update_fields=["details", "revision"])
+        _event(clock, "operator_cargo_" + operation, before)
+    return {
+        "operation": operation,
+        "onboard_kg": onboard_mass_kg(revised),
+        "unlocated_kg": revised["unlocated_onboard_kg"],
+        "lots": len(revised["lots"]),
+        "verified_drums": list(revised["verified_drums"]),
+    }
+
+
 def _physical_passage(iso):
     """A mechanically jammed-open air valve still leaks even if actuators fail."""
     kind = str(iso.reference.get("kind", "")).lower()
