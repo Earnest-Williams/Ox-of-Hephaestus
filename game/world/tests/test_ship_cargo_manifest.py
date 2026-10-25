@@ -4,7 +4,7 @@ import unittest
 from world.ship_cargo_manifest import (
     CargoError, initial_cargo, declare_cargo_lot, split_cargo_lot,
     verify_drum, validate_cargo, drum_balance, start_freight_transfer,
-    step_freight, onboard_mass_kg,
+    step_freight, onboard_mass_kg, restow_cargo_lot, unsecured_drum_loads,
 )
 from world.ship_motion_machinery import initial_rotors, set_rotor_command
 
@@ -121,6 +121,64 @@ class ShipCargoTests(unittest.TestCase):
         self.assertEqual(moved, ())
         self.assertEqual(stuck["jobs"], cargo["jobs"])
         self.assertTrue(validate_cargo(stuck, self.total))
+
+    def test_interdrum_spine_transfer_requires_receiving_collar_and_restow(self):
+        cargo, rotors = self._ready()
+        cargo["lots"]["BOX"]["location"] = "SPINE-FREIGHT"
+        cargo = verify_drum(cargo, "DR-04")
+        rotors = set_rotor_command(rotors, "DR-04", "freight_extend")
+        transfer = start_freight_transfer(
+            cargo, rotors, lot_id="BOX", direction="from_spine",
+            collar_healthy=True, gate_open=True, destination_drum="DR-04")
+        self.assertIn("DR-04", transfer["jobs"])
+        midway, moved = step_freight(
+            transfer, 30, power_ready=True, available_collars={"DR-04"},
+            open_fixed_gates={"DR-04"})
+        self.assertEqual(moved, ())
+        arrived, moved = step_freight(
+            midway, 40, power_ready=True, available_collars={"DR-04"},
+            open_fixed_gates={"DR-04"})
+        self.assertEqual(moved, ("BOX",))
+        self.assertEqual(arrived["lots"]["BOX"]["drum"], "DR-04")
+        self.assertEqual(arrived["lots"]["BOX"]["location"],
+                         "DR-04-FREIGHT-LOCK")
+        self.assertTrue(validate_cargo(arrived, self.total))
+        loading = start_freight_transfer(
+            arrived, rotors, lot_id="BOX", direction="to_drum",
+            collar_healthy=True)
+        installed, moved = step_freight(
+            loading, 70, power_ready=True, available_collars={"DR-04"})
+        self.assertEqual(moved, ("BOX",))
+        self.assertTrue(unsecured_drum_loads(installed, "DR-04"))
+        secured = restow_cargo_lot(
+            installed, lot_id="BOX", azimuth_deg=180, radius_m=0.1)
+        self.assertFalse(unsecured_drum_loads(secured, "DR-04"))
+        self.assertTrue(validate_cargo(secured, self.total))
+
+    def test_spine_station_cannot_be_double_booked(self):
+        cargo, rotors = self._ready()
+        cargo = declare_cargo_lot(
+            cargo, lot_id="BOX2", mass_kg=1000, drum="DR-02",
+            azimuth_deg=0, radius_m=0.1, kind="sled")
+        cargo = verify_drum(cargo, "DR-02")
+        rotors = set_rotor_command(rotors, "DR-02", "freight_extend")
+        cargo["lots"]["BOX"]["location"] = "DR-03-FREIGHT-LOCK"
+        cargo["lots"]["BOX2"]["location"] = "DR-02-FREIGHT-LOCK"
+        underway = start_freight_transfer(
+            cargo, rotors, lot_id="BOX", direction="to_spine",
+            collar_healthy=True, gate_open=True)
+        with self.assertRaises(CargoError):
+            start_freight_transfer(
+                underway, rotors, lot_id="BOX2", direction="to_spine",
+                collar_healthy=True, gate_open=True)
+        empty, moved = step_freight(
+            underway, 70, power_ready=True,
+            available_collars={"DR-03"}, open_fixed_gates={"DR-03"})
+        self.assertEqual(moved, ("BOX",))
+        with self.assertRaises(CargoError):
+            start_freight_transfer(
+                empty, rotors, lot_id="BOX2", direction="to_spine",
+                collar_healthy=True, gate_open=True)
 
     def test_stowage_rejects_nan_and_invalid_shapes(self):
         for azimuth in (float("nan"), float("inf"), 360, -1):
