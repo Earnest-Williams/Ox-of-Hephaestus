@@ -232,10 +232,18 @@ def _power(equipment, edges, isolators, profile):
     reached = _reachable(edges, isolators, "power",
                          [GENERATOR_NODES[k] for k in active if active[k]])
     requested = LOAD_PROFILES_MW[profile]
+    # Available output is not the same as dispatched output. The electrical
+    # plant supplies only the demand it can serve; generators cannot produce
+    # full nameplate heat while delivering a fraction of their capacity.
+    dispatched = min(mw, requested)
+    generation_fraction = dispatched / mw if mw > 0 else 0.0
     return {
         "available_mw": mw, "requested_mw": requested,
+        "dispatched_mw": dispatched,
+        "generation_fraction": generation_fraction,
         "shortfall_mw": max(0.0, requested - mw),
         "assured": mw + 1e-9 >= requested,
+        "active_generators": tuple(k for k in GENERATION_MW if active[k]),
         "nodes": reached,
     }
 
@@ -437,12 +445,11 @@ def tick_continuous_physics(*, now_game_time=None):
             zone = owners.get(plant_id)
             if zone in cells and _on(equipment, plant_id):
                 if plant_id in GENERATION_MW:
-                    producing = any(
-                        e.source_id == "EDGE-" + plant_id
-                        and _live_edge(e, isolators) for e in edges)
-                else:
-                    producing = powered
-                if producing:
+                    if plant_id in power["active_generators"]:
+                        # Fixed idling losses plus a load-dependent component.
+                        machinery_heat_kw[zone] += heat_kw * (
+                            0.25 + 0.75 * power["generation_fraction"])
+                elif powered:
                     machinery_heat_kw[zone] += heat_kw
         for cell_id, cell in cells.items():
             mass = cell["mass"]
