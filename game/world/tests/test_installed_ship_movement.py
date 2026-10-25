@@ -104,7 +104,7 @@ class InstalledMovementTests(EvenniaTestCase):
         clock = state("meta", "continuous-physics")
         details = dict(clock.details)
         movement = dict(details["motion"])
-        movement["drive_heat_kj"] = 149_990_000.0
+        movement["drive_heat_kj"] = 149_999_000.0
         details["motion"] = movement
         clock.details = details
         clock.save(update_fields=["details"])
