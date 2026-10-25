@@ -237,12 +237,16 @@ def _power(equipment, edges, isolators, profile):
     # full nameplate heat while delivering a fraction of their capacity.
     dispatched = min(mw, requested)
     generation_fraction = dispatched / mw if mw > 0 else 0.0
+    # Protected bus can remain live under a partial generation shortfall.
+    # Nonessential machinery still requires the selected full load profile.
+    essential_assured = mw + 1e-9 >= LOAD_PROFILES_MW["essential"]
     return {
         "available_mw": mw, "requested_mw": requested,
         "dispatched_mw": dispatched,
         "generation_fraction": generation_fraction,
         "shortfall_mw": max(0.0, requested - mw),
         "assured": mw + 1e-9 >= requested,
+        "essential_assured": essential_assured,
         "active_generators": tuple(k for k in GENERATION_MW if active[k]),
         "nodes": reached,
     }
@@ -370,6 +374,8 @@ def tick_continuous_physics(*, now_game_time=None):
 
         power = _power(equipment, edges, isolators, clock.details["load_profile"])
         # No unproven infinite battery/flywheel bridge or magic auto load shedding.
+        protected_power = power["essential_assured"] and (
+            "PWR-PROT" in power["nodes"])
         powered = power["assured"] and bool(
             {"PWR-MSB-A", "PWR-MSB-B", "PWR-PROT"} & power["nodes"])
         active_air_trains = {
@@ -522,6 +528,9 @@ def tick_continuous_physics(*, now_game_time=None):
             "available_mw": round(power["available_mw"], 4),
             "requested_mw": power["requested_mw"],
             "power_assured": powered,
+            "protected_power": protected_power,
+            "dispatched_mw": round(power["dispatched_mw"], 4),
+            "shortfall_mw": round(power["shortfall_mw"], 4),
             "ventilation_powered": air_on,
             "cooling_kw": round(total_cool_kw, 3),
             "burning_cells": sum(c["burn"] > 0 for c in cells.values()),
