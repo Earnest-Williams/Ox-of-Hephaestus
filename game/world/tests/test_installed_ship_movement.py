@@ -97,6 +97,28 @@ class InstalledMovementTests(EvenniaTestCase):
         with self.assertRaises(PermissionError):
             crew_physical_action(tech, "8" * 32, "drive", "MAIN", "inhibit")
 
+    def test_propulsion_heat_trips_and_requires_cooled_local_reset(self):
+        officer = build_ship()["officer"]
+        officer.move_to(find_ship_space("CMD-PRIMARY"), quiet=True)
+        crew_physical_action(officer, "9" * 32, "helm", "HELM", "x+")
+        clock = state("meta", "continuous-physics")
+        details = dict(clock.details)
+        movement = dict(details["motion"])
+        movement["drive_heat_kj"] = 149_990_000.0
+        details["motion"] = movement
+        clock.details = details
+        clock.save(update_fields=["details"])
+        tick_continuous_physics(now_game_time=1010)
+        motion = state("meta", "continuous-physics").details["motion"]
+        self.assertEqual(motion["drive_condition"], "thermal_trip")
+        self.assertEqual(motion["command"], "coast")
+        tech = build_ship()["watch"]
+        tech.move_to(find_ship_space("PROP-CTRL"), quiet=True)
+        with self.assertRaises(PhysicsError):
+            crew_physical_action(tech, "a" * 32, "drive", "MAIN", "inhibit")
+        with self.assertRaises(PhysicsError):
+            crew_physical_action(tech, "b" * 32, "drive", "MAIN", "reset")
+
     def test_explicit_migration_preserves_motion_and_reconciles_mass(self):
         clock = state("meta", "continuous-physics")
         previous = dict(clock.details)
