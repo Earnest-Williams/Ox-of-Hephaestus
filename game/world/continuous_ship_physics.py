@@ -199,11 +199,18 @@ def _now(value):
 
 
 def _snapshot(item):
-    return {"condition": item.condition, "setting": item.setting,
-            "quantity": item.quantity, "revision": item.revision,
-            "temperature_k": item.details.get("temperature_k"),
-            "physics": {k: v for k, v in item.details.items()
-                        if k.startswith("physics_")}}
+    result = {"condition": item.condition, "setting": item.setting,
+              "quantity": item.quantity, "revision": item.revision,
+              "temperature_k": item.details.get("temperature_k"),
+              "physics": {k: v for k, v in item.details.items()
+                          if k.startswith("physics_")}}
+    # Retain independently auditable machinery transitions in world events.
+    # Earlier clock snapshots omitted motion and made a successfully
+    # receipted helm/rotor operation indistinguishable from a no-op.
+    if item.key == CLOCK_KEY:
+        result["motion"] = item.details.get("motion")
+        result["rotors"] = item.details.get("rotors")
+    return result
 
 
 def _event(item, operation, before, *, actor=None, request_id=None):
