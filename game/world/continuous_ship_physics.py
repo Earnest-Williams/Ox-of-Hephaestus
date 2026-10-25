@@ -27,6 +27,10 @@ from world.ship_ftl_navigation import (
     NavigationError, AUXILIARY_MW as FTL_AUX_MW,
     FIELD_HEAT_KW as FTL_HEAT_KW, prepare_leg, command_leg, advance_leg,
 )
+from world.ship_port_operations import (
+    PORTALS, PORT_AUX_MW, contacts_active, commission_port_contact,
+    register_external_consignment, start_port_job, step_port_jobs,
+)
 from world.ship_cargo_manifest import (
     CargoError, DRUMS as CARGO_DRUMS, initial_cargo, validate_cargo,
     onboard_mass_kg, declare_cargo_lot, split_cargo_lot, verify_drum,
@@ -436,6 +440,15 @@ def commission_g19_movement(*, operator_approved=False):
         # A candidate's unpositioned cargo is not six fabricated drum loads.
         d["cargo"] = initial_cargo(d["motion"]["cargo_mass_kg"])
         changed = True
+    else:
+        cargo = dict(d["cargo"])
+        fresh = initial_cargo(d["motion"]["cargo_mass_kg"])
+        for key in ("port_contract_version", "port_contacts", "port_jobs",
+                    "registered_external_kg"):
+            if key not in cargo:
+                cargo[key] = fresh[key]
+                changed = True
+        d["cargo"] = cargo
     if changed:
         old = _snapshot(clock)
         d["movement_commissioned_from_candidate"] = MODEL
@@ -730,6 +743,11 @@ def tick_continuous_physics(*, now_game_time=None):
         raise PhysicsError(str(exc)) from exc
     if set(rotors) != set(ROTORS):
         raise PhysicsError("Rotary machinery not commissioned")
+    # Port jobs must not be allowed to change inertial mass during a
+    # translation leg, and mooring retains the ship in a docked state.
+    if contacts_active(cargo):
+        if motion["command"] != "coast":
+            raise PhysicsError("Main propulsion commanded while externally moored")
     summary = {}
     duration = 0.0
 
@@ -786,6 +804,42 @@ def tick_continuous_physics(*, now_game_time=None):
         if freight_load and freight_can_power and freight_collars:
             power["requested_mw"] += freight_load
             power["dispatched_mw"] += freight_load
+            power["generation_fraction"] = (
+                power["dispatched_mw"] / power["available_mw"])
+        # These are separate full-size commercial portals, not the 50-tonne
+        # internal spine. A real contact, stationary indexed drum, a sealed
+        # inner gallery door and sound radial rail are all prerequisites.
+        requested_ports = sorted(cargo.get("port_jobs", {}))
+        free_mw = max(0.0, power["available_mw"] - power["requested_mw"])
+        ready_ports = set()
+        for portal in requested_ports:
+            drum = portal[:5]
+            rotor = rotors[drum]
+            access = next((x for x in access_rows
+                           if x.source_id == "ACC-" + portal), None)
+            sound_handler = (equipment.get(drum + "-RADIAL-FREIGHT-HANDLER")
+                             is not None and
+                             equipment[drum + "-RADIAL-FREIGHT-HANDLER"].condition
+                             not in _BROKEN)
+            if (free_mw + 1e-9 >= PORT_AUX_MW and power["assured"]
+                    and access and access.condition not in _BROKEN
+                    and access.setting == "closed" and sound_handler
+                    and rotor["hardlock"] and rotor["brake"]
+                    and rotor["target_rpm"] == 0
+                    and abs(rotor["rpm"]) <= 0.001
+                    and not rotor["passenger_indexer"]
+                    and not rotor["freight_collar"]
+                    and drum not in cargo["jobs"]):
+                ready_ports.add(portal)
+                free_mw -= PORT_AUX_MW
+        cargo, finished_ports = step_port_jobs(
+            cargo, dt, available_portals=ready_ports,
+            capacity_kg=motion["cargo_capacity_kg"])
+        motion["cargo_mass_kg"] = onboard_mass_kg(cargo)
+        port_load = len(ready_ports) * PORT_AUX_MW
+        if port_load:
+            power["requested_mw"] += port_load
+            power["dispatched_mw"] += port_load
             power["generation_fraction"] = (
                 power["dispatched_mw"] / power["available_mw"])
         rotary_load = motion_power_mw(rotors)
@@ -860,8 +914,10 @@ def tick_continuous_physics(*, now_game_time=None):
                 power["dispatched_mw"] / power["available_mw"])
         motion = _advance_motion(
             motion, dt, power,
-            drive_operational=drive_operational and not ftl_active,
-            rcs_operational=rcs_operational and not ftl_active)
+            drive_operational=drive_operational and not ftl_active
+                              and not contacts_active(cargo),
+            rcs_operational=rcs_operational and not ftl_active
+                            and not contacts_active(cargo))
         # Account for propulsion-control auxiliaries, NOT thrust energy, in
         # electrical dispatch and electrical-generator waste heat.
         drive_load = motion["drive_power_mw"]
@@ -1206,6 +1262,9 @@ def tick_continuous_physics(*, now_game_time=None):
         "ship_cargo_mass_kg": round(motion["cargo_mass_kg"], 3),
         "cargo_unlocated_kg": round(cargo["unlocated_onboard_kg"], 3),
         "freight_jobs": len(cargo["jobs"]),
+        "commercial_port_jobs": len(cargo.get("port_jobs", {})),
+        "commercial_ports_docked": len(cargo.get("port_contacts", {})),
+        "cargo_offship_kg": round(cargo["delivered_offship_kg"], 3),
         "drive_firing": motion["drive_firing"],
         "drive_power_mw": motion["drive_power_mw"],
         "drive_condition": motion["drive_condition"],
@@ -1339,7 +1398,7 @@ def crew_physical_action(actor, request_id, action, target, value):
     """
     if not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
         raise PhysicsError("Expected one 32-character lowercase request UUID")
-    if action not in {"switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl"}:
+    if action not in {"switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port"}:
         raise PhysicsError("Unknown physical operation")
     if actor is None or getattr(actor.db, "ox_terminal_dead", False):
         raise PermissionError("A deceased or missing character cannot operate machinery")
@@ -1361,8 +1420,8 @@ def crew_physical_action(actor, request_id, action, target, value):
                     "isolator:" if action == "switch"
                     else "pressure:" if action == "mist"
                     else "access:" if action == "hatch"
-                    else "" if action in {"schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl"}
-                    else "equipment:") + (CLOCK_KEY if action in {"schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl"} else target)
+                    else "" if action in {"schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port"}
+                    else "equipment:") + (CLOCK_KEY if action in {"schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port"} else target)
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
@@ -1396,6 +1455,48 @@ def crew_physical_action(actor, request_id, action, target, value):
             item.details = d
             item.revision += 1
             item.save(update_fields=["details", "revision"])
+    elif action == "port":
+        if target not in PORTALS or not isinstance(value, str):
+            raise PhysicsError("Unknown commercial loading portal")
+        parts = value.split(":")
+        if len(parts) != 2 or parts[0] not in {"load", "unload"}:
+            raise PhysicsError("Port action requires load:<lot> or unload:<lot>")
+        direction, lot_id = parts
+        drum = target[:5]
+        room = getattr(getattr(getattr(actor, "location", None), "db", None),
+                       "ox_space_id", None)
+        if (room not in {"CARGO-CTRL-FWD", drum + "-GALLERY"} or
+                getattr(actor.db, "crew_role", None) not in
+                {"cargo_officer", "chief_engineer", "watch_engineer"} and
+                not actor.check_permstring("Developer")):
+            raise PermissionError("Cargo operator must attend a real cargo station")
+        station = state("equipment", "LP-CARGO-CTRL-FWD")
+        handler = state("equipment", drum + "-RADIAL-FREIGHT-HANDLER")
+        inner = state("access", "ACC-" + target)
+        if (station.condition in _BROKEN or handler.condition in _BROKEN
+                or inner.condition in _BROKEN):
+            raise PhysicsError("Commercial port or cargo-handling machinery damaged")
+        item = _clock(lock=True)
+        before = _snapshot(item)
+        d = dict(item.details)
+        motion = d["motion"]
+        if ((motion.get("ftl_leg") or {}).get("status") == "engaged"
+                or motion["command"] != "coast"
+                or motion["attitude_command"] != "hold"
+                or any(abs(v) > 0.0001 for v in motion["angular_velocity_rad_s"])):
+            raise PhysicsError("Cargo operations prohibited while ship manoeuvring")
+        try:
+            d["cargo"] = start_port_job(
+                d["cargo"], d["rotors"], lot_id=lot_id,
+                portal_id=target, direction=direction,
+                capacity_kg=motion["cargo_capacity_kg"],
+                equipment_ready=True, inner_gate_sealed=inner.setting == "closed")
+            validate_cargo(d["cargo"], motion["cargo_mass_kg"])
+        except CargoError as exc:
+            raise PhysicsError(str(exc)) from exc
+        item.details = d
+        item.revision += 1
+        item.save(update_fields=["details", "revision"])
     elif action == "freight":
         item = _clock(lock=True)
         before = _snapshot(item)
@@ -1557,6 +1658,8 @@ def crew_physical_action(actor, request_id, action, target, value):
             raise PhysicsError("Ship motion has not been commissioned")
         if (motion.get("ftl_leg") or {}).get("status") == "engaged":
             raise PhysicsError("Attitude controls locked during FTL translation")
+        if value != "hold" and contacts_active(d.get("cargo", {})):
+            raise PhysicsError("External commercial mooring prevents attitude thrust")
         motion["attitude_command"] = value
         d["motion"] = motion
         if d != item.details:
@@ -1575,6 +1678,8 @@ def crew_physical_action(actor, request_id, action, target, value):
             raise PhysicsError("Ship motion has not been commissioned")
         if (motion.get("ftl_leg") or {}).get("status") == "engaged":
             raise PhysicsError("Sublight controls locked during FTL translation")
+        if value != "coast" and contacts_active(d.get("cargo", {})):
+            raise PhysicsError("External commercial mooring prevents thrust")
         motion["command"] = value
         d["motion"] = motion
         if d != item.details:
@@ -1699,6 +1804,9 @@ def local_physics_readout(actor, target):
             "unlocated_onboard_kg": cargo.get("unlocated_onboard_kg"),
             "declared_lots": len(cargo.get("lots", {})),
             "active_jobs": dict(cargo.get("jobs", {})),
+            "port_jobs": dict(cargo.get("port_jobs", {})),
+            "docked_ports": dict(cargo.get("port_contacts", {})),
+            "offship_kg": cargo.get("delivered_offship_kg", 0.0),
             "verified_drums": list(cargo.get("verified_drums", [])),
             "scope": "local_cargo_manifest",
         }
