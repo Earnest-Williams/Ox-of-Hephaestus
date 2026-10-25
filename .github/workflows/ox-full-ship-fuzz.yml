@@ -1,0 +1,51 @@
+name: Ox G17 reproducible full-ship fuzz
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - "game/world/full_ship_operations.py"
+      - "game/world/tests/test_full_ship_fuzz.py"
+      - "game/world/models.py"
+      - "game/world/migrations/0015_full_ship_state.py"
+      - "design/ship/ox_full_ship_v0.5_candidate.json"
+      - "design/ship/pressure_gas_recovery_v0.5.json"
+      - ".github/workflows/ox-full-ship-fuzz.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ox-g17-fuzz-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  full-ship-fuzz:
+    name: Deterministic model mutation + stateful physics fuzz
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install real Evennia, not mocked adapters
+        run: |
+          python -m pip install .
+          python -m compileall -q game/world/full_ship_operations.py game/world/tests/test_full_ship_fuzz.py
+      - name: Prepare isolated test database
+        working-directory: game
+        env:
+          EVENNIA_SUPERUSER_USERNAME: OxCI
+          EVENNIA_SUPERUSER_EMAIL: oxci@example.invalid
+        run: |
+          export EVENNIA_SUPERUSER_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+          evennia migrate --noinput
+      - name: Run reproducible source-mutation and stateful database fuzz tests
+        working-directory: game
+        run: |
+          python -m world.test_runner world.tests.test_full_ship_fuzz --verbosity=2
