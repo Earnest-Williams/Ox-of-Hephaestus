@@ -545,6 +545,20 @@ def commission_commercial_port(*, operator_approved=False, operation,
     d = dict(clock.details)
     motion = d["motion"]
     if operation == "dock":
+        drum = portal_id[:5] if portal_id in PORTALS else None
+        rotor = d["rotors"].get(drum) if drum else None
+        if not rotor or not (
+                rotor["hardlock"] and rotor["brake"] and
+                rotor["target_rpm"] == 0 and
+                abs(rotor["rpm"]) <= 0.001 and
+                not rotor["freight_collar"] and
+                not rotor["passenger_indexer"]):
+            raise PhysicsError("Commercial port must be stopped and hardlocked")
+        access = state("access", "ACC-" + portal_id)
+        handler = state("equipment", drum + "-RADIAL-FREIGHT-HANDLER")
+        if (access.condition in _BROKEN or access.setting != "closed"
+                or handler.condition in _BROKEN):
+            raise PhysicsError("External docking requires sound portal seal and handler")
         if (motion["command"] != "coast"
                 or motion["attitude_command"] != "hold"
                 or any(abs(v) > 0.0001 for v in motion["angular_velocity_rad_s"])
@@ -1684,6 +1698,9 @@ def crew_physical_action(actor, request_id, action, target, value):
             raise PermissionError("Operator is not at that rotor's local machinery controls")
         if target in DRUMS and value == "start":
             manifest = _clock().details.get("cargo", {})
+            if any(portal[:5] == target
+                   for portal in manifest.get("port_contacts", {})):
+                raise PhysicsError("Cannot start a drum while attached to commercial berth")
             if unsecured_drum_loads(manifest, target):
                 raise PhysicsError("Loose or unstowed freight prevents drum spin-up")
         if target in DRUMS and target in _clock().details.get("cargo", {}).get("jobs", {}):

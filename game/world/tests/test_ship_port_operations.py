@@ -152,6 +152,13 @@ class CommercialPortTest(unittest.TestCase):
                 direction="unload", capacity_kg=self.capacity,
                 equipment_ready=True, inner_gate_sealed=True)
 
+    def test_consignment_cannot_claim_another_berth(self):
+        cargo = self.dock()
+        with self.assertRaises(CargoError):
+            register_external_consignment(
+                cargo, lot_id="FALSE-1", mass_kg=2500,
+                portal_id="DR-01-P1", source_reference="BERTH-99")
+
     def test_bad_external_contact_and_duplicate_consignment_fail(self):
         with self.assertRaises(CargoError):
             self.dock(portal="DR-09-P1")

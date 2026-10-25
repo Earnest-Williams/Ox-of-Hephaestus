@@ -104,8 +104,9 @@ def register_external_consignment(manifest, *, lot_id, mass_kg, portal_id,
         raise CargoError("Unsupported external commercial cargo packaging")
     if len(manifest["lots"]) >= MAX_LOTS or lot_id in manifest["lots"]:
         raise CargoError("Duplicate or oversized commercial manifest")
-    if portal_id not in manifest.get("port_contacts", {}):
-        raise CargoError("No positively commissioned cargo berth")
+    contact = manifest.get("port_contacts", {}).get(portal_id)
+    if not contact or contact.get("berth_id") != source_reference:
+        raise CargoError("Consignment source is not the connected external berth")
     if kind == "sled" and mass > 100_000:
         raise CargoError("Freight sled exceeds its rated 100-tonne envelope")
     result = dict(manifest)
