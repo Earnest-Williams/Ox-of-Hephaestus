@@ -1399,7 +1399,14 @@ def crew_physical_action(actor, request_id, action, target, value):
         lot = cargo.get("lots", {}).get(target)
         if not lot:
             raise PhysicsError("Cargo lot has not been physically surveyed")
-        drum = lot["drum"]
+        direction = value
+        destination_drum = None
+        if isinstance(value, str) and value.startswith("from_spine:"):
+            direction = "from_spine"
+            destination_drum = value.partition(":")[2]
+        drum = destination_drum if destination_drum else lot["drum"]
+        if drum not in DRUMS:
+            raise PhysicsError("No installed target drum")
         room = getattr(getattr(getattr(actor, "location", None), "db", None),
                        "ox_space_id", None)
         if (room != drum + "-FREIGHT-LOCK" or
@@ -1416,7 +1423,7 @@ def crew_physical_action(actor, request_id, action, target, value):
         collar = state("equipment", drum + "-FREIGHT-COLLAR")
         gate = state("access", "ACC-" + drum + "-FREIGHT-CAPTURE")
         gate_open = gate.setting == "open" and gate.condition not in _BROKEN
-        if gate_open and value in {"to_spine", "from_spine"}:
+        if gate_open and direction in {"to_spine", "from_spine"}:
             spec = gate.reference
             zones = _topology()[0]
             za, zb = zones.get(spec["from"]), zones.get(spec["to"])
@@ -1431,7 +1438,8 @@ def crew_physical_action(actor, request_id, action, target, value):
                 raise PhysicsError("Freight pressure differential too high")
         try:
             d["cargo"] = start_freight_transfer(
-                cargo, d["rotors"], lot_id=target, direction=value,
+                cargo, d["rotors"], lot_id=target, direction=direction,
+                destination_drum=destination_drum,
                 collar_healthy=collar.condition not in _BROKEN,
                 gate_open=gate_open,
                 restricted=lot["mass_kg"] > 50_000)
