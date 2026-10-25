@@ -528,6 +528,66 @@ def survey_cargo_lot(*, operator_approved=False, operation, lot_id=None,
 
 
 @transaction.atomic
+def commission_commercial_port(*, operator_approved=False, operation,
+                               portal_id, berth_id=None, lot_id=None,
+                               mass_kg=None, kind="bulk"):
+    """World-operator attestation of external cargo and physical mooring.
+
+    Only a real port-side consignment can add cargo, and the vessel is
+    prevented from thrusting during any mooring. Operator attestation does
+    not itself move any mass; only clock-driven, crew-started port machinery
+    may do that.
+    """
+    if not operator_approved:
+        raise PermissionError("External berth/consignment must be commissioned")
+    clock = _clock(lock=True)
+    before = _snapshot(clock)
+    d = dict(clock.details)
+    motion = d["motion"]
+    if operation == "dock":
+        if (motion["command"] != "coast"
+                or motion["attitude_command"] != "hold"
+                or any(abs(v) > 0.0001 for v in motion["angular_velocity_rad_s"])
+                or (motion.get("ftl_leg") or {}).get("status") == "engaged"):
+            raise PhysicsError("Cannot moor an accelerating or translating ship")
+    try:
+        if operation in {"dock", "undock"}:
+            revised = commission_port_contact(
+                d["cargo"], portal_id=portal_id, berth_id=berth_id,
+                docked=operation == "dock")
+        elif operation == "register":
+            revised = register_external_consignment(
+                d["cargo"], lot_id=lot_id, mass_kg=mass_kg,
+                portal_id=portal_id, kind=kind,
+                source_reference=berth_id)
+        else:
+            raise CargoError("Unknown operator port operation")
+        validate_cargo(revised, motion["cargo_mass_kg"])
+    except CargoError as exc:
+        raise PhysicsError(str(exc)) from exc
+    if revised != d["cargo"]:
+        d["cargo"] = revised
+        clock.details = d
+        clock.revision += 1
+        clock.save(update_fields=["details", "revision"])
+        event = _event(clock, "operator_port_" + operation, before)
+        after = dict(event.after)
+        after["port_evidence"] = {
+            "operation": operation, "portal_id": portal_id,
+            "berth_id": berth_id, "lot_id": lot_id, "mass_kg": mass_kg,
+            "kind": kind,
+        }
+        event.after = after
+        event.save(update_fields=["after"])
+    return {
+        "docked": list(revised.get("port_contacts", {})),
+        "port_jobs": len(revised.get("port_jobs", {})),
+        "onboard_kg": onboard_mass_kg(revised),
+        "offship_kg": revised["delivered_offship_kg"],
+    }
+
+
+@transaction.atomic
 def commission_ftl_route(*, operator_approved=False, route_id, destination,
                          distance_ly, cruise_c):
     """World-issued reference navigation leg; crew subsequently engage it."""
