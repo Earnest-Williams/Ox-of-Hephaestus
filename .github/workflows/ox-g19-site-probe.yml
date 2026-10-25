@@ -34,6 +34,28 @@ jobs:
           for x in m['spaces']:
               if x['id'] in ('STORE-FLUID-AFT','SPARES-CENTRAL','CARGO-CTRL-FWD','DR-01-FREIGHT-LOCK','DR-01-SERVICE-LOCK'):
                   print(x['id'],x.get('pressure_zone'),x.get('frame'))
+          print('WASTE-ROUTES')
+          from collections import deque, defaultdict
+          by_room={x['id']:x for x in m['spaces']}
+          neighbors=defaultdict(list)
+          for x in m['access_links']:
+              if any(y in x['kind'].lower() for y in ('eva','external','cargo_portal_inner','indexed_freight_transfer')):
+                  continue
+              for a,b in ((x['from'],x['to']),(x['to'],x['from'])):
+                  neighbors[a].append((b,x['id']))
+          for receiver in ('STORE-FLUID-AFT','SPARES-CENTRAL','MATERIAL-STOCK','PARTS-WASH','STORE-CRIT-SPARES'):
+              dest='DR-01-FREIGHT-LOCK'
+              queue=deque([(receiver,[])])
+              seen={receiver}
+              found=None
+              while queue:
+                  room,path=queue.popleft()
+                  if room==dest:
+                      found=path; break
+                  for to,link in sorted(neighbors[room]):
+                      if to not in seen and len(path)<65:
+                          seen.add(to); queue.append((to,path+[(link,to)]))
+              print(receiver,'path',found,'visited',len(seen))
           print('STOCK-FIELDS')
           for x in m['inventories']:
               if x['id'] in ('INV-SPARES','INV-WASTE-RESIDUE','INV-HAZARDOUS-RESIDUE','INV-INDUSTRIAL-SCRAP'):
