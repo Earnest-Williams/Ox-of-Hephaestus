@@ -62,6 +62,37 @@ class ShipMovementRegressions(unittest.TestCase):
         with self.assertRaises(RotorError):
             set_rotor_command(rotors, "DR-01", "hardlock")
 
+    def test_rotary_freight_realign_requires_index_and_power(self):
+        rotors = set_rotor_command(initial_rotors(), "DR-02", "start")
+        rotors = step_rotors(rotors, 10, powered=True)
+        rotors = set_rotor_command(rotors, "DR-02", "stop")
+        for _ in range(100):
+            rotors = step_rotors(rotors, 10, powered=True)
+            if rotors["DR-02"]["rpm"] == 0:
+                break
+        self.assertEqual(rotors["DR-02"]["rpm"], 0)
+        with self.assertRaises(RotorError):
+            set_rotor_command(rotors, "DR-02", "hardlock")
+        rotors = set_rotor_command(rotors, "DR-02", "index")
+        phase = rotors["DR-02"]["phase_rad"]
+        rotors = step_rotors(rotors, 10, powered=False)
+        self.assertAlmostEqual(rotors["DR-02"]["phase_rad"], phase)
+        for _ in range(40):
+            rotors = step_rotors(rotors, 10, powered=True)
+            if not rotors["DR-02"]["indexing"]:
+                break
+        self.assertEqual(rotors["DR-02"]["phase_rad"], 0)
+        self.assertFalse(rotors["DR-02"]["indexing"])
+        rotors = set_rotor_command(rotors, "DR-02", "hardlock")
+        self.assertTrue(rotors["DR-02"]["hardlock"])
+
+    def test_nominal_bearing_heat_stabilises(self):
+        rotors = set_rotor_command(initial_rotors(), "WR-01", "start")
+        for _ in range(5000):
+            rotors = step_rotors(rotors, 10, powered=True)
+        self.assertNotEqual(rotors["WR-01"]["condition"], "faulted")
+        self.assertGreater(rotors["WR-01"]["bearing_hours"], 0)
+
     def test_failed_rotor_spins_down_not_instant_stop(self):
         rotors = set_rotor_command(initial_rotors(), "HAB", "start")
         rotors = step_rotors(rotors, 10, powered=True)
