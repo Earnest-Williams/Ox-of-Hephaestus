@@ -111,7 +111,7 @@ def _advance_motion(motion, dt, power):
             math.isfinite(x) for x in (*angles, *angular_velocity)):
         raise PhysicsError("Invalid attitude state")
     attitude_burn = min(dt, max(0.0, fuel - spent) / ATTITUDE_PROPELLANT_KG_S) if (
-        powered and any(attitude_direction)) else 0.0
+        power["essential_assured"] and any(attitude_direction)) else 0.0
     attitude_spent = attitude_burn * ATTITUDE_PROPELLANT_KG_S
     for axis in range(3):
         a = ATTITUDE_TORQUE_NM / ATTITUDE_INERTIA_KG_M2 * attitude_direction[axis]
