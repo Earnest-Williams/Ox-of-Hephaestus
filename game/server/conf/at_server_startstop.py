@@ -14,6 +14,8 @@ def at_server_start() -> None:
     ensure_canonical_ship()
     ensure_clock_script()
     ensure_terminal_clock()
+    from world.continuous_ship_physics import ensure_continuous_physics_clock
+    ensure_continuous_physics_clock()
 
 
 def at_server_stop() -> None:
