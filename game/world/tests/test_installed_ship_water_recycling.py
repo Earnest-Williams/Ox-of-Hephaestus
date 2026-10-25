@@ -196,6 +196,21 @@ class InstalledWaterRecyclingTests(EvenniaTestCase):
                 "HAZ-ISO-HOLD-A", "deposit:INV-SPARES:1")
         self.assertFalse(WorkReceipt.objects.filter(pk="f" * 32).exists())
 
+    def test_degraded_processor_recovery_really_drops_to_eighty_percent(self):
+        for side in "AB":
+            set_component_condition(
+                "equipment", "WATER-PROC-" + side, "degraded", operator=True)
+        result = tick_continuous_physics(now_game_time=1060)
+        detail = result["water"]["last_step"]
+        self.assertGreater(detail["processed_kg"], 0)
+        self.assertAlmostEqual(
+            detail["recovered_kg"] / detail["processed_kg"],
+            0.80, delta=1e-7)
+        self.assertAlmostEqual(
+            detail["sanitary_kg"] / detail["processed_kg"],
+            0.01, delta=1e-7)
+        self.assertEqual(state("inventory", "INV-WATER-RESERVE").quantity, 70)
+
     def test_essential_power_preserves_drinking_water_but_sheds_recycling(self):
         # The actual main-generator breaker opens. Only GEN-B (0.65 MW)
         # remains, enough for essential water pumps but not the selected

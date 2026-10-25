@@ -639,6 +639,22 @@ def _water_hardware(water, equipment, edges, isolators, nodes, power):
     return {
         "potable": potable,
         "process": process_ok,
+        "recovery_fraction": {
+            side: (0.80 if any(
+                equipment.get(f"{family}-{side}") is not None and
+                equipment[f"{family}-{side}"].condition == "degraded"
+                for family in ("WASTE-PROC", "WATER-PROC"))
+                else 0.90)
+            for side in "AB"
+        },
+        "throughput_factor": {
+            side: (0.60 if any(
+                equipment.get(f"{family}-{side}") is not None and
+                equipment[f"{family}-{side}"].condition == "degraded"
+                for family in ("WASTE-PROC", "WATER-PROC"))
+                else 1.0)
+            for side in "AB"
+        },
         "fixed": {k: essential_running and v for k, v in fixed.items()},
         "oxygen": oxygen_side is not None, "oxygen_side": oxygen_side,
         "bins": bins,

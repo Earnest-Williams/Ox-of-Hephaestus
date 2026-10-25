@@ -249,8 +249,27 @@ def step_water(water, seconds, *, stocks, hardware, crew_count=40):
             w["cumulative"]["decontaminated_kg"] += amount
         if w["suspected_contamination_kg"] <= EPS:
             w["suspected_contamination_kg"] = 0.0
-    limits = {side: {stream: (PROCESS_KG_DAY[stream] * daily if process[side]
-                        else 0.0) for stream in STREAM_FRACTION} for side in "AB"}
+    # A damaged-but-running train has less capacity and lower water yield.
+    # Recoverable effluent remains verified; the additional portion is
+    # counted as process reject, not magically restored to the potable tank.
+    yield_by_train, throughput = {}, {}
+    for side in "AB":
+        fraction = hardware.get("recovery_fraction", {}).get(side, RECOVERY_FRACTION)
+        capacity = hardware.get("throughput_factor", {}).get(side, 1.0)
+        if (isinstance(fraction, bool) or not isinstance(fraction, (int, float))
+                or not math.isfinite(fraction)
+                or not 0 < fraction <= RECOVERY_FRACTION):
+            raise WaterError("Invalid actual water-treatment yield")
+        if (isinstance(capacity, bool) or not isinstance(capacity, (int, float))
+                or not math.isfinite(capacity) or not 0 <= capacity <= 1):
+            raise WaterError("Invalid water processor derating")
+        yield_by_train[side] = fraction
+        throughput[side] = capacity
+    limits = {
+        side: {stream: (
+            PROCESS_KG_DAY[stream] * daily * throughput[side]
+            if process[side] else 0.0) for stream in STREAM_FRACTION}
+        for side in "AB"}
     # A common sealed-solid receiver is NOT two independent infinite sinks.
     # Reserve its residual treatment capacity proportionally for both streams.
     residue_budget = {
@@ -267,12 +286,12 @@ def step_water(water, seconds, *, stocks, hardware, crew_count=40):
                      _cassette_space(w, "sanitary", hardware)
                      / SANITARY_RESIDUE_FRACTION,
                      max(0.0, WORKING_CAPACITY_KG - w["working_kg"])
-                     / RECOVERY_FRACTION)
+                     / yield_by_train[side])
         if amount <= EPS:
             return 0.0
-        recovered = amount * RECOVERY_FRACTION
+        recovered = amount * yield_by_train[side]
         sanitary = amount * SANITARY_RESIDUE_FRACTION
-        rejected = amount * REJECT_FRACTION
+        rejected = amount * (1.0 - yield_by_train[side] - SANITARY_RESIDUE_FRACTION)
         _fill_cassette(w, "sanitary", sanitary, hardware)
         stock["sanitary"] += sanitary
         w["working_kg"] += recovered

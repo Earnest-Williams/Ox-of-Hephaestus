@@ -115,6 +115,30 @@ class WaterLedgerTests(unittest.TestCase):
         self.assertLess(s["reserve"], 70000)
         validate_water(w, s)
 
+    def test_degraded_recovery_eighty_percent_has_finite_long_leg_cost(self):
+        w, s = initial_water(), stock()
+        h = healthy()
+        h["recovery_fraction"] = {"A": 0.80, "B": 0.80}
+        h["throughput_factor"] = {"A": 0.60, "B": 0.60}
+        w, s, r = step_water(w, DAY, stocks=s, hardware=h)
+        self.assertAlmostEqual(r["domestic_kg"], 1000, places=5)
+        self.assertAlmostEqual(r["processed_kg"], 1000, places=5)
+        self.assertAlmostEqual(r["recovered_kg"], 800, places=5)
+        self.assertAlmostEqual(r["sanitary_kg"], 10, places=5)
+        self.assertAlmostEqual(r["reject_kg"], 190, places=5)
+        self.assertAlmostEqual((900-r["recovered_kg"])*730/1000, 73, places=5)
+        self.assertEqual(s["reserve"], 70000)
+        for _ in range(729):
+            w, s, _ = step_water(w, DAY, stocks=s, hardware=h)
+        self.assertEqual(s["reserve"], 70000)
+        self.assertGreater(w["cumulative"]["technical_unserved_kg"], 0)
+        self.assertGreater(w["cumulative"]["domestic_unserved_kg"], 0)
+        validate_water(w, s)
+        bad = healthy()
+        bad["recovery_fraction"] = {"A": 1.1}
+        with self.assertRaises(WaterError):
+            step_water(initial_water(), DAY, stocks=stock(), hardware=bad)
+
     def test_emergency_reserve_cannot_feed_routine_crops_or_servicing(self):
         w, s, h = initial_water(), stock(), healthy()
         w["working_kg"] = 100.0
