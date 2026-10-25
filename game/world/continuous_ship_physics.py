@@ -1060,7 +1060,7 @@ def crew_physical_action(actor, request_id, action, target, value):
     """
     if not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
         raise PhysicsError("Expected one 32-character lowercase request UUID")
-    if action not in {"switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor"}:
+    if action not in {"switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive"}:
         raise PhysicsError("Unknown physical operation")
     if actor is None or getattr(actor.db, "ox_terminal_dead", False):
         raise PermissionError("A deceased or missing character cannot operate machinery")
@@ -1082,8 +1082,8 @@ def crew_physical_action(actor, request_id, action, target, value):
                     "isolator:" if action == "switch"
                     else "pressure:" if action == "mist"
                     else "access:" if action == "hatch"
-                    else "" if action in {"schedule", "helm", "attitude", "rotor"}
-                    else "equipment:") + (CLOCK_KEY if action in {"schedule", "helm", "attitude", "rotor"} else target)
+                    else "" if action in {"schedule", "helm", "attitude", "rotor", "drive"}
+                    else "equipment:") + (CLOCK_KEY if action in {"schedule", "helm", "attitude", "rotor", "drive"} else target)
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
@@ -1113,6 +1113,30 @@ def crew_physical_action(actor, request_id, action, target, value):
         d["physics_online"] = False if not on else d.get("physics_online", False)
         d["physics_startup_s"] = (30.0 if target in GENERATION_MW else 10.0) if (
             on and not d["physics_online"]) else 0.0
+        if d != item.details:
+            item.details = d
+            item.revision += 1
+            item.save(update_fields=["details", "revision"])
+    elif action == "drive":
+        if target not in {"MAIN", "RCS"} or value not in {"inhibit", "release"}:
+            raise PhysicsError("Unknown propulsion safety operation")
+        _crew_at(actor, "PROP-CTRL")
+        item = _clock(lock=True)
+        before = _snapshot(item)
+        d = dict(item.details)
+        motion = dict(d.get("motion", {}))
+        key = "drive_condition" if target == "MAIN" else "rcs_condition"
+        current = motion.get(key)
+        if value == "release":
+            if current != "inhibited":
+                raise PhysicsError("Only a locally inhibited sound drive can be released")
+            # Inhibiting a drive does not repair underlying damage.
+            motion[key] = "operational"
+        else:
+            if current == "failed":
+                raise PhysicsError("Failed actuator cannot be treated as a sound inhibited drive")
+            motion[key] = "inhibited"
+        d["motion"] = motion
         if d != item.details:
             item.details = d
             item.revision += 1
