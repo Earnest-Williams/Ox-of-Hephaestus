@@ -21,6 +21,10 @@ from world.full_ship_operations import (
     _require_installed, load_candidate, state,
 )
 from world.models import CanonicalShipEvent, CanonicalShipState, WorkReceipt
+from world.ship_motion_machinery import (
+    DRUMS, ROTORS, RotorError, initial_rotors, set_rotor_command,
+    step_rotors, motion_power_mw, rotor_gravity,
+)
 
 CLOCK_KEY = "meta:continuous-physics"
 SCRIPT_KEY = "OxContinuousShipPhysics"
@@ -284,6 +288,7 @@ def arm_continuous_physics(*, operator_approved=False, now_game_time=None):
             "lost_to_space_kg": 0.0, "burned_fuel_kg": 0.0,
             "water_suppression_kg": 0.0,
             "co2_captured_kg": 0.0,
+            "rotors": initial_rotors(),
             "motion": {
                 "position_m": [0.0, 0.0, 0.0],
                 "velocity_m_s": [0.0, 0.0, 0.0],
@@ -487,6 +492,9 @@ def tick_continuous_physics(*, now_game_time=None):
     motion = dict(clock.details.get("motion", {}))
     if not motion:
         raise PhysicsError("Ship motion state not initialised")
+    rotors = dict(clock.details.get("rotors", {}))
+    if set(rotors) != set(ROTORS):
+        raise PhysicsError("Rotary machinery not commissioned")
     summary = {}
     duration = 0.0
 
@@ -512,6 +520,28 @@ def tick_continuous_physics(*, now_game_time=None):
         # A failed drive can coast, but cannot silently resume thrust.
         drive_operational = motion.get("drive_condition", "operational") == "operational"
         rcs_operational = motion.get("rcs_condition", "operational") == "operational"
+        rotary_load = motion_power_mw(rotors)
+        rotary_can_power = (
+            power["assured"] and
+            power["available_mw"] - power["requested_mw"] >= rotary_load)
+        rotor_equipment = {
+            "HAB": all(equipment.get(name) is not None and
+                       equipment[name].condition not in _BROKEN
+                       for name in ("HAB-BEARING-FORE", "HAB-BEARING-AFT")),
+            **{
+                name: all(equipment.get(name + suffix) is not None and
+                          equipment[name + suffix].condition not in _BROKEN
+                          for suffix in ("-PERSONNEL-INDEXER", "-FREIGHT-COLLAR"))
+                for name in DRUMS
+            },
+        }
+        rotors = step_rotors(
+            rotors, dt, powered=rotary_can_power, equipment_ok=rotor_equipment)
+        if rotary_load and rotary_can_power:
+            power["requested_mw"] += rotary_load
+            power["dispatched_mw"] += rotary_load
+            power["generation_fraction"] = (
+                power["dispatched_mw"] / power["available_mw"])
         motion = _advance_motion(
             motion, dt, power, drive_operational=drive_operational,
             rcs_operational=rcs_operational)
@@ -805,6 +835,7 @@ def tick_continuous_physics(*, now_game_time=None):
     d["water_suppression_kg"] += water
     d["co2_captured_kg"] = captured_co2
     d["motion"] = motion
+    d["rotors"] = rotors
     d["summary"] = {
         **summary,
         "gas_kg": round(sum(c["mass"] for c in cells.values()), 6),
@@ -823,6 +854,9 @@ def tick_continuous_physics(*, now_game_time=None):
         "drive_firing": motion["drive_firing"],
         "drive_power_mw": motion["drive_power_mw"],
         "drive_condition": motion["drive_condition"],
+        "rotor_rpm": {k: round(v["rpm"], 5) for k, v in rotors.items()},
+        "rotor_gravity_g": {k: round(rotor_gravity(rotors, k), 4)
+                            for k in ROTORS},
         "rcs_condition": motion["rcs_condition"],
         "ship_attitude_rad": [round(x, 8) for x in motion["attitude_rad"]],
         "ship_angular_velocity_rad_s": [round(x, 10) for x in motion["angular_velocity_rad_s"]],
