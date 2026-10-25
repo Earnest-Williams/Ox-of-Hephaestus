@@ -43,7 +43,7 @@ def motion_power_mw(rotors):
     """Bound electric demand using actual rotary movement or braking release."""
     return sum(
         ROTOR_MW[name] for name, row in rotors.items()
-        if abs(row["rpm"]) > 0.0001 or row["target_rpm"] > 0
+        if abs(row["rpm"]) > 0.0001 or row["target_rpm"] > 0 or row["indexing"]
     )
 
 
@@ -58,6 +58,7 @@ def set_rotor_command(rotors, name, command):
             raise RotorError("Damaged rotor must remain inhibited")
     if command == "stop":
         state["target_rpm"] = 0.0
+        state["indexing"] = False
         state["brake"] = False
         state["hardlock"] = False if state["rpm"] > 0.005 else state["hardlock"]
     elif command == "start":
@@ -88,6 +89,7 @@ def set_rotor_command(rotors, name, command):
             raise RotorError("Retract moving transfer hardware before brake release")
         state["hardlock"] = False
         state["brake"] = False
+        state["indexing"] = False
     elif command == "freight_extend":
         if name not in DRUMS and name != "WR-01":
             raise RotorError("No full-sled freight collar at this rotor")
@@ -128,8 +130,10 @@ def step_rotors(rotors, dt, *, powered, equipment_ok=None):
         if not serviceable:
             row["target_rpm"] = 0.0
             target = 0.0
-        if not powered and target > rpm:
-            target = rpm
+        if not powered:
+            # No electrically driven holding torque. Bearings and drag
+            # dissipate rotation slowly instead of freezing the rotor in place.
+            target = 0.0
         delta = RAMP_RPM_S[name] * dt * (1.0 if powered and serviceable else 0.25)
         next_rpm = max(rpm - delta, min(rpm + delta, target))
         if row["brake"] or row["hardlock"] or row["freight_collar"]:
