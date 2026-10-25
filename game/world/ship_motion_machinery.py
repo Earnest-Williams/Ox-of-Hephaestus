@@ -28,10 +28,12 @@ def initial_rotors():
     return {
         key: {
             "rpm": 0.0, "target_rpm": 0.0, "phase_rad": 0.0,
-            "brake": True, "hardlock": True, "freight_collar": False,
+            "brake": True, "hardlock": True, "indexing": False,
+            "freight_collar": False,
             "passenger_indexer": False, "condition": "serviceable",
             "imbalance_kg_m": 0.0, "bearing_temperature_k": 293.15,
-            "mode": "PARKED", "work_radius_m": WORK_RADIUS_M if key == "WR-01" else None,
+            "mode": "PARKED", "bearing_hours": 0.0,
+            "work_radius_m": WORK_RADIUS_M if key == "WR-01" else None,
         }
         for key in ROTORS
     }
@@ -68,8 +70,19 @@ def set_rotor_command(rotors, name, command):
     elif command == "hardlock":
         if abs(state["rpm"]) > 0.001 or state["target_rpm"] != 0:
             raise RotorError("Cannot hard-lock a turning drum")
+        if min(state["phase_rad"], 2 * math.pi - state["phase_rad"]) > 0.01:
+            raise RotorError("Rotor is not indexed to freight datum")
         state["hardlock"] = True
         state["brake"] = True
+        state["indexing"] = False
+    elif command == "index":
+        if abs(state["rpm"]) > 0.001 or state["target_rpm"] != 0:
+            raise RotorError("Stop rotor before indexing")
+        if state["freight_collar"] or state["passenger_indexer"]:
+            raise RotorError("Retract transfer hardware before indexing")
+        state["brake"] = False
+        state["hardlock"] = False
+        state["indexing"] = True
     elif command == "release":
         if state["freight_collar"] or state["passenger_indexer"]:
             raise RotorError("Retract moving transfer hardware before brake release")
@@ -125,7 +138,15 @@ def step_rotors(rotors, dt, *, powered, equipment_ok=None):
             next_rpm = 0.0
         row["rpm"] = next_rpm
         row["phase_rad"] = (phase + (rpm + next_rpm) * math.pi / 60.0 * dt) % (2 * math.pi)
+        if row["indexing"] and next_rpm < 0.001 and powered and serviceable:
+            distance = (2 * math.pi - row["phase_rad"]) % (2 * math.pi)
+            if distance <= 0.02 * dt:
+                row["phase_rad"] = 0.0
+                row["indexing"] = False
+            else:
+                row["phase_rad"] = (row["phase_rad"] + 0.02 * dt) % (2 * math.pi)
         row["mode"] = (
+            "INDEXING" if row["indexing"] else
             "TRIPPED" if not serviceable else
             "BRAKED" if row["brake"] else
             "PARKED" if next_rpm < 0.001 else
@@ -133,8 +154,12 @@ def step_rotors(rotors, dt, *, powered, equipment_ok=None):
             "RELEASING" if next_rpm > rpm + 1e-9 else "ROTATING"
         )
         ambient = 293.15
-        load_heat = (0.03 + 0.3 * (next_rpm / MAX_RPM[name]) ** 2) if next_rpm else 0.0
-        heat = (load_heat * dt - 0.003 * (row["bearing_temperature_k"] - ambient) * dt)
+        ratio = next_rpm / MAX_RPM[name]
+        load_heat = ((0.001 + 0.02 * ratio ** 2) * (1 + 5 *
+                     row["imbalance_kg_m"] / MAX_IMBALANCE_KGM)
+                     if next_rpm else 0.0)
+        heat = (load_heat - 0.001 * (row["bearing_temperature_k"] - ambient)) * dt
+        row["bearing_hours"] += dt / 3600 if next_rpm else 0.0
         row["bearing_temperature_k"] = max(ambient, row["bearing_temperature_k"] + heat)
         if row["bearing_temperature_k"] >= 365.0:
             row["condition"] = "faulted"
