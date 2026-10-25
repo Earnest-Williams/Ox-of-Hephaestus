@@ -58,6 +58,15 @@ HELM_DIRECTIONS = {
     "z+": (0.0, 0.0, 1.0), "z-": (0.0, 0.0, -1.0),
     "coast": (0.0, 0.0, 0.0),
 }
+ATTITUDE_COMMANDS = {
+    "pitch+": (1.0, 0.0, 0.0), "pitch-": (-1.0, 0.0, 0.0),
+    "yaw+": (0.0, 1.0, 0.0), "yaw-": (0.0, -1.0, 0.0),
+    "roll+": (0.0, 0.0, 1.0), "roll-": (0.0, 0.0, -1.0),
+    "hold": (0.0, 0.0, 0.0),
+}
+ATTITUDE_TORQUE_NM = 180_000.0
+ATTITUDE_INERTIA_KG_M2 = 2.4e11
+ATTITUDE_PROPELLANT_KG_S = 0.08
 
 
 def _advance_motion(motion, dt, power):
@@ -67,6 +76,7 @@ def _advance_motion(motion, dt, power):
     velocity = list(result["velocity_m_s"])
     fuel = float(result["propellant_kg"])
     direction = HELM_DIRECTIONS[result["command"]]
+    attitude_direction = ATTITUDE_COMMANDS[result["attitude_command"]]
     if len(position) != 3 or len(velocity) != 3 or not all(
             math.isfinite(x) for x in (*position, *velocity, fuel)) or fuel < 0:
         raise PhysicsError("Invalid ship motion or propellant state")
@@ -79,6 +89,23 @@ def _advance_motion(motion, dt, power):
         a = acceleration * direction[axis]
         position[axis] += velocity[axis] * dt + a * burn_time * (dt - burn_time / 2)
         velocity[axis] += a * burn_time
+    angles = list(result["attitude_rad"])
+    angular_velocity = list(result["angular_velocity_rad_s"])
+    if len(angles) != 3 or len(angular_velocity) != 3 or not all(
+            math.isfinite(x) for x in (*angles, *angular_velocity)):
+        raise PhysicsError("Invalid attitude state")
+    attitude_burn = min(dt, max(0.0, fuel - spent) / ATTITUDE_PROPELLANT_KG_S) if (
+        powered and any(attitude_direction)) else 0.0
+    attitude_spent = attitude_burn * ATTITUDE_PROPELLANT_KG_S
+    for axis in range(3):
+        a = ATTITUDE_TORQUE_NM / ATTITUDE_INERTIA_KG_M2 * attitude_direction[axis]
+        angles[axis] += angular_velocity[axis] * dt + a * attitude_burn * (dt - attitude_burn / 2)
+        angular_velocity[axis] += a * attitude_burn
+    result["attitude_rad"] = angles
+    result["angular_velocity_rad_s"] = angular_velocity
+    result["propellant_kg"] = fuel - spent - attitude_spent
+    result["expended_propellant_kg"] += attitude_spent
+    result["attitude_firing"] = attitude_burn > 0
     result["position_m"] = position
     result["velocity_m_s"] = velocity
     result["propellant_kg"] = fuel - spent
@@ -225,6 +252,9 @@ def arm_continuous_physics(*, operator_approved=False, now_game_time=None):
                 "propellant_kg": INITIAL_PROPELLANT_KG,
                 "expended_propellant_kg": 0.0,
                 "command": "coast", "drive_firing": False,
+                "attitude_rad": [0.0, 0.0, 0.0],
+                "angular_velocity_rad_s": [0.0, 0.0, 0.0],
+                "attitude_command": "hold", "attitude_firing": False,
             },
             "provenance": "explicit_scenario_not_instrument_measured",
         },
@@ -724,6 +754,8 @@ def tick_continuous_physics(*, now_game_time=None):
         "ship_velocity_m_s": [round(x, 6) for x in motion["velocity_m_s"]],
         "ship_propellant_kg": round(motion["propellant_kg"], 3),
         "drive_firing": motion["drive_firing"],
+        "ship_attitude_rad": [round(x, 8) for x in motion["attitude_rad"]],
+        "ship_angular_velocity_rad_s": [round(x, 10) for x in motion["angular_velocity_rad_s"]],
     }
     clock.details = d
     clock.revision += 1
@@ -832,7 +864,7 @@ def crew_physical_action(actor, request_id, action, target, value):
     """
     if not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
         raise PhysicsError("Expected one 32-character lowercase request UUID")
-    if action not in {"switch", "plant", "schedule", "mist", "hatch", "service", "helm"}:
+    if action not in {"switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude"}:
         raise PhysicsError("Unknown physical operation")
     if actor is None or getattr(actor.db, "ox_terminal_dead", False):
         raise PermissionError("A deceased or missing character cannot operate machinery")
@@ -885,6 +917,23 @@ def crew_physical_action(actor, request_id, action, target, value):
         d["physics_online"] = False if not on else d.get("physics_online", False)
         d["physics_startup_s"] = (30.0 if target in GENERATION_MW else 10.0) if (
             on and not d["physics_online"]) else 0.0
+        if d != item.details:
+            item.details = d
+            item.revision += 1
+            item.save(update_fields=["details", "revision"])
+    elif action == "attitude":
+        if target != "GEN-M" or value not in ATTITUDE_COMMANDS:
+            raise PhysicsError("Unknown ship attitude command")
+        station = state("equipment", "GEN-M")
+        _crew_at(actor, station.space_id)
+        item = _clock(lock=True)
+        before = _snapshot(item)
+        d = dict(item.details)
+        motion = dict(d.get("motion", {}))
+        if not motion:
+            raise PhysicsError("Ship motion has not been commissioned")
+        motion["attitude_command"] = value
+        d["motion"] = motion
         if d != item.details:
             item.details = d
             item.revision += 1
