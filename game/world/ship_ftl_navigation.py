@@ -46,7 +46,7 @@ def prepare_leg(motion, *, route_id, destination, distance_ly, speed_c):
             or not isinstance(destination, str)
             or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,47}", destination) is None):
         raise NavigationError("Route and destination need finite canonical identifiers")
-    if motion.get("ftl_leg", {}).get("status") in {"planned", "engaged"}:
+    if (motion.get("ftl_leg") or {}).get("status") in {"planned", "engaged"}:
         raise NavigationError("Existing FTL route must conclude or be abandoned")
     duration = _finite(distance_ly) * SECONDS_PER_LY_AT_C / _finite(speed_c)
     if duration <= 0 or not math.isfinite(duration):
