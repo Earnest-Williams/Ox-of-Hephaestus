@@ -43,6 +43,10 @@ from world.ship_motion_machinery import (
     DRUMS, ROTORS, RotorError, initial_rotors, set_rotor_command,
     step_rotors, motion_power_mw, rotor_gravity,
 )
+from world.ship_water_recycling import (
+    WaterError, initial_water, step_water, validate_water,
+    FIXED_KG as WASTE_FIXED_CAPACITY_KG,
+)
 
 CLOCK_KEY = "meta:continuous-physics"
 SCRIPT_KEY = "OxContinuousShipPhysics"
@@ -241,6 +245,16 @@ def _snapshot(item):
     # Earlier clock snapshots omitted motion and made a successfully
     # receipted helm/rotor operation indistinguishable from a no-op.
     if item.key == CLOCK_KEY:
+        if item.details.get("water"):
+            water = item.details["water"]
+            result["water"] = {
+                "working_kg": water["working_kg"],
+                "local": water["local"], "fixed": water["fixed"],
+                "cassettes": water["cassettes"],
+                "cumulative": water["cumulative"],
+                "potable_quarantined": water["potable_quarantined"],
+                "reserve_released": water["reserve_released"],
+            }
         result["motion"] = item.details.get("motion")
         result["rotors"] = item.details.get("rotors")
         cargo = item.details.get("cargo")
@@ -369,6 +383,139 @@ def arm_continuous_physics(*, operator_approved=False, now_game_time=None):
         },
     )
     return {"armed": True, "last_game_time": started, "cells": 133}
+
+
+
+@transaction.atomic
+def commission_g19_water(*, operator_approved=False):
+    """Attach the designed potable and disposal circuit to an existing epoch.
+
+    G18 scenarios have no implicit 39 t water transfer or sanitation work.
+    This one-time G19 commission respects all existing finite stocks and does
+    not reset already injected faults, crew positions or the physics clock.
+    """
+    if not operator_approved:
+        raise PermissionError("Water/waste commissioning is operator-only")
+    _require_installed()
+    clock = _clock(lock=True)
+    if clock.details.get("water") is not None:
+        return {"commissioned": False}
+    tank = state("equipment", "POTABLE-TANK-MAIN")
+    if tank.reference.get("attributes", {}).get("working_inventory_t_approx") != 39:
+        raise PhysicsError("Installed 39 t working water reference missing")
+    required = [
+        "LP-WATER-FWD", "FIXED-GREY-HOLD", "FIXED-BLACK-HOLD",
+        "WATER-PROC-A", "WATER-PROC-B", "WASTE-PROC-A", "WASTE-PROC-B",
+        "WASTE-RESIDUE-HOLD-A", "WASTE-RESIDUE-HOLD-B",
+        "IND-SCRAP-HOLD-A", "IND-SCRAP-HOLD-B",
+        "HAZ-ISO-HOLD-A", "HAZ-ISO-HOLD-B",
+    ]
+    if (CanonicalShipState.objects.filter(
+            key__in=["equipment:" + k for k in required]).count() != len(required)):
+        raise PhysicsError("Water or physically segregated disposal plant missing")
+    stocks = {name: state("inventory", ident).quantity for name, ident in (
+        ("normal", "INV-WATER-NORMAL"),
+        ("reserve", "INV-WATER-RESERVE"),
+        ("sanitary", "INV-WASTE-RESIDUE"),
+        ("industrial", "INV-INDUSTRIAL-SCRAP"),
+        ("hazardous", "INV-HAZARDOUS-RESIDUE"),
+    )}
+    if any(x is None for x in stocks.values()) or any(
+            stocks[k] != 0 for k in ("sanitary", "industrial", "hazardous")):
+        raise PhysicsError("Generated waste stock must be explicitly reconciled before commission")
+    water = initial_water()
+    validate_water(water, {k: v * 1000.0 for k, v in stocks.items()})
+    before = _snapshot(clock)
+    d = dict(clock.details)
+    d["water"] = water
+    d["water_commissioned_at"] = d["last_game_time"]
+    clock.details = d
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "commission_g19_water", before)
+    return {"commissioned": True, "working_kg": water["working_kg"],
+            "normal_kg": stocks["normal"] * 1000,
+            "protected_kg": stocks["reserve"] * 1000}
+
+
+def _water_hardware(water, equipment, edges, isolators, nodes, power):
+    """Actual running equipment and conducting wet networks, not diagram links."""
+    def sound(name):
+        row = equipment.get(name)
+        return bool(row and row.condition not in _BROKEN)
+
+    def owned(network, owner):
+        return [n.source_id for n in nodes
+                if n.reference.get("network") == network
+                and n.reference.get("owner_id") == owner]
+
+    def connected(network, sources, destinations):
+        if not sources or not destinations:
+            return False
+        reached = _reachable(edges, isolators, network, sources)
+        return any(n in reached for n in destinations)
+
+    running = power["assured"]
+    potable_sources = owned("potable_water", "POTABLE-TANK-MAIN")
+    potable_receivers = [
+        n for arc in range(1, 9)
+        for n in owned("potable_water", f"HAB-{arc:02d}-POTABLE-WATER-MAN")
+    ]
+    potable = (running and sound("POTABLE-TANK-MAIN")
+               and connected("potable_water", potable_sources, potable_receivers))
+    process = {}
+    fixed = {}
+    for medium in ("grey", "black"):
+        net = medium + "water"
+        supply = [
+            n for arc in range(1, 9)
+            for n in owned(net, f"HAB-{arc:02d}-{medium.upper()}WATER-MAN")
+        ]
+        for side in "AB":
+            sink = owned(net, f"WASTE-PROC-{side}")
+            key = f"{side}_{medium}"
+            process[key] = connected(net, supply, sink)
+        receiver = owned(net, "FIXED-GREY-HOLD" if medium == "grey"
+                         else "FIXED-BLACK-HOLD")
+        fixed[medium] = connected(net, supply, receiver)
+    process_ok = {
+        side: (running and sound(f"WASTE-PROC-{side}")
+               and sound(f"WATER-PROC-{side}")
+               and process[f"{side}_grey"] and process[f"{side}_black"])
+        for side in "AB"
+    }
+    bin_names = {
+        "sanitary": ("WASTE-RESIDUE-HOLD-A", "WASTE-RESIDUE-HOLD-B"),
+        "industrial": ("IND-SCRAP-HOLD-A", "IND-SCRAP-HOLD-B"),
+        "hazardous": ("HAZ-ISO-HOLD-A", "HAZ-ISO-HOLD-B"),
+    }
+    bins = {
+        group: {side: sound(name) and water["cassette_sealed"][group][side]
+                for side, name in zip("AB", names)}
+        for group, names in bin_names.items()
+    }
+    # An H2 vent must have BOTH actual local isolators conducting, and a
+    # positively surveyed exterior nozzle. No false default exterior proof.
+    oxygen_side = None
+    for side in "AB":
+        outlet = equipment.get(f"ECLSS-{side}-H2-VENT")
+        field = equipment.get(f"ECLSS-{side}-O2-GEN")
+        edge = next((e for e in edges
+                     if e.source_id == f"EDGE-BYP-{side}-H2"), None)
+        if (oxygen_side is None and potable and process_ok[side]
+                and _on(equipment, f"ECLSS-{side}") and
+                outlet and outlet.condition not in _BROKEN and
+                field and field.condition not in _BROKEN
+                and edge and _live_edge(edge, isolators)
+                and water["oxygen_outlet_verified"][side]):
+            oxygen_side = side
+    return {
+        "potable": potable,
+        "process": process_ok,
+        "fixed": {k: running and v for k, v in fixed.items()},
+        "oxygen": oxygen_side is not None, "oxygen_side": oxygen_side,
+        "bins": bins,
+    }
 
 
 @transaction.atomic
@@ -774,6 +921,14 @@ def tick_continuous_physics(*, now_game_time=None):
     inventory = CanonicalShipState.objects.select_for_update().get(
         pk="inventory:INV-WATER-NORMAL")
     inventory_before = _snapshot(inventory)
+    water_stocks = {
+        "normal": inventory,
+        "reserve": state("inventory", "INV-WATER-RESERVE", lock=True),
+        "sanitary": state("inventory", "INV-WASTE-RESIDUE", lock=True),
+        "industrial": state("inventory", "INV-INDUSTRIAL-SCRAP", lock=True),
+        "hazardous": state("inventory", "INV-HAZARDOUS-RESIDUE", lock=True),
+    }
+    water_stock_before = {k: _snapshot(v) for k, v in water_stocks.items()}
     isolators = {x.source_id: x for x in
                  CanonicalShipState.objects.filter(category="isolator")}
     edges = list(CanonicalShipState.objects.filter(category="edge"))
@@ -786,7 +941,8 @@ def tick_continuous_physics(*, now_game_time=None):
     # Reference node ownership is static within a tick. Avoid a database
     # query for every 10-second integration substep.
     atmosphere_source_nodes = {}
-    for node in CanonicalShipState.objects.filter(category="node"):
+    water_nodes = list(CanonicalShipState.objects.filter(category="node"))
+    for node in water_nodes:
         if (node.reference.get("network") == "atmosphere"
                 and node.reference.get("owner_type") == "equipment"):
             atmosphere_source_nodes.setdefault(
@@ -805,7 +961,12 @@ def tick_continuous_physics(*, now_game_time=None):
     if not math.isfinite(captured_co2) or not 0 <= captured_co2 <= CO2_CAPTURE_CAPACITY_KG:
         raise PhysicsError("Invalid finite CO2 sorbent inventory")
     total_before = sum(c["mass"] + c["fuel"] for c in cells.values()) + captured_co2
-    lost = burned = water = 0.0
+    lost = burned = water = oxygen_generated = 0.0
+    water_state = clock.details.get("water")
+    if water_state is not None:
+        validate_water(water_state, {k: v.quantity * 1000.0
+                                     for k, v in water_stocks.items()})
+    water_report = None
     changed_equipment = set()
     motion = dict(clock.details.get("motion", {}))
     if not motion:
@@ -843,6 +1004,42 @@ def tick_continuous_physics(*, now_game_time=None):
                 changed_equipment.add(item.key)
 
         power = _power(equipment, edges, isolators, clock.details["load_profile"])
+        if water_state is not None:
+            hardware = _water_hardware(
+                water_state, equipment, edges, isolators, water_nodes, power)
+            try:
+                water_state, balances, water_report = step_water(
+                    water_state, dt,
+                    stocks={key: item.quantity * 1000.0
+                            for key, item in water_stocks.items()},
+                    hardware=hardware, crew_count=40)
+            except WaterError as exc:
+                raise PhysicsError(str(exc)) from exc
+            for key, amount in balances.items():
+                water_stocks[key].quantity = amount / 1000.0
+            produced = water_report["oxygen_kg"]
+            if produced:
+                side = hardware["oxygen_side"]
+                zone = owners.get(f"ECLSS-{side}")
+                if zone not in cells:
+                    raise PhysicsError("Oxygen generator not in verified bounded atmosphere")
+                cell = cells[zone]
+                # Electrolytic O2 is oxygen MASS, not a pressure-screen flag.
+                cell["oxygen"] += produced
+                cell["mass"] += produced
+                cell["energy"] += produced * CP_GAS_KJ_KG_K * cell["temperature"]
+                cell["temperature"] = cell["energy"] / (
+                    cell["capacity"] + cell["mass"] * CP_GAS_KJ_KG_K)
+                oxygen_generated += produced
+            # Only the oxygen product remains aboard as breathable gas.
+            # H2, technical process use and rejected wastewater are charged
+            # to mission-fluid mass instead of making ship weight constant.
+            mass_departed = max(
+                0.0, water_report["reject_kg"] +
+                water_report["technical_kg"] - produced)
+            if motion["mission_fluids_kg"] + 1e-7 < mass_departed:
+                raise PhysicsError("Spent mission fluid exceeds actual ship mass")
+            motion["mission_fluids_kg"] -= mass_departed
         # Propulsion hardware is represented by durable world-owned motion
         # condition flags until dedicated drive/RCS installations are mapped.
         # A failed drive can coast, but cannot silently resume thrust.
@@ -1248,7 +1445,8 @@ def tick_continuous_physics(*, now_game_time=None):
         }
 
     total_after = sum(c["mass"] + c["fuel"] for c in cells.values()) + captured_co2
-    if not math.isclose(total_before, total_after + lost, abs_tol=1e-5, rel_tol=1e-10):
+    if not math.isclose(total_before + oxygen_generated, total_after + lost,
+                        abs_tol=1e-5, rel_tol=1e-10):
         raise PhysicsError("Gas, fire fuel and vented mass did not reconcile")
     pressure_changed = []
     for row in pressure_rows:
@@ -1327,10 +1525,13 @@ def tick_continuous_physics(*, now_game_time=None):
         CanonicalShipState.objects.bulk_update(
             [e for e in equipment_rows if e.key in changed_equipment],
             ["details", "condition", "revision"], batch_size=100)
-    if water:
-        inventory.revision += 1
-        inventory.save(update_fields=["quantity", "revision"])
-        _event(inventory, "finite_fire_mist_water", inventory_before)
+    for key, stock in water_stocks.items():
+        before_stock = water_stock_before[key]
+        if not math.isclose(stock.quantity, before_stock["quantity"],
+                            abs_tol=1e-13, rel_tol=0.0):
+            stock.revision += 1
+            stock.save(update_fields=["quantity", "revision"])
+            _event(stock, "water_or_waste_mass_transfer", before_stock)
 
     old = _snapshot(clock)
     d = dict(clock.details)
@@ -1341,6 +1542,8 @@ def tick_continuous_physics(*, now_game_time=None):
     d["water_suppression_kg"] += water
     d["co2_captured_kg"] = captured_co2
     d["motion"] = motion
+    if water_state is not None:
+        d["water"] = water_state
     d["rotors"] = rotors
     validate_cargo(cargo, motion["cargo_mass_kg"])
     d["cargo"] = cargo
@@ -1377,6 +1580,16 @@ def tick_continuous_physics(*, now_game_time=None):
         "rcs_condition": motion["rcs_condition"],
         "ship_attitude_rad": [round(x, 8) for x in motion["attitude_rad"]],
         "ship_angular_velocity_rad_s": [round(x, 10) for x in motion["angular_velocity_rad_s"]],
+        "water": ({
+            "working_kg": round(water_state["working_kg"], 4),
+            "makeup_kg": round(water_stocks["normal"].quantity * 1000, 4),
+            "protected_kg": round(water_stocks["reserve"].quantity * 1000, 4),
+            "fixed_kg": water_state["fixed"],
+            "local_kg": water_state["local"],
+            "cumulative": water_state["cumulative"],
+            "potable_quarantined": water_state["potable_quarantined"],
+            "last_step": water_report,
+        } if water_state is not None else None),
     }
     clock.details = d
     clock.revision += 1
