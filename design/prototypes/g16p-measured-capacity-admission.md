@@ -83,3 +83,7 @@ G16o's failed 25-second burst gate or prove live forty-person work, arbitrary
 future latency bounds, binary psychological calibration or speech quality.
 Urgent workloads require their own latency/admission policy; they must not
 inherit a long routine deliberation queue merely to claim acceptance.
+
+## Completed native acceptance
+
+The [verified run](g16p-native-admission-results-2026-10-24.md) completed all forty admitted decisions in 1,118.287 seconds, safely refused the extra actor and retried its original route. All 94 real forwards and 41 request IDs were checked; no queue expiration or service overrun occurred. The maximum observed heartbeat gap was 47.276 ms. This passes the declared asynchronous contract while leaving the old 25-second burst gate failed.
