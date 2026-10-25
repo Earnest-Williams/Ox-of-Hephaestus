@@ -23,6 +23,10 @@ from world.full_ship_operations import (
     _require_installed, load_candidate, state,
 )
 from world.models import CanonicalShipEvent, CanonicalShipState, WorkReceipt
+from world.ship_ftl_navigation import (
+    NavigationError, AUXILIARY_MW as FTL_AUX_MW,
+    FIELD_HEAT_KW as FTL_HEAT_KW, prepare_leg, command_leg, advance_leg,
+)
 from world.ship_cargo_manifest import (
     CargoError, DRUMS as CARGO_DRUMS, initial_cargo, validate_cargo,
     onboard_mass_kg, declare_cargo_lot, split_cargo_lot, verify_drum,
@@ -335,6 +339,9 @@ def arm_continuous_physics(*, operator_approved=False, now_game_time=None):
                 "cargo_mass_kg": contract["commercial_cargo_t"] * 1000.0,
                 "cargo_capacity_kg": contract["commercial_cargo_t"] * 1000.0,
                 "ftl_fuel_kg": contract["FTL_fuel_t"] * 1000.0,
+                "expended_ftl_fuel_kg": 0.0,
+                "ftl_leg": None,
+                "nav_location": "unassigned_reference_origin",
                 "mission_fluids_kg": contract["mission_and_nonpropulsive_fluids_t"] * 1000.0,
                 "propellant_kg": contract["sublight_reaction_mass_t"] * 1000.0,
                 "expended_propellant_kg": 0.0,
@@ -410,6 +417,9 @@ def commission_g19_movement(*, operator_approved=False):
         motion.setdefault("drive_firing", False)
         motion.setdefault("attitude_firing", False)
         motion.setdefault("drive_power_mw", 0.0)
+        motion.setdefault("expended_ftl_fuel_kg", 0.0)
+        motion.setdefault("ftl_leg", None)
+        motion.setdefault("nav_location", "unassigned_reference_origin")
         motion.setdefault("drive_heat_kj", 0.0)
         motion.setdefault("drive_trip_reason", None)
         d["motion"] = motion
@@ -793,9 +803,27 @@ def tick_continuous_physics(*, now_game_time=None):
             power["dispatched_mw"] += rotary_load
             power["generation_fraction"] = (
                 power["dispatched_mw"] / power["available_mw"])
+        ftl_field = equipment.get("FTL-TRANSLATION-FIELD")
+        field_healthy = bool(
+            ftl_field and ftl_field.condition not in _BROKEN
+            and equipment.get("LCS-FTL") is not None
+            and equipment["LCS-FTL"].condition not in _BROKEN)
+        ftl_active = (motion.get("ftl_leg") or {}).get("status") == "engaged"
+        try:
+            motion, ftl_aux = advance_leg(
+                motion, dt, field_healthy=field_healthy,
+                power_headroom_mw=power["available_mw"] - power["requested_mw"])
+        except NavigationError as exc:
+            raise PhysicsError(str(exc)) from exc
+        if ftl_aux:
+            power["requested_mw"] += ftl_aux
+            power["dispatched_mw"] += ftl_aux
+            power["generation_fraction"] = (
+                power["dispatched_mw"] / power["available_mw"])
         motion = _advance_motion(
-            motion, dt, power, drive_operational=drive_operational,
-            rcs_operational=rcs_operational)
+            motion, dt, power,
+            drive_operational=drive_operational and not ftl_active,
+            rcs_operational=rcs_operational and not ftl_active)
         # Account for propulsion-control auxiliaries, NOT thrust energy, in
         # electrical dispatch and electrical-generator waste heat.
         drive_load = motion["drive_power_mw"]
@@ -806,6 +834,7 @@ def tick_continuous_physics(*, now_game_time=None):
         if not math.isfinite(heat) or not 0 <= heat <= DRIVE_THERMAL_BUFFER_KJ:
             raise PhysicsError("Invalid propulsion thermal inventory")
         heat += DRIVE_HEAT_KW * dt if motion["drive_firing"] else 0.0
+        heat += FTL_HEAT_KW * dt if ftl_aux else 0.0
         drive_cooling_kw = 0.0
         connected_lt = _reachable(
             edges, isolators, "lt_cooling", ["NODE-LT-PLANT"])
@@ -1126,6 +1155,8 @@ def tick_continuous_physics(*, now_game_time=None):
         "ship_position_m": [round(x, 3) for x in motion["position_m"]],
         "ship_velocity_m_s": [round(x, 6) for x in motion["velocity_m_s"]],
         "ship_propellant_kg": round(motion["propellant_kg"], 3),
+        "ship_ftl_fuel_kg": round(motion["ftl_fuel_kg"], 3),
+        "ftl_leg_status": (motion.get("ftl_leg") or {}).get("status"),
         "ship_current_mass_kg": round(sum(motion[k] for k in
             ("dry_mass_kg", "cargo_mass_kg", "ftl_fuel_kg",
              "mission_fluids_kg", "propellant_kg")), 3),
