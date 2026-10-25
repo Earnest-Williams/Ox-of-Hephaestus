@@ -80,6 +80,23 @@ class InstalledMovementTests(EvenniaTestCase):
         with self.assertRaises(PermissionError):
             crew_physical_action(tech, "5" * 32, "helm", "HELM", "x+")
 
+    def test_aft_propulsion_inhibit_is_local_and_recoverable(self):
+        tech = build_ship()["watch"]
+        tech.move_to(find_ship_space("PROP-CTRL"), quiet=True)
+        first = crew_physical_action(tech, "6" * 32, "drive", "MAIN", "inhibit")
+        self.assertEqual(first["status"], "succeeded")
+        self.assertEqual(state("meta", "continuous-physics").details[
+            "motion"]["drive_condition"], "inhibited")
+        self.assertEqual(
+            crew_physical_action(tech, "6" * 32, "drive", "MAIN", "inhibit"),
+            first)
+        crew_physical_action(tech, "7" * 32, "drive", "MAIN", "release")
+        self.assertEqual(state("meta", "continuous-physics").details[
+            "motion"]["drive_condition"], "operational")
+        tech.move_to(find_ship_space("CMD-PRIMARY"), quiet=True)
+        with self.assertRaises(PermissionError):
+            crew_physical_action(tech, "8" * 32, "drive", "MAIN", "inhibit")
+
     def test_explicit_migration_preserves_motion_and_reconciles_mass(self):
         clock = state("meta", "continuous-physics")
         previous = dict(clock.details)
