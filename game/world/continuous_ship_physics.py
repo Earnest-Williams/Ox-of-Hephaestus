@@ -81,6 +81,9 @@ def _advance_motion(motion, dt, power, *, drive_operational=True, rcs_operationa
     cargo = float(result["cargo_mass_kg"])
     direction = HELM_DIRECTIONS[result["command"]]
     # Body-frame thrust must follow the vessel's orientation.
+    if (len(result["attitude_rad"]) != 3
+            or not all(math.isfinite(x) for x in result["attitude_rad"])):
+        raise PhysicsError("Invalid ship attitude")
     pitch, yaw, roll = result["attitude_rad"]
     cp, sp = math.cos(pitch), math.sin(pitch)
     cy, sy = math.cos(yaw), math.sin(yaw)
@@ -90,8 +93,6 @@ def _advance_motion(motion, dt, power, *, drive_operational=True, rcs_operationa
     px, py, pz = cp * rx + sp * rz, ry, -sp * rx + cp * rz
     direction = (cy * px - sy * py, sy * px + cy * py, pz)
     attitude_direction = ATTITUDE_COMMANDS[result["attitude_command"]]
-    if not all(math.isfinite(x) for x in result["attitude_rad"]):
-        raise PhysicsError("Invalid ship attitude")
     if len(position) != 3 or len(velocity) != 3 or not all(
             math.isfinite(x) for x in (*position, *velocity, fuel)) or fuel < 0 or not math.isfinite(cargo) or not 0 <= cargo <= MAX_CARGO_MASS_KG:
         raise PhysicsError("Invalid ship motion or propellant state")
