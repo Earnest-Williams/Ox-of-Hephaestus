@@ -874,9 +874,12 @@ def local_physics_readout(actor, target):
             "smoke_kg": round(d["physics_smoke_kg"], 5),
             "scope": "local_scenario_reading_sensor_reliability_unmodelled",
         }
-    for category in ("equipment", "isolator"):
-        item = CanonicalShipState.objects.filter(
-            pk=category + ":" + target, space_id=room).first()
+    for category in ("equipment", "isolator", "access"):
+        qs = CanonicalShipState.objects.filter(pk=category + ":" + target)
+        item = qs.first() if category == "access" else qs.filter(space_id=room).first()
+        if category == "access" and item and room not in {
+                item.reference.get("from"), item.reference.get("to")}:
+            item = None
         if item:
             return {
                 "id": target, "category": category, "condition": item.condition,
