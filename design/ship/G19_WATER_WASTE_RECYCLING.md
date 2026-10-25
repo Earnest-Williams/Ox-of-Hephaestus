@@ -62,6 +62,10 @@ owned source quantities and identities.
   Normal makeup goes to the 39 t working tank at a finite transfer rate.
   The protected 70 t reserve is never used without a qualified crew
   member at the actual WATER-FWD controls explicitly releasing it.
+  While that reserve is released, ordinary cultivation irrigation and
+  routine servicing are automatically deferred, but domestic consumption,
+  food rehydration and verified oxygen-electrolysis feed can continue.
+  The curtailed discretionary demand is metered explicitly.
 - The independent dry sanitary `INV-WASTE-RESIDUE` account reconciles
   its two **8 t** sealed physical cassettes after every transition. The
   independent **4 + 4 t industrial** and **1 + 1 t hazardous** receivers
@@ -88,8 +92,11 @@ owned source quantities and identities.
 
 ## Couplings and limits
 
-- Electrical shortfall can stop potable delivery and sanitation, while
-  local storage temporarily delays loss of service. Recovered or
+- Water distribution remains on the essential electrical service tier;
+  normal wastewater reclamation requires the selected normal bus capacity.
+  A normal-load brownout can preserve essential drinking water while
+  wastewater accumulates in finite local/fixed receivers. Complete loss of
+  essential power stops potable pumping and sanitation. Recovered or
   quarantined contents do not teleport between zones or bypass a closed
   isolator.
 - Fire mist still draws the **same** existing normal-water inventory;
@@ -136,7 +143,8 @@ The new `.github/workflows/ox-g19-water.yml` runs:
    entire normal voyage, with domestic and oxygen-water allocations.
 2. Single- and dual-processor failures, fixed receiver isolation,
    finite buffer exhaustion, sanitary-cassette exhaustion, protection
-   of the reserved 70 t, negative-input and stock-mismatch rejection.
+   of the reserved 70 t, enforced nonessential emergency rationing,
+   negative-input and stock-mismatch rejection.
 3. Seeded multi-casualty/property fuzzing across variable time steps,
    processor failures, isolation, buffer saturation, material corruption
    and double evaluation without authority over persistent world state.
@@ -144,7 +152,7 @@ The new `.github/workflows/ox-g19-water.yml` runs:
    local authenticated receipt replay, actual surveyed material custody,
    cartridge installation, contamination, finite filter consumption,
    segregated hazardous/industrial capture, H2 outlet proof, rotary
-   failover and no uncommitted mass transfer.
+   failover, essential-power brownout, and no uncommitted mass transfer.
 5. Existing G18 continuous-physics and coupled-casualty suites,
    including smoke, thermal protection, power failures and finite
    fire suppression, to detect accidental regressions.

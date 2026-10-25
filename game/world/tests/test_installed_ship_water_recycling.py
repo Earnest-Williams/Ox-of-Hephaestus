@@ -196,6 +196,27 @@ class InstalledWaterRecyclingTests(EvenniaTestCase):
                 "HAZ-ISO-HOLD-A", "deposit:INV-SPARES:1")
         self.assertFalse(WorkReceipt.objects.filter(pk="f" * 32).exists())
 
+    def test_essential_power_preserves_drinking_water_but_sheds_recycling(self):
+        # The actual main-generator breaker opens. Only GEN-B (0.65 MW)
+        # remains, enough for essential water pumps but not the selected
+        # 1.35 MW whole-ship normal profile.
+        from world.continuous_ship_physics import _power
+        set_isolator("ISO-GEN-M", "open", operator=True)
+        equipment = {x.source_id: x for x in
+                     CanonicalShipState.objects.filter(category="equipment")}
+        edges = list(CanonicalShipState.objects.filter(category="edge"))
+        isolators = {x.source_id: x for x in
+                     CanonicalShipState.objects.filter(category="isolator")}
+        supply = _power(equipment, edges, isolators, "normal")
+        self.assertTrue(supply["essential_assured"])
+        self.assertFalse(supply["assured"])
+        report = tick_continuous_physics(now_game_time=1060)
+        self.assertGreater(report["water"]["cumulative"]["domestic_used_kg"], 0)
+        self.assertEqual(report["water"]["cumulative"]["water_recovered_kg"], 0)
+        self.assertGreater(
+            sum(sum(x.values()) for x in report["water"]["local_kg"].values())
+            + sum(report["water"]["fixed_kg"].values()), 0)
+
     def test_broken_rotary_waste_interface_cannot_reach_fixed_receiver(self):
         from world.continuous_ship_physics import _water_hardware, _power
         equipment = {x.source_id: x for x in

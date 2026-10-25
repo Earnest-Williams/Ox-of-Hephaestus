@@ -80,6 +80,7 @@ def initial_water():
             "reject_kg": 0.0, "sanitary_solids_kg": 0.0,
             "makeup_kg": 0.0, "emergency_makeup_kg": 0.0,
             "technical_kg": 0.0, "technical_unserved_kg": 0.0,
+            "rationed_nonessential_kg": 0.0,
             "decontaminated_kg": 0.0,
             "oxygen_from_electrolysis_kg": 0.0,
             "hydrogen_from_electrolysis_kg": 0.0,
@@ -209,7 +210,8 @@ def step_water(water, seconds, *, stocks, hardware, crew_count=40):
         "processed_kg": 0.0, "recovered_kg": 0.0, "reject_kg": 0.0,
         "sanitary_kg": 0.0, "makeup_kg": 0.0,
         "oxygen_kg": 0.0, "hydrogen_kg": 0.0,
-        "technical_kg": 0.0, "decontaminated_kg": 0.0,
+        "technical_kg": 0.0, "rationed_nonessential_kg": 0.0,
+        "decontaminated_kg": 0.0,
         "power_required": False,
     }
     if seconds == 0:
@@ -356,14 +358,24 @@ def step_water(water, seconds, *, stocks, hardware, crew_count=40):
             report["makeup_kg"] += rescue
 
     # Food and ordinary servicing consume declared voyage allowance only
-    # while usable conditioned supply can actually be delivered.
+    # while usable conditioned supply can actually be delivered. Unlocking
+    # the 70 t degradation reserve places the ship in an emergency policy:
+    # essential domestic water, food rehydration and O2 electrolysis remain
+    # possible, but ordinary crop irrigation and routine washdown cannot
+    # silently spend the protected reserve. Any deferral is a visible
+    # operational consequence, not a hidden disappearance of crew demand.
     if potable_ready:
         for name, rate in MAINTENANCE_AND_FOOD_KG_DAY.items():
             request = rate * daily * scale
-            moved = min(request, w["working_kg"])
+            restricted = w["reserve_released"] and name in {
+                "cultivation", "servicing"}
+            moved = 0.0 if restricted else min(request, w["working_kg"])
             w["working_kg"] -= moved
             report["technical_kg"] += moved
             w["cumulative"]["technical_unserved_kg"] += request - moved
+            if restricted:
+                report["rationed_nonessential_kg"] += request
+                w["cumulative"]["rationed_nonessential_kg"] += request
         if hardware.get("oxygen", False):
             request = OXYGEN_FEED_KG_DAY * daily * scale
             moved = min(request, w["working_kg"])

@@ -570,13 +570,18 @@ def _water_hardware(water, equipment, edges, isolators, nodes, power):
             reached = _reachable(edges, isolators, network, sources)
         return any(n in reached for n in destinations)
 
+    # Pumps and emergency hygiene supply belong to the essential electrical
+    # service tier. Full wastewater reclamation needs normal-load assurance.
+    # A 50 kW brownout must not disable drinking water while its surviving
+    # protected bus can still run a modest water distribution pump.
     running = power["assured"]
+    essential_running = power["essential_assured"]
     potable_sources = owned("potable_water", "POTABLE-TANK-MAIN")
     potable_receivers = [
         n for arc in range(1, 9)
         for n in owned("potable_water", f"HAB-{arc:02d}-POTABLE-WATER-MAN")
     ]
-    potable = (running and sound("POTABLE-TANK-MAIN")
+    potable = (essential_running and sound("POTABLE-TANK-MAIN")
                and any(sound(f"ROT-POTABLE-WATER-{side}") for side in "AB")
                and connected("potable_water", potable_sources, potable_receivers))
     process = {}
@@ -634,7 +639,7 @@ def _water_hardware(water, equipment, edges, isolators, nodes, power):
     return {
         "potable": potable,
         "process": process_ok,
-        "fixed": {k: running and v for k, v in fixed.items()},
+        "fixed": {k: essential_running and v for k, v in fixed.items()},
         "oxygen": oxygen_side is not None, "oxygen_side": oxygen_side,
         "bins": bins,
     }

@@ -115,6 +115,35 @@ class WaterLedgerTests(unittest.TestCase):
         self.assertLess(s["reserve"], 70000)
         validate_water(w, s)
 
+    def test_emergency_reserve_cannot_feed_routine_crops_or_servicing(self):
+        w, s, h = initial_water(), stock(), healthy()
+        w["working_kg"] = 100.0
+        s["normal"] = 0.0
+        w["reserve_released"] = True
+        w, s, report = step_water(w, DAY, stocks=s, hardware=h)
+        self.assertGreater(report["domestic_kg"], 0)
+        self.assertGreater(report["oxygen_kg"], 0)
+        self.assertGreater(report["makeup_kg"], 0)
+        self.assertLess(s["reserve"], 70000.0)
+        restricted = (35000.0 + 21924.0) / 730.0
+        self.assertAlmostEqual(
+            report["rationed_nonessential_kg"], restricted, places=5)
+        self.assertAlmostEqual(
+            w["cumulative"]["rationed_nonessential_kg"], restricted, places=5)
+        self.assertLess(report["technical_kg"], 45.0)
+        self.assertGreaterEqual(
+            w["cumulative"]["technical_unserved_kg"], restricted)
+        validate_water(w, s)
+        # With no explicit reserve release, even this essential draw stops.
+        blocked = initial_water()
+        blocked["working_kg"] = 0.0
+        normal_empty = stock()
+        normal_empty["normal"] = 0.0
+        result, balances, report = step_water(
+            blocked, DAY, stocks=normal_empty, hardware=h)
+        self.assertEqual(report["makeup_kg"], 0.0)
+        self.assertEqual(balances["reserve"], 70000.0)
+
     def test_contamination_and_blackout_cannot_manufacture_potable_water(self):
         w, s, h = initial_water(), stock(), healthy()
         before = water_inventory_total(w, s)
