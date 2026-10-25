@@ -45,6 +45,46 @@ FIRE_HEAT_KJ_KG = 20000.0
 # eventually be serviced. This does not regenerate oxygen or vent CO2 away.
 CO2_CAPTURE_CAPACITY_KG = 150.0
 CO2_CAPTURE_KG_S_PER_TRAIN = 0.004
+# Gameplay-calibrated ship dynamics: inertial motion in a local reference
+# frame, finite reaction mass, and a power-limited drive. Not a flight solver.
+DRY_SHIP_MASS_KG = 9_000_000.0
+INITIAL_PROPELLANT_KG = 240_000.0
+DRIVE_THRUST_N = 360_000.0
+DRIVE_EXHAUST_M_S = 18_000.0
+DRIVE_POWER_MW = 0.60
+HELM_DIRECTIONS = {
+    "x+": (1.0, 0.0, 0.0), "x-": (-1.0, 0.0, 0.0),
+    "y+": (0.0, 1.0, 0.0), "y-": (0.0, -1.0, 0.0),
+    "z+": (0.0, 0.0, 1.0), "z-": (0.0, 0.0, -1.0),
+    "coast": (0.0, 0.0, 0.0),
+}
+
+
+def _advance_motion(motion, dt, power):
+    """Finite-mass velocity-Verlet-like constant-thrust step in inertial axes."""
+    result = dict(motion)
+    position = list(result["position_m"])
+    velocity = list(result["velocity_m_s"])
+    fuel = float(result["propellant_kg"])
+    direction = HELM_DIRECTIONS[result["command"]]
+    if len(position) != 3 or len(velocity) != 3 or not all(
+            math.isfinite(x) for x in (*position, *velocity, fuel)) or fuel < 0:
+        raise PhysicsError("Invalid ship motion or propellant state")
+    powered = power["assured"] and power["dispatched_mw"] >= DRIVE_POWER_MW
+    burn_time = min(dt, fuel * DRIVE_EXHAUST_M_S / DRIVE_THRUST_N) if (
+        powered and any(direction)) else 0.0
+    spent = burn_time * DRIVE_THRUST_N / DRIVE_EXHAUST_M_S
+    acceleration = DRIVE_THRUST_N / (DRY_SHIP_MASS_KG + fuel - spent / 2) if spent else 0.0
+    for axis in range(3):
+        a = acceleration * direction[axis]
+        position[axis] += velocity[axis] * dt + a * burn_time * (dt - burn_time / 2)
+        velocity[axis] += a * burn_time
+    result["position_m"] = position
+    result["velocity_m_s"] = velocity
+    result["propellant_kg"] = fuel - spent
+    result["expended_propellant_kg"] += spent
+    result["drive_firing"] = burn_time > 0
+    return result
 # Coarse installed machinery waste-heat loads (kW), deposited in the
 # equipment's real pressure zone. They require an actually running plant;
 # a disconnected or shut-down unit cannot heat its compartment indefinitely.
@@ -179,6 +219,13 @@ def arm_continuous_physics(*, operator_approved=False, now_game_time=None):
             "lost_to_space_kg": 0.0, "burned_fuel_kg": 0.0,
             "water_suppression_kg": 0.0,
             "co2_captured_kg": 0.0,
+            "motion": {
+                "position_m": [0.0, 0.0, 0.0],
+                "velocity_m_s": [0.0, 0.0, 0.0],
+                "propellant_kg": INITIAL_PROPELLANT_KG,
+                "expended_propellant_kg": 0.0,
+                "command": "coast", "drive_firing": False,
+            },
             "provenance": "explicit_scenario_not_instrument_measured",
         },
     )
@@ -361,6 +408,9 @@ def tick_continuous_physics(*, now_game_time=None):
     total_before = sum(c["mass"] + c["fuel"] for c in cells.values()) + captured_co2
     lost = burned = water = 0.0
     changed_equipment = set()
+    motion = dict(clock.details.get("motion", {}))
+    if not motion:
+        raise PhysicsError("Ship motion state not initialised")
     summary = {}
     duration = 0.0
 
@@ -381,6 +431,7 @@ def tick_continuous_physics(*, now_game_time=None):
                 changed_equipment.add(item.key)
 
         power = _power(equipment, edges, isolators, clock.details["load_profile"])
+        motion = _advance_motion(motion, dt, power)
         # No unproven infinite battery/flywheel bridge or magic auto load shedding.
         protected_power = power["essential_assured"] and (
             "PWR-PROT" in power["nodes"])
@@ -660,6 +711,7 @@ def tick_continuous_physics(*, now_game_time=None):
     d["burned_fuel_kg"] += burned
     d["water_suppression_kg"] += water
     d["co2_captured_kg"] = captured_co2
+    d["motion"] = motion
     d["summary"] = {
         **summary,
         "gas_kg": round(sum(c["mass"] for c in cells.values()), 6),
@@ -668,6 +720,10 @@ def tick_continuous_physics(*, now_game_time=None):
         "fuel_kg": round(sum(c["fuel"] for c in cells.values()), 6),
         "damaged_cells": sum(c["damage"] >= 0.2 for c in cells.values()),
         "processed_seconds": seconds,
+        "ship_position_m": [round(x, 3) for x in motion["position_m"]],
+        "ship_velocity_m_s": [round(x, 6) for x in motion["velocity_m_s"]],
+        "ship_propellant_kg": round(motion["propellant_kg"], 3),
+        "drive_firing": motion["drive_firing"],
     }
     clock.details = d
     clock.revision += 1
@@ -776,7 +832,7 @@ def crew_physical_action(actor, request_id, action, target, value):
     """
     if not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
         raise PhysicsError("Expected one 32-character lowercase request UUID")
-    if action not in {"switch", "plant", "schedule", "mist", "hatch", "service"}:
+    if action not in {"switch", "plant", "schedule", "mist", "hatch", "service", "helm"}:
         raise PhysicsError("Unknown physical operation")
     if actor is None or getattr(actor.db, "ox_terminal_dead", False):
         raise PermissionError("A deceased or missing character cannot operate machinery")
@@ -829,6 +885,23 @@ def crew_physical_action(actor, request_id, action, target, value):
         d["physics_online"] = False if not on else d.get("physics_online", False)
         d["physics_startup_s"] = (30.0 if target in GENERATION_MW else 10.0) if (
             on and not d["physics_online"]) else 0.0
+        if d != item.details:
+            item.details = d
+            item.revision += 1
+            item.save(update_fields=["details", "revision"])
+    elif action == "helm":
+        if target != "GEN-M" or value not in HELM_DIRECTIONS:
+            raise PhysicsError("Unknown ship thrust direction")
+        station = state("equipment", "GEN-M")
+        _crew_at(actor, station.space_id)
+        item = _clock(lock=True)
+        before = _snapshot(item)
+        d = dict(item.details)
+        motion = dict(d.get("motion", {}))
+        if not motion:
+            raise PhysicsError("Ship motion has not been commissioned")
+        motion["command"] = value
+        d["motion"] = motion
         if d != item.details:
             item.details = d
             item.revision += 1
