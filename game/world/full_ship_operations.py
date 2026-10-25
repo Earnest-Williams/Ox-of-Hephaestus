@@ -521,6 +521,17 @@ def pressure_reading(cell_id):
             "mass_kg": cell.quantity, "temperature_k": t}
 
 
+
+def _require_no_continuous_gas_ledger():
+    """Legacy operator gas arithmetic cannot bypass G18 constituent conservation."""
+    if CanonicalShipState.objects.filter(
+        pk="meta:continuous-physics", condition="armed"
+    ).exists():
+        raise ShipOperationsError(
+            "Continuous gas ledger is armed; use its authorised incident controller"
+        )
+
+
 @transaction.atomic
 def vent_pressure_cell(cell_id, kg, *, operator=False):
     """Operator-injected casualty: lost gas leaves the ship, not reserve stock."""
@@ -529,6 +540,7 @@ def vent_pressure_cell(cell_id, kg, *, operator=False):
     if not isinstance(kg, (int, float)) or isinstance(kg, bool) or not math.isfinite(kg) or kg <= 0:
         raise ShipOperationsError("Invalid vent mass")
     _require_installed()
+    _require_no_continuous_gas_ledger()
     cell = state("pressure", cell_id, lock=True)
     if cell.quantity is None:
         raise ShipOperationsError("Unknown atmosphere cannot be vented arithmetically")
@@ -558,6 +570,7 @@ def equalize_cells(a_id, b_id, *, operator=False):
     if a_id == b_id:
         raise ShipOperationsError("Distinct cells required")
     _require_installed()
+    _require_no_continuous_gas_ledger()
     cells = list(CanonicalShipState.objects.select_for_update().filter(
         key__in=sorted([_key("pressure", a_id), _key("pressure", b_id)])))
     if len(cells) != 2:

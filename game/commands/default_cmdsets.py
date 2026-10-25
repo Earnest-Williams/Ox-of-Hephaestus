@@ -19,6 +19,8 @@ from commands.departments import (
     CmdRestow, CmdCertify, CmdReplaceCartridge, CmdRestartScrubber,
 )
 
+from commands.ship_physics import CmdOxPhysicsRead, CmdOxPhysicsOperate
+
 from commands.ship import (
     CmdCommission,
     CmdInspect,
@@ -51,6 +53,8 @@ class CharacterCmdSet(CmdSet):
             general.CmdPose,
             help.CmdHelp,
             CmdInspect,
+            CmdOxPhysicsRead,
+            CmdOxPhysicsOperate,
             CmdOxCapabilities,
             CmdOxTerminal,
             CmdOxInventory,
