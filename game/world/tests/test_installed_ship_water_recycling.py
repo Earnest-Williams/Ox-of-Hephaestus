@@ -216,6 +216,11 @@ class InstalledWaterRecyclingTests(EvenniaTestCase):
         # remains, enough for essential water pumps but not the selected
         # 1.35 MW whole-ship normal profile.
         from world.continuous_ship_physics import _power
+        # GEN-B is online but its breaker is independently normally open.
+        # Explicitly close the real standby feeder before removing the
+        # main-generator bus; a disconnected nameplate is not backup power.
+        self.assertTrue(state("equipment", "GEN-B").details["physics_online"])
+        set_isolator("ISO-GEN-B", "closed", operator=True)
         set_isolator("ISO-GEN-M", "open", operator=True)
         equipment = {x.source_id: x for x in
                      CanonicalShipState.objects.filter(category="equipment")}
