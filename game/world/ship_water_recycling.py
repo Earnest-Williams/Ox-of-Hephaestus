@@ -61,6 +61,8 @@ def initial_water():
         },
         "water_train": {"A": "on", "B": "on"},
         "waste_train": {"A": "on", "B": "on"},
+        "cassette_sealed": {k: {"A": True, "B": True} for k in CASSETTE_KG},
+        "oxygen_outlet_verified": {"A": False, "B": False},
         "reserve_released": False,
         "potable_quarantined": False,
         "quality_sample": None,
@@ -107,11 +109,16 @@ def validate_water(water, stocks):
             raise WaterError("Fixed wastewater receiver overfill")
     for category, limits in CASSETTE_KG.items():
         for side, cap in limits.items():
+            if not isinstance(water["cassette_sealed"][category][side], bool):
+                raise WaterError("Waste cassette seal state corrupt")
             if _quantity(water["cassettes"][category][side]) > cap + EPS:
                 raise WaterError("Waste cassette overfill")
         filled = sum(water["cassettes"][category].values())
         if not math.isclose(filled, stocks[category], abs_tol=1e-5, rel_tol=1e-10):
             raise WaterError("Sealed receiver and inventory disagree")
+    if set(water["oxygen_outlet_verified"]) != {"A", "B"} or any(
+            not isinstance(x, bool) for x in water["oxygen_outlet_verified"].values()):
+        raise WaterError("Unknown hydrogen outlet commissioning")
     for amount in water["cumulative"].values():
         _quantity(amount)
     _quantity(water["suspected_contamination_kg"])
