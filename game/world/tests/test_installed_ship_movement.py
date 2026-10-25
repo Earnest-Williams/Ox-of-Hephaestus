@@ -10,6 +10,7 @@ from evennia.utils.test_resources import EvenniaTestCase
 from world.bootstrap import build_ship
 from world.continuous_ship_physics import (
     PhysicsError, arm_continuous_physics, commission_g19_movement,
+    survey_cargo_lot,
     crew_physical_action, local_physics_readout, tick_continuous_physics,
 )
 from world.full_ship_operations import (
@@ -118,6 +119,51 @@ class InstalledMovementTests(EvenniaTestCase):
             crew_physical_action(tech, "a" * 32, "drive", "MAIN", "inhibit")
         with self.assertRaises(PhysicsError):
             crew_physical_action(tech, "b" * 32, "drive", "MAIN", "reset")
+
+    def test_cargo_survey_and_declared_balance_preserve_ship_mass(self):
+        with self.assertRaises(PermissionError):
+            survey_cargo_lot(
+                operation="declare", lot_id="UNIT001", mass_kg=100,
+                drum="DR-01", azimuth_deg=0, radius_m=20)
+        first = survey_cargo_lot(
+            operator_approved=True, operation="declare", lot_id="UNIT001",
+            mass_kg=100, drum="DR-01", azimuth_deg=0, radius_m=20,
+            kind="sled")
+        self.assertEqual(first["lots"], 1)
+        survey_cargo_lot(
+            operator_approved=True, operation="verify", drum="DR-01")
+        clock = state("meta", "continuous-physics")
+        cargo = clock.details["cargo"]
+        self.assertEqual(cargo["lots"]["UNIT001"]["location"], "DR-01")
+        self.assertEqual(cargo["unlocated_onboard_kg"],
+                         clock.details["motion"]["cargo_mass_kg"] - 100)
+        tick_continuous_physics(now_game_time=1010)
+        clock = state("meta", "continuous-physics")
+        self.assertAlmostEqual(
+            clock.details["rotors"]["DR-01"]["imbalance_kg_m"], 2000)
+        self.assertEqual(
+            clock.details["motion"]["cargo_mass_kg"], 900_000_000.0)
+        with self.assertRaises(PhysicsError):
+            survey_cargo_lot(
+                operator_approved=True, operation="declare",
+                lot_id="IMPOSSIBLE", mass_kg=900_000_000,
+                drum="DR-02", azimuth_deg=0, radius_m=20)
+
+    def test_freight_action_requires_local_environmental_proof(self):
+        survey_cargo_lot(
+            operator_approved=True, operation="declare",
+            lot_id="FRT001", mass_kg=1000, drum="DR-01",
+            azimuth_deg=0, radius_m=0.5, kind="sled")
+        survey_cargo_lot(
+            operator_approved=True, operation="verify", drum="DR-01")
+        tech = build_ship()["cargo"]
+        tech.move_to(find_ship_space("CMD-PRIMARY"), quiet=True)
+        with self.assertRaises(PermissionError):
+            crew_physical_action(
+                tech, "c" * 32, "freight", "FRT001", "to_lock")
+        self.assertFalse(
+            __import__("world.models", fromlist=["WorkReceipt"]).WorkReceipt
+            .objects.filter(pk="c" * 32).exists())
 
     def test_explicit_migration_preserves_motion_and_reconciles_mass(self):
         clock = state("meta", "continuous-physics")
