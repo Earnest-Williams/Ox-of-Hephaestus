@@ -7,7 +7,7 @@ on:
       - "game/world/ship_water_recycling.py"
       - "game/world/continuous_ship_physics.py"
       - "game/world/tests/test_ship_water_recycling.py"
-      - "design/ship/G19_WATER_WASTE_RECYCLING.md"
+      - "game/world/tests/test_installed_ship_water_recycling.py"
       - ".github/workflows/ox-g19-water.yml"
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review]
@@ -15,6 +15,7 @@ on:
       - "game/world/ship_water_recycling.py"
       - "game/world/continuous_ship_physics.py"
       - "game/world/tests/test_ship_water_recycling.py"
+      - "game/world/tests/test_installed_ship_water_recycling.py"
       - ".github/workflows/ox-g19-water.yml"
   workflow_dispatch:
 
@@ -35,26 +36,27 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Inspect installed water and byproduct identities
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Compile and inspect the exact installed design
         run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          m=json.loads(Path('design/ship/ox_full_ship_v0.5_candidate.json').read_text())
-          print("INVENTORIES")
-          for i in m['inventories']:
-              print(i['id'], i.get('nominal_mass_t'), i.get('capacity_t'),
-                    i.get('kind'), i.get('description'), i.get('purpose'))
-          print("WATER MACHINERY")
-          for e in m['equipment']:
-              if any(t in e['id'] for t in ('WATER','WASTE','GREY','BLACK','POTABLE','CONDENS','ECLSS-A-O2','ROT-','RESIDUE')):
-                  print(e['id'],e.get('kind'),e.get('space_id'),
-                        json.dumps(e.get('attributes',{}), sort_keys=True)[:450])
-          print("WATER SERVICE NETWORKS")
-          from collections import Counter
-          print(Counter(e['network'] for e in m['service_edges']))
-          PY
-      - name: Validate canonical byproduct and finite disposal design
+          python -m compileall -q game/world/ship_water_recycling.py game/world/continuous_ship_physics.py game/world/tests/test_ship_water_recycling.py game/world/tests/test_installed_ship_water_recycling.py
+          python design/ship/check_waste_byproducts.py > /dev/null
+          python design/ship/check_physical_operations.py > /dev/null
+      - name: Run 730-day pure-water mass and failure campaign
+        working-directory: game
+        run: python -m unittest world.tests.test_ship_water_recycling -v
+      - name: Install real Evennia
+        run: python -m pip install .
+      - name: Provision disposable installed-world database
+        working-directory: game
+        env:
+          EVENNIA_SUPERUSER_USERNAME: OxCI
+          EVENNIA_SUPERUSER_EMAIL: oxci@example.invalid
         run: |
-          python design/ship/check_waste_byproducts.py
-          python design/ship/check_physical_operations.py
+          export EVENNIA_SUPERUSER_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+          evennia migrate --noinput
+      - name: Run real installed water systems and previous G18 casualty regressions
+        working-directory: game
+        run: |
+          python -m world.test_runner world.tests.test_installed_ship_water_recycling world.tests.test_continuous_ship_physics world.tests.test_coupled_casualty --verbosity=2
