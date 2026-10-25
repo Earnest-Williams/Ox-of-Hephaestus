@@ -275,6 +275,14 @@ def start_freight_transfer(manifest, rotors, *, lot_id, direction,
         raise CargoError("Fixed pressure-rated freight capture is not open")
     if drum in manifest["jobs"]:
         raise CargoError("Freight collar is already handling another load")
+    if direction in {"to_spine", "from_spine"}:
+        if any(job["direction"] in {"to_spine", "from_spine"}
+               for job in manifest["jobs"].values()):
+            raise CargoError("Shared freight spine transfer station already occupied")
+        if direction == "to_spine" and any(
+                other["location"] == "SPINE-FREIGHT"
+                for other in manifest["lots"].values()):
+            raise CargoError("Freight spine receiving position occupied")
     result = dict(manifest)
     result["jobs"] = dict(manifest["jobs"])
     result["jobs"][drum] = {
