@@ -33,7 +33,8 @@ from world.ship_port_operations import (
     command_port_job,
 )
 from world.ship_cargo_manifest import (
-    CargoError, DRUMS as CARGO_DRUMS, initial_cargo, validate_cargo,
+    CargoError, DRUMS as CARGO_DRUMS, CARGO_TRANSFER_MW,
+    initial_cargo, validate_cargo,
     onboard_mass_kg, declare_cargo_lot, split_cargo_lot, verify_drum,
     drum_balance, start_freight_transfer, step_freight,
     restow_cargo_lot, unsecured_drum_loads,
@@ -1093,6 +1094,14 @@ def commission_commercial_port(*, operator_approved=False, operation,
     before = _snapshot(clock)
     d = dict(clock.details)
     motion = d["motion"]
+    active_waste = [job for job in d.get("water", {}).get(
+        "waste_offload", {}).get("jobs", {}).values()
+        if job["portal_id"][:5] == portal_id[:5]]
+    if operation == "undock" and any(
+            job["phase"] != "return_ready" for job in active_waste):
+        raise PhysicsError("Cannot release berth while sealed-waste transfer is active")
+    if operation == "register" and active_waste:
+        raise PhysicsError("Commercial handler reserved for sealed waste")
     if operation == "dock":
         drum = portal_id[:5] if portal_id in PORTALS else None
         rotor = d["rotors"].get(drum) if drum else None
@@ -2264,7 +2273,7 @@ def crew_physical_action(actor, request_id, action, target, value):
     """
     if not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
         raise PhysicsError("Expected one 32-character lowercase request UUID")
-    if action not in {"switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste"}:
+    if action not in {"switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair"}:
         raise PhysicsError("Unknown physical operation")
     if actor is None or getattr(actor.db, "ox_terminal_dead", False):
         raise PermissionError("A deceased or missing character cannot operate machinery")
@@ -2286,8 +2295,8 @@ def crew_physical_action(actor, request_id, action, target, value):
                     "isolator:" if action == "switch"
                     else "pressure:" if action == "mist"
                     else "access:" if action == "hatch"
-                    else "" if action in {"schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste"}
-                    else "equipment:") + (CLOCK_KEY if action in {"schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste"} else target)
+                    else "" if action in {"schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair"}
+                    else "equipment:") + (CLOCK_KEY if action in {"schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair"} else target)
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
@@ -2440,7 +2449,22 @@ def crew_physical_action(actor, request_id, action, target, value):
             group = ("sanitary" if target.startswith("WASTE-") else
                      "industrial" if target.startswith("IND-") else "hazardous")
             side = target[-1]
-            if isinstance(value, str) and value.startswith("deposit:"):
+            if target in w["waste_offload"]["jobs"] and not (
+                    isinstance(value, str) and value.startswith("stage:")):
+                raise PhysicsError("Waste receiver is reserved for physical port transfer")
+            if isinstance(value, str) and value.startswith("stage:"):
+                if receiver.condition in _BROKEN:
+                    raise PhysicsError("Damaged sealed receiver cannot depart its store")
+                acc_id = value.partition(":")[2]
+                permit = w["waste_offload"]["acceptances"].get(acc_id)
+                route = (w["waste_offload"]["routes"].get(
+                    target + ":" + permit["portal_id"]) if permit else None)
+                try:
+                    w = prepare_waste_offload(
+                        w, receiver=target, acceptance_id=acc_id, route=route)
+                except WaterError as exc:
+                    raise PhysicsError(str(exc)) from exc
+            elif isinstance(value, str) and value.startswith("deposit:"):
                 if group == "sanitary" or receiver.condition in _BROKEN or not (
                         w["cassette_sealed"][group][side]):
                     raise PhysicsError("Material not compatible with this sealed waste receiver")
@@ -2515,6 +2539,165 @@ def crew_physical_action(actor, request_id, action, target, value):
         item.details = d
         item.revision += 1
         item.save(update_fields=["details", "revision"])
+    elif action == "wasteport":
+        if target not in WASTE_RECEIVERS or value not in {
+                "haul", "offload", "return", "pause", "resume", "abort"}:
+            raise PhysicsError("Unknown local waste freight-handling command")
+        item = _clock(lock=True)
+        before = _snapshot(item)
+        d = dict(item.details)
+        water = d.get("water")
+        if water is None:
+            raise PhysicsError("Solid-waste port logistics not commissioned")
+        job = water["waste_offload"]["jobs"].get(target)
+        if job is None:
+            raise PhysicsError("No matching on-board sealed waste cassette transfer")
+        portal = job["portal_id"]
+        drum = portal[:5]
+        room = getattr(getattr(getattr(actor, "location", None), "db", None),
+                       "ox_space_id", None)
+        role = getattr(actor.db, "crew_role", None)
+        cargo_authority = role in {
+            "cargo_officer", "chief_engineer", "watch_engineer",
+            "environment_tech"} or actor.check_permstring("Developer")
+        if not cargo_authority:
+            raise PermissionError("Port waste work requires actual cargo/engineering authority")
+        required_room = (
+            drum + "-FREIGHT-LOCK"
+            if value in {"haul", "return"} or
+            value == "abort" and job["phase"] in {"prepared", "hauling"}
+            else "CARGO-CTRL-FWD")
+        if room != required_room:
+            raise PermissionError("Worker must attend the real freight or port station")
+        cell = _topology()[0].get(room)
+        if not cell or not _air_safe(state("pressure", cell)):
+            raise PhysicsError("Waste transfer station atmosphere is unsafe")
+        if value in {"haul", "return"}:
+            if value == "haul" and contacts_active(d["cargo"]):
+                raise PhysicsError("First load a sealed cassette through freight before docking")
+            access = {x.source_id: x for x in
+                      CanonicalShipState.objects.filter(category="access")}
+            equip = {x.source_id: x for x in
+                     CanonicalShipState.objects.filter(category="equipment")}
+            pressure = {x.source_id: x for x in
+                        CanonicalShipState.objects.filter(category="pressure")}
+            if not _waste_freight_ready(
+                    job, water, rotors=d["rotors"], equipment=equip,
+                    access=access, pressure=pressure, zones=_topology()[0],
+                    cargo=d["cargo"]):
+                raise PhysicsError("Sealed freight route, air, collar or handler unavailable")
+        if value == "offload":
+            access = {x.source_id: x for x in
+                      CanonicalShipState.objects.filter(category="access")}
+            equip = {x.source_id: x for x in
+                     CanonicalShipState.objects.filter(category="equipment")}
+            if not _waste_port_ready(
+                    job, rotors=d["rotors"], equipment=equip,
+                    access=access, cargo=d["cargo"]):
+                raise PhysicsError("No verified berth or sealed functioning cargo port")
+        try:
+            d["water"] = command_waste_offload(
+                water, receiver=target, verb=value)
+            stocks = {cat: state("inventory", ident).quantity * 1000
+                      for cat, ident in (
+                          ("sanitary", "INV-WASTE-RESIDUE"),
+                          ("industrial", "INV-INDUSTRIAL-SCRAP"),
+                          ("hazardous", "INV-HAZARDOUS-RESIDUE"))}
+            validate_offload(d["water"], stocks)
+        except WaterError as exc:
+            raise PhysicsError(str(exc)) from exc
+        if d != item.details:
+            item.details = d
+            item.revision += 1
+            item.save(update_fields=["details", "revision"])
+    elif action == "repair":
+        item = _clock(lock=True)
+        before = _snapshot(item)
+        d = dict(item.details)
+        repairs = d.get("repairs")
+        water = d.get("water")
+        if repairs is None or water is None:
+            raise PhysicsError("Shared ship service and physical stock not commissioned")
+        import copy
+        r = copy.deepcopy(repairs)
+        room = getattr(getattr(getattr(actor, "location", None), "db", None),
+                       "ox_space_id", None)
+        if target == "INV-SPARES":
+            if not isinstance(value, str) or not value.startswith("pickup:"):
+                raise PhysicsError("Spare collection requires pickup:<kg>")
+            _crew_at(actor, room)
+            zone = _topology()[0].get(room)
+            if zone is None or not _air_safe(state("pressure", zone)):
+                raise PhysicsError("Unsafe compartment for physical spares pickup")
+            parts = state("inventory", "INV-SPARES", lock=True)
+            if room not in parts.reference.get("location_ids", ()):
+                raise PhysicsError("Spare account is not installed in this store")
+            try:
+                kg = _positive(float(value.partition(":")[2]))
+                survey = copy.deepcopy(water)
+                holdings = survey["source_surveys"].get("INV-SPARES", {})
+                if holdings.get(room, 0.0) + 1e-7 < kg:
+                    raise WaterError("Repair spares not physically surveyed here")
+                new_repair, new_stock = take_parts(
+                    r, actor_dbref=actor.dbref, kg=kg,
+                    stock_kg=parts.quantity * 1000.0)
+                survey["source_surveys"]["INV-SPARES"][room] -= kg
+                validate_water(survey, {
+                    cat: state("inventory", ident).quantity * 1000.0
+                    for cat, ident in (
+                        ("normal", "INV-WATER-NORMAL"), ("reserve", "INV-WATER-RESERVE"),
+                        ("sanitary", "INV-WASTE-RESIDUE"),
+                        ("industrial", "INV-INDUSTRIAL-SCRAP"),
+                        ("hazardous", "INV-HAZARDOUS-RESIDUE"),
+                        ("filter", "INV-DC-CONSUMABLES"),
+                        ("spares", "INV-SPARES"))})
+            except (WaterError, ValueError, TypeError) as exc:
+                raise PhysicsError(str(exc)) from exc
+            before_stock = _snapshot(parts)
+            parts.quantity = new_stock / 1000.0
+            parts.revision += 1
+            parts.save(update_fields=["quantity", "revision"])
+            _event(parts, "issued_to_local_maintenance_worker", before_stock,
+                   actor=actor)
+            d["water"] = survey
+            d["repairs"] = new_repair
+        else:
+            if not isinstance(target, str) or target.count(":") != 1:
+                raise PhysicsError("Repair target requires an exact category:id")
+            category, ident = target.split(":", 1)
+            if category not in {"equipment", "isolator", "access"}:
+                raise PhysicsError("Only installed physical machinery can be repaired")
+            unit = state(category, ident, lock=True)
+            _crew_at(actor, unit.space_id)
+            pressure = {x.source_id: x for x in
+                        CanonicalShipState.objects.filter(category="pressure")}
+            isolators = {x.source_id: x for x in
+                         CanonicalShipState.objects.filter(category="isolator")}
+            equipment = {x.source_id: x for x in
+                         CanonicalShipState.objects.filter(category="equipment")}
+            if not safe_repair_target(
+                    unit, pressure_rows=pressure, zones=_topology()[0],
+                    rotors=d["rotors"], motion=d["motion"],
+                    water=water, cargo=d["cargo"], equipment=equipment,
+                    isolators=isolators):
+                raise PhysicsError("Safe local isolation and known repairable damage required")
+            try:
+                if value == "start":
+                    r = begin_repair(
+                        r, target=target, room=unit.space_id,
+                        actor_dbref=actor.dbref, condition=unit.condition)
+                elif value == "join":
+                    r = join_repair(
+                        r, target=target, actor_dbref=actor.dbref,
+                        room=unit.space_id)
+                else:
+                    raise WaterError("Repair operation requires start or join")
+            except WaterError as exc:
+                raise PhysicsError(str(exc)) from exc
+            d["repairs"] = r
+        item.details = d
+        item.revision += 1
+        item.save(update_fields=["details", "revision"])
     elif action == "port":
         if target not in PORTALS or not isinstance(value, str):
             raise PhysicsError("Unknown commercial loading portal")
@@ -2536,6 +2719,11 @@ def crew_physical_action(actor, request_id, action, target, value):
         inner = state("access", "ACC-" + target)
         if station.condition in _BROKEN:
             raise PhysicsError("Commercial port local control panel damaged")
+        if direction in {"load", "unload"} and any(
+                job["portal_id"][:5] == drum for job in
+                _clock().details.get("water", {}).get(
+                    "waste_offload", {}).get("jobs", {}).values()):
+            raise PhysicsError("This drum handler is reserved for a sealed waste cassette")
         if direction in {"load", "unload"} and (
                 handler.condition in _BROKEN or inner.condition in _BROKEN):
             raise PhysicsError("Commercial port or cargo-handling machinery damaged")
@@ -2584,6 +2772,9 @@ def crew_physical_action(actor, request_id, action, target, value):
         drum = destination_drum if destination_drum else lot["drum"]
         if drum not in DRUMS:
             raise PhysicsError("No installed target drum")
+        if any(job["portal_id"][:5] == drum for job in
+               d.get("water", {}).get("waste_offload", {}).get("jobs", {}).values()):
+            raise PhysicsError("Freight collar is occupied by sealed waste operation")
         room = getattr(getattr(getattr(actor, "location", None), "db", None),
                        "ox_space_id", None)
         if (room != drum + "-FREIGHT-LOCK" or
@@ -2711,6 +2902,16 @@ def crew_physical_action(actor, request_id, action, target, value):
                     raise PhysicsError("Drum cargo has not been independently surveyed")
                 if unsecured_drum_loads(manifest, target):
                     raise PhysicsError("Loose or unstowed freight prevents drum spin-up")
+        if target in DRUMS:
+            waste_jobs = [job for job in
+                _clock().details.get("water", {}).get(
+                    "waste_offload", {}).get("jobs", {}).values()
+                if job["portal_id"][:5] == target]
+            if waste_jobs and (value in {
+                    "start", "release", "index", "passenger_extend"} or
+                    value == "freight_retract" and any(j["phase"] in {
+                        "hauling", "aborting", "returning"} for j in waste_jobs)):
+                raise PhysicsError("Sealed waste freight capture must finish before rotary release")
         if target in DRUMS and target in _clock().details.get("cargo", {}).get("jobs", {}):
             if value in {"start", "release", "freight_retract", "passenger_extend"}:
                 raise PhysicsError("Freight operation underway; cannot release its capture")
@@ -2886,6 +3087,34 @@ def local_physics_readout(actor, target):
     room = getattr(getattr(location, "db", None), "ox_space_id", None)
     if not room:
         raise PermissionError("Stand at an installed ship compartment")
+    if target == "repairs":
+        repairs = _clock().details.get("repairs")
+        if repairs is None:
+            raise PhysicsError("Shared equipment repairs not commissioned")
+        return {
+            "carried_spares_kg": repairs["carried_kg"].get(actor.dbref, 0.0),
+            "work_orders_here": {
+                key: job for key, job in repairs["jobs"].items()
+                if job["room"] == room},
+            "scope": "local_maintenance_work_orders_and_part_custody",
+        }
+    if target == "wasteport":
+        waste = _clock().details.get("water")
+        if waste is None:
+            raise PhysicsError("Waste port service not commissioned")
+        matches = {
+            receiver: job for receiver, job in
+            waste["waste_offload"]["jobs"].items()
+            if room == "CARGO-CTRL-FWD"
+            or room == job["portal_id"][:5] + "-FREIGHT-LOCK"
+            or room == state("equipment", receiver).space_id}
+        if not matches:
+            raise PermissionError("No local sealed waste handling station or cassette")
+        return {
+            "jobs": matches,
+            "delivered_kg": waste["waste_offload"]["delivered_kg"],
+            "scope": "waste_hauls_observable_at_real_local_stations",
+        }
     if target == "water":
         if room not in {"WATER-FWD", "HAB-06-ECLSS-A", "HAB-08-ECLSS-B",
                         "STORE-FLUID-AFT"}:
