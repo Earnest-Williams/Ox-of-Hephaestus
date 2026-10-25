@@ -242,8 +242,16 @@ def consume_stock(identifier, amount_t, *, operator=False):
 
 
 def _conducts(iso):
-    # Both breaker and fluid valves conduct in their OPEN position.
-    return iso.condition not in _BROKEN and iso.setting == "open"
+    # Breakers conduct when closed; valves and dampers pass when open.
+    # No implied conductance for an unrecognised actuator class.
+    kind = str(iso.reference.get("kind", "")).lower()
+    if kind.startswith("breaker"):
+        needed = "closed"
+    elif "valve" in kind or "damper" in kind:
+        needed = "open"
+    else:
+        return False
+    return iso.condition not in _BROKEN and iso.setting == needed
 
 
 def service_reachable(network, source_node):
