@@ -602,12 +602,9 @@ def tick_continuous_physics(*, now_game_time=None):
             "HAB": all(equipment.get(name) is not None and
                        equipment[name].condition not in _BROKEN
                        for name in ("HAB-BEARING-FORE", "HAB-BEARING-AFT")),
-            **{
-                name: all(equipment.get(name + suffix) is not None and
-                          equipment[name + suffix].condition not in _BROKEN
-                          for suffix in ("-PERSONNEL-INDEXER", "-FREIGHT-COLLAR"))
-                for name in DRUMS
-            },
+            # Indexer and freight collar faults affect only their interfaces.
+            # They do not magically seize the independent drum drive.
+            **{name: True for name in DRUMS},
         }
         rotors = step_rotors(
             rotors, dt, powered=rotary_can_power, equipment_ok=rotor_equipment)
