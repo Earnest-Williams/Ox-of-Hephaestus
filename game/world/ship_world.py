@@ -234,6 +234,13 @@ def ensure_canonical_ship() -> dict[str, Any]:
         and root.db.ox_model_version == model.model_version
         and int(root.db.ox_space_count or -1) == len(model.spaces)
         and int(root.db.ox_access_link_count or -1) == len(model.access_links)
+        and (
+            not model.access_links or
+            getattr(
+                getattr(find_world_entity(
+                    f"access:{model.access_links[0].id}:forward"), "db", None),
+                "ox_integration_state", None) == "live_world_gated"
+        )
     ):
         return {
             "root": root,
