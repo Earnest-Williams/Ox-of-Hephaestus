@@ -107,6 +107,8 @@ def validate_cargo(manifest, motion_mass_kg):
             raise CargoError("Uninstalled freight transfer")
         if not math.isfinite(job["remaining_s"]) or job["remaining_s"] < 0:
             raise CargoError("Invalid transfer clock")
+        if job.get("destination_drum", drum) != drum:
+            raise CargoError("Transfer assigned to wrong physical collar")
         if job["direction"] not in {"to_lock", "to_drum", "to_spine", "from_spine"}:
             raise CargoError("Invalid freight direction")
     return True
@@ -201,12 +203,15 @@ def drum_balance(manifest, drum):
 
 
 def start_freight_transfer(manifest, rotors, *, lot_id, direction,
-                           collar_healthy, gate_open=False, restricted=False):
+                           collar_healthy, gate_open=False, restricted=False,
+                           destination_drum=None):
     """Begin a finite restrained-sled cycle; no immediate relocation."""
     if lot_id not in manifest["lots"]:
         raise CargoError("Unknown cargo lot")
     row = manifest["lots"][lot_id]
-    drum = row["drum"]
+    drum = destination_drum if direction == "from_spine" and destination_drum else row["drum"]
+    if drum not in DRUMS or (destination_drum is not None and direction != "from_spine"):
+        raise CargoError("Invalid destination drum")
     rotor = rotors[drum]
     if drum not in manifest["verified_drums"]:
         raise CargoError("Drum cargo survey has not been verified")
@@ -232,6 +237,8 @@ def start_freight_transfer(manifest, rotors, *, lot_id, direction,
     source, dest = moves[direction]
     if source != row["location"]:
         raise CargoError("Cargo is not at the source station")
+    if direction == "to_drum" and not row["restrained"]:
+        raise CargoError("Freight must remain secured for drum entry")
     if direction in {"to_spine", "from_spine"} and not gate_open:
         raise CargoError("Fixed pressure-rated freight capture is not open")
     if drum in manifest["jobs"]:
@@ -241,7 +248,7 @@ def start_freight_transfer(manifest, rotors, *, lot_id, direction,
     result["jobs"][drum] = {
         "lot_id": lot_id, "direction": direction, "destination": dest,
         "remaining_s": SLED_START_SECONDS + row["mass_kg"] / SLED_RATE_KG_S,
-        "restricted": bool(restricted),
+        "restricted": bool(restricted), "destination_drum": drum,
     }
     return result
 
@@ -264,6 +271,14 @@ def step_freight(manifest, dt, *, power_ready, available_collars,
         if job["remaining_s"] <= 1e-9:
             lot = result["lots"][job["lot_id"]]
             lot["location"] = job["destination"]
+            if job["direction"] == "from_spine":
+                lot["drum"] = drum
+            if job["direction"] == "to_drum":
+                # Arrival is not proof the package has been stowed or tied
+                # down. Crew must physically certify its new berth first.
+                lot["restrained"] = False
+                lot["radius_m"] = 0.0
+                lot["azimuth_rad"] = 0.0
             moved.append(job["lot_id"])
             del result["jobs"][drum]
     return result, tuple(moved)
