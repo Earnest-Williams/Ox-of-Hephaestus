@@ -1,0 +1,41 @@
+name: G19 waste/repair physical-site probe
+on:
+  push:
+    branches: [g19-complete-ship-systems]
+    paths: [".github/workflows/ox-g19-site-probe.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  map:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show selected installed candidate sites and accesses
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          m=json.loads(Path('design/ship/ox_full_ship_v0.5_candidate.json').read_text())
+          print('WASTE-EQUIPMENT')
+          for x in m['equipment']:
+              if any(y in x['id'] for y in ('WASTE-RESIDUE-HOLD','IND-SCRAP-HOLD','HAZ-ISO-HOLD','RADIAL-FREIGHT-HANDLER','FREIGHT-COLLAR','LCS-PROP','GEN-B','WATER-PROC')):
+                  print(x['id'],x['space_id'],x.get('attributes',{}))
+          print('WASTE-STOCKS')
+          for x in m['inventories']:
+              if any(y in x['id'] for y in ('SPARES','SCRAP','WASTE-RESIDUE','HAZARDOUS')):
+                  print(x['id'],x.get('location_ids'),x.get('location_allocations_t'))
+          print('SELECTED-ACCESS')
+          for x in m['access_links']:
+              if any(y in x['id'] for y in ('FREIGHT-CAPTURE','DR-01-P1','DR-02-P1')) or any(y in (x.get('from'),x.get('to')) for y in ('STORE-FLUID-AFT','SPARES-CENTRAL','CARGO-CTRL-FWD','DR-01-FREIGHT-LOCK','DR-01-SERVICE-LOCK')):
+                  print(x['id'],x.get('from'),x.get('to'),x.get('kind'),x.get('pressure_boundary'))
+          print('ROOMS')
+          for x in m['spaces']:
+              if x['id'] in ('STORE-FLUID-AFT','SPARES-CENTRAL','CARGO-CTRL-FWD','DR-01-FREIGHT-LOCK','DR-01-SERVICE-LOCK'):
+                  print(x['id'],x.get('pressure_zone'),x.get('frame'))
+          print('STOCK-FIELDS')
+          for x in m['inventories']:
+              if x['id'] in ('INV-SPARES','INV-WASTE-RESIDUE','INV-HAZARDOUS-RESIDUE','INV-INDUSTRIAL-SCRAP'):
+                  print(x)
+          PY
