@@ -437,12 +437,9 @@ def tick_continuous_physics(*, now_game_time=None):
             zone = owners.get(plant_id)
             if zone in cells and _on(equipment, plant_id):
                 if plant_id in GENERATION_MW:
-                    producing = power["available_mw"] > 0 and (
-                        plant_id in GENERATION_MW and
-                        _live_edge(next((e for e in edges if e.source_id ==
-                                         "EDGE-" + plant_id), None), isolators)
-                        if any(e.source_id == "EDGE-" + plant_id for e in edges)
-                        else False)
+                    producing = any(
+                        e.source_id == "EDGE-" + plant_id
+                        and _live_edge(e, isolators) for e in edges)
                 else:
                     producing = powered
                 if producing:
