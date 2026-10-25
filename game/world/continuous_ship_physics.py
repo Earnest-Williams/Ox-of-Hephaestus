@@ -879,6 +879,11 @@ def tick_continuous_physics(*, now_game_time=None):
             motion["drive_condition"] = "thermal_trip"
             motion["drive_trip_reason"] = "propulsion_cooling_limit"
             motion["command"] = "coast"
+            if (motion.get("ftl_leg") or {}).get("status") == "engaged":
+                leg = dict(motion["ftl_leg"])
+                leg["status"] = "aborted"
+                leg["reason"] = "propulsion_thermal_trip"
+                motion["ftl_leg"] = leg
         motion["drive_heat_kj"] = heat
         if drive_load:
             power["requested_mw"] += drive_load
