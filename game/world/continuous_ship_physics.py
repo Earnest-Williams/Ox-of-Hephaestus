@@ -55,7 +55,10 @@ CO2_CAPTURE_KG_S_PER_TRAIN = 0.004
 # never from an arbitrary light-spacecraft stand-in.
 DRIVE_THRUST_N = 360_000.0
 DRIVE_EXHAUST_M_S = 18_000.0
-DRIVE_POWER_MW = 0.60
+# Sublight reaction drive gets thrust energy from its distinct fictional drive
+# plant. These megawatts are ONLY shipboard pumps, valves and control loads,
+# never the hundreds of MW/GW of actual plume kinetic energy.
+DRIVE_AUX_MW = 0.12
 # Cargo manifests may supply a nonnegative installed payload mass. This
 # explicit mass belongs to the ship motion ledger, never an LLM estimate.
 # Cargo reference is 900,000 tonnes, not an 8,000-tonne proxy.
@@ -107,10 +110,10 @@ def _advance_motion(motion, dt, power, *, drive_operational=True, rcs_operationa
                 (cargo, dry, ftl, fluids, capacity))
             or not 0 <= cargo <= capacity or dry <= 0:
         raise PhysicsError("Invalid ship motion or propellant state")
-    # Thrust is a controllable load, not a free by-product of an unrelated
-    # electrical profile. Keep essential services on the protected bus.
+    # Drive energy is separate fictional machinery. Ship power supplies only
+    # the real auxiliary electrical demand for valves and engine controls.
     powered = (power["assured"] and
-               power["available_mw"] - power["requested_mw"] >= DRIVE_POWER_MW)
+               power["available_mw"] - power["requested_mw"] >= DRIVE_AUX_MW)
     burn_time = min(dt, fuel * DRIVE_EXHAUST_M_S / DRIVE_THRUST_N) if (
         powered and drive_operational and any(direction)) else 0.0
     spent = burn_time * DRIVE_THRUST_N / DRIVE_EXHAUST_M_S
@@ -140,7 +143,7 @@ def _advance_motion(motion, dt, power, *, drive_operational=True, rcs_operationa
     result["velocity_m_s"] = velocity
     result["expended_propellant_kg"] += spent
     result["drive_firing"] = burn_time > 0
-    result["drive_power_mw"] = DRIVE_POWER_MW if burn_time > 0 else 0.0
+    result["drive_power_mw"] = DRIVE_AUX_MW if burn_time > 0 else 0.0
     return result
 # Coarse installed machinery waste-heat loads (kW), deposited in the
 # equipment's real pressure zone. They require an actually running plant;
@@ -623,8 +626,8 @@ def tick_continuous_physics(*, now_game_time=None):
         motion = _advance_motion(
             motion, dt, power, drive_operational=drive_operational,
             rcs_operational=rcs_operational)
-        # Charge a firing drive to the electrical dispatch and generator
-        # waste heat in this very same physics step.
+        # Account for propulsion-control auxiliaries, NOT thrust energy, in
+        # electrical dispatch and electrical-generator waste heat.
         drive_load = motion["drive_power_mw"]
         if drive_load:
             power["requested_mw"] += drive_load
