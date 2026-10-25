@@ -714,6 +714,8 @@ def tick_continuous_physics(*, now_game_time=None):
             name for name in CARGO_DRUMS
             if equipment.get(name + "-FREIGHT-COLLAR") is not None
             and equipment[name + "-FREIGHT-COLLAR"].condition not in _BROKEN
+            and equipment.get(name + "-RADIAL-FREIGHT-HANDLER") is not None
+            and equipment[name + "-RADIAL-FREIGHT-HANDLER"].condition not in _BROKEN
             and rotors[name]["hardlock"] and rotors[name]["brake"]
             and rotors[name]["freight_collar"]
             and abs(rotors[name]["rpm"]) < 0.001
@@ -768,10 +770,8 @@ def tick_continuous_physics(*, now_game_time=None):
                 sound("WR-ROT-PWR-IF") if name == "WR-01" else True
             ) for name in ROTORS
         }
-        # Separate carriage motors can inhibit WR's telescoping motion
-        # without inventing a failure of the entire workshop ring.
-        if not (sound("WR-EXTEND-SHOP") and sound("WR-EXTEND-STORES")):
-            rotary_power_by_unit["WR-01"] = False
+        extension_ok = (
+            sound("WR-EXTEND-SHOP") and sound("WR-EXTEND-STORES"))
         # Only individually surveyed placements can set a drum's cargo
         # imbalance. Unknown bulk mass is not silently made symmetrical.
         for drum in CARGO_DRUMS:
@@ -782,7 +782,8 @@ def tick_continuous_physics(*, now_game_time=None):
                     "imbalance_kg_m": measurement["imbalance_kg_m"],
                 }
         rotors = step_rotors(
-            rotors, dt, powered=rotary_power_by_unit, equipment_ok=rotor_equipment)
+            rotors, dt, powered=rotary_power_by_unit,
+            equipment_ok=rotor_equipment, extension_ok=extension_ok)
         if rotary_load and rotary_can_power:
             power["requested_mw"] += rotary_load
             power["dispatched_mw"] += rotary_load
@@ -1336,6 +1337,9 @@ def crew_physical_action(actor, request_id, action, target, value):
         zone = _topology()[0].get(room)
         if not zone or zone == "VACUUM" or not _air_safe(state("pressure", zone)):
             raise PhysicsError("Freight control atmosphere is unverified or unsafe")
+        handler = state("equipment", drum + "-RADIAL-FREIGHT-HANDLER")
+        if handler.condition in _BROKEN:
+            raise PhysicsError("Actual cargo handling rail is inoperative")
         collar = state("equipment", drum + "-FREIGHT-COLLAR")
         gate = state("access", "ACC-" + drum + "-FREIGHT-CAPTURE")
         gate_open = gate.setting == "open" and gate.condition not in _BROKEN
@@ -1570,7 +1574,7 @@ def local_physics_readout(actor, target):
     if not room:
         raise PermissionError("Stand at an installed ship compartment")
     if target == "cargo":
-        if room not in {"CMD-CARGO", "ENG-CONTROL"} and not (
+        if room not in {"CARGO-CTRL-FWD", "ENG-CONTROL"} and not (
                 room and room.endswith("-FREIGHT-LOCK")):
             raise PermissionError("Freight manifest is local to a cargo station")
         cargo = _clock().details.get("cargo", {})
