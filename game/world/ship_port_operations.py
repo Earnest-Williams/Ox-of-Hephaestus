@@ -171,7 +171,38 @@ def start_port_job(manifest, rotors, *, lot_id, portal_id, direction,
         "remaining_kg": lot["mass_kg"], "transferred_kg": 0.0,
         "startup_remaining_s": PORT_START_SECONDS,
         "berth_id": contact["berth_id"],
+        "paused": False, "reversing": False,
     }
+    return result
+
+
+def command_port_job(manifest, *, portal_id, lot_id, command):
+    """Pause, restart or physically reverse an already started port transfer.
+
+    Abort is an order to recover material *through the same handling rail*.
+    It never deletes a part-loaded job or changes cargo mass instantly.
+    """
+    _portal(portal_id)
+    if command not in {"pause", "resume", "abort"}:
+        raise CargoError("Unknown commercial-port recovery operation")
+    current = manifest.get("port_jobs", {}).get(portal_id)
+    if current is None or current["lot_id"] != lot_id:
+        raise CargoError("No such active cargo cycle at this portal")
+    result = dict(manifest)
+    result["port_jobs"] = {k: dict(v) for k, v in
+                           manifest["port_jobs"].items()}
+    job = result["port_jobs"][portal_id]
+    if command == "pause":
+        job["paused"] = True
+    elif command == "resume":
+        if job.get("reversing", False):
+            raise CargoError("Recovery reversal cannot be cancelled by resume")
+        job["paused"] = False
+    else:
+        if not job.get("reversing", False):
+            job["reversing"] = True
+            job["startup_remaining_s"] = PORT_START_SECONDS
+        job["paused"] = False
     return result
 
 
@@ -193,7 +224,7 @@ def step_port_jobs(manifest, dt, *, available_portals, capacity_kg):
                            manifest.get("port_jobs", {}).items()}
     completed = []
     for portal_id, job in sorted(list(result["port_jobs"].items())):
-        if portal_id not in available_portals:
+        if portal_id not in available_portals or job.get("paused", False):
             continue
         contact = result.get("port_contacts", {}).get(portal_id)
         if not contact or not contact.get("docked") or contact["berth_id"] != job["berth_id"]:
@@ -201,6 +232,17 @@ def step_port_jobs(manifest, dt, *, available_portals, capacity_kg):
         wait = job["startup_remaining_s"]
         job["startup_remaining_s"] = max(0.0, wait - dt)
         working_seconds = max(0.0, dt - wait)
+        if job.get("reversing", False):
+            # The outbound/inbound stream is pumped back to its original
+            # inventory. A casualty or blackout suspends the reversal too.
+            amount = min(job["transferred_kg"],
+                         working_seconds * PORT_RATE_KG_S)
+            job["transferred_kg"] = max(0.0, job["transferred_kg"] - amount)
+            job["remaining_kg"] += amount
+            if job["transferred_kg"] <= 0.000001:
+                completed.append((portal_id, job["lot_id"], "recovered"))
+                del result["port_jobs"][portal_id]
+            continue
         amount = min(job["remaining_kg"], working_seconds * PORT_RATE_KG_S)
         if job["direction"] == "load":
             amount = min(amount, max(0.0, capacity_kg - onboard_mass_kg(result)))
