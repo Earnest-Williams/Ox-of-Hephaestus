@@ -127,7 +127,7 @@ def set_rotor_command(rotors, name, command):
     return rows
 
 
-def step_rotors(rotors, dt, *, powered, equipment_ok=None):
+def step_rotors(rotors, dt, *, powered, equipment_ok=None, extension_ok=True):
     """Integrate separate rotor ramp, coasting, alignment and heat exposure."""
     if not math.isfinite(dt) or dt < 0 or dt > 60:
         raise RotorError("Invalid bounded rotary step")
@@ -161,7 +161,7 @@ def step_rotors(rotors, dt, *, powered, equipment_ok=None):
             target_radius = row["work_target_radius_m"]
             if not 24 <= radius <= 75 or not 24 <= target_radius <= 75:
                 raise RotorError("Invalid workshop carriage extension")
-            if locally_powered and serviceable and rpm < 0.001 and not row["freight_collar"]:
+            if locally_powered and serviceable and extension_ok and rpm < 0.001 and not row["freight_collar"]:
                 travel = 0.05 * dt
                 row["work_radius_m"] = max(radius - travel,
                                            min(radius + travel, target_radius))
