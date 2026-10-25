@@ -49,6 +49,25 @@ class ShipMovementRegressions(unittest.TestCase):
         self.assertGreater(rotor_gravity(rotors, "WR-01"), 0)
         self.assertGreater(motion_power_mw(rotors), 0)
 
+    def test_workshop_freight_requires_slow_carriage_retraction(self):
+        rotors = initial_rotors()
+        with self.assertRaises(RotorError):
+            set_rotor_command(rotors, "WR-01", "freight_extend")
+        rotors = set_rotor_command(rotors, "WR-01", "radius:24")
+        for _ in range(100):
+            rotors = step_rotors(rotors, 10, powered=True)
+        wr = rotors["WR-01"]
+        self.assertAlmostEqual(wr["work_radius_m"], 24.0)
+        self.assertAlmostEqual(wr["stores_radius_m"], 8.0)
+        rotors = set_rotor_command(rotors, "WR-01", "freight_extend")
+        with self.assertRaises(RotorError):
+            set_rotor_command(rotors, "WR-01", "start")
+        rotors = set_rotor_command(rotors, "WR-01", "freight_retract")
+        rotors = set_rotor_command(rotors, "WR-01", "radius:60")
+        for _ in range(100):
+            rotors = step_rotors(rotors, 10, powered=True)
+        self.assertAlmostEqual(rotors["WR-01"]["work_radius_m"], 60)
+
     def test_freight_and_passenger_interlocks(self):
         rotors = initial_rotors()
         rotors = set_rotor_command(rotors, "DR-01", "freight_extend")
