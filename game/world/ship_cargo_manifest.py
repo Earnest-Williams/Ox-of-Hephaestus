@@ -170,6 +170,38 @@ def split_cargo_lot(manifest, *, source_id, new_id, mass_kg):
     return result
 
 
+def restow_cargo_lot(manifest, *, lot_id, azimuth_deg, radius_m):
+    """Operator verifies secure berth after transfer; no teleportation."""
+    if lot_id not in manifest["lots"]:
+        raise CargoError("Unknown cargo to stow")
+    lot = manifest["lots"][lot_id]
+    if lot["location"] != lot["drum"]:
+        raise CargoError("Package must be inside its drum")
+    if any(job["lot_id"] == lot_id for job in manifest["jobs"].values()):
+        raise CargoError("Cargo transfer still underway")
+    if (isinstance(azimuth_deg, bool) or
+            not isinstance(azimuth_deg, (int, float)) or
+            not math.isfinite(azimuth_deg) or
+            not 0 <= azimuth_deg < 360 or
+            isinstance(radius_m, bool) or
+            not isinstance(radius_m, (int, float)) or
+            not math.isfinite(radius_m) or
+            not 0 < radius_m <= MAX_STOWAGE_RADIUS_M):
+        raise CargoError("Invalid surveyed cargo berth")
+    result = dict(manifest)
+    result["lots"] = {k: dict(v) for k, v in manifest["lots"].items()}
+    result["lots"][lot_id]["radius_m"] = float(radius_m)
+    result["lots"][lot_id]["azimuth_rad"] = math.radians(azimuth_deg)
+    result["lots"][lot_id]["restrained"] = True
+    return result
+
+
+def unsecured_drum_loads(manifest, drum):
+    return any(row["drum"] == drum and row["location"] == drum
+               and not row["restrained"]
+               for row in manifest["lots"].values())
+
+
 def verify_drum(manifest, drum):
     """Physical survey gate; operator asserts all *this* drum's loads known."""
     if drum not in DRUMS:
