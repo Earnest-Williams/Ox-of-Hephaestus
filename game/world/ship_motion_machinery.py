@@ -142,14 +142,15 @@ def step_rotors(rotors, dt, *, powered, equipment_ok=None):
                 or rpm < 0 or target < 0 or target > MAX_RPM[name]):
             raise RotorError("Invalid rotary state")
         serviceable = equipment_ok.get(name, True) and row["condition"] in {"serviceable", "worn"}
+        locally_powered = powered.get(name, False) if isinstance(powered, dict) else powered
         if not serviceable:
             row["target_rpm"] = 0.0
             target = 0.0
-        if not powered:
+        if not locally_powered:
             # No electrically driven holding torque. Bearings and drag
             # dissipate rotation slowly instead of freezing the rotor in place.
             target = 0.0
-        delta = RAMP_RPM_S[name] * dt * (1.0 if powered and serviceable else 0.25)
+        delta = RAMP_RPM_S[name] * dt * (1.0 if locally_powered and serviceable else 0.25)
         next_rpm = max(rpm - delta, min(rpm + delta, target))
         if row["brake"] or row["hardlock"] or row["freight_collar"]:
             if rpm > 0.001:
@@ -160,14 +161,14 @@ def step_rotors(rotors, dt, *, powered, equipment_ok=None):
             target_radius = row["work_target_radius_m"]
             if not 24 <= radius <= 75 or not 24 <= target_radius <= 75:
                 raise RotorError("Invalid workshop carriage extension")
-            if powered and serviceable and rpm < 0.001 and not row["freight_collar"]:
+            if locally_powered and serviceable and rpm < 0.001 and not row["freight_collar"]:
                 travel = 0.05 * dt
                 row["work_radius_m"] = max(radius - travel,
                                            min(radius + travel, target_radius))
             row["stores_radius_m"] = row["work_radius_m"] / 3.0
         row["rpm"] = next_rpm
         row["phase_rad"] = (phase + (rpm + next_rpm) * math.pi / 60.0 * dt) % (2 * math.pi)
-        if row["indexing"] and next_rpm < 0.001 and powered and serviceable:
+        if row["indexing"] and next_rpm < 0.001 and locally_powered and serviceable:
             distance = (2 * math.pi - row["phase_rad"]) % (2 * math.pi)
             if distance <= 0.02 * dt:
                 row["phase_rad"] = 0.0
