@@ -1,0 +1,150 @@
+"""Persistent, bounded rotary machinery for the installed Ox freighter.
+
+Drums, habitation ring and independent workshop are independent mechanisms.
+All state belongs to the canonical physics clock. Controls are mediated through
+receipted physical actions; pure stepping never consults model predictions.
+"""
+from __future__ import annotations
+
+import math
+
+DRUMS = tuple(f"DR-{i:02d}" for i in range(1, 7))
+ROTORS = DRUMS + ("HAB", "WR-01")
+NOMINAL_RPM = {**{name: 2.0 for name in DRUMS}, "HAB": 3.45, "WR-01": 3.45}
+MAX_RPM = {**{name: 3.0 for name in DRUMS}, "HAB": 3.6, "WR-01": 4.0}
+RAMP_RPM_S = {**{name: 0.003 for name in DRUMS}, "HAB": 0.001, "WR-01": 0.006}
+ROTOR_MW = {**{name: 0.045 for name in DRUMS}, "HAB": 0.13, "WR-01": 0.09}
+GRAVITY_M_S2 = 9.80665
+WORK_RADIUS_M = 60.0
+HAB_RADIUS_M = 73.15
+MAX_IMBALANCE_KGM = 15_000.0
+
+
+class RotorError(ValueError):
+    """Rotary state, command, or physical interlock is invalid."""
+
+
+def initial_rotors():
+    return {
+        key: {
+            "rpm": 0.0, "target_rpm": 0.0, "phase_rad": 0.0,
+            "brake": True, "hardlock": True, "freight_collar": False,
+            "passenger_indexer": False, "condition": "serviceable",
+            "imbalance_kg_m": 0.0, "bearing_temperature_k": 293.15,
+            "mode": "PARKED", "work_radius_m": WORK_RADIUS_M if key == "WR-01" else None,
+        }
+        for key in ROTORS
+    }
+
+
+def motion_power_mw(rotors):
+    """Bound electric demand using actual rotary movement or braking release."""
+    return sum(
+        ROTOR_MW[name] for name, row in rotors.items()
+        if abs(row["rpm"]) > 0.0001 or row["target_rpm"] > 0
+    )
+
+
+def set_rotor_command(rotors, name, command):
+    """Apply a command only after all local/role/world checks have passed."""
+    if name not in ROTORS or name not in rotors:
+        raise RotorError("Uninstalled rotor")
+    rows = {k: dict(v) for k, v in rotors.items()}
+    state = rows[name]
+    if state["condition"] not in {"serviceable", "worn"}:
+        if command != "stop":
+            raise RotorError("Damaged rotor must remain inhibited")
+    if command == "stop":
+        state["target_rpm"] = 0.0
+        state["brake"] = False
+        state["hardlock"] = False if state["rpm"] > 0.005 else state["hardlock"]
+    elif command == "start":
+        if (state["freight_collar"] or state["passenger_indexer"] or
+                state["imbalance_kg_m"] > MAX_IMBALANCE_KGM):
+            raise RotorError("Rotary transfer extended or excessive imbalance")
+        state["target_rpm"] = NOMINAL_RPM[name]
+        state["brake"] = False
+        state["hardlock"] = False
+    elif command == "hardlock":
+        if abs(state["rpm"]) > 0.001 or state["target_rpm"] != 0:
+            raise RotorError("Cannot hard-lock a turning drum")
+        state["hardlock"] = True
+        state["brake"] = True
+    elif command == "release":
+        if state["freight_collar"] or state["passenger_indexer"]:
+            raise RotorError("Retract moving transfer hardware before brake release")
+        state["hardlock"] = False
+        state["brake"] = False
+    elif command == "freight_extend":
+        if name not in DRUMS and name != "WR-01":
+            raise RotorError("No full-sled freight collar at this rotor")
+        if (not state["hardlock"] or not state["brake"] or
+                abs(state["rpm"]) > 0.001 or state["target_rpm"] != 0 or
+                state["passenger_indexer"]):
+            raise RotorError("Freight needs stopped, braked hardlock without passenger movement")
+        state["freight_collar"] = True
+    elif command == "freight_retract":
+        state["freight_collar"] = False
+    elif command == "passenger_extend":
+        if name == "WR-01" or name in DRUMS or name == "HAB":
+            if state["freight_collar"]:
+                raise RotorError("Passenger and freight interfaces mutually exclude")
+            state["passenger_indexer"] = True
+    elif command == "passenger_retract":
+        state["passenger_indexer"] = False
+    else:
+        raise RotorError("Unknown rotary command")
+    return rows
+
+
+def step_rotors(rotors, dt, *, powered, equipment_ok=None):
+    """Integrate separate rotor ramp, coasting, alignment and heat exposure."""
+    if not math.isfinite(dt) or dt < 0 or dt > 60:
+        raise RotorError("Invalid bounded rotary step")
+    equipment_ok = equipment_ok or {}
+    result = {}
+    for name in ROTORS:
+        row = dict(rotors[name])
+        rpm = float(row["rpm"])
+        target = float(row["target_rpm"])
+        phase = float(row["phase_rad"])
+        if (not all(math.isfinite(x) for x in (rpm, target, phase))
+                or rpm < 0 or target < 0 or target > MAX_RPM[name]):
+            raise RotorError("Invalid rotary state")
+        serviceable = equipment_ok.get(name, True) and row["condition"] in {"serviceable", "worn"}
+        if not serviceable:
+            row["target_rpm"] = 0.0
+            target = 0.0
+        if not powered and target > rpm:
+            target = rpm
+        delta = RAMP_RPM_S[name] * dt * (1.0 if powered and serviceable else 0.25)
+        next_rpm = max(rpm - delta, min(rpm + delta, target))
+        if row["brake"] or row["hardlock"] or row["freight_collar"]:
+            if rpm > 0.001:
+                raise RotorError("Brake or freight collar engaged on moving rotor")
+            next_rpm = 0.0
+        row["rpm"] = next_rpm
+        row["phase_rad"] = (phase + (rpm + next_rpm) * math.pi / 60.0 * dt) % (2 * math.pi)
+        row["mode"] = (
+            "TRIPPED" if not serviceable else
+            "BRAKED" if row["brake"] else
+            "PARKED" if next_rpm < 0.001 else
+            "SPINDOWN" if next_rpm < rpm - 1e-9 else
+            "RELEASING" if next_rpm > rpm + 1e-9 else "ROTATING"
+        )
+        ambient = 293.15
+        load_heat = (0.03 + 0.3 * (next_rpm / MAX_RPM[name]) ** 2) if next_rpm else 0.0
+        heat = (load_heat * dt - 0.003 * (row["bearing_temperature_k"] - ambient) * dt)
+        row["bearing_temperature_k"] = max(ambient, row["bearing_temperature_k"] + heat)
+        if row["bearing_temperature_k"] >= 365.0:
+            row["condition"] = "faulted"
+            row["target_rpm"] = 0.0
+        result[name] = row
+    return result
+
+
+def rotor_gravity(rotors, name):
+    row = rotors[name]
+    radius = (row["work_radius_m"] if name == "WR-01"
+              else HAB_RADIUS_M if name == "HAB" else 30.0)
+    return (row["rpm"] * 2 * math.pi / 60) ** 2 * radius / GRAVITY_M_S2
