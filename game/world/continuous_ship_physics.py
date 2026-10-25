@@ -464,7 +464,7 @@ def _water_hardware(water, equipment, edges, isolators, nodes, power):
         # physically open*, while pumps decide where actual effluent goes.
         # The G18 graph routine is directional for other media; do not
         # change generator/gas/thermal routing merely to fix wet topology.
-        if network in {"greywater", "blackwater"}:
+        if network in {"potable_water", "greywater", "blackwater"}:
             graph = defaultdict(set)
             for edge in edges:
                 if edge.reference["network"] != network or not _live_edge(edge, isolators):
@@ -523,6 +523,10 @@ def _water_hardware(water, equipment, edges, isolators, nodes, power):
     process_ok = {
         side: (running and sound(f"WASTE-PROC-{side}")
                and sound(f"WATER-PROC-{side}")
+               and any(sound(f"ROT-POTABLE-WATER-{path}") for path in "AB")
+               and connected("potable_water",
+                             owned("potable_water", f"WATER-PROC-{side}"),
+                             potable_sources)
                and process[f"{side}_grey"] and process[f"{side}_black"])
         for side in "AB"
     }
