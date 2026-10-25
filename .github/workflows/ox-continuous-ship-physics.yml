@@ -8,6 +8,7 @@ on:
       - "game/world/full_ship_operations.py"
       - "game/world/models.py"
       - "game/world/tests/test_continuous_ship_physics.py"
+      - "game/world/tests/test_coupled_casualty.py"
       - "game/commands/ship_physics.py"
       - "game/commands/default_cmdsets.py"
       - "game/server/conf/at_server_startstop.py"
@@ -32,7 +33,7 @@ jobs:
       - name: Install and compile
         run: |
           python -m pip install .
-          python -m compileall -q game/world/continuous_ship_physics.py game/commands/ship_physics.py game/world/tests/test_continuous_ship_physics.py
+          python -m compileall -q game/world/continuous_ship_physics.py game/commands/ship_physics.py game/world/tests/test_continuous_ship_physics.py game/world/tests/test_coupled_casualty.py
       - name: Create ephemeral owner credential
         shell: bash
         run: |
@@ -47,7 +48,7 @@ jobs:
       - name: World physics and G17 regression
         working-directory: game
         run: |
-          python -m world.test_runner world.tests.test_continuous_ship_physics world.tests.test_full_ship_operations --verbosity=2
+          python -m world.test_runner world.tests.test_coupled_casualty world.tests.test_continuous_ship_physics world.tests.test_full_ship_operations --verbosity=2
       - name: Cross-process persistence
         working-directory: game
         run: |

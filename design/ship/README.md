@@ -37,6 +37,16 @@ The model distinguishes original design intent, current physical installation an
 
 The source artifact was checked before import with 132/132 core reference/topology checks and 2,353/2,353 deeper casualty/topology checks. Those checks verify the design data as an internally connected model. They establish source topology and design consistency, not that every physical mechanic is simulated in Evennia. Stage-one database-backed materialisation, idempotence, access authorization, static spatial metadata and read-only terminal checks are separate CI evidence; pressure, equipment, EVA and rotary interlocks remain future runtime work.
 
+## Live world physics status
+
+The v0.5 candidate has a separately **opt-in** installed G17 operational
+register, and G18 introduced world-owned bounded physics ticks and local
+machinery commands without replacing the v0.4 source map. The next G18b
+increment is documented in
+[G18b coupled casualty and local recovery](G18B_COUPLED_CASUALTY_RECOVERY.md).
+Its ordinary HAB hatch actuation remains distinct from NPC traversal,
+which is not yet enabled.
+
 ## Integration boundary
 
 The stage-one importer validates the v0.4 source then idempotently creates persistent spaces and Developer-only exits without resetting existing room condition or descriptions. It does **not** give general crew permission to traverse doors marked `closed`, `closed_or_auto` or otherwise mechanically/pressure restricted; these states are presently static metadata, not enforced ordinary access. Evennia remains the sole world authority; the handler maintains private cognition and receives only observations it is entitled to receive. Promoting v0.5 later must preserve room identities, deliberately migrate operational state and generate a matched visualization before the console will serve it.
