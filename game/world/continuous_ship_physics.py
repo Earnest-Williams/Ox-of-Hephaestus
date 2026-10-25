@@ -536,7 +536,22 @@ def tick_continuous_physics(*, now_game_time=None):
         c = cells.get(zone)
         if c is None:
             continue
-        if (item.source_id in PLANTS and item.condition == "serviceable"
+        if (c["damage"] >= 0.60 and item.condition in
+                {"serviceable", "degraded", "faulted"}):
+            previous = _snapshot(item)
+            item.condition = "failed"
+            details = dict(item.details)
+            if item.source_id in PLANTS:
+                details["physics_online"] = False
+                details["physics_commanded_on"] = False
+                details["physics_startup_s"] = 0.0
+                details.pop("physics_trip_reason", None)
+                details.pop("physics_trip_game_time", None)
+            item.details = details
+            item.revision += 1
+            _event(item, "severe_thermal_damage", previous)
+            changed_equipment.add(item.key)
+        elif (item.source_id in PLANTS and item.condition == "serviceable"
                 and c["temperature"] >= 333.15
                 and item.details.get("physics_online") is True):
             previous = _snapshot(item)
@@ -550,18 +565,6 @@ def tick_continuous_physics(*, now_game_time=None):
             item.condition = "faulted"
             item.revision += 1
             _event(item, "thermal_protection_trip", previous)
-            changed_equipment.add(item.key)
-        elif c["damage"] >= 0.60 and item.condition in {"serviceable", "degraded"}:
-            previous = _snapshot(item)
-            item.condition = "failed"
-            details = dict(item.details)
-            if item.source_id in PLANTS:
-                details["physics_online"] = False
-                details["physics_commanded_on"] = False
-                details["physics_startup_s"] = 0.0
-            item.details = details
-            item.revision += 1
-            _event(item, "severe_thermal_damage", previous)
             changed_equipment.add(item.key)
         elif c["damage"] >= 0.20 and item.condition == "serviceable":
             previous = _snapshot(item)
