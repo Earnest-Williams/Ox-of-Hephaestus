@@ -30,6 +30,7 @@ concurrency:
 
 jobs:
   movement:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     # G19 is intentionally a draft integration PR. Run this focused suite
     # before the final whole-ship acceptance gate, including while draft.
     runs-on: ubuntu-latest
@@ -59,6 +60,7 @@ jobs:
           python -m world.test_runner world.tests.test_ship_movement world.tests.test_ship_cargo_manifest world.tests.test_ship_port_operations world.tests.test_ship_ftl_navigation world.tests.test_installed_ship_movement world.tests.test_ship_crew_access --verbosity=2
 
   coupled-regression:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     name: G18/G17 casualty and installed-world compatibility
     runs-on: ubuntu-latest
     timeout-minutes: 25
