@@ -47,14 +47,15 @@ CO2_CAPTURE_CAPACITY_KG = 150.0
 CO2_CAPTURE_KG_S_PER_TRAIN = 0.004
 # Gameplay-calibrated ship dynamics: inertial motion in a local reference
 # frame, finite reaction mass, and a power-limited drive. Not a flight solver.
-DRY_SHIP_MASS_KG = 9_000_000.0
-INITIAL_PROPELLANT_KG = 240_000.0
+# Masses are commissioned from the installed v0.5 mission mass contract,
+# never from an arbitrary light-spacecraft stand-in.
 DRIVE_THRUST_N = 360_000.0
 DRIVE_EXHAUST_M_S = 18_000.0
 DRIVE_POWER_MW = 0.60
 # Cargo manifests may supply a nonnegative installed payload mass. This
 # explicit mass belongs to the ship motion ledger, never an LLM estimate.
-MAX_CARGO_MASS_KG = 8_000_000.0
+# Cargo reference is 900,000 tonnes, not an 8,000-tonne proxy.
+# The persistent commissioned manifest is the actual upper bound.
 HELM_DIRECTIONS = {
     "x+": (1.0, 0.0, 0.0), "x-": (-1.0, 0.0, 0.0),
     "y+": (0.0, 1.0, 0.0), "y-": (0.0, -1.0, 0.0),
@@ -79,6 +80,10 @@ def _advance_motion(motion, dt, power, *, drive_operational=True, rcs_operationa
     velocity = list(result["velocity_m_s"])
     fuel = float(result["propellant_kg"])
     cargo = float(result["cargo_mass_kg"])
+    dry = float(result["dry_mass_kg"])
+    ftl = float(result["ftl_fuel_kg"])
+    fluids = float(result["mission_fluids_kg"])
+    capacity = float(result["cargo_capacity_kg"])
     direction = HELM_DIRECTIONS[result["command"]]
     # Body-frame thrust must follow the vessel's orientation.
     if (len(result["attitude_rad"]) != 3
@@ -94,7 +99,9 @@ def _advance_motion(motion, dt, power, *, drive_operational=True, rcs_operationa
     direction = (cy * px - sy * py, sy * px + cy * py, pz)
     attitude_direction = ATTITUDE_COMMANDS[result["attitude_command"]]
     if len(position) != 3 or len(velocity) != 3 or not all(
-            math.isfinite(x) for x in (*position, *velocity, fuel)) or fuel < 0 or not math.isfinite(cargo) or not 0 <= cargo <= MAX_CARGO_MASS_KG:
+            math.isfinite(x) for x in (*position, *velocity, fuel)) or fuel < 0 or not all(math.isfinite(x) and x >= 0 for x in
+                (cargo, dry, ftl, fluids, capacity))
+            or not 0 <= cargo <= capacity or dry <= 0:
         raise PhysicsError("Invalid ship motion or propellant state")
     # Thrust is a controllable load, not a free by-product of an unrelated
     # electrical profile. Keep essential services on the protected bus.
@@ -103,7 +110,7 @@ def _advance_motion(motion, dt, power, *, drive_operational=True, rcs_operationa
     burn_time = min(dt, fuel * DRIVE_EXHAUST_M_S / DRIVE_THRUST_N) if (
         powered and drive_operational and any(direction)) else 0.0
     spent = burn_time * DRIVE_THRUST_N / DRIVE_EXHAUST_M_S
-    acceleration = DRIVE_THRUST_N / (DRY_SHIP_MASS_KG + cargo + fuel - spent / 2) if spent else 0.0
+    acceleration = DRIVE_THRUST_N / (dry + cargo + ftl + fluids + fuel - spent / 2) if spent else 0.0
     for axis in range(3):
         a = acceleration * direction[axis]
         position[axis] += velocity[axis] * dt + a * burn_time * (dt - burn_time / 2)
@@ -255,6 +262,18 @@ def arm_continuous_physics(*, operator_approved=False, now_game_time=None):
         item.details = d
         item.revision += 1
     CanonicalShipState.objects.bulk_update(plant_rows, ["details", "revision"], batch_size=100)
+    # The selected v0.5 candidate already reconciles the entire mass ledger.
+    # Copy its reference into the explicitly commissioned world-owned state;
+    # it is not live configuration on later ticks.
+    contract = load_candidate()["mass"]
+    fields = ("dry_t", "commercial_cargo_t", "FTL_fuel_t",
+              "sublight_reaction_mass_t", "mission_and_nonpropulsive_fluids_t")
+    if not all(isinstance(contract.get(k), (int, float)) and
+               math.isfinite(contract[k]) and contract[k] >= 0 for k in fields):
+        raise PhysicsError("Invalid canonical ship departure mass contract")
+    if not math.isclose(sum(contract[k] for k in fields),
+                        contract["reference_departure_t"], rel_tol=1e-9):
+        raise PhysicsError("Canonical ship departure mass does not reconcile")
     started = _now(now_game_time)
     CanonicalShipState.objects.create(
         key=CLOCK_KEY, category="meta", source_id="continuous-physics",
@@ -268,8 +287,12 @@ def arm_continuous_physics(*, operator_approved=False, now_game_time=None):
             "motion": {
                 "position_m": [0.0, 0.0, 0.0],
                 "velocity_m_s": [0.0, 0.0, 0.0],
-                "propellant_kg": INITIAL_PROPELLANT_KG,
-                "cargo_mass_kg": 0.0,
+                "dry_mass_kg": contract["dry_t"] * 1000.0,
+                "cargo_mass_kg": contract["commercial_cargo_t"] * 1000.0,
+                "cargo_capacity_kg": contract["commercial_cargo_t"] * 1000.0,
+                "ftl_fuel_kg": contract["FTL_fuel_t"] * 1000.0,
+                "mission_fluids_kg": contract["mission_and_nonpropulsive_fluids_t"] * 1000.0,
+                "propellant_kg": contract["sublight_reaction_mass_t"] * 1000.0,
                 "expended_propellant_kg": 0.0,
                 "command": "coast", "drive_firing": False,
                 "drive_power_mw": 0.0,
@@ -793,6 +816,9 @@ def tick_continuous_physics(*, now_game_time=None):
         "ship_position_m": [round(x, 3) for x in motion["position_m"]],
         "ship_velocity_m_s": [round(x, 6) for x in motion["velocity_m_s"]],
         "ship_propellant_kg": round(motion["propellant_kg"], 3),
+        "ship_current_mass_kg": round(sum(motion[k] for k in
+            ("dry_mass_kg", "cargo_mass_kg", "ftl_fuel_kg",
+             "mission_fluids_kg", "propellant_kg")), 3),
         "ship_cargo_mass_kg": round(motion["cargo_mass_kg"], 3),
         "drive_firing": motion["drive_firing"],
         "drive_power_mw": motion["drive_power_mw"],
@@ -882,6 +908,20 @@ def _hatch_open_preflight(hatch):
             raise PhysicsError("Opposite bridge pressure hatch must close first")
 
 
+def _helm_at(actor):
+    """Crew physically at an installed ship command or aft machinery console."""
+    room = getattr(getattr(getattr(actor, "location", None), "db", None),
+                   "ox_space_id", None)
+    role = getattr(getattr(actor, "db", None), "crew_role", None)
+    allowed = {
+        "CMD-PRIMARY": {"captain", "bridge_officer"},
+        "PROP-CTRL": {"captain", "bridge_officer", "chief_engineer", "watch_engineer"},
+    }
+    if room not in allowed or (role not in allowed[room] and
+                               not actor.check_permstring("Developer")):
+        raise PermissionError("Helm requires an authorised operator at a real command station")
+
+
 def _crew_at(actor, space_id):
     if (actor is None or getattr(actor, "location", None) is None
             or getattr(actor.location.db, "ox_space_id", None) != space_id):
@@ -966,10 +1006,9 @@ def crew_physical_action(actor, request_id, action, target, value):
             item.revision += 1
             item.save(update_fields=["details", "revision"])
     elif action == "attitude":
-        if target != "GEN-M" or value not in ATTITUDE_COMMANDS:
+        if target != "HELM" or value not in ATTITUDE_COMMANDS:
             raise PhysicsError("Unknown ship attitude command")
-        station = state("equipment", "GEN-M")
-        _crew_at(actor, station.space_id)
+        _helm_at(actor)
         item = _clock(lock=True)
         before = _snapshot(item)
         d = dict(item.details)
@@ -983,10 +1022,9 @@ def crew_physical_action(actor, request_id, action, target, value):
             item.revision += 1
             item.save(update_fields=["details", "revision"])
     elif action == "helm":
-        if target != "GEN-M" or value not in HELM_DIRECTIONS:
+        if target != "HELM" or value not in HELM_DIRECTIONS:
             raise PhysicsError("Unknown ship thrust direction")
-        station = state("equipment", "GEN-M")
-        _crew_at(actor, station.space_id)
+        _helm_at(actor)
         item = _clock(lock=True)
         before = _snapshot(item)
         d = dict(item.details)
