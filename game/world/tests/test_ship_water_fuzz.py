@@ -18,6 +18,10 @@ class WaterFaultFuzzTests(unittest.TestCase):
                 rng = random.Random(seed)
                 w, s = initial_water(), stock()
                 s["filter"] = 8000.0
+                # Start with a genuinely installed finite cartridge instead
+                # of drawing chemicals from an arbitrary remote store.
+                w["filter_staged_kg"]["A"] = 1.0
+                s["filter"] -= 1.0
                 initial_mass = water_inventory_total(w, s)
                 elapsed = 0.0
                 # Random simultaneous power, waste-cassette isolation,
