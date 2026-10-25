@@ -59,6 +59,10 @@ DRIVE_EXHAUST_M_S = 18_000.0
 # plant. These megawatts are ONLY shipboard pumps, valves and control loads,
 # never the hundreds of MW/GW of actual plume kinetic energy.
 DRIVE_AUX_MW = 0.12
+DRIVE_HEAT_KW = 2500.0
+DRIVE_COOLING_KW = 1800.0
+DRIVE_THERMAL_BUFFER_KJ = 150_000_000.0
+DRIVE_THERMAL_RESET_KJ = 60_000_000.0
 # Cargo manifests may supply a nonnegative installed payload mass. This
 # explicit mass belongs to the ship motion ledger, never an LLM estimate.
 # Cargo reference is 900,000 tonnes, not an 8,000-tonne proxy.
@@ -312,6 +316,8 @@ def arm_continuous_physics(*, operator_approved=False, now_game_time=None):
                 "command": "coast", "drive_firing": False,
                 "drive_power_mw": 0.0,
                 "drive_condition": "operational",
+                "drive_heat_kj": 0.0,
+                "drive_trip_reason": None,
                 "rcs_condition": "operational",
                 "attitude_rad": [0.0, 0.0, 0.0],
                 "angular_velocity_rad_s": [0.0, 0.0, 0.0],
@@ -379,6 +385,8 @@ def commission_g19_movement(*, operator_approved=False):
         motion.setdefault("drive_firing", False)
         motion.setdefault("attitude_firing", False)
         motion.setdefault("drive_power_mw", 0.0)
+        motion.setdefault("drive_heat_kj", 0.0)
+        motion.setdefault("drive_trip_reason", None)
         d["motion"] = motion
         changed = True
     if "rotors" not in d:
@@ -629,6 +637,25 @@ def tick_continuous_physics(*, now_game_time=None):
         # Account for propulsion-control auxiliaries, NOT thrust energy, in
         # electrical dispatch and electrical-generator waste heat.
         drive_load = motion["drive_power_mw"]
+        # Local machinery has finite thermal storage. The external drive
+        # energy plant is fictional; the thermal penalty is world-owned and
+        # cannot be exported to vacuum without a serviceable radiator path.
+        heat = float(motion.get("drive_heat_kj", 0.0))
+        if not math.isfinite(heat) or not 0 <= heat <= DRIVE_THERMAL_BUFFER_KJ:
+            raise PhysicsError("Invalid propulsion thermal inventory")
+        heat += DRIVE_HEAT_KW * dt if motion["drive_firing"] else 0.0
+        cooling = (
+            _on(equipment, "LT-PLANT")
+            and any(_on(equipment, f"RAD-LT-{n}") for n in range(1, 5))
+            and power["assured"])
+        if cooling:
+            heat = max(0.0, heat - DRIVE_COOLING_KW * dt)
+        if heat >= DRIVE_THERMAL_BUFFER_KJ:
+            heat = DRIVE_THERMAL_BUFFER_KJ
+            motion["drive_condition"] = "thermal_trip"
+            motion["drive_trip_reason"] = "propulsion_cooling_limit"
+            motion["command"] = "coast"
+        motion["drive_heat_kj"] = heat
         if drive_load:
             power["requested_mw"] += drive_load
             power["dispatched_mw"] += drive_load
@@ -935,6 +962,8 @@ def tick_continuous_physics(*, now_game_time=None):
         "drive_firing": motion["drive_firing"],
         "drive_power_mw": motion["drive_power_mw"],
         "drive_condition": motion["drive_condition"],
+        "drive_heat_kj": round(motion["drive_heat_kj"], 2),
+        "drive_trip_reason": motion["drive_trip_reason"],
         "rotor_rpm": {k: round(v["rpm"], 5) for k, v in rotors.items()},
         "rotor_gravity_g": {k: round(rotor_gravity(rotors, k), 4)
                             for k in ROTORS},
@@ -1121,7 +1150,7 @@ def crew_physical_action(actor, request_id, action, target, value):
             item.revision += 1
             item.save(update_fields=["details", "revision"])
     elif action == "drive":
-        if target not in {"MAIN", "RCS"} or value not in {"inhibit", "release"}:
+        if target not in {"MAIN", "RCS"} or value not in {"inhibit", "release", "reset"}:
             raise PhysicsError("Unknown propulsion safety operation")
         _crew_at(actor, "PROP-CTRL")
         item = _clock(lock=True)
@@ -1130,7 +1159,14 @@ def crew_physical_action(actor, request_id, action, target, value):
         motion = dict(d.get("motion", {}))
         key = "drive_condition" if target == "MAIN" else "rcs_condition"
         current = motion.get(key)
-        if value == "release":
+        if value == "reset":
+            if target != "MAIN" or current != "thermal_trip":
+                raise PhysicsError("No local propulsion thermal trip to reset")
+            if motion.get("drive_heat_kj", 0) > DRIVE_THERMAL_RESET_KJ:
+                raise PhysicsError("Propulsion too hot for safe manual reset")
+            motion[key] = "inhibited"
+            motion["drive_trip_reason"] = None
+        elif value == "release":
             if current != "inhibited":
                 raise PhysicsError("Only a locally inhibited sound drive can be released")
             # Inhibiting a drive does not repair underlying damage.
