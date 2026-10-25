@@ -738,14 +738,40 @@ def tick_continuous_physics(*, now_game_time=None):
         rotary_can_power = (
             power["assured"] and
             power["available_mw"] - power["requested_mw"] >= rotary_load)
+        def sound(identifier):
+            unit = equipment.get(identifier)
+            return bool(unit and unit.condition not in _BROKEN)
+
+        # Installed B-prime HAB bearings require two sound bearings, but
+        # either of its independently maintainable drives can motor the ring.
+        # Workshop rotor likewise has two separately maintainable drives.
         rotor_equipment = {
-            "HAB": all(equipment.get(name) is not None and
-                       equipment[name].condition not in _BROKEN
-                       for name in ("HAB-BEARING-FORE", "HAB-BEARING-AFT")),
-            # Indexer and freight collar faults affect only their interfaces.
-            # They do not magically seize the independent drum drive.
-            **{name: True for name in DRUMS},
+            "HAB": (
+                sound("HAB-BEARING-FORE") and sound("HAB-BEARING-AFT")
+                and any(sound(x) for x in ("HAB-DRIVE-FORE", "HAB-DRIVE-AFT"))
+            ),
+            "WR-01": (
+                sound("WR-BEARING-A") and sound("WR-BEARING-B")
+                and sound("WR-01")
+                and any(sound(x) for x in ("WR-DRIVE-A", "WR-DRIVE-B"))
+            ),
+            **{
+                name: all(any(sound(f"BE-{bearing:02d}-LUBE-{mode}")
+                              for mode in ("N", "S"))
+                          for bearing in (2 * index - 1, 2 * index))
+                for index, name in enumerate(DRUMS, 1)
+            },
         }
+        rotary_power_by_unit = {
+            name: rotary_can_power and (
+                sound(name + "-ROT-PWR") if name in DRUMS else
+                sound("WR-ROT-PWR-IF") if name == "WR-01" else True
+            ) for name in ROTORS
+        }
+        # Separate carriage motors can inhibit WR's telescoping motion
+        # without inventing a failure of the entire workshop ring.
+        if not (sound("WR-EXTEND-SHOP") and sound("WR-EXTEND-STORES")):
+            rotary_power_by_unit["WR-01"] = False
         # Only individually surveyed placements can set a drum's cargo
         # imbalance. Unknown bulk mass is not silently made symmetrical.
         for drum in CARGO_DRUMS:
@@ -756,7 +782,7 @@ def tick_continuous_physics(*, now_game_time=None):
                     "imbalance_kg_m": measurement["imbalance_kg_m"],
                 }
         rotors = step_rotors(
-            rotors, dt, powered=rotary_can_power, equipment_ok=rotor_equipment)
+            rotors, dt, powered=rotary_power_by_unit, equipment_ok=rotor_equipment)
         if rotary_load and rotary_can_power:
             power["requested_mw"] += rotary_load
             power["dispatched_mw"] += rotary_load
