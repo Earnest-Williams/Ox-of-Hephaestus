@@ -128,6 +128,7 @@ def _advance_motion(motion, dt, power):
     result["velocity_m_s"] = velocity
     result["expended_propellant_kg"] += spent
     result["drive_firing"] = burn_time > 0
+    result["drive_power_mw"] = DRIVE_POWER_MW if burn_time > 0 else 0.0
     return result
 # Coarse installed machinery waste-heat loads (kW), deposited in the
 # equipment's real pressure zone. They require an actually running plant;
@@ -270,6 +271,7 @@ def arm_continuous_physics(*, operator_approved=False, now_game_time=None):
                 "cargo_mass_kg": 0.0,
                 "expended_propellant_kg": 0.0,
                 "command": "coast", "drive_firing": False,
+                "drive_power_mw": 0.0,
                 "attitude_rad": [0.0, 0.0, 0.0],
                 "angular_velocity_rad_s": [0.0, 0.0, 0.0],
                 "attitude_command": "hold", "attitude_firing": False,
@@ -480,6 +482,16 @@ def tick_continuous_physics(*, now_game_time=None):
 
         power = _power(equipment, edges, isolators, clock.details["load_profile"])
         motion = _advance_motion(motion, dt, power)
+        # Charge a firing drive to the electrical dispatch and generator
+        # waste heat in this very same physics step.
+        drive_load = motion["drive_power_mw"]
+        if drive_load:
+            power["requested_mw"] += drive_load
+            power["dispatched_mw"] += drive_load
+            power["generation_fraction"] = (
+                power["dispatched_mw"] / power["available_mw"])
+            power["shortfall_mw"] = max(
+                0.0, power["requested_mw"] - power["available_mw"])
         # No unproven infinite battery/flywheel bridge or magic auto load shedding.
         protected_power = power["essential_assured"] and (
             "PWR-PROT" in power["nodes"])
@@ -773,6 +785,7 @@ def tick_continuous_physics(*, now_game_time=None):
         "ship_propellant_kg": round(motion["propellant_kg"], 3),
         "ship_cargo_mass_kg": round(motion["cargo_mass_kg"], 3),
         "drive_firing": motion["drive_firing"],
+        "drive_power_mw": motion["drive_power_mw"],
         "ship_attitude_rad": [round(x, 8) for x in motion["attitude_rad"]],
         "ship_angular_velocity_rad_s": [round(x, 10) for x in motion["angular_velocity_rad_s"]],
     }
