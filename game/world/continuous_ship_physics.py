@@ -41,6 +41,10 @@ AUTHORISED_ROLES = {"watch_engineer", "chief_engineer", "environment_tech"}
 CP_GAS_KJ_KG_K = 1.0
 O2_PER_FUEL = 2.667
 FIRE_HEAT_KJ_KG = 20000.0
+# Nominal combined chemical capture capacity is finite; spent sorbent must
+# eventually be serviced. This does not regenerate oxygen or vent CO2 away.
+CO2_CAPTURE_CAPACITY_KG = 150.0
+CO2_CAPTURE_KG_S_PER_TRAIN = 0.004
 # Coarse installed machinery waste-heat loads (kW), deposited in the
 # equipment's real pressure zone. They require an actually running plant;
 # a disconnected or shut-down unit cannot heat its compartment indefinitely.
@@ -174,6 +178,7 @@ def arm_continuous_physics(*, operator_approved=False, now_game_time=None):
             "load_profile": "normal", "ticks": 0,
             "lost_to_space_kg": 0.0, "burned_fuel_kg": 0.0,
             "water_suppression_kg": 0.0,
+            "co2_captured_kg": 0.0,
             "provenance": "explicit_scenario_not_instrument_measured",
         },
     )
@@ -350,7 +355,10 @@ def tick_continuous_physics(*, now_game_time=None):
         b = zones.get(door.reference["to"])
         if a != b and a in cells and b in cells:
             open_hatches.append((door.source_id, a, b))
-    total_before = sum(c["mass"] + c["fuel"] for c in cells.values())
+    captured_co2 = float(clock.details.get("co2_captured_kg", 0.0))
+    if not math.isfinite(captured_co2) or not 0 <= captured_co2 <= CO2_CAPTURE_CAPACITY_KG:
+        raise PhysicsError("Invalid finite CO2 sorbent inventory")
+    total_before = sum(c["mass"] + c["fuel"] for c in cells.values()) + captured_co2
     lost = burned = water = 0.0
     changed_equipment = set()
     summary = {}
@@ -392,6 +400,23 @@ def tick_continuous_physics(*, now_game_time=None):
             for node_id in atmosphere_source_nodes.get(train, ())
         ]
         air_on = bool(air_source_nodes)
+        # Process gas at the *installed* ECLSS intake zone. The capture
+        # medium is finite and remains aboard, so removing CO2 from the
+        # circulating gas cannot silently delete mass from the ship.
+        for train in sorted(active_air_trains):
+            zone = owners.get(train)
+            if zone not in cells:
+                continue
+            available = CO2_CAPTURE_CAPACITY_KG - captured_co2
+            removed = min(cells[zone]["co2"],
+                          CO2_CAPTURE_KG_S_PER_TRAIN * dt, available)
+            if removed > 0:
+                cells[zone]["co2"] -= removed
+                cells[zone]["mass"] -= removed
+                cells[zone]["energy"] -= removed * CP_GAS_KJ_KG_K * cells[zone]["temperature"]
+                captured_co2 += removed
+                cells[zone]["temperature"] = cells[zone]["energy"] / (
+                    cells[zone]["capacity"] + cells[zone]["mass"] * CP_GAS_KJ_KG_K)
         fan_nodes = (_reachable(edges, isolators, "atmosphere", air_source_nodes)
                      if air_on else set())
         # Open pressure hatches are a separate flow path; closing a hatch
@@ -542,7 +567,7 @@ def tick_continuous_physics(*, now_game_time=None):
                 for zone, c in cells.items()),
         }
 
-    total_after = sum(c["mass"] + c["fuel"] for c in cells.values())
+    total_after = sum(c["mass"] + c["fuel"] for c in cells.values()) + captured_co2
     if not math.isclose(total_before, total_after + lost, abs_tol=1e-5, rel_tol=1e-10):
         raise PhysicsError("Gas, fire fuel and vented mass did not reconcile")
     pressure_changed = []
