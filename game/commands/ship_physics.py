@@ -31,7 +31,7 @@ class CmdOxPhysicsRead(Command):
 class CmdOxPhysicsOperate(Command):
     """Request receipted local machinery work.
 
-    Usage: oxplant <32hex-request-id> <switch|plant|schedule|mist|hatch|service|helm|attitude|rotor> <id> <value>
+    Usage: oxplant <32hex-request-id> <switch|plant|schedule|mist|hatch|service|helm|attitude|rotor|drive> <id> <value>
     """
 
     key = "oxplant"
@@ -41,7 +41,7 @@ class CmdOxPhysicsOperate(Command):
         from world.continuous_ship_physics import crew_physical_action
         parts = self.args.strip().split()
         if len(parts) != 4 or not re.fullmatch("[0-9a-f]{32}", parts[0]):
-            self.caller.msg("Usage: oxplant <32hex-id> <switch|plant|schedule|mist|hatch|service|helm|attitude|rotor> <id> <value>")
+            self.caller.msg("Usage: oxplant <32hex-id> <switch|plant|schedule|mist|hatch|service|helm|attitude|rotor|drive> <id> <value>")
             return
         try:
             result = crew_physical_action(self.caller, *parts)
