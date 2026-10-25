@@ -80,7 +80,7 @@ def load_candidate(path=None):
 
 
 def _key(category, identifier):
-    if category not in CATEGORIES.values() or not isinstance(identifier, str):
+    if category not in {*CATEGORIES.values(), "pressure"} or not isinstance(identifier, str):
         raise ShipOperationsError("Invalid component identity")
     return f"{category}:{identifier}"
 
