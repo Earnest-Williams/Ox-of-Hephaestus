@@ -155,7 +155,7 @@ def start_port_job(manifest, rotors, *, lot_id, portal_id, direction,
             raise CargoError("Load must draw from a registered offship consignment")
         if (not math.isfinite(capacity_kg) or capacity_kg <= 0):
             raise CargoError("Unknown ship commercial cargo capacity")
-        committed = sum(job["remaining_kg"] + job["transferred_kg"]
+        committed = sum(job["remaining_kg"]
                         for job in manifest.get("port_jobs", {}).values()
                         if job["direction"] == "load")
         if onboard_mass_kg(manifest) + lot["mass_kg"] + committed > capacity_kg + 0.001:

@@ -53,15 +53,24 @@ def initial_cargo(reference_kg):
         "verified_drums": [],
         "jobs": {},
         "delivered_offship_kg": 0.0,
+        "port_contract_version": "ox.g19.commercial-port/1",
+        "port_contacts": {},
+        "port_jobs": {},
+        "registered_external_kg": 0.0,
     }
 
 
 def onboard_mass_kg(manifest):
-    return (
+    """In-flight commercial freight changes actual ship mass gradually."""
+    onboard = (
         _mass(manifest["unlocated_onboard_kg"], zero=True) +
         sum(_mass(row["mass_kg"]) for row in manifest["lots"].values()
             if row["location"] != "OFFSHIP")
     )
+    for job in manifest.get("port_jobs", {}).values():
+        delta = float(job["transferred_kg"])
+        onboard += delta if job["direction"] == "load" else -delta
+    return onboard
 
 
 def validate_cargo(manifest, motion_mass_kg):
@@ -95,11 +104,58 @@ def validate_cargo(manifest, motion_mass_kg):
         + sum(_mass(v["mass_kg"]) for v in lots.values())
     )
     reference = _mass(manifest["reference_departure_kg"], zero=True)
+    imported = _mass(manifest.get("registered_external_kg", 0.0), zero=True)
     if not math.isclose(
-            declared_plus_unknown,
-            reference,
+            declared_plus_unknown, reference + imported,
             rel_tol=1e-12, abs_tol=0.001):
         raise CargoError("Cargo created or erased outside an audited transfer")
+    outside = reference + imported - onboard_mass_kg(manifest)
+    if (outside < -0.001 or not math.isclose(
+            outside, _mass(manifest["delivered_offship_kg"], zero=True),
+            rel_tol=1e-12, abs_tol=0.001)):
+        raise CargoError("Port custody and vessel mass ledgers diverged")
+    contacts = manifest.get("port_contacts", {})
+    port_jobs = manifest.get("port_jobs", {})
+    if len(contacts) > 12 or len(port_jobs) > 6:
+        raise CargoError("More commercial ports or handlers than installed")
+    active_drums = set()
+    active_lots = set()
+    for portal, job in port_jobs.items():
+        if (not isinstance(portal, str) or
+                re.fullmatch(r"DR-0[1-6]-P[12]", portal) is None or
+                job.get("portal_id") != portal or
+                job.get("direction") not in {"load", "unload"} or
+                job.get("lot_id") not in lots):
+            raise CargoError("Invalid installed commercial port transfer")
+        drum = portal[:5]
+        if drum in active_drums or job["lot_id"] in active_lots:
+            raise CargoError("Shared bulk machinery or cargo lot double-booked")
+        active_drums.add(drum)
+        active_lots.add(job["lot_id"])
+        original = lots[job["lot_id"]]
+        if (job["direction"] == "unload" and
+                (original["drum"] != drum or original["location"] != drum)):
+            raise CargoError("Outbound cargo is not in this drum")
+        if job["direction"] == "load" and original["location"] != "OFFSHIP":
+            raise CargoError("Inbound cargo has no external source")
+        mass = _mass(original["mass_kg"])
+        transferred = _mass(job.get("transferred_kg"), zero=True)
+        remaining = _mass(job.get("remaining_kg"), zero=True)
+        startup = _mass(job.get("startup_remaining_s"), zero=True)
+        if (transferred > mass + 1e-6 or remaining > mass + 1e-6
+                or not math.isclose(transferred + remaining, mass,
+                                    rel_tol=1e-12, abs_tol=0.001)
+                or startup > 60 or
+                portal not in contacts or
+                job.get("berth_id") != contacts[portal].get("berth_id")):
+            raise CargoError("Physically impossible port transfer state")
+    for portal, contact in contacts.items():
+        if (not isinstance(portal, str) or
+                re.fullmatch(r"DR-0[1-6]-P[12]", portal) is None or
+                not isinstance(contact, dict) or
+                contact.get("docked") is not True or
+                not isinstance(contact.get("berth_id"), str)):
+            raise CargoError("Invalid external mooring reference")
     if len(manifest["jobs"]) > len(DRUMS):
         raise CargoError("More concurrent freight operations than installed collars")
     for drum, job in manifest["jobs"].items():
@@ -159,6 +215,9 @@ def split_cargo_lot(manifest, *, source_id, new_id, mass_kg):
             or len(manifest["lots"]) >= MAX_LOTS):
         raise CargoError("Missing source, duplicate package or lot limit")
     source = manifest["lots"][source_id]
+    if any(job["lot_id"] == source_id
+           for job in manifest.get("port_jobs", {}).values()):
+        raise CargoError("Cargo cannot be split during a commercial transfer")
     if (source["location"] != source["drum"]
             or source["kind"] != "bulk" or not source["restrained"]
             or mass >= source["mass_kg"] or mass > RESTRICTED_SLED_KG):
@@ -177,7 +236,9 @@ def restow_cargo_lot(manifest, *, lot_id, azimuth_deg, radius_m):
     lot = manifest["lots"][lot_id]
     if lot["location"] != lot["drum"]:
         raise CargoError("Package must be inside its drum")
-    if any(job["lot_id"] == lot_id for job in manifest["jobs"].values()):
+    if (any(job["lot_id"] == lot_id for job in manifest["jobs"].values())
+            or any(job["lot_id"] == lot_id
+                   for job in manifest.get("port_jobs", {}).values())):
         raise CargoError("Cargo transfer still underway")
     if (isinstance(azimuth_deg, bool) or
             not isinstance(azimuth_deg, (int, float)) or
@@ -197,15 +258,21 @@ def restow_cargo_lot(manifest, *, lot_id, azimuth_deg, radius_m):
 
 
 def unsecured_drum_loads(manifest, drum):
-    return any(row["drum"] == drum and row["location"] == drum
-               and not row["restrained"]
-               for row in manifest["lots"].values())
+    return (
+        any(row["drum"] == drum and row["location"] == drum
+            and not row["restrained"]
+            for row in manifest["lots"].values())
+        or any(portal[:5] == drum
+               for portal in manifest.get("port_jobs", {}))
+    )
 
 
 def verify_drum(manifest, drum):
     """Physical survey gate; operator asserts all *this* drum's loads known."""
     if drum not in DRUMS:
         raise CargoError("Unknown rotary cargo drum")
+    if unsecured_drum_loads(manifest, drum):
+        raise CargoError("Drum survey cannot pass during transfer or loose stowage")
     result = dict(manifest)
     result["verified_drums"] = sorted(set(manifest["verified_drums"]) | {drum})
     return result
@@ -220,13 +287,17 @@ def drum_balance(manifest, drum):
     if drum not in DRUMS:
         raise CargoError("Unknown cargo drum")
     x = y = known = 0.0
-    for row in manifest["lots"].values():
+    for lot_id, row in manifest["lots"].items():
         if row["drum"] != drum or row["location"] != drum:
             continue
-        arm = row["mass_kg"] * row["radius_m"]
+        mass = row["mass_kg"]
+        for job in manifest.get("port_jobs", {}).values():
+            if job["lot_id"] == lot_id and job["direction"] == "unload":
+                mass -= job["transferred_kg"]
+        arm = mass * row["radius_m"]
         x += arm * math.cos(row["azimuth_rad"])
         y += arm * math.sin(row["azimuth_rad"])
-        known += row["mass_kg"]
+        known += mass
     return {
         "known_cargo_kg": known,
         "imbalance_kg_m": math.hypot(x, y),
@@ -247,6 +318,11 @@ def start_freight_transfer(manifest, rotors, *, lot_id, direction,
     rotor = rotors[drum]
     if drum not in manifest["verified_drums"]:
         raise CargoError("Drum cargo survey has not been verified")
+    if any(portal[:5] == drum for portal in manifest.get("port_jobs", {})):
+        raise CargoError("Commercial port handler is already operating in this drum")
+    if any(job["lot_id"] == lot_id
+           for job in manifest.get("port_jobs", {}).values()):
+        raise CargoError("Lot is committed to external port transfer")
     # A parked, hardlocked drum must still permit removing cargo to CORRECT
     # a bad imbalance. The imbalance lockout belongs on spin-up, not on
     # restrained freight extraction while the drum is stationary.
