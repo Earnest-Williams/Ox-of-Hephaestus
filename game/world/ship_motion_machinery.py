@@ -34,6 +34,7 @@ def initial_rotors():
             "imbalance_kg_m": 0.0, "bearing_temperature_k": 293.15,
             "mode": "PARKED", "bearing_hours": 0.0,
             "work_radius_m": WORK_RADIUS_M if key == "WR-01" else None,
+            "work_target_radius_m": WORK_RADIUS_M if key == "WR-01" else None,
         }
         for key in ROTORS
     }
@@ -56,7 +57,17 @@ def set_rotor_command(rotors, name, command):
     if state["condition"] not in {"serviceable", "worn"}:
         if command != "stop":
             raise RotorError("Damaged rotor must remain inhibited")
-    if command == "stop":
+    if name == "WR-01" and command.startswith("radius:"):
+        try:
+            radius = float(command.split(":", 1)[1])
+        except (ValueError, TypeError) as exc:
+            raise RotorError("Invalid workshop radius") from exc
+        if (not math.isfinite(radius) or radius < 24 or radius > 75
+                or abs(state["rpm"]) > 0.001 or state["target_rpm"] != 0
+                or state["freight_collar"] or state["passenger_indexer"]):
+            raise RotorError("Workshop carriage needs stopped, isolated and 24-75 m")
+        state["work_target_radius_m"] = radius
+    elif command == "stop":
         state["target_rpm"] = 0.0
         state["indexing"] = False
         state["brake"] = False
@@ -97,6 +108,10 @@ def set_rotor_command(rotors, name, command):
                 abs(state["rpm"]) > 0.001 or state["target_rpm"] != 0 or
                 state["passenger_indexer"]):
             raise RotorError("Freight needs stopped, braked hardlock without passenger movement")
+        if (name == "WR-01" and
+                (abs(state["work_radius_m"] - 24.0) > 0.05 or
+                 abs(state["work_target_radius_m"] - 24.0) > 0.05)):
+            raise RotorError("Workshop freight requires retracted 24 m carriage")
         state["freight_collar"] = True
     elif command == "freight_retract":
         state["freight_collar"] = False
@@ -140,6 +155,16 @@ def step_rotors(rotors, dt, *, powered, equipment_ok=None):
             if rpm > 0.001:
                 raise RotorError("Brake or freight collar engaged on moving rotor")
             next_rpm = 0.0
+        if name == "WR-01":
+            radius = row["work_radius_m"]
+            target_radius = row["work_target_radius_m"]
+            if not 24 <= radius <= 75 or not 24 <= target_radius <= 75:
+                raise RotorError("Invalid workshop carriage extension")
+            if powered and serviceable and rpm < 0.001 and not row["freight_collar"]:
+                travel = 0.05 * dt
+                row["work_radius_m"] = max(radius - travel,
+                                           min(radius + travel, target_radius))
+            row["stores_radius_m"] = row["work_radius_m"] / 3.0
         row["rpm"] = next_rpm
         row["phase_rad"] = (phase + (rpm + next_rpm) * math.pi / 60.0 * dt) % (2 * math.pi)
         if row["indexing"] and next_rpm < 0.001 and powered and serviceable:
