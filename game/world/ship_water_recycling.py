@@ -222,12 +222,19 @@ def step_water(water, seconds, *, stocks, hardware, crew_count=40):
             w["suspected_contamination_kg"] = 0.0
     limits = {side: {stream: (PROCESS_KG_DAY[stream] * daily if process[side]
                         else 0.0) for stream in STREAM_FRACTION} for side in "AB"}
+    # A common sealed-solid receiver is NOT two independent infinite sinks.
+    # Reserve its residual treatment capacity proportionally for both streams.
+    residue_budget = {
+        stream: _cassette_space(w, "sanitary", hardware)
+        / SANITARY_RESIDUE_FRACTION * fraction
+        for stream, fraction in STREAM_FRACTION.items()
+    }
     report["power_required"] = potable_ready or any(process.values())
 
     def process_mass(side, stream, amount):
         if amount <= EPS:
             return 0.0
-        amount = min(amount, limits[side][stream],
+        amount = min(amount, limits[side][stream], residue_budget[stream],
                      _cassette_space(w, "sanitary", hardware)
                      / SANITARY_RESIDUE_FRACTION,
                      max(0.0, WORKING_CAPACITY_KG - w["working_kg"])
@@ -241,6 +248,7 @@ def step_water(water, seconds, *, stocks, hardware, crew_count=40):
         stock["sanitary"] += sanitary
         w["working_kg"] += recovered
         limits[side][stream] -= amount
+        residue_budget[stream] -= amount
         report["processed_kg"] += amount
         report["recovered_kg"] += recovered
         report["sanitary_kg"] += sanitary
@@ -268,7 +276,8 @@ def step_water(water, seconds, *, stocks, hardware, crew_count=40):
     # rather than impossible untreated blackwater overflow.
     capacity = {}
     for stream, fraction in STREAM_FRACTION.items():
-        processing = sum(limits[side][stream] for side in "AB")
+        processing = min(sum(limits[side][stream] for side in "AB"),
+                         residue_budget[stream])
         buffering = sum(max(0.0, LOCAL_KG[stream] - w["local"][side][stream])
                         for side in "AB")
         if hardware.get("fixed", {}).get(stream, False):
