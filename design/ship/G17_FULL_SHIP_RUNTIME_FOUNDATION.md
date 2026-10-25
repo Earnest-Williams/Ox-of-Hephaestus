@@ -16,13 +16,19 @@ The v0.4 room topology stays installed. The 0.5 candidate has the same 421 room 
 | Service edges | 1,181 | condition, availability setting, isolators |
 | Isolation points | 1,256 | condition, open/closed setting |
 | Inventory accounts | 15 | finite total stock in tonnes |
-| Installation anchor | 1 | version and category counts |
+| Pressure cells (separate explicit scenario) | 133 | bounded gas volume, temperature, finite air mass, pressure |\n| Installation anchor | 1 | version and category counts |
 
 Runtime changes append database-backed physical events with the before/after state and game time. Reference records are retained separately; old refit documentation cannot become measurements. The separate actor-addressed journal stays private and does not receive an indiscriminate ship-state broadcast.
 
 A directed graph query can determine whether authored service nodes are *reachable* through currently available edges and correctly actuated switches/valves. This is **not** yet delivered power, pressure, capacity, heat transfer or fluid flow. A breaker conducts when **closed**; a valve passes when **open**. Damaged components do not conduct. Standby branches cannot conduct merely because a graph edge exists.
 
 Inventory uses finite account totals; location allocations do not mint additional stock. The world refuses negative, nonfinite or overdrawn consumption, and rolls stock changes and physical events back together.
+
+## Pressure-casualty simulation slice
+
+A separate explicit `install_pressure_cells(operator_approved=True)` imports all **133 bounded elementary gas cells**. Initial air quantities remain **unknown**, not fabricated from CAD. `initialize_nominal_atmosphere(operator_approved=True)` establishes a *scenario* with per-cell gas volume taken from the midpoint of the audited v0.5 planning interval, finite ideal-gas mass at 101,325 Pa and 293.15 K, and an explicit `reference_midpoint_not_measured` provenance marker. That initialisation cannot be repeated to erase a casualty. The 83 unclassified rooms and 26 explicitly vacuum spaces do not inherit breathable status.
+
+The operator-only `vent_pressure_cell` permits a simulated hull-gas loss which lowers pressure without creating refill inventory. `equalize_cells` conserves total mass between two finite pressurised cells at a compatible temperature. These are world-engine test operations, **not** character commands; no pressure-hatch movement or air route is authorised by calling them. Real seal actuation, flow rates, breach area, oxygen and carbon-dioxide fractions, temperature gradients and species-specific flow remain subsequent work.
 
 ## Restrictions deliberately retained
 
