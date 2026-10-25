@@ -7,7 +7,8 @@ from evennia.utils.test_resources import EvenniaTestCase
 from world.full_ship_operations import (
     ShipOperationsError, access_clearance, consume_stock, install_candidate,
     load_candidate, service_reachable, set_component_condition, set_isolator,
-    state, summary,
+    state, summary, install_pressure_cells, initialize_nominal_atmosphere,
+    pressure_reading, vent_pressure_cell, equalize_cells,
 )
 from world.models import CanonicalShipEvent, CanonicalShipState
 from world.ship_world import build_canonical_ship
@@ -90,3 +91,30 @@ class FullShipOperationsTests(EvenniaTestCase):
         set_component_condition("equipment", "F1-FW-01", "failed", operator=True)
         self.assertEqual(state("equipment", "F1-FW-01").condition, "failed")
         self.assertEqual(state("equipment", "F1-FW-01").reference["current_condition"], "serviceable")
+
+
+    def test_pressure_scenario_explicit_finite_and_conserved(self):
+        self.assertEqual(install_pressure_cells(operator_approved=True)["cells"], 133)
+        self.assertEqual(install_pressure_cells(operator_approved=True)["installed"], False)
+        self.assertIsNone(pressure_reading("PZ-HAB-03")["pressure_pa"])
+        with self.assertRaises(PermissionError):
+            initialize_nominal_atmosphere()
+        result = initialize_nominal_atmosphere(operator_approved=True)
+        self.assertEqual(result["cells"], 133)
+        self.assertAlmostEqual(pressure_reading("PZ-HAB-03")["pressure_pa"], 101325.0)
+        with self.assertRaises(ShipOperationsError):
+            initialize_nominal_atmosphere(operator_approved=True)
+        a = "PZ-HAB-03"
+        b = "PZ-BR-03"
+        before = pressure_reading(a)["mass_kg"] + pressure_reading(b)["mass_kg"]
+        vent_pressure_cell(a, 120, operator=True)
+        less = pressure_reading(a)["mass_kg"] + pressure_reading(b)["mass_kg"]
+        self.assertAlmostEqual(before - less, 120)
+        self.assertLess(pressure_reading(a)["pressure_pa"], 101325)
+        equalize_cells(a, b, operator=True)
+        self.assertAlmostEqual(
+            pressure_reading(a)["mass_kg"] + pressure_reading(b)["mass_kg"], less)
+        self.assertAlmostEqual(pressure_reading(a)["pressure_pa"],
+                               pressure_reading(b)["pressure_pa"])
+        self.assertLess(pressure_reading(b)["pressure_pa"], 101325)
+        self.assertEqual(state("inventory", "INV-GAS-REFILL-A").quantity, 2.75)
