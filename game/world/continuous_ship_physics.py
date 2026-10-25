@@ -962,8 +962,8 @@ def tick_continuous_physics(*, now_game_time=None):
         "drive_firing": motion["drive_firing"],
         "drive_power_mw": motion["drive_power_mw"],
         "drive_condition": motion["drive_condition"],
-        "drive_heat_kj": round(motion["drive_heat_kj"], 2),
-        "drive_trip_reason": motion["drive_trip_reason"],
+        "drive_heat_kj": round(motion.get("drive_heat_kj", 0.0), 2),
+        "drive_trip_reason": motion.get("drive_trip_reason"),
         "rotor_rpm": {k: round(v["rpm"], 5) for k, v in rotors.items()},
         "rotor_gravity_g": {k: round(rotor_gravity(rotors, k), 4)
                             for k in ROTORS},
@@ -1172,8 +1172,8 @@ def crew_physical_action(actor, request_id, action, target, value):
             # Inhibiting a drive does not repair underlying damage.
             motion[key] = "operational"
         else:
-            if current == "failed":
-                raise PhysicsError("Failed actuator cannot be treated as a sound inhibited drive")
+            if current not in {"operational", "inhibited"}:
+                raise PhysicsError("Damaged or tripped drive cannot bypass repair via inhibit")
             motion[key] = "inhibited"
         d["motion"] = motion
         if d != item.details:
