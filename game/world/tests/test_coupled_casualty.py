@@ -6,7 +6,8 @@ operator; this is NOT proof that unverified traversal is live.
 """
 from __future__ import annotations
 
-from types import SimpleNamespace
+import math
+import random
 
 from evennia.utils.test_resources import EvenniaTestCase
 
@@ -185,6 +186,85 @@ class CoupledShipCasualtyTests(EvenniaTestCase):
         self.assertTrue(CanonicalShipEvent.objects.filter(
             operation__in=["thermal_exposure_damage", "severe_thermal_damage"]).exists())
         self.assertFalse(tick_continuous_physics(now_game_time=1230)["advanced"])
+
+
+    def test_seeded_world_fuzz_conserves_mass_under_competing_casualties(self):
+        rng = random.Random(0x18BCA5E)
+        set_isolator("ISO-GEN-M", "closed", operator=True)
+        configure_scenario_casualty(
+            "PZ-HAB-03", fire_fuel_kg=16.0, fire_burn_kg_s=0.15,
+            operator=True)
+        configure_scenario_casualty("PZ-HAB-04", leak_kg_s=0.05, operator=True)
+        initial_mass = sum(
+            c.quantity + c.details["physics_fuel_kg"]
+            for c in CanonicalShipState.objects.filter(category="pressure")
+        )
+        crew = self._tech()
+        station = state("equipment", "GEN-M").space_id
+        crew.move_to(find_ship_space(station), quiet=True)
+        outcomes = {"breaker": 0, "generator": 0, "heat": 0,
+                    "leak": 0, "radiator": 0, "ticks": 0}
+        for step in range(1, 81):
+            if step % 4 == 0:
+                set_isolator(
+                    "ISO-GEN-M", rng.choice(("open", "closed")), operator=True)
+                outcomes["breaker"] += 1
+            if step % 7 == 0:
+                value = rng.choice(("on", "off"))
+                receipt = crew_physical_action(
+                    crew, f"{step:032x}", "plant", "GEN-M", value)
+                self.assertEqual(
+                    receipt,
+                    crew_physical_action(
+                        crew, f"{step:032x}", "plant", "GEN-M", value))
+                outcomes["generator"] += 1
+            if step % 9 == 0:
+                configure_scenario_casualty(
+                    "PZ-HAB-04",
+                    heat_kw=rng.choice((0.0, 30.0, 100.0, 300.0)),
+                    operator=True)
+                outcomes["heat"] += 1
+            if step % 11 == 0:
+                configure_scenario_casualty(
+                    "PZ-HAB-04",
+                    leak_kg_s=rng.choice((0.0, 0.005, 0.02, 0.05)),
+                    operator=True)
+                outcomes["leak"] += 1
+            if step == 23:
+                set_component_condition(
+                    "equipment", "RAD-LT-1", "failed", operator=True)
+                outcomes["radiator"] += 1
+            now = 1000 + 10 * step
+            result = tick_continuous_physics(now_game_time=now)
+            self.assertTrue(result["advanced"])
+            self.assertEqual(result["last_game_time"], now)
+            pressure = list(
+                CanonicalShipState.objects.filter(category="pressure"))
+            gas_plus_fuel = sum(
+                c.quantity + c.details["physics_fuel_kg"] for c in pressure)
+            lost = CanonicalShipState.objects.get(
+                pk="meta:continuous-physics").details["lost_to_space_kg"]
+            self.assertTrue(math.isclose(
+                initial_mass, gas_plus_fuel + lost,
+                rel_tol=1e-10, abs_tol=1e-4),
+                f"conservation failed at seeded step {step}")
+            for c in pressure:
+                d = c.details
+                self.assertTrue(math.isfinite(c.quantity) and c.quantity >= 0)
+                self.assertTrue(
+                    math.isfinite(d["temperature_k"]) and d["temperature_k"] > 0)
+                self.assertTrue(
+                    0 <= d["physics_oxygen_kg"] <= c.quantity + 1e-5)
+                self.assertGreaterEqual(d["physics_smoke_kg"], 0)
+            if step % 17 == 0:
+                self.assertFalse(
+                    tick_continuous_physics(now_game_time=now)["advanced"])
+            outcomes["ticks"] += 1
+        self.assertEqual(outcomes["ticks"], 80)
+        self.assertGreater(
+            state("pressure", "PZ-HAB-03").details["physics_smoke_kg"],
+            0)
+        print("OX_G18B_WORLD_FUZZ_PASS", outcomes)
 
     def test_heat_trip_requires_safe_local_manual_reset_not_instant_repair(self):
         set_isolator("ISO-GEN-M", "closed", operator=True)
