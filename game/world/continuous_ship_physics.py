@@ -61,8 +61,12 @@ CO2_CAPTURE_KG_S_PER_TRAIN = 0.004
 # frame, finite reaction mass, and a power-limited drive. Not a flight solver.
 # Masses are commissioned from the installed v0.5 mission mass contract,
 # never from an arbitrary light-spacecraft stand-in.
-DRIVE_THRUST_N = 360_000.0
-DRIVE_EXHAUST_M_S = 18_000.0
+# Fictional v0.5 contract: ~4 km/s full-load delta-v from 5,000 t
+# reaction mass and <=0.001 g axial acceleration when fully loaded.
+# This effective exhaust speed is selected to reproduce that setting,
+# NOT a current-day engine design or electric generator specification.
+DRIVE_THRUST_N = 11_645_000.0
+DRIVE_EXHAUST_M_S = 960_000.0
 # Sublight reaction drive gets thrust energy from its distinct fictional drive
 # plant. These megawatts are ONLY shipboard pumps, valves and control loads,
 # never the hundreds of MW/GW of actual plume kinetic energy.
