@@ -63,11 +63,11 @@ class FullShipOperationsTests(EvenniaTestCase):
         # All endpoints and isolators are imported from the actual design.
         source = "NODE-GEN-M"
         self.assertNotIn("PWR-MSB-A", service_reachable("power", source))
-        set_isolator("ISO-GEN-M", "open", operator=True)
+        set_isolator("ISO-GEN-M", "closed", operator=True)
         self.assertIn("PWR-MSB-A", service_reachable("power", source))
         set_component_condition("edge", "EDGE-GEN-M", "severed", operator=True)
         self.assertNotIn("PWR-MSB-A", service_reachable("power", source))
-        self.assertEqual(state("isolator", "ISO-GEN-M").setting, "open")
+        self.assertEqual(state("isolator", "ISO-GEN-M").setting, "closed")
 
     def test_pressure_door_and_unverified_environment_never_bypass_interlocks(self):
         access = state("access", "ACC-BR-03-HAB-03")
