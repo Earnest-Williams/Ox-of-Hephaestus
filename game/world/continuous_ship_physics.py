@@ -2336,6 +2336,37 @@ def local_physics_readout(actor, target):
     raise PermissionError("That machinery is not at this character's location")
 
 
+
+@transaction.atomic
+def configure_water_casualty(*, operator=False, contaminated_kg=None):
+    """Operator-only scenario contamination of already existing working water."""
+    if not operator:
+        raise PermissionError("Physical contamination injection is operator-only")
+    item = _clock(lock=True)
+    if item.details.get("water") is None:
+        raise PhysicsError("Water/waste system not commissioned")
+    if contaminated_kg is None:
+        raise PhysicsError("Explicit finite contamination amount required")
+    amount = _positive(contaminated_kg, zero=True)
+    import copy
+    w = copy.deepcopy(item.details["water"])
+    if amount > w["working_kg"] + 1e-7:
+        raise PhysicsError("Cannot contaminate more water than physically exists")
+    before = _snapshot(item)
+    w["suspected_contamination_kg"] = amount
+    w["potable_quarantined"] = amount > 0
+    w["reserve_released"] = False
+    w["quality_sample"] = None
+    w["quality_sample_tick"] = None
+    d = dict(item.details)
+    d["water"] = w
+    item.details = d
+    item.revision += 1
+    item.save(update_fields=["details", "revision"])
+    _event(item, "operator_water_contamination", before)
+    return {"contaminated_kg": amount, "potable_quarantined": w["potable_quarantined"]}
+
+
 @transaction.atomic
 def configure_scenario_casualty(cell_id, *, operator=False, leak_kg_s=None,
                                 heat_kw=None, fire_fuel_kg=None,
