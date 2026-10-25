@@ -570,13 +570,13 @@ def survey_g19_water_material(*, operator_approved=False, source=None,
         raise PermissionError("Physical material survey is operator-only")
     if source not in {"INV-SPARES", "INV-DC-CONSUMABLES"}:
         raise PhysicsError("Unclassified material source")
+    clock = _clock(lock=True)
     store = state("inventory", source, lock=True)
     from world.ship_world import find_ship_space
     if (room_id not in store.reference.get("location_ids", ())
             or not isinstance(room_id, str) or find_ship_space(room_id) is None):
         raise PhysicsError("No installed source stock at that room")
     amount = _positive(verified_kg)
-    clock = _clock(lock=True)
     w = clock.details.get("water")
     if w is None:
         raise PhysicsError("Water/waste system not commissioned")
