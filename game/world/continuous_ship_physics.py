@@ -31,6 +31,7 @@ from world.ship_cargo_manifest import (
     CargoError, DRUMS as CARGO_DRUMS, initial_cargo, validate_cargo,
     onboard_mass_kg, declare_cargo_lot, split_cargo_lot, verify_drum,
     drum_balance, start_freight_transfer, step_freight,
+    restow_cargo_lot, unsecured_drum_loads,
     active_freight_mw,
 )
 from world.ship_motion_machinery import (
@@ -480,6 +481,10 @@ def survey_cargo_lot(*, operator_approved=False, operation, lot_id=None,
                 mass_kg=mass_kg)
         elif operation == "verify":
             revised = verify_drum(cargo, drum)
+        elif operation == "restow":
+            revised = restow_cargo_lot(
+                cargo, lot_id=lot_id, azimuth_deg=azimuth_deg,
+                radius_m=radius_m)
         else:
             raise CargoError("Unknown cargo survey operation")
         validate_cargo(revised, d["motion"]["cargo_mass_kg"])
@@ -1516,6 +1521,10 @@ def crew_physical_action(actor, request_id, action, target, value):
                 getattr(actor.db, "crew_role", None) not in roles and
                 not actor.check_permstring("Developer")):
             raise PermissionError("Operator is not at that rotor's local machinery controls")
+        if target in DRUMS and value == "start":
+            manifest = _clock().details.get("cargo", {})
+            if unsecured_drum_loads(manifest, target):
+                raise PhysicsError("Loose or unstowed freight prevents drum spin-up")
         if target in DRUMS and target in _clock().details.get("cargo", {}).get("jobs", {}):
             if value in {"start", "release", "freight_retract", "passenger_extend"}:
                 raise PhysicsError("Freight operation underway; cannot release its capture")
