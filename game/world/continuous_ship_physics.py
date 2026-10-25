@@ -310,6 +310,14 @@ def tick_continuous_physics(*, now_game_time=None):
     cells = {r.source_id: _load_cell(r) for r in pressure_rows}
     leak_isolators = {r.source_id: r.details.get("physics_leak_isolator_id")
                       for r in pressure_rows}
+    # Reference node ownership is static within a tick. Avoid a database
+    # query for every 10-second integration substep.
+    atmosphere_source_nodes = {}
+    for node in CanonicalShipState.objects.filter(category="node"):
+        if (node.reference.get("network") == "atmosphere"
+                and node.reference.get("owner_type") == "equipment"):
+            atmosphere_source_nodes.setdefault(
+                node.reference.get("owner_id"), []).append(node.source_id)
     # Only real physically open, rated links between *known* gas cells may
     # exchange mass. Unknown cargo atmosphere is never invented as vacuum.
     open_hatches = []
@@ -356,12 +364,9 @@ def tick_continuous_physics(*, now_game_time=None):
         # network. Motorised mixing requires a source on the same *currently
         # conducting* atmosphere graph; passive pressure movement does not.
         air_source_nodes = [
-            node.source_id
-            for node in CanonicalShipState.objects.filter(category="node")
-            if node.reference.get("network") == "atmosphere"
-            and node.reference.get("owner_type") == "equipment"
-            and node.reference.get("owner_id") in active_air_trains
-        ] if active_air_trains else []
+            node_id for train in sorted(active_air_trains)
+            for node_id in atmosphere_source_nodes.get(train, ())
+        ]
         air_on = bool(air_source_nodes)
         fan_nodes = (_reachable(edges, isolators, "atmosphere", air_source_nodes)
                      if air_on else set())
