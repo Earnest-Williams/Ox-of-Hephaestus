@@ -128,6 +128,11 @@ def validate_cargo(manifest, motion_mass_kg):
                 job.get("lot_id") not in lots):
             raise CargoError("Invalid installed commercial port transfer")
         drum = portal[:5]
+        if (not isinstance(job.get("paused", False), bool)
+                or not isinstance(job.get("reversing", False), bool)):
+            raise CargoError("Commercial transfer control state invalid")
+        if drum in manifest["jobs"]:
+            raise CargoError("Commercial bulk and internal freight rail cannot overlap")
         if drum in active_drums or job["lot_id"] in active_lots:
             raise CargoError("Shared bulk machinery or cargo lot double-booked")
         active_drums.add(drum)

@@ -238,6 +238,49 @@ class InstalledMovementTests(EvenniaTestCase):
         crew_physical_action(
             officer, "5" * 32, "helm", "HELM", "x+")
 
+    def test_real_port_transfer_reversal_updates_ship_mass_incrementally(self):
+        survey_cargo_lot(
+            operator_approved=True, operation="declare", lot_id="OREPORT",
+            mass_kg=200_000, drum="DR-01", azimuth_deg=0, radius_m=0.01)
+        commission_commercial_port(
+            operator_approved=True, operation="dock",
+            portal_id="DR-01-P1", berth_id="BERTH-TEST")
+        worker = build_ship()["cargo"]
+        worker.move_to(find_ship_space("CARGO-CTRL-FWD"), quiet=True)
+        receipt = crew_physical_action(
+            worker, "1" * 31 + "a", "port", "DR-01-P1", "unload:OREPORT")
+        self.assertEqual(receipt["status"], "succeeded")
+        self.assertEqual(crew_physical_action(
+            worker, "1" * 31 + "a", "port", "DR-01-P1", "unload:OREPORT"),
+            receipt)
+        tick_continuous_physics(now_game_time=1060)
+        tick_continuous_physics(now_game_time=1070)
+        motion = _clock().details["motion"]
+        self.assertEqual(motion["cargo_mass_kg"], 900_000_000 - 15_000)
+        self.assertEqual(_clock().details["cargo"]["delivered_offship_kg"],
+                         15_000)
+        with self.assertRaises(PhysicsError):
+            commission_commercial_port(
+                operator_approved=True, operation="undock",
+                portal_id="DR-01-P1", berth_id="BERTH-TEST")
+        crew_physical_action(
+            worker, "2" * 31 + "a", "port", "DR-01-P1", "pause:OREPORT")
+        tick_continuous_physics(now_game_time=1080)
+        self.assertEqual(_clock().details["motion"]["cargo_mass_kg"],
+                         900_000_000 - 15_000)
+        crew_physical_action(
+            worker, "3" * 31 + "a", "port", "DR-01-P1", "abort:OREPORT")
+        tick_continuous_physics(now_game_time=1140)
+        self.assertEqual(_clock().details["motion"]["cargo_mass_kg"],
+                         900_000_000 - 15_000)
+        tick_continuous_physics(now_game_time=1150)
+        self.assertEqual(_clock().details["motion"]["cargo_mass_kg"],
+                         900_000_000)
+        self.assertFalse(_clock().details["cargo"]["port_jobs"])
+        commission_commercial_port(
+            operator_approved=True, operation="undock",
+            portal_id="DR-01-P1", berth_id="BERTH-TEST")
+
     def test_explicit_migration_preserves_motion_and_reconciles_mass(self):
         clock = _clock()
         previous = dict(clock.details)

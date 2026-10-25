@@ -7,7 +7,7 @@ from world.ship_cargo_manifest import (
 )
 from world.ship_port_operations import (
     commission_port_contact, register_external_consignment, start_port_job,
-    step_port_jobs, PORT_AUX_MW, contacts_active,
+    step_port_jobs, command_port_job, PORT_AUX_MW, contacts_active,
 )
 from world.ship_motion_machinery import initial_rotors
 
@@ -119,6 +119,78 @@ class CommercialPortTest(unittest.TestCase):
         cargo = restow_cargo_lot(
             cargo, lot_id="NEW-1", azimuth_deg=180, radius_m=1.0)
         self.assertTrue(validate_cargo(cargo, self.capacity - 2000))
+
+    def test_mid_transfer_abort_requires_finite_physical_reversal(self):
+        cargo = self.outbound()
+        cargo = start_port_job(
+            cargo, self.rotors, lot_id="ORE-1",
+            portal_id="DR-01-P1", direction="unload",
+            capacity_kg=self.capacity, equipment_ready=True,
+            inner_gate_sealed=True)
+        cargo, _ = step_port_jobs(
+            cargo, 60, available_portals={"DR-01-P1"},
+            capacity_kg=self.capacity)
+        cargo, _ = step_port_jobs(
+            cargo, 50, available_portals={"DR-01-P1"},
+            capacity_kg=self.capacity)
+        self.assertEqual(onboard_mass_kg(cargo), self.capacity - 75_000)
+        paused = command_port_job(
+            cargo, portal_id="DR-01-P1", lot_id="ORE-1", command="pause")
+        stalled, _ = step_port_jobs(
+            paused, 60, available_portals={"DR-01-P1"},
+            capacity_kg=self.capacity)
+        self.assertEqual(stalled["port_jobs"], paused["port_jobs"])
+        self.assertEqual(onboard_mass_kg(stalled), self.capacity - 75_000)
+        with self.assertRaises(CargoError):
+            command_port_job(
+                stalled, portal_id="DR-01-P1", lot_id="WRONG", command="abort")
+        reversed_job = command_port_job(
+            stalled, portal_id="DR-01-P1", lot_id="ORE-1", command="abort")
+        self.assertEqual(onboard_mass_kg(reversed_job), self.capacity - 75_000)
+        with self.assertRaises(CargoError):
+            command_port_job(
+                reversed_job, portal_id="DR-01-P1", lot_id="ORE-1",
+                command="resume")
+        # Waiting for physical recovery startup cannot move mass.
+        recovery_start, finished = step_port_jobs(
+            reversed_job, 60, available_portals={"DR-01-P1"},
+            capacity_kg=self.capacity)
+        self.assertEqual(finished, ())
+        self.assertEqual(onboard_mass_kg(recovery_start), self.capacity - 75_000)
+        # A dead motor or failed berth contact suspends recovery.
+        damaged, finished = step_port_jobs(
+            recovery_start, 60, available_portals=set(),
+            capacity_kg=self.capacity)
+        self.assertEqual(damaged["port_jobs"], recovery_start["port_jobs"])
+        recovered, finished = step_port_jobs(
+            damaged, 50, available_portals={"DR-01-P1"},
+            capacity_kg=self.capacity)
+        self.assertEqual(finished, (("DR-01-P1", "ORE-1", "recovered"),))
+        self.assertEqual(recovered["port_jobs"], {})
+        self.assertEqual(recovered["lots"]["ORE-1"]["location"], "DR-01")
+        self.assertEqual(onboard_mass_kg(recovered), self.capacity)
+        self.assertEqual(recovered["delivered_offship_kg"], 0)
+        self.assertTrue(validate_cargo(recovered, self.capacity))
+
+    def test_pause_resume_and_abort_do_not_duplicate_external_stock(self):
+        cargo = self.outbound()
+        cargo = start_port_job(
+            cargo, self.rotors, lot_id="ORE-1", portal_id="DR-01-P1",
+            direction="unload", capacity_kg=self.capacity,
+            equipment_ready=True, inner_gate_sealed=True)
+        stopped = command_port_job(
+            cargo, portal_id="DR-01-P1", lot_id="ORE-1", command="pause")
+        stopped, _ = step_port_jobs(
+            stopped, 60, available_portals={"DR-01-P1"},
+            capacity_kg=self.capacity)
+        self.assertEqual(stopped["port_jobs"]["DR-01-P1"]["startup_remaining_s"], 60)
+        running = command_port_job(
+            stopped, portal_id="DR-01-P1", lot_id="ORE-1", command="resume")
+        running, _ = step_port_jobs(
+            running, 60, available_portals={"DR-01-P1"},
+            capacity_kg=self.capacity)
+        self.assertEqual(running["port_jobs"]["DR-01-P1"]["startup_remaining_s"], 0)
+        self.assertTrue(validate_cargo(running, self.capacity))
 
     def test_no_loading_without_hardlock_or_gallery_seal(self):
         cargo = self.outbound()
