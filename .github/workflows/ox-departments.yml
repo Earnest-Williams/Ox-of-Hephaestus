@@ -55,7 +55,12 @@ jobs:
         working-directory: game
         run: |
           evennia migrate --noinput
-          python -m world.test_runner world.tests.test_departments world.tests.test_ship world.tests.test_ship_model world.tests.test_ship_world world.tests.test_ship_telemetry world.tests.test_ox_terminal world.tests.test_autonomy --verbosity=2
+          python -m world.test_runner world.tests.test_departments world.tests.test_ship world.tests.test_ship_model world.tests.test_ship_world world.tests.test_ship_telemetry world.tests.test_full_ship_operations world.tests.test_ox_terminal world.tests.test_autonomy --verbosity=2
+      - name: Validate v0.5 candidate and install the full operational register
+        working-directory: game
+        run: |
+          evennia shell --command="from world.full_ship_operations import load_candidate, install_candidate, summary; from world.ship_world import ensure_canonical_ship; ensure_canonical_ship(); assert len(load_candidate()['equipment']) == 808; r=install_candidate(operator_approved=True); assert r['counts']['isolator']==1256; assert summary()['equipment']==808; print('OX_G17_FULL_REGISTER_INSTALLED')"
+          evennia shell --command="from world.full_ship_operations import install_candidate, state; assert not install_candidate(operator_approved=True)['installed']; assert state('inventory', 'INV-FOOD-LONG-LEG').quantity==56.79; print('OX_G17_RESTART_PRESERVES_HOLDINGS')"
       - name: Materialise all 421 canonical spaces and 517 bidirectional physical links
         working-directory: game
         run: |
