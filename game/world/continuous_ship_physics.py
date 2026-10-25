@@ -455,6 +455,40 @@ def _water_hardware(water, equipment, edges, isolators, nodes, power):
                 if n.reference.get("network") == network
                 and n.reference.get("owner_id") == owner]
 
+    def rated_wet_valve_conducts(identifier):
+        """The v0.5 manual/remote *rotary isolation* is a water valve.
+
+        The generic actuator parser recognises only names containing
+        "valve"/"damper"; these eight fitted valves have a more precise
+        original machinery classification. Accept *only* their known
+        physical identities and medium/side/location, not arbitrary unknown
+        actuator kinds. A mechanically jammed-OPEN valve still conducts.
+        """
+        match = re.fullmatch(
+            r"ISO-WET-(GREYWATER|BLACKWATER)-([AB])-(FIXED|ROTOR)",
+            identifier)
+        if match is None:
+            row = isolators.get(identifier)
+            return bool(row and _physical_passage(row))
+        fluid, side, end = match.groups()
+        row = isolators.get(identifier)
+        if row is None:
+            return False
+        expected_kind = (
+            f"manual/remote rated {fluid.lower()} "
+            f"{'fixed-side' if end == 'FIXED' else 'rotor-side'} rotary isolation")
+        expected_room = (
+            f"ROTARY-UTIL-{side}" if end == "FIXED"
+            else f"HAB-{'06' if side == 'A' else '08'}-SERVICE-GALLERY")
+        return bool(
+            row.reference.get("kind", "").lower() == expected_kind
+            and row.reference.get("network") == fluid.lower()
+            and row.reference.get("normal_state") == "closed"
+            and row.space_id == expected_room
+            and row.setting == "open"
+            and (row.condition not in _BROKEN or row.condition == "jammed")
+        )
+
     def wet_edge_can_flow(edge):
         if _live_edge(edge, isolators):
             return True
@@ -470,14 +504,31 @@ def _water_hardware(water, equipment, edges, isolators, nodes, power):
                       for side in "AB"}
             or ident in {f"EDGE-BYP-{side}-H2" for side in "AB"}
         )
+        expected_ids = None
+        match = re.fullmatch(r"EDGE-WET-(GREYWATER|BLACKWATER)-([AB])-ROTARY", ident)
+        if match is not None:
+            fluid, side = match.groups()
+            expected_ids = {
+                f"ISO-WET-{fluid}-{side}-FIXED",
+                f"ISO-WET-{fluid}-{side}-ROTOR",
+            }
+        else:
+            match = re.fullmatch(r"EDGE-BYP-([AB])-H2", ident)
+            if match is not None:
+                side = match.group(1)
+                expected_ids = {
+                    f"ISO-BYP-{side}-H2-SOURCE",
+                    f"ISO-BYP-{side}-H2-HULL",
+                }
+        actual_ids = edge.reference.get("isolator_ids")
         return bool(
             explicitly_valved and edge.setting == "normally_closed"
             and edge.reference.get("normal_state") == "normally_closed"
             and edge.condition not in _BROKEN
-            and edge.reference.get("isolator_ids")
-            and all(identifier in isolators and
-                    _physical_passage(isolators[identifier])
-                    for identifier in edge.reference["isolator_ids"])
+            and isinstance(actual_ids, list) and len(actual_ids) == 2
+            and set(actual_ids) == expected_ids
+            and all(rated_wet_valve_conducts(identifier)
+                    for identifier in actual_ids)
         )
 
     def connected(network, sources, destinations):

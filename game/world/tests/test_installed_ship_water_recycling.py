@@ -208,6 +208,19 @@ class InstalledWaterRecyclingTests(EvenniaTestCase):
         healthy = _water_hardware(self._water(), equipment, edges, isolators, nodes, power)
         self.assertTrue(healthy["fixed"]["grey"])
         self.assertTrue(healthy["fixed"]["black"])
+        # A fixed-side isolator actually closes the union, although its
+        # catalogue calls it a "rated rotary isolation" rather than "valve".
+        set_isolator("ISO-WET-GREYWATER-A-FIXED", "closed", operator=True)
+        # Isolator snapshots must be refreshed after the world mutation.
+        isolators["ISO-WET-GREYWATER-A-FIXED"] = state(
+            "isolator", "ISO-WET-GREYWATER-A-FIXED")
+        one_union = _water_hardware(self._water(), equipment, edges, isolators, nodes, power)
+        self.assertTrue(one_union["fixed"]["grey"])
+        set_isolator("ISO-WET-GREYWATER-A-FIXED", "open", operator=True)
+        isolators["ISO-WET-GREYWATER-A-FIXED"] = state(
+            "isolator", "ISO-WET-GREYWATER-A-FIXED")
+        self.assertTrue(_water_hardware(
+            self._water(), equipment, edges, isolators, nodes, power)["fixed"]["grey"])
         set_component_condition("equipment", "ROT-GREYWATER-A",
                                 "failed", operator=True)
         equipment["ROT-GREYWATER-A"] = state("equipment", "ROT-GREYWATER-A")
