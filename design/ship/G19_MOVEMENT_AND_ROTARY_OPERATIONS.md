@@ -15,7 +15,8 @@ An already armed G18 world needs explicit operator-only `commission_g19_movement
 - Independent inertial three-vector position and velocity; thrust commands expressed in body coordinates and rotated into the world frame by pitch/yaw/roll.
 - Finite propellant, inertia including actual cargo, two separately operated main-drive and RCS fault gates, independent attitude state and angular velocities.
 - Bounded 10-second substeps with power checked on each step. Main thrust is a **fictional gameplay-calibrated force**; it must draw spare power above the live distribution profile. RCS can use essential assured supply without powering the main drive.
-- Active propulsion load is reflected in generator dispatch and hence generator waste heat. The movement clock records acceleration indirectly through before/after velocity and persistent current mass.
+- Only **engine controls, valves, pumps and auxiliary electricity** draw from the 3.3 MW shipboard plant. Thrust energy is sourced from Ox’s explicitly fictional reaction-drive plant and finite reaction mass; the shipboard generators are not claimed to power a megatonne vessel’s plume.
+- Firing deposits heat in a finite propulsion thermal store. Healthy low-temperature cooling and a usable radiator reject heat; without cooling the engine reaches a thermal trip. A crew engineer must attend PROP-CTRL, wait for cooldown, reset the trip and explicitly release the inhibit. Receipts do not conjure lost energy or reset damaged machinery.
 - `crew_physical_action(...,"helm","HELM","x+")` and `(...,"attitude","HELM","yaw+")` are authorized only at the real primary bridge or aft propulsion control. These are receipted world operations, not model-authored intentions.
 - `local_physics_readout(actor,"helm")` reads the physical movement state from an eligible station; it does not provide an external navigation oracle.
 
@@ -28,7 +29,7 @@ An already armed G18 world needs explicit operator-only `commission_g19_movement
 - Ramps are finite; stopping and power loss do not teleport spin to zero.
 - Operating spin demands electrical power; bearing heat builds and rejects against its compartment reference model. Severe overheating trips the unit.
 - Heavy freight requires zero target/speed, index to a known datum, structural brake/hardlock and an exclusive freight collar. Indexing itself needs power and takes time; no magic instantaneous alignment. Indexed personnel transfer and freight capture cannot overlap.
-- WR-01 is independent of the habitation ring and six drums. At 60 m nominal carriage radius, the computed centripetal acceleration is available at the local gauge.
+- WR-01 is independent of the habitation ring and six drums. The engineering shop carriage moves at a finite rate across the authored **24–75 m** range, with its opposed stores carriage at one-third radius. Heavy freight capture requires the carriage physically retracted to 24 m; workshop gravity is computed from its actual radius and speed.
 - Breakdowns of a cargo-drums' **personnel indexer** or **freight collar** disable those interfaces without physically seizing its independently driven drum. The two HAB bearings can inhibit the habitat mechanism.
 - A loaded/drifting unbalanced drum cannot simply restart. The permitted provisional mass-imbalance threshold is a gameplay limit until the full individual drum mass manifests are implemented.
 - Authorized engineers can command `rotor <DR-01|...|HAB|WR-01> <start|stop|release|index|hardlock|freight_extend|freight_retract|passenger_extend|passenger_retract>` through the receipted `oxplant` action at designated machinery stations. Local readouts expose mechanical state and centrifugal gravity.
