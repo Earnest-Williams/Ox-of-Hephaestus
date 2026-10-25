@@ -30,9 +30,9 @@ ship's spatial or reference model.
 
 ## Two new local crew actions
 
-Through the same globally deduplicated \`oxplant\` command:
+Through the same globally deduplicated `oxplant` command:
 
-- \`oxplant <id> hatch ACC-BR-03-HAB-03 open|closed\` actuates only the
+- `oxplant <id> hatch ACC-BR-03-HAB-03 open|closed` actuates only the
   ordinary **HAB bridge pressure hatches**, from one of their physical
   endpoint rooms, and only for an authorised live engineer/environment
   technician. Opening requires two known bounded cells with breathable,
@@ -41,13 +41,13 @@ Through the same globally deduplicated \`oxplant\` command:
   jammed opening is denied. Closing a working hatch is allowed during a
   casualty. No cargo, EVA, indexed lift or rotary-transfer hatch is
   inferred safe from this routine.
-- \`oxplant <id> service ECLSS-A reset\` (or another supported plant)
+- `oxplant <id> service ECLSS-A reset` (or another supported plant)
   clears **only** an explicitly world-generated local overtemperature
   *protection* trip after shutdown and independent verification of
   physically safe local air, temperature and absence of lasting thermal
   damage. Generator reset additionally requires its real feeder breaker
   to be open. This is not a general parts-free repair. Restart remains a
-  separate timed \`plant on\` operation.
+  separate timed `plant on` operation.
 
 All physical changes and globally unique request receipts commit together.
 Commands operate at the character's actual Evennia location; an AI does not
@@ -63,7 +63,7 @@ No blanket "suit verified" boolean is treated as sufficient access evidence.
 
 ## Acceptance gates
 
-The new \`world.tests.test_coupled_casualty\` suite uses the installed
+The new `world.tests.test_coupled_casualty` suite uses the installed
 421 rooms, 133 gas cells, 808 equipment units, the authored service graph,
 actual world-writable records and located Evennia crew bodies. It proves:
 
