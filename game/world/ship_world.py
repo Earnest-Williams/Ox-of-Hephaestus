@@ -108,6 +108,10 @@ def _materialise_access(
     access.db.ox_access_direction = direction
     access.db.ox_source_model_version = model_version
     access.db.ox_static = dict(link.metadata)
+    # Old Developer-only access locks survive code changes on persistent exits.
+    # The runtime movement gate now makes the authoritative decision.
+    access.locks.add("traverse:all()")
+    access.db.ox_integration_state = "live_world_gated"
     return access, created
 
 
