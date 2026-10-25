@@ -452,7 +452,40 @@ def _water_hardware(water, equipment, edges, isolators, nodes, power):
     def connected(network, sources, destinations):
         if not sources or not destinations:
             return False
-        reached = _reachable(edges, isolators, network, sources)
+        # The installed v0.5 fixed waste-hold edges are documented in
+        # reference-flow orientation (fixed receiver -> rotary manifold).
+        # A pressurised wet service pipe is traversable both ways *when
+        # physically open*, while pumps decide where actual effluent goes.
+        # The G18 graph routine is directional for other media; do not
+        # change generator/gas/thermal routing merely to fix wet topology.
+        if network in {"greywater", "blackwater"}:
+            graph = defaultdict(set)
+            for edge in edges:
+                if edge.reference["network"] != network or not _live_edge(edge, isolators):
+                    continue
+                path_id = edge.source_id
+                skip = False
+                for side in "AB":
+                    kind = network.upper()
+                    if (path_id in {
+                            f"EDGE-WET-{kind}-{side}-ROTARY",
+                            f"EDGE-FIXED-{kind}-{side}"} and
+                            not sound(f"ROT-{kind}-{side}")):
+                        skip = True
+                if skip:
+                    continue
+                a, b = edge.reference["from_node"], edge.reference["to_node"]
+                graph[a].add(b)
+                graph[b].add(a)
+            reached = set(sources)
+            queue = deque(sorted(reached))
+            while queue:
+                for other in sorted(graph[queue.popleft()]):
+                    if other not in reached:
+                        reached.add(other)
+                        queue.append(other)
+        else:
+            reached = _reachable(edges, isolators, network, sources)
         return any(n in reached for n in destinations)
 
     running = power["assured"]
@@ -462,6 +495,7 @@ def _water_hardware(water, equipment, edges, isolators, nodes, power):
         for n in owned("potable_water", f"HAB-{arc:02d}-POTABLE-WATER-MAN")
     ]
     potable = (running and sound("POTABLE-TANK-MAIN")
+               and any(sound(f"ROT-POTABLE-WATER-{side}") for side in "AB")
                and connected("potable_water", potable_sources, potable_receivers))
     process = {}
     fixed = {}
@@ -477,7 +511,9 @@ def _water_hardware(water, equipment, edges, isolators, nodes, power):
             process[key] = connected(net, supply, sink)
         receiver = owned(net, "FIXED-GREY-HOLD" if medium == "grey"
                          else "FIXED-BLACK-HOLD")
-        fixed[medium] = connected(net, supply, receiver)
+        fixed[medium] = (
+            sound("FIXED-GREY-HOLD" if medium == "grey" else "FIXED-BLACK-HOLD")
+            and connected(net, supply, receiver))
     process_ok = {
         side: (running and sound(f"WASTE-PROC-{side}")
                and sound(f"WATER-PROC-{side}")
