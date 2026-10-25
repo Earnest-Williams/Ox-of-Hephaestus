@@ -10,7 +10,7 @@ from evennia.utils.test_resources import EvenniaTestCase
 from world.bootstrap import build_ship
 from world.continuous_ship_physics import (
     PhysicsError, arm_continuous_physics, commission_g19_movement,
-    survey_cargo_lot,
+    survey_cargo_lot, commission_ftl_route,
     crew_physical_action, local_physics_readout, tick_continuous_physics,
 )
 from world.full_ship_operations import (
@@ -164,6 +164,42 @@ class InstalledMovementTests(EvenniaTestCase):
         self.assertFalse(
             __import__("world.models", fromlist=["WorkReceipt"]).WorkReceipt
             .objects.filter(pk="c" * 32).exists())
+
+    def test_ftl_plan_engages_only_with_authorised_bridge_watch(self):
+        with self.assertRaises(PermissionError):
+            commission_ftl_route(
+                route_id="TEST01", destination="TARGET", distance_ly=0.5,
+                cruise_c=5)
+        plan = commission_ftl_route(
+            operator_approved=True, route_id="TEST01",
+            destination="TARGET", distance_ly=0.5, cruise_c=5)
+        self.assertEqual(plan["status"], "planned")
+        officer = build_ship()["officer"]
+        officer.move_to(find_ship_space("CMD-PRIMARY"), quiet=True)
+        result = crew_physical_action(
+            officer, "d" * 32, "ftl", "TEST01", "engage")
+        self.assertEqual(result["status"], "succeeded")
+        self.assertEqual(
+            crew_physical_action(officer, "d" * 32, "ftl", "TEST01", "engage"),
+            result)
+        with self.assertRaises(PhysicsError):
+            crew_physical_action(
+                officer, "e" * 32, "helm", "HELM", "x+")
+        original = state("meta", "continuous-physics").details[
+            "motion"]["ftl_fuel_kg"]
+        tick_continuous_physics(now_game_time=1010)
+        after = state("meta", "continuous-physics").details["motion"]
+        self.assertLess(after["ftl_fuel_kg"], original)
+        self.assertEqual(after["ftl_leg"]["status"], "engaged")
+        self.assertFalse(after["drive_firing"])
+        crew_physical_action(
+            officer, "f" * 32, "ftl", "TEST01", "abort")
+        self.assertEqual(
+            state("meta", "continuous-physics").details[
+                "motion"]["ftl_leg"]["status"], "aborted")
+        self.assertNotEqual(
+            state("meta", "continuous-physics").details[
+                "motion"]["nav_location"], "TARGET")
 
     def test_explicit_migration_preserves_motion_and_reconciles_mass(self):
         clock = state("meta", "continuous-physics")
