@@ -13,7 +13,7 @@ from world.full_ship_operations import (
     initialize_nominal_atmosphere, state, set_component_condition,
     set_isolator, vent_pressure_cell, equalize_cells,
 )
-from world.models import CanonicalShipEvent, CanonicalShipState
+from world.models import CanonicalShipEvent, CanonicalShipState, WorkReceipt
 from world.ship_world import build_canonical_ship, find_ship_space
 from world.bootstrap import build_ship
 
@@ -92,12 +92,24 @@ class PhysicsRuntimeTests(EvenniaTestCase):
             receipt,
         )
         self.assertEqual(CanonicalShipEvent.objects.count(), before_events + 1)
+        self.assertEqual(WorkReceipt.objects.get(pk="1" * 32).outcome, receipt)
+        # A legacy receipt reserves the same global request-ID namespace.
+        WorkReceipt.objects.create(
+            request_id="2" * 32, actor_dbref=watch.dbref, target="ship",
+            operation="radio", arguments={}, outcome={"status": "succeeded"},
+            game_time=1000,
+        )
+        with self.assertRaises(PermissionError):
+            crew_physical_action(watch, "2" * 32, "plant", "GEN-M", "off")
         with self.assertRaises(PermissionError):
             crew_physical_action(watch, "1" * 32, "plant", "GEN-M", "on")
         with self.assertRaises(PermissionError):
             crew_physical_action(officer, "1" * 32, "plant", "GEN-M", "off")
         self.assertFalse(state("equipment", "GEN-M").details["physics_online"])
         self.assertEqual(local_physics_readout(watch, "GEN-M")["online"], False)
+        watch.db.ox_terminal_dead = True
+        with self.assertRaises(PermissionError):
+            crew_physical_action(watch, "3" * 32, "plant", "GEN-M", "on")
 
     def test_generator_connected_feeder_is_required_for_assured_power(self):
         # The G17 candidate's main feeder is normally open; a healthy
