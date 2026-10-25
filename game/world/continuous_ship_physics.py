@@ -982,7 +982,7 @@ def crew_physical_action(actor, request_id, action, target, value):
     """
     if not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
         raise PhysicsError("Expected one 32-character lowercase request UUID")
-    if action not in {"switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude"}:
+    if action not in {"switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor"}:
         raise PhysicsError("Unknown physical operation")
     if actor is None or getattr(actor.db, "ox_terminal_dead", False):
         raise PermissionError("A deceased or missing character cannot operate machinery")
@@ -1004,8 +1004,8 @@ def crew_physical_action(actor, request_id, action, target, value):
                     "isolator:" if action == "switch"
                     else "pressure:" if action == "mist"
                     else "access:" if action == "hatch"
-                    else "" if action in {"schedule", "helm", "attitude"}
-                    else "equipment:") + (CLOCK_KEY if action in {"schedule", "helm", "attitude"} else target)
+                    else "" if action in {"schedule", "helm", "attitude", "rotor"}
+                    else "equipment:") + (CLOCK_KEY if action in {"schedule", "helm", "attitude", "rotor"} else target)
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
@@ -1035,6 +1035,36 @@ def crew_physical_action(actor, request_id, action, target, value):
         d["physics_online"] = False if not on else d.get("physics_online", False)
         d["physics_startup_s"] = (30.0 if target in GENERATION_MW else 10.0) if (
             on and not d["physics_online"]) else 0.0
+        if d != item.details:
+            item.details = d
+            item.revision += 1
+            item.save(update_fields=["details", "revision"])
+    elif action == "rotor":
+        if target not in ROTORS:
+            raise PhysicsError("No installed rotary machinery at that identifier")
+        room = getattr(getattr(getattr(actor, "location", None), "db", None),
+                       "ox_space_id", None)
+        roles = {"chief_engineer", "watch_engineer"}
+        permitted = ("ENG-CONTROL", "WR-ROTOR-MACHINERY") if target == "WR-01" else (
+            ("ENG-CONTROL",) if target == "HAB" else
+            (target + "-FREIGHT-LOCK", target + "-SERVICE-LOCK"))
+        if room not in permitted or (
+                getattr(actor.db, "crew_role", None) not in roles and
+                not actor.check_permstring("Developer")):
+            raise PermissionError("Operator is not at that rotor's local machinery controls")
+        if target in DRUMS and value in {"freight_extend", "passenger_extend"}:
+            suffix = ("-FREIGHT-COLLAR" if value == "freight_extend"
+                      else "-PERSONNEL-INDEXER")
+            unit = state("equipment", target + suffix)
+            if unit.condition in _BROKEN:
+                raise PhysicsError("Transfer actuator damaged")
+        item = _clock(lock=True)
+        before = _snapshot(item)
+        d = dict(item.details)
+        try:
+            d["rotors"] = set_rotor_command(d["rotors"], target, value)
+        except RotorError as exc:
+            raise PhysicsError(str(exc)) from exc
         if d != item.details:
             item.details = d
             item.revision += 1
