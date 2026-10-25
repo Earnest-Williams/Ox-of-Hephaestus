@@ -22,6 +22,25 @@ class ShipCargoTests(unittest.TestCase):
         with self.assertRaises(CargoError):
             validate_cargo(self.cargo, self.total - 1)
 
+    def test_unplaced_reference_mass_prevents_six_verified_drums(self):
+        cargo = self.cargo
+        for drum in ("DR-01", "DR-02", "DR-03", "DR-04", "DR-05"):
+            cargo = verify_drum(cargo, drum)
+        with self.assertRaises(CargoError):
+            verify_drum(cargo, "DR-06")
+        with self.assertRaises(CargoError):
+            validate_cargo({**cargo, "verified_drums": [
+                "DR-01", "DR-02", "DR-03", "DR-04", "DR-05", "DR-06"
+            ]}, self.total)
+        cargo = declare_cargo_lot(
+            cargo, lot_id="FULL", mass_kg=self.total,
+            drum="DR-06", azimuth_deg=0, radius_m=0.01,
+            kind="bulk", restrained=True)
+        cargo = verify_drum(cargo, "DR-06")
+        self.assertEqual(len(cargo["verified_drums"]), 6)
+        self.assertEqual(cargo["unlocated_onboard_kg"], 0)
+        self.assertTrue(validate_cargo(cargo, self.total))
+
     def test_survey_and_package_split_conserve_mass(self):
         cargo = declare_cargo_lot(
             self.cargo, lot_id="BULK01", mass_kg=200_000, drum="DR-01",

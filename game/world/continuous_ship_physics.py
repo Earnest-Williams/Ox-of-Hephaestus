@@ -1750,8 +1750,11 @@ def crew_physical_action(actor, request_id, action, target, value):
             if any(portal[:5] == target
                    for portal in manifest.get("port_contacts", {})):
                 raise PhysicsError("Cannot release, index or motor an externally moored drum")
-            if value == "start" and unsecured_drum_loads(manifest, target):
-                raise PhysicsError("Loose or unstowed freight prevents drum spin-up")
+            if value == "start":
+                if target not in manifest.get("verified_drums", []):
+                    raise PhysicsError("Drum cargo has not been independently surveyed")
+                if unsecured_drum_loads(manifest, target):
+                    raise PhysicsError("Loose or unstowed freight prevents drum spin-up")
         if target in DRUMS and target in _clock().details.get("cargo", {}).get("jobs", {}):
             if value in {"start", "release", "freight_retract", "passenger_extend"}:
                 raise PhysicsError("Freight operation underway; cannot release its capture")

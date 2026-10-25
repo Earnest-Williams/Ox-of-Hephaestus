@@ -94,8 +94,11 @@ def validate_cargo(manifest, motion_mass_kg):
             raise CargoError("Invalid stowage geometry")
         if not isinstance(row["restrained"], bool):
             raise CargoError("Unknown physical restraint")
-    if not set(manifest["verified_drums"]).issubset(DRUMS):
+    verified = set(manifest["verified_drums"])
+    if not verified.issubset(DRUMS):
         raise CargoError("Invalid drum survey authority")
+    if verified == set(DRUMS) and manifest["unlocated_onboard_kg"] > 0.001:
+        raise CargoError("Six verified drums cannot leave commercial cargo unlocated")
     if (not math.isclose(onboard_mass_kg(manifest), _mass(motion_mass_kg, zero=True),
                          rel_tol=1e-12, abs_tol=0.001)):
         raise CargoError("Cargo and vessel mass ledgers diverged")
@@ -278,6 +281,9 @@ def verify_drum(manifest, drum):
         raise CargoError("Unknown rotary cargo drum")
     if unsecured_drum_loads(manifest, drum):
         raise CargoError("Drum survey cannot pass during transfer or loose stowage")
+    if ((set(manifest["verified_drums"]) | {drum}) == set(DRUMS)
+            and manifest["unlocated_onboard_kg"] > 0.001):
+        raise CargoError("Cannot certify all drums with missing stowage evidence")
     result = dict(manifest)
     result["verified_drums"] = sorted(set(manifest["verified_drums"]) | {drum})
     return result

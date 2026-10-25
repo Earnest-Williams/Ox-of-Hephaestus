@@ -50,6 +50,11 @@ class InstalledMovementTests(EvenniaTestCase):
     def test_crew_rotor_control_is_local_and_receipted(self):
         tech = build_ship()["watch"]
         tech.move_to(find_ship_space("DR-01-FREIGHT-LOCK"), quiet=True)
+        with self.assertRaises(PhysicsError):
+            crew_physical_action(
+                tech, "0" * 32, "rotor", "DR-01", "start")
+        survey_cargo_lot(
+            operator_approved=True, operation="verify", drum="DR-01")
         request_id = "1" * 32
         receipt = crew_physical_action(
             tech, request_id, "rotor", "DR-01", "start")
