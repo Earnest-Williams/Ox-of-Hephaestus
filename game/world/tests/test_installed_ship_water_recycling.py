@@ -189,7 +189,9 @@ class InstalledWaterRecyclingTests(EvenniaTestCase):
         self.assertEqual(
             crew_physical_action(self.tech, "e" * 32, "waste",
                 "IND-SCRAP-HOLD-A", "deposit:INV-SPARES:2"), receipt)
-        with self.assertRaises(PhysicsError):
+        # Remote access and incompatible classification are both denied;
+        # the request must not mint or consume any physical waste.
+        with self.assertRaises((PhysicsError, PermissionError)):
             crew_physical_action(self.tech, "f" * 32, "waste",
                 "HAZ-ISO-HOLD-A", "deposit:INV-SPARES:1")
         self.assertFalse(WorkReceipt.objects.filter(pk="f" * 32).exists())
