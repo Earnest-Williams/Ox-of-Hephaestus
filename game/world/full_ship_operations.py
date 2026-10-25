@@ -18,6 +18,7 @@ from evennia.utils import gametime
 
 from world.models import CanonicalShipEvent, CanonicalShipState
 from world.ship_world import find_ship_space
+from world.ship_model import load_ship_model
 
 MODEL = "0.5-candidate"
 CATEGORIES = {
@@ -43,41 +44,137 @@ def candidate_path() -> Path:
 
 
 def load_candidate(path=None):
-    payload = json.loads(Path(path or candidate_path()).read_text(encoding="utf-8"))
+    """Validate a 0.5 reference before it may be copied into world authority.
+
+    This loader must reject not only broken link identities but also unsafe
+    pressure boundaries, impossible actuator settings, corrupted stocks and
+    cross-medium service routes. The 0.5 candidate is a *refit of the same
+    canonical room graph*, not an implicit topology migration.
+    """
+    try:
+        payload = json.loads(Path(path or candidate_path()).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ShipOperationsError("Unreadable candidate model") from exc
+    if not isinstance(payload, dict):
+        raise ShipOperationsError("Candidate must be an object")
     if payload.get("schema_version") != "ox.ship-world/0.1" or payload.get("model_version") != MODEL:
         raise ShipOperationsError("Unsupported candidate model")
     if payload.get("status") != "DESIGN_CANDIDATE_NOT_RUNTIME_AUTHORITY":
         raise ShipOperationsError("Unreviewed candidate status")
-    seen = {}
-    spaces = {s["id"] for s in payload["spaces"]}
-    for section in CATEGORIES:
-        rows = payload.get(section)
-        if not isinstance(rows, list):
-            raise ShipOperationsError(f"Missing {section}")
-        index = {}
-        for row in rows:
-            key = row.get("id")
-            if not isinstance(key, str) or not key or key in index:
-                raise ShipOperationsError(f"Duplicate/invalid {section} identity")
-            index[key] = row
-        seen[section] = index
-    if len(spaces) != 421 or len(seen["access_links"]) != 517 or len(seen["equipment"]) != 808:
-        raise ShipOperationsError("Unreviewed topology or equipment counts")
-    if len(seen["isolation_points"]) != 1256:
-        raise ShipOperationsError("Unreviewed isolation counts")
-    for row in payload["access_links"]:
-        if row["from"] not in spaces or row["to"] not in spaces:
-            raise ShipOperationsError(f"Broken access {row['id']}")
-    for row in payload["equipment"]:
-        if row["space_id"] not in spaces:
-            raise ShipOperationsError(f"Broken equipment location {row['id']}")
-    for row in payload["service_edges"]:
-        if row["from_node"] not in seen["service_nodes"] or row["to_node"] not in seen["service_nodes"]:
-            raise ShipOperationsError(f"Broken service edge {row['id']}")
-        if any(x not in seen["isolation_points"] for x in row["isolator_ids"]):
-            raise ShipOperationsError(f"Broken service isolator {row['id']}")
-    return payload
 
+    try:
+        space_rows = payload["spaces"]
+        if not isinstance(space_rows, list) or any(not isinstance(x, dict) for x in space_rows):
+            raise ShipOperationsError("Invalid space records")
+        spaces = {x["id"]: x for x in space_rows}
+        if len(spaces) != len(space_rows) or len(spaces) != 421:
+            raise ShipOperationsError("Duplicate or missing spaces")
+
+        # Refuse silent relayout. Changes to the canonical 421-room graph
+        # require an explicit physical-world migration, not just new JSON.
+        canonical = load_ship_model()
+        if set(spaces) != {x.id for x in canonical.spaces}:
+            raise ShipOperationsError("Candidate topology identities drifted")
+        base_access = {x.id: x for x in canonical.access_links}
+
+        seen = {}
+        for section in CATEGORIES:
+            rows = payload.get(section)
+            if not isinstance(rows, list) or any(not isinstance(x, dict) for x in rows):
+                raise ShipOperationsError(f"Invalid {section} records")
+            index = {}
+            for row in rows:
+                key = row.get("id")
+                if not isinstance(key, str) or not key or key in index:
+                    raise ShipOperationsError(f"Duplicate/invalid {section} identity")
+                index[key] = row
+            seen[section] = index
+
+        required_counts = {
+            "equipment": 808, "access_links": 517, "service_nodes": 1186,
+            "service_edges": 1181, "isolation_points": 1256, "inventories": 15,
+        }
+        for section, count in required_counts.items():
+            if len(seen[section]) != count:
+                raise ShipOperationsError(f"Unreviewed {section} count")
+
+        equipment = seen["equipment"]
+        nodes = seen["service_nodes"]
+        isolators = seen["isolation_points"]
+        if set(seen["access_links"]) != set(base_access):
+            raise ShipOperationsError("Physical access identities drifted")
+
+        for link in payload["access_links"]:
+            a, b = link["from"], link["to"]
+            if a not in spaces or b not in spaces or a == b:
+                raise ShipOperationsError(f"Broken access {link['id']}")
+            baseline = base_access[link["id"]]
+            if (a, b, link["kind"]) != (baseline.from_id, baseline.to_id, baseline.kind):
+                raise ShipOperationsError(f"Access relayout requires explicit migration: {link['id']}")
+            if (spaces[a].get("pressure_zone") != spaces[b].get("pressure_zone")
+                    and link.get("pressure_boundary") is not True):
+                raise ShipOperationsError(f"Unrated change of gas cell: {link['id']}")
+
+        for item in payload["equipment"]:
+            if item["space_id"] not in spaces:
+                raise ShipOperationsError(f"Broken equipment location {item['id']}")
+
+        for iso in payload["isolation_points"]:
+            if iso["space_id"] not in spaces:
+                raise ShipOperationsError(f"Broken isolation location {iso['id']}")
+            if iso.get("current_state") not in _ALLOWED_ISOLATOR:
+                raise ShipOperationsError(f"Unsafe isolator setting {iso['id']}")
+
+        for node in payload["service_nodes"]:
+            owner_type = node["owner_type"]
+            if owner_type == "equipment" and node["owner_id"] not in equipment:
+                raise ShipOperationsError(f"Missing service equipment {node['id']}")
+            if owner_type == "space" and node["owner_id"] not in spaces:
+                raise ShipOperationsError(f"Missing service room {node['id']}")
+
+        for edge in payload["service_edges"]:
+            start, finish = edge["from_node"], edge["to_node"]
+            if start not in nodes or finish not in nodes:
+                raise ShipOperationsError(f"Broken service edge {edge['id']}")
+            medium = edge["network"]
+            if medium != nodes[start]["network"] or medium != nodes[finish]["network"]:
+                raise ShipOperationsError(f"Cross-medium service edge {edge['id']}")
+            if any(k not in isolators or isolators[k]["network"] != medium
+                   for k in edge["isolator_ids"]):
+                raise ShipOperationsError(f"Broken/cross-medium isolator on {edge['id']}")
+            if any(k not in spaces for k in edge["route_spaces"]):
+                raise ShipOperationsError(f"Unknown routed space on {edge['id']}")
+
+        for stock in payload["inventories"]:
+            amount = stock["nominal_mass_t"]
+            if (isinstance(amount, bool) or not isinstance(amount, (int, float))
+                    or not math.isfinite(amount) or amount < 0):
+                raise ShipOperationsError(f"Invalid finite stock for {stock['id']}")
+            locations = stock.get("location_ids", [])
+            if any(key not in spaces for key in locations):
+                raise ShipOperationsError(f"Missing inventory store for {stock['id']}")
+            allocations = stock.get("location_allocations_t")
+            if allocations is not None:
+                if (not isinstance(allocations, dict)
+                        or set(allocations) - set(locations)
+                        or any(isinstance(m, bool) or not isinstance(m, (int, float))
+                               or not math.isfinite(m) or m < 0
+                               for m in allocations.values())
+                        or not math.isclose(sum(allocations.values()), amount,
+                                            rel_tol=1e-10, abs_tol=1e-8)):
+                    raise ShipOperationsError(f"Inventory allocations inconsistent for {stock['id']}")
+
+        tasks = payload["maintenance_tasks"]
+        if not isinstance(tasks, list):
+            raise ShipOperationsError("Maintenance tasks must be a list")
+        for task in tasks:
+            if any(k not in equipment for k in task["equipment_ids"]):
+                raise ShipOperationsError(f"Unknown equipment in maintenance task {task['id']}")
+    except ShipOperationsError:
+        raise
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ShipOperationsError(f"Malformed candidate source: {exc}") from exc
+    return payload
 
 def _key(category, identifier):
     if category not in {*CATEGORIES.values(), "pressure"} or not isinstance(identifier, str):
@@ -198,11 +295,11 @@ def set_isolator(identifier, setting, *, actor=None, operator=False):
     if setting not in _ALLOWED_ISOLATOR:
         raise ShipOperationsError("Expected open or closed")
     iso = state("isolator", identifier, lock=True)
-    if iso.condition in _BROKEN:
-        raise ShipOperationsError("Faulted isolator cannot be actuated")
+    # Authenticate first, even if the actuator is broken. Otherwise an
+    # unauthorised caller can infer live damage from a different error.
+    if not operator and (actor is None or getattr(actor, "location", None) is None):
+        raise PermissionError("Local authenticated character required")
     if not operator:
-        if actor is None or getattr(actor, "location", None) is None:
-            raise PermissionError("Local authenticated character required")
         if getattr(actor.location.db, "ox_space_id", None) != iso.space_id:
             raise PermissionError("Character not physically at isolator")
         if not iso.reference.get("manual_operation"):
@@ -210,6 +307,8 @@ def set_isolator(identifier, setting, *, actor=None, operator=False):
         if not (actor.db.crew_role in {"watch_engineer", "chief_engineer", "environment_tech"}
                 or actor.check_permstring("Developer")):
             raise PermissionError("Engineering qualifications required")
+    if iso.condition in _BROKEN:
+        raise ShipOperationsError("Faulted isolator cannot be actuated")
     before = _snapshot(iso)
     if iso.setting == setting:
         return before
@@ -232,7 +331,9 @@ def consume_stock(identifier, amount_t, *, operator=False):
     _require_installed()
     item = state("inventory", identifier, lock=True)
     before = _snapshot(item)
-    if item.quantity is None or item.quantity + 1e-9 < amount_t:
+    # Never permit a positive debit from zero stock, however tiny. An
+    # epsilon on the *sufficiency* comparison mints nonexistent matter.
+    if item.quantity is None or amount_t > item.quantity:
         raise ShipOperationsError("Insufficient physical stock")
     item.quantity = max(0.0, item.quantity - amount_t)
     item.revision += 1
@@ -433,6 +534,9 @@ def vent_pressure_cell(cell_id, kg, *, operator=False):
         raise ShipOperationsError("Unknown atmosphere cannot be vented arithmetically")
     before = _snapshot(cell)
     lost = min(cell.quantity, kg)
+    if lost == 0:
+        # No new event or revision for a no-op on an already empty cell.
+        return {"lost_kg": 0.0, **pressure_reading(cell_id)}
     cell.quantity -= lost
     cell.condition = "depressurising" if cell.quantity else "vacuum"
     cell.revision += 1
