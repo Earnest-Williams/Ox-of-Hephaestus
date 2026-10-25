@@ -56,6 +56,7 @@ class FullShipCandidateMutationFuzz(unittest.TestCase):
             "invalid_maintenance_equipment",
             "bad_service_route",
         ]
+        accepted_corruptions = []
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "corrupt_candidate.json"
             for index, mutation in enumerate(variants):
@@ -93,9 +94,15 @@ class FullShipCandidateMutationFuzz(unittest.TestCase):
                     edge["route_spaces"].append("NO-SUCH-ROOM")
                 path.write_text(json.dumps(payload), encoding="utf-8")
                 with self.subTest(seed="0xCA5CADE", case=index, mutation=mutation):
-                    with self.assertRaises(ShipOperationsError):
+                    try:
                         load_candidate(path)
-        print(f"OX_G17_MUTATION_FUZZ_PASS seed=0xCA5CADE cases={len(variants)}")
+                    except ShipOperationsError:
+                        pass
+                    else:
+                        accepted_corruptions.append((index, mutation))
+        self.assertFalse(accepted_corruptions,
+                         f"Unsafe candidate mutations admitted: {accepted_corruptions}")
+        print(f"OX_G17_MUTATION_FUZZ_PASS seed=0xCA5CADE cases={len(variants)} rejected={len(variants)}")
 
 
 class FullShipStatefulFuzz(EvenniaTestCase):
