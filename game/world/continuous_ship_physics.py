@@ -313,6 +313,80 @@ def arm_continuous_physics(*, operator_approved=False, now_game_time=None):
     return {"armed": True, "last_game_time": started, "cells": 133}
 
 
+@transaction.atomic
+def commission_g19_movement(*, operator_approved=False):
+    """Explicit non-resetting G18 -> G19 migration of the active ship clock.
+
+    The earlier 240-tonne placeholder fuel allocation is NOT promoted. Prior
+    propellant expenditure is preserved against the candidate bunker reference.
+    Position, velocity, attitude and work receipts are never cleared.
+    """
+    if not operator_approved:
+        raise PermissionError("Explicit operator approval required for motion migration")
+    clock = _clock(lock=True)
+    d = dict(clock.details)
+    motion = dict(d.get("motion", {}))
+    changed = False
+    required = ("dry_mass_kg", "ftl_fuel_kg", "mission_fluids_kg",
+                "cargo_capacity_kg")
+    if not all(k in motion for k in required):
+        contract = load_candidate()["mass"]
+        keys = ("dry_t", "commercial_cargo_t", "FTL_fuel_t",
+                "sublight_reaction_mass_t", "mission_and_nonpropulsive_fluids_t")
+        if not all(isinstance(contract.get(k), (float, int))
+                   and math.isfinite(contract[k]) and contract[k] >= 0
+                   for k in keys):
+            raise PhysicsError("Cannot commission invalid candidate mass contract")
+        if not math.isclose(sum(contract[k] for k in keys),
+                            contract["reference_departure_t"], rel_tol=1e-9):
+            raise PhysicsError("Candidate vessel mass does not reconcile")
+        spent = float(motion.get("expended_propellant_kg", 0.0))
+        if not math.isfinite(spent) or not 0 <= spent <= contract["sublight_reaction_mass_t"] * 1000:
+            raise PhysicsError("Existing expended reaction mass cannot be reconciled")
+        original_cargo = float(motion.get("cargo_mass_kg", 0.0))
+        if original_cargo not in (0.0, contract["commercial_cargo_t"] * 1000):
+            raise PhysicsError("Existing cargo manifest requires manual reconciliation")
+        motion.update(
+            dry_mass_kg=contract["dry_t"] * 1000,
+            cargo_mass_kg=contract["commercial_cargo_t"] * 1000,
+            cargo_capacity_kg=contract["commercial_cargo_t"] * 1000,
+            ftl_fuel_kg=contract["FTL_fuel_t"] * 1000,
+            mission_fluids_kg=contract["mission_and_nonpropulsive_fluids_t"] * 1000,
+            propellant_kg=contract["sublight_reaction_mass_t"] * 1000 - spent,
+        )
+        if not motion.get("position_m"):
+            motion["position_m"] = [0.0, 0.0, 0.0]
+        if not motion.get("velocity_m_s"):
+            motion["velocity_m_s"] = [0.0, 0.0, 0.0]
+        if not motion.get("attitude_rad"):
+            motion["attitude_rad"] = [0.0, 0.0, 0.0]
+        if not motion.get("angular_velocity_rad_s"):
+            motion["angular_velocity_rad_s"] = [0.0, 0.0, 0.0]
+        motion.setdefault("command", "coast")
+        motion.setdefault("attitude_command", "hold")
+        motion.setdefault("drive_condition", "operational")
+        motion.setdefault("rcs_condition", "operational")
+        motion.setdefault("drive_firing", False)
+        motion.setdefault("attitude_firing", False)
+        motion.setdefault("drive_power_mw", 0.0)
+        d["motion"] = motion
+        changed = True
+    if "rotors" not in d:
+        d["rotors"] = initial_rotors()
+        changed = True
+    if changed:
+        old = _snapshot(clock)
+        d["movement_commissioned_from_candidate"] = MODEL
+        clock.details = d
+        clock.revision += 1
+        clock.save(update_fields=["details", "revision"])
+        _event(clock, "g19_movement_commissioned", old)
+    return {"commissioned": changed, "rotors": len(d["rotors"]),
+            "cargo_mass_kg": d["motion"]["cargo_mass_kg"],
+            "propellant_kg": d["motion"]["propellant_kg"]}
+
+
+
 def _physical_passage(iso):
     """A mechanically jammed-open air valve still leaks even if actuators fail."""
     kind = str(iso.reference.get("kind", "")).lower()
