@@ -135,8 +135,12 @@ class ShipCargoTests(unittest.TestCase):
             transfer, 30, power_ready=True, available_collars={"DR-04"},
             open_fixed_gates={"DR-04"})
         self.assertEqual(moved, ())
+        nearly_arrived, moved = step_freight(
+            midway, 30, power_ready=True, available_collars={"DR-04"},
+            open_fixed_gates={"DR-04"})
+        self.assertEqual(moved, ())
         arrived, moved = step_freight(
-            midway, 40, power_ready=True, available_collars={"DR-04"},
+            nearly_arrived, 10, power_ready=True, available_collars={"DR-04"},
             open_fixed_gates={"DR-04"})
         self.assertEqual(moved, ("BOX",))
         self.assertEqual(arrived["lots"]["BOX"]["drum"], "DR-04")
@@ -146,8 +150,11 @@ class ShipCargoTests(unittest.TestCase):
         loading = start_freight_transfer(
             arrived, rotors, lot_id="BOX", direction="to_drum",
             collar_healthy=True)
+        partial, moved = step_freight(
+            loading, 60, power_ready=True, available_collars={"DR-04"})
+        self.assertEqual(moved, ())
         installed, moved = step_freight(
-            loading, 70, power_ready=True, available_collars={"DR-04"})
+            partial, 10, power_ready=True, available_collars={"DR-04"})
         self.assertEqual(moved, ("BOX",))
         self.assertTrue(unsecured_drum_loads(installed, "DR-04"))
         secured = restow_cargo_lot(
@@ -171,8 +178,12 @@ class ShipCargoTests(unittest.TestCase):
             start_freight_transfer(
                 underway, rotors, lot_id="BOX2", direction="to_spine",
                 collar_healthy=True, gate_open=True)
+        partial, moved = step_freight(
+            underway, 60, power_ready=True,
+            available_collars={"DR-03"}, open_fixed_gates={"DR-03"})
+        self.assertEqual(moved, ())
         empty, moved = step_freight(
-            underway, 70, power_ready=True,
+            partial, 10, power_ready=True,
             available_collars={"DR-03"}, open_fixed_gates={"DR-03"})
         self.assertEqual(moved, ("BOX",))
         with self.assertRaises(CargoError):

@@ -10,12 +10,13 @@ from evennia.utils.test_resources import EvenniaTestCase
 from world.bootstrap import build_ship
 from world.continuous_ship_physics import (
     PhysicsError, arm_continuous_physics, commission_g19_movement,
+    _clock,
     survey_cargo_lot, commission_ftl_route,
     crew_physical_action, local_physics_readout, tick_continuous_physics,
 )
 from world.full_ship_operations import (
     install_candidate, install_pressure_cells,
-    initialize_nominal_atmosphere, load_candidate, state,
+    initialize_nominal_atmosphere, load_candidate, set_isolator,
 )
 from world.ship_world import build_canonical_ship, find_ship_space
 
@@ -28,10 +29,13 @@ class InstalledMovementTests(EvenniaTestCase):
         install_pressure_cells(operator_approved=True)
         initialize_nominal_atmosphere(operator_approved=True)
         arm_continuous_physics(operator_approved=True, now_game_time=1000)
+        # The installed generator feeder is normally isolated: explicitly
+        # energise it before expecting motor, navigation or drive work.
+        set_isolator("ISO-GEN-M", "closed", operator=True)
 
     def test_mass_commission_matches_authored_departure(self):
         contract = load_candidate()["mass"]
-        motion = state("meta", "continuous-physics").details["motion"]
+        motion = _clock().details["motion"]
         expected = contract["reference_departure_t"] * 1000
         actual = sum(motion[k] for k in (
             "dry_mass_kg", "cargo_mass_kg", "ftl_fuel_kg",
@@ -41,7 +45,7 @@ class InstalledMovementTests(EvenniaTestCase):
         self.assertEqual(
             commission_g19_movement(operator_approved=True)["commissioned"],
             False)
-        self.assertEqual(len(state("meta", "continuous-physics").details["rotors"]), 8)
+        self.assertEqual(len(_clock().details["rotors"]), 8)
 
     def test_crew_rotor_control_is_local_and_receipted(self):
         tech = build_ship()["watch"]
@@ -57,7 +61,7 @@ class InstalledMovementTests(EvenniaTestCase):
         gauge = local_physics_readout(tech, "DR-01")
         self.assertGreater(gauge["rpm"], 0)
         self.assertEqual(
-            state("meta", "continuous-physics").details["rotors"]["HAB"]["rpm"],
+            _clock().details["rotors"]["HAB"]["rpm"],
             0.0)
         with self.assertRaises(PhysicsError):
             crew_physical_action(tech, "2" * 32,
@@ -86,13 +90,13 @@ class InstalledMovementTests(EvenniaTestCase):
         tech.move_to(find_ship_space("PROP-CTRL"), quiet=True)
         first = crew_physical_action(tech, "6" * 32, "drive", "MAIN", "inhibit")
         self.assertEqual(first["status"], "succeeded")
-        self.assertEqual(state("meta", "continuous-physics").details[
+        self.assertEqual(_clock().details[
             "motion"]["drive_condition"], "inhibited")
         self.assertEqual(
             crew_physical_action(tech, "6" * 32, "drive", "MAIN", "inhibit"),
             first)
         crew_physical_action(tech, "7" * 32, "drive", "MAIN", "release")
-        self.assertEqual(state("meta", "continuous-physics").details[
+        self.assertEqual(_clock().details[
             "motion"]["drive_condition"], "operational")
         tech.move_to(find_ship_space("CMD-PRIMARY"), quiet=True)
         with self.assertRaises(PermissionError):
@@ -102,7 +106,7 @@ class InstalledMovementTests(EvenniaTestCase):
         officer = build_ship()["officer"]
         officer.move_to(find_ship_space("CMD-PRIMARY"), quiet=True)
         crew_physical_action(officer, "9" * 32, "helm", "HELM", "x+")
-        clock = state("meta", "continuous-physics")
+        clock = _clock()
         details = dict(clock.details)
         movement = dict(details["motion"])
         movement["drive_heat_kj"] = 149_999_000.0
@@ -110,7 +114,7 @@ class InstalledMovementTests(EvenniaTestCase):
         clock.details = details
         clock.save(update_fields=["details"])
         tick_continuous_physics(now_game_time=1010)
-        motion = state("meta", "continuous-physics").details["motion"]
+        motion = _clock().details["motion"]
         self.assertEqual(motion["drive_condition"], "thermal_trip")
         self.assertEqual(motion["command"], "coast")
         tech = build_ship()["watch"]
@@ -132,13 +136,13 @@ class InstalledMovementTests(EvenniaTestCase):
         self.assertEqual(first["lots"], 1)
         survey_cargo_lot(
             operator_approved=True, operation="verify", drum="DR-01")
-        clock = state("meta", "continuous-physics")
+        clock = _clock()
         cargo = clock.details["cargo"]
         self.assertEqual(cargo["lots"]["UNIT001"]["location"], "DR-01")
         self.assertEqual(cargo["unlocated_onboard_kg"],
                          clock.details["motion"]["cargo_mass_kg"] - 100)
         tick_continuous_physics(now_game_time=1010)
-        clock = state("meta", "continuous-physics")
+        clock = _clock()
         self.assertAlmostEqual(
             clock.details["rotors"]["DR-01"]["imbalance_kg_m"], 2000)
         self.assertEqual(
@@ -185,24 +189,24 @@ class InstalledMovementTests(EvenniaTestCase):
         with self.assertRaises(PhysicsError):
             crew_physical_action(
                 officer, "e" * 32, "helm", "HELM", "x+")
-        original = state("meta", "continuous-physics").details[
+        original = _clock().details[
             "motion"]["ftl_fuel_kg"]
         tick_continuous_physics(now_game_time=1010)
-        after = state("meta", "continuous-physics").details["motion"]
+        after = _clock().details["motion"]
         self.assertLess(after["ftl_fuel_kg"], original)
         self.assertEqual(after["ftl_leg"]["status"], "engaged")
         self.assertFalse(after["drive_firing"])
         crew_physical_action(
             officer, "f" * 32, "ftl", "TEST01", "abort")
         self.assertEqual(
-            state("meta", "continuous-physics").details[
+            _clock().details[
                 "motion"]["ftl_leg"]["status"], "aborted")
         self.assertNotEqual(
-            state("meta", "continuous-physics").details[
+            _clock().details[
                 "motion"]["nav_location"], "TARGET")
 
     def test_explicit_migration_preserves_motion_and_reconciles_mass(self):
-        clock = state("meta", "continuous-physics")
+        clock = _clock()
         previous = dict(clock.details)
         legacy = dict(previous["motion"])
         legacy["position_m"] = [1000.0, 2000.0, -800.0]
@@ -221,7 +225,7 @@ class InstalledMovementTests(EvenniaTestCase):
             commission_g19_movement()
         report = commission_g19_movement(operator_approved=True)
         self.assertTrue(report["commissioned"])
-        updated = state("meta", "continuous-physics").details["motion"]
+        updated = _clock().details["motion"]
         self.assertEqual(updated["position_m"], [1000, 2000, -800])
         self.assertEqual(updated["velocity_m_s"], [3, 0, 0])
         contract = load_candidate()["mass"]

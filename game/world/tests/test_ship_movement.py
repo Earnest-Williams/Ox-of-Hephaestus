@@ -149,10 +149,18 @@ class ShipMovementRegressions(unittest.TestCase):
 
     def test_attitude_rotates_engine_thrust(self):
         m = motion()
-        m["attitude_rad"] = [0, 1.5707963267948966, 0]
+        m["attitude_rad"] = [1.5707963267948966, 0, 0]
         result = _advance_motion(m, 10, POWER)
         self.assertAlmostEqual(result["velocity_m_s"][0], 0.0, places=8)
         self.assertLess(result["velocity_m_s"][2], 0)
+
+    def test_yaw_rotates_forward_thrust_onto_ship_y_axis(self):
+        m = motion()
+        m["attitude_rad"] = [0, 1.5707963267948966, 0]
+        result = _advance_motion(m, 10, POWER)
+        self.assertAlmostEqual(result["velocity_m_s"][0], 0.0, places=8)
+        self.assertGreater(result["velocity_m_s"][1], 0.0)
+        self.assertAlmostEqual(result["velocity_m_s"][2], 0.0, places=8)
 
     def test_blackout_coasts_without_extra_propellant(self):
         m = motion()
