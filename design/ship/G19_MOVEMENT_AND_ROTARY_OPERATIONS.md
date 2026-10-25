@@ -109,6 +109,16 @@ repair of every unit, and long-duration 40-crew integrated casualty acceptance.
 The route's named destination is an operator-supplied reference rather than
 an inferred astronomical location.
 
+## Cargo manifest and inter-drum freight (G19)
+
+The selected **900,000 tonne** commercial payload is initially an accountable *unlocated mass aboard ship*. It is not silently split into six equal drum masses. An explicit operator-only `survey_cargo_lot` operation binds a reported lot to one installed drum and physical radius/azimuth; splitting a bulk lot creates an individually restrained, at most 100-tonne sled package **without increasing cargo mass**. Surveyed stowage positions compute the signed drum balance moment. A drum may be individually marked surveyed only upon physical operator verification; this is not inferred from the remaining unlocated shipwide mass.
+
+The `oxplant ... freight <lot> <direction>` command is receipted, local to the handling collar, and advances over multiple timed physics ticks. A failed/isolated actuator, power loss, lost hardlock, open-personnel indexer, or closed/unsafe rated freight boundary suspends rather than completes the job. At the common fixed spine station, only one load/transfer may occupy its receiving position. The `from_spine:DR-04` form means that **the receiving drum** must stop, index, hard-lock and operate its own real collar and crew station; the original drum does not remotely transfer it.
+
+After delivery into a new drum, a package is explicitly **unstowed/unrestrained** until a physical operator survey uses `restow` to certify its actual new berth. Such loose freight prevents drum spin-up. A locked drum may still remove mass to correct an imbalance: balance interlocks prevent acceleration, not recovery with the drum parked. All transfers preserve ship mass; external bulk unloading/loading and the full commercial portal/port interface are still outstanding. The ledger is not a real measured inventory until the operator actually surveys it.
+
+The focused `ox-g19-movement.yml` GitHub Actions workflow runs on the **draft PR**, compiles the modules and runs actual Evennia movement, cargo, FTL and installed-world regressions. A draft PR is not automatically an acceptance pass: the workflow result and cross-system tests must be checked explicitly.
+
 ## Acceptance gates before merge
 
 1. Run pure `test_ship_movement.py` regressions: mass-dependent thrust, fuel conservation under dual-drive operation, orientation vector rotation, blackout, rotor independence and index/hardlock sequencing.
