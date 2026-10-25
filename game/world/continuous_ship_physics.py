@@ -93,7 +93,10 @@ def _advance_motion(motion, dt, power):
     if len(position) != 3 or len(velocity) != 3 or not all(
             math.isfinite(x) for x in (*position, *velocity, fuel)) or fuel < 0 or not math.isfinite(cargo) or not 0 <= cargo <= MAX_CARGO_MASS_KG:
         raise PhysicsError("Invalid ship motion or propellant state")
-    powered = power["assured"] and power["dispatched_mw"] >= DRIVE_POWER_MW
+    # Thrust is a controllable load, not a free by-product of an unrelated
+    # electrical profile. Keep essential services on the protected bus.
+    powered = (power["assured"] and
+               power["available_mw"] - power["requested_mw"] >= DRIVE_POWER_MW)
     burn_time = min(dt, fuel * DRIVE_EXHAUST_M_S / DRIVE_THRUST_N) if (
         powered and any(direction)) else 0.0
     spent = burn_time * DRIVE_THRUST_N / DRIVE_EXHAUST_M_S
