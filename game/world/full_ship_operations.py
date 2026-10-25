@@ -296,8 +296,8 @@ def access_clearance(identifier, *, suited=False):
     to_room = find_ship_space(spec["to"])
     if from_room is None or to_room is None:
         return False, "unknown_location"
-    a = getattr(from_room.db, "ox_pressure_zone", None)
-    b = getattr(to_room.db, "ox_pressure_zone", None)
+    a = (from_room.db.ox_static or {}).get("pressure_zone")
+    b = (to_room.db.ox_static or {}).get("pressure_zone")
     if a in (None, "VACUUM") or b in (None, "VACUUM"):
         return False, "unverified_environment" if not suited else "eva_interlock_not_integrated"
     if a != b and spec.get("pressure_boundary"):
