@@ -1,0 +1,60 @@
+name: Ox G19 water/waste full-ship subsystem
+
+on:
+  push:
+    branches: [g19-complete-ship-systems]
+    paths:
+      - "game/world/ship_water_recycling.py"
+      - "game/world/continuous_ship_physics.py"
+      - "game/world/tests/test_ship_water_recycling.py"
+      - "design/ship/G19_WATER_WASTE_RECYCLING.md"
+      - ".github/workflows/ox-g19-water.yml"
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - "game/world/ship_water_recycling.py"
+      - "game/world/continuous_ship_physics.py"
+      - "game/world/tests/test_ship_water_recycling.py"
+      - ".github/workflows/ox-g19-water.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ox-g19-water-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  water:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Inspect installed water and byproduct identities
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          m=json.loads(Path('design/ship/ox_full_ship_v0.5_candidate.json').read_text())
+          print("INVENTORIES")
+          for i in m['inventories']:
+              print(i['id'], i.get('nominal_mass_t'), i.get('capacity_t'),
+                    i.get('kind'), i.get('description'), i.get('purpose'))
+          print("WATER MACHINERY")
+          for e in m['equipment']:
+              if any(t in e['id'] for t in ('WATER','WASTE','GREY','BLACK','POTABLE','CONDENS','ECLSS-A-O2','ROT-','RESIDUE')):
+                  print(e['id'],e.get('kind'),e.get('space_id'),
+                        json.dumps(e.get('attributes',{}), sort_keys=True)[:450])
+          print("WATER SERVICE NETWORKS")
+          from collections import Counter
+          print(Counter(e['network'] for e in m['service_edges']))
+          PY
+      - name: Validate canonical byproduct and finite disposal design
+        run: |
+          python design/ship/check_waste_byproducts.py
+          python design/ship/check_physical_operations.py
