@@ -6,7 +6,7 @@
 
 The ship's selected candidate contract is the only source for commissioned dry mass, commercial freight, FTL fuel, sublight reaction mass and mission/process fluids. The reference departure mass is **1,187,500 tonnes**. A former temporary 9,000-tonne dry hull / 8,000-tonne cargo cap / 240-tonne reaction-mass model is superseded. The motion ledger stores these categories separately; spent sublight propellant leaves the ship and reduces its instantaneous inertial mass.
 
-Full commercial cargo is assumed aboard at reference departure, **not** an empty hold. This is a reference initial condition, not a verified container-by-container manifest. There must be no assertion that commercial freight is currently distributed evenly over six drums. Loading, offloading, freight restraint, transfer timing, drum balance and center of mass require real manifest transactions and remain unimplemented.
+Full commercial cargo is assumed aboard at reference departure, **not** an empty hold. This is a reference initial condition, not a verified container-by-container manifest. There must be no assertion that commercial freight is currently distributed evenly over six drums. Internal and external freight transfers now use receipted, bounded machinery jobs and explicit manifest mass accounting. Fully surveyed cargo placement, measured center of gravity and automated commercial port logistics remain unfinished.
 
 An already armed G18 world needs explicit operator-only `commission_g19_movement`; it does not silently reset the ship or overwrite existing velocity/position. Existing expended reaction mass is carried across and subtracted from the reconciled bunker. Existing nonzero cargo quantities that cannot be reconciled fail closed.
 
@@ -20,7 +20,7 @@ An already armed G18 world needs explicit operator-only `commission_g19_movement
 - `crew_physical_action(...,"helm","HELM","x+")` and `(...,"attitude","HELM","yaw+")` are authorized only at the real primary bridge or aft propulsion control. These are receipted world operations, not model-authored intentions.
 - `local_physics_readout(actor,"helm")` reads the physical movement state from an eligible station; it does not provide an external navigation oracle.
 
-**Limitations:** Drive and RCS fault gates are world state pending binding to individually identified installed drive/reactor hardware. Exhaust velocity, thrust, torque and inertia are explicit scenario parameters, not empirical qualifications. There is no FTL jump/navigation solver, docking dynamics, external object collision model or orbital ephemeris yet.
+**Limitations:** Drive and RCS fault gates are world state pending binding to individually identified installed drive/reactor hardware. Exhaust velocity, thrust, torque and inertia are explicit scenario parameters, not empirical qualifications. A bounded fictional FTL route and fuel ledger exists, as does a commercial-berth contact and finite cargo handling contract. Neither is an orbital ephemeris, external collision solver, dynamic rendezvous or general docking navigator.
 
 ## Independent rotating equipment
 
@@ -34,7 +34,7 @@ An already armed G18 world needs explicit operator-only `commission_g19_movement
 - A loaded/drifting unbalanced drum cannot simply restart. The permitted provisional mass-imbalance threshold is a gameplay limit until the full individual drum mass manifests are implemented.
 - Authorized engineers can command `rotor <DR-01|...|HAB|WR-01> <start|stop|release|index|hardlock|freight_extend|freight_retract|passenger_extend|passenger_retract>` through the receipted `oxplant` action at designated machinery stations. Local readouts expose mechanical state and centrifugal gravity.
 
-**Important boundaries:** indexer motion currently tracks interlocks and extension state, not yet the precise moving-carriage path or person traversal. Freight release/air equalisation has to integrate the separate pressure/access boundary checks; a hardlocked collar does **not** alone authorize opening a pressure hatch. The six drum rates and working radii remain provisional game parameters until each installed drum contract is mapped, and WR-01's telescoping carriage radius is currently fixed at 60 m.
+**Important boundaries:** indexer motion currently tracks interlocks and extension state, not yet the precise moving-carriage path or person traversal. Freight release/air equalisation has to integrate the separate pressure/access boundary checks; a hardlocked collar does **not** alone authorize opening a pressure hatch. The six drum rates and working radii remain provisional game parameters until each installed drum contract is mapped, and as-installed moving-carriage details beyond the modelled finite WR-01 24–75 m extension remain unverified.
 
 ## Reference commercial cargo and finite shipboard movement
 
@@ -102,7 +102,7 @@ claim about real exhaust technology. The 3.3 MW hotel plant supplies
 control auxiliaries, not energy that creates the reaction plume.
 
 **Still outside implemented operational closure:** measured per-package
-hull/rotor center of gravity, full external commercial cargo portals and
+hull/rotor center of gravity, dynamic cargo-port rendezvous and autonomous
 dock service, high-fidelity trajectory targeting, traffic/collision
 avoidance, full character movements and EVA, autonomous condition-based
 repair of every unit, and long-duration 40-crew integrated casualty acceptance.
@@ -115,9 +115,41 @@ The selected **900,000 tonne** commercial payload is initially an accountable *u
 
 The `oxplant ... freight <lot> <direction>` command is receipted, local to the handling collar, and advances over multiple timed physics ticks. A failed/isolated actuator, power loss, lost hardlock, open-personnel indexer, or closed/unsafe rated freight boundary suspends rather than completes the job. At the common fixed spine station, only one load/transfer may occupy its receiving position. The `from_spine:DR-04` form means that **the receiving drum** must stop, index, hard-lock and operate its own real collar and crew station; the original drum does not remotely transfer it.
 
-After delivery into a new drum, a package is explicitly **unstowed/unrestrained** until a physical operator survey uses `restow` to certify its actual new berth. Such loose freight prevents drum spin-up. A locked drum may still remove mass to correct an imbalance: balance interlocks prevent acceleration, not recovery with the drum parked. All transfers preserve ship mass; external bulk unloading/loading and the full commercial portal/port interface are still outstanding. The ledger is not a real measured inventory until the operator actually surveys it.
+After delivery into a new drum, a package is explicitly **unstowed/unrestrained** until a physical operator survey uses `restow` to certify its actual new berth. Such loose freight prevents drum spin-up. A locked drum may still remove mass to correct an imbalance: balance interlocks prevent acceleration, not recovery with the drum parked. Internal transfers preserve ship mass. External bulk portal operations now change ship mass over time while maintaining an explicit offship mass ledger. The ledger is not a real measured inventory until the operator actually surveys it.
 
 The focused `ox-g19-movement.yml` GitHub Actions workflow runs on the **draft PR**, compiles the modules and runs actual Evennia movement, cargo, FTL and installed-world regressions. A draft PR is not automatically an acceptance pass: the workflow result and cross-system tests must be checked explicitly.
+
+## Twelve commercial cargo portals and finite external transfers
+
+Each authored DR-01–DR-06 P1/P2 commercial portal now has external port
+handling, distinct from the internal 50/100 t freight spine. The world
+operator must positively commission an external berth and a finite
+consignment; these are external observations, not invented stored freight
+or inferred celestial locations.
+
+Crew at the actual cargo-control room or drum gallery may start a
+receipted, time-bounded job using the real radial freight handler and
+closed, sound gallery portal. A port needs a stopped, indexed,
+hardlocked drum, a sound handling rail and spare electrical power.
+Power failures, damage or a lost lock pause work; no teleportation.
+The selected gameplay rate is **1,500 kg/s after 60 seconds startup**,
+per available radial handler. Two portals on one drum share its
+handler; operations in other drums remain independent.
+
+Every partial tick debits or credits the ship's **actual inertial cargo
+mass** and records matching external custody. Unloading associates
+the cargo with the commissioned external berth. Re-loading it from a
+different berth is prohibited; a new legitimate external consignment
+must be explicitly registered. A newly loaded lot remains unsecured
+until physically restowed, and an unverified cargo drum may not
+spin up. A commercial mooring prevents thrust, attitude-control
+manoeuvres, drum rotation and uncommanded undocking.
+
+This is an operational game port interface, not an orbital docking or
+collision-avoidance solver. It does not invent the detailed movement
+of unseen port-side cranes or a construction-grade supply terminal.
+The port tests run alongside previously passing ship movement and
+G18/G17 coupled-physics regression jobs in the draft G19 PR.
 
 ## Acceptance gates before merge
 

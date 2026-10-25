@@ -159,6 +159,28 @@ class CommercialPortTest(unittest.TestCase):
                 cargo, lot_id="FALSE-1", mass_kg=2500,
                 portal_id="DR-01-P1", source_reference="BERTH-99")
 
+    def test_cross_berth_custody_cannot_create_a_cargo_delivery(self):
+        cargo = self.outbound()
+        cargo = start_port_job(
+            cargo, self.rotors, lot_id="ORE-1", portal_id="DR-01-P1",
+            direction="unload", capacity_kg=self.capacity,
+            equipment_ready=True, inner_gate_sealed=True)
+        for _ in range(5):
+            cargo, _ = step_port_jobs(
+                cargo, 60, available_portals={"DR-01-P1"},
+                capacity_kg=self.capacity)
+        self.assertEqual(cargo["lots"]["ORE-1"]["location"], "OFFSHIP")
+        self.assertEqual(cargo["lots"]["ORE-1"]["external_source"], "BERTH-7")
+        cargo = commission_port_contact(
+            cargo, portal_id="DR-01-P1", berth_id="BERTH-7", docked=False)
+        cargo = commission_port_contact(
+            cargo, portal_id="DR-01-P1", berth_id="BERTH-8", docked=True)
+        with self.assertRaises(CargoError):
+            start_port_job(
+                cargo, self.rotors, lot_id="ORE-1", portal_id="DR-01-P1",
+                direction="load", capacity_kg=self.capacity,
+                equipment_ready=True, inner_gate_sealed=True)
+
     def test_bad_external_contact_and_duplicate_consignment_fail(self):
         with self.assertRaises(CargoError):
             self.dock(portal="DR-09-P1")

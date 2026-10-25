@@ -154,6 +154,8 @@ def start_port_job(manifest, rotors, *, lot_id, portal_id, direction,
     else:
         if lot["location"] != "OFFSHIP":
             raise CargoError("Load must draw from a registered offship consignment")
+        if lot.get("external_source") != contact["berth_id"]:
+            raise CargoError("External cargo is held at a different berth")
         if (not math.isfinite(capacity_kg) or capacity_kg <= 0):
             raise CargoError("Unknown ship commercial cargo capacity")
         committed = sum(job["remaining_kg"]
@@ -217,6 +219,7 @@ def step_port_jobs(manifest, dt, *, available_portals, capacity_kg):
                 ]
             else:
                 lot["location"] = "OFFSHIP"
+                lot["external_source"] = job["berth_id"]
                 lot["restrained"] = False
                 lot["radius_m"] = 0.0
                 lot["azimuth_rad"] = 0.0
