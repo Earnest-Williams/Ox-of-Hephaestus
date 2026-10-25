@@ -560,3 +560,46 @@ class SocialEvidence(models.Model):
                 name='ox_social_evidence_side',
             ),
         ]
+
+
+class CanonicalShipState(models.Model):
+    """One durable, world-owned operational state for an authored v0.5 ID.
+
+    Source specifications are immutable reference metadata, not telemetry.
+    The row is the authority for actual condition/setting/quantity after
+    explicit installation. A character must use authorised world operations
+    to change it; the handler cannot address this table.
+    """
+
+    key = models.CharField(max_length=180, primary_key=True)
+    category = models.CharField(max_length=24, db_index=True)
+    source_id = models.CharField(max_length=128)
+    source_model = models.CharField(max_length=32)
+    space_id = models.CharField(max_length=128, null=True, blank=True)
+    condition = models.CharField(max_length=48, default="serviceable")
+    setting = models.CharField(max_length=48, default="unverified")
+    quantity = models.FloatField(null=True, blank=True)
+    reference = models.JSONField(default=dict)
+    details = models.JSONField(default=dict)
+    revision = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["category", "space_id"], name="ox_full_component_loc"),
+            models.Index(fields=["category", "source_id"], name="ox_full_component_src"),
+        ]
+
+
+class CanonicalShipEvent(models.Model):
+    """Independent physical history: crew journals carry only addressed observations."""
+
+    sequence = models.BigAutoField(primary_key=True)
+    component_key = models.CharField(max_length=180, db_index=True)
+    operation = models.CharField(max_length=64)
+    before = models.JSONField(default=dict)
+    after = models.JSONField(default=dict)
+    actor_dbref = models.CharField(max_length=32, null=True, blank=True)
+    request_id = models.CharField(max_length=32, null=True, blank=True)
+    source_event_id = models.CharField(max_length=64, null=True, blank=True)
+    game_time = models.FloatField()
+
