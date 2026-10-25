@@ -13,7 +13,7 @@ from evennia.utils.test_resources import EvenniaTestCase
 
 from world.bootstrap import build_ship
 from world.continuous_ship_physics import (
-    PhysicsError, _physical_passage, _topology, arm_continuous_physics,
+    PhysicsError, _air_safe, _physical_passage, _topology, arm_continuous_physics,
     configure_scenario_casualty, crew_physical_action, local_physics_readout,
     tick_continuous_physics,
 )
@@ -75,12 +75,14 @@ class CoupledShipCasualtyTests(EvenniaTestCase):
         sealed = self._total_gas()
         tick_continuous_physics(now_game_time=1020)
         self.assertAlmostEqual(self._total_gas(), sealed, delta=1e-5)
+        self.assertTrue(_air_safe(state("pressure", zone)))
         self.assertFalse(tick_continuous_physics(now_game_time=1020)["advanced"])
 
         # Mechanically jammed open is not an electrical OFF indication.
         set_isolator(valve.source_id, "open", operator=True)
         set_component_condition("isolator", valve.source_id, "jammed", operator=True)
         self.assertTrue(_physical_passage(state("isolator", valve.source_id)))
+        self.assertFalse(_air_safe(state("pressure", zone)))
         with self.assertRaises(PhysicsError):
             crew_physical_action(tech, "b" * 32, "switch", valve.source_id, "closed")
         before = self._total_gas()
