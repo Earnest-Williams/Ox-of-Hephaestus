@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 from django.db import transaction
+from unittest.mock import patch
+from commands.ship_physics import CmdOxPhysicsOperate
 from evennia.utils.test_resources import EvenniaTestCase
 
 from world.continuous_ship_physics import (
@@ -141,3 +143,12 @@ class PhysicsRuntimeTests(EvenniaTestCase):
             configure_scenario_casualty("PZ-HAB-03", leak_kg_s=float("nan"), operator=True)
         with self.assertRaises(PhysicsError):
             configure_scenario_casualty("PZ-HAB-03", fire_fuel_kg=2, operator=True)
+        watch = build_ship()["watch"]
+        command = CmdOxPhysicsOperate()
+        command.caller = watch
+        command.args = "f" * 32 + " switch UNKNOWN-ISOLATOR open"
+        with patch.object(watch, "msg") as output:
+            command.func()
+        result = output.call_args.kwargs["ox_receipt"][0][0]
+        self.assertEqual(result["status"], "failed")
+        self.assertIsNone(result["source_event_id"])
