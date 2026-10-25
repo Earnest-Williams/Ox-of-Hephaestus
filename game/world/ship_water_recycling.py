@@ -52,7 +52,9 @@ class WaterError(ValueError):
 
 
 def initial_water():
+    from world.ship_waste_offload import initial_offload
     return {
+        "waste_offload": initial_offload(),
         "working_kg": WORKING_CAPACITY_KG,
         "local": {s: {"grey": 0.0, "black": 0.0} for s in "AB"},
         "fixed": {"grey": 0.0, "black": 0.0},
@@ -137,18 +139,25 @@ def validate_water(water, stocks):
     for medium in STREAM_FRACTION:
         if _quantity(water["fixed"][medium]) > FIXED_KG[medium] + EPS:
             raise WaterError("Fixed wastewater receiver overfill")
+    from world.ship_waste_offload import validate_offload
+    in_transit = {
+        category: sum(job["aboard_kg"] for job in water["waste_offload"]["jobs"].values()
+                      if job["category"] == category)
+        for category in CASSETTE_KG
+    }
     for category, limits in CASSETTE_KG.items():
         for side, cap in limits.items():
             if not isinstance(water["cassette_sealed"][category][side], bool):
                 raise WaterError("Waste cassette seal state corrupt")
             if _quantity(water["cassettes"][category][side]) > cap + EPS:
                 raise WaterError("Waste cassette overfill")
-        filled = sum(water["cassettes"][category].values())
+        filled = sum(water["cassettes"][category].values()) + in_transit[category]
         if not math.isclose(filled, stocks[category], abs_tol=1e-5, rel_tol=1e-10):
             raise WaterError("Sealed receiver and inventory disagree")
     if set(water["oxygen_outlet_verified"]) != {"A", "B"} or any(
             not isinstance(x, bool) for x in water["oxygen_outlet_verified"].values()):
         raise WaterError("Unknown hydrogen outlet commissioning")
+    validate_offload(water, stocks)
     for amount in water["cumulative"].values():
         _quantity(amount)
     _quantity(water["suspected_contamination_kg"])

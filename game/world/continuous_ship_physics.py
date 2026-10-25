@@ -50,6 +50,18 @@ from world.ship_water_recycling import (
 from world.ship_water_materials import (
     register_source_survey, take_filter, load_filter, local_classified_deposit,
 )
+from world.ship_waste_offload import (
+    RECEIVERS as WASTE_RECEIVERS, WASTE_PORT_AUX_MW, initial_offload,
+    validate_offload, accept_berth, approve_route, prepare as prepare_waste_offload,
+    command as command_waste_offload, step_offload,
+)
+from world.ship_equipment_repair import (
+    REPAIR_CLASSES, initial_repairs, validate_repairs,
+    take_parts, begin_repair, join_repair, step_repairs,
+)
+from world.ship_waste_repair_world import (
+    selected_waste_route, live_waste_route, safe_repair_target,
+)
 
 CLOCK_KEY = "meta:continuous-physics"
 SCRIPT_KEY = "OxContinuousShipPhysics"
@@ -260,6 +272,17 @@ def _snapshot(item):
                 "source_surveys": water["source_surveys"],
                 "potable_quarantined": water["potable_quarantined"],
                 "reserve_released": water["reserve_released"],
+                "waste_offload": {
+                    "jobs": water["waste_offload"]["jobs"],
+                    "delivered_kg": water["waste_offload"]["delivered_kg"],
+                },
+            }
+        if item.details.get("repairs"):
+            jobs = item.details["repairs"]
+            result["repairs"] = {
+                "active": jobs["jobs"], "completed": jobs["completed"],
+                "installed_spares_kg": jobs["installed_kg"],
+                "carried_spares_kg": jobs["carried_kg"],
             }
         result["motion"] = item.details.get("motion")
         result["rotors"] = item.details.get("rotors")
@@ -617,7 +640,8 @@ def _water_hardware(water, equipment, edges, isolators, nodes, power):
         "hazardous": ("HAZ-ISO-HOLD-A", "HAZ-ISO-HOLD-B"),
     }
     bins = {
-        group: {side: sound(name) and water["cassette_sealed"][group][side]
+        group: {side: (sound(name) and water["cassette_sealed"][group][side]
+                and name not in water["waste_offload"]["jobs"])
                 for side, name in zip("AB", names)}
         for group, names in bin_names.items()
     }
@@ -742,6 +766,158 @@ def verify_g19_hydrogen_outlet(side, *, operator_approved=False,
     return {"changed": True, "side": side,
             "verified": exterior_clearance_verified}
 
+
+
+
+@transaction.atomic
+def commission_g19_repairs(*, operator_approved=False):
+    """Explicitly install durable shared maintenance, not an instant repair."""
+    if not operator_approved:
+        raise PermissionError("Shared repair service requires operator commissioning")
+    clock = _clock(lock=True)
+    if clock.details.get("repairs") is not None:
+        return {"commissioned": False}
+    if clock.details.get("water") is None:
+        raise PhysicsError("Shared spares require commissioned G19 physical material custody")
+    before = _snapshot(clock)
+    details = dict(clock.details)
+    details["repairs"] = initial_repairs()
+    clock.details = details
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "commission_g19_maintenance", before)
+    return {"commissioned": True, "live_repair_slots": 32}
+
+
+@transaction.atomic
+def commission_waste_acceptance(*, operator_approved=False, acceptance_id,
+                                portal_id, berth_id, category, limit_kg):
+    """Operator-recorded compatible offship facility with a finite acceptance cap.
+
+    The external berth may be attested before docking; docking itself remains
+    a distinct real physical action, and no inventory moves on attestation.
+    """
+    if not operator_approved:
+        raise PermissionError("External waste acceptance must be operator-verified")
+    if portal_id not in PORTALS:
+        raise PhysicsError("No such installed external cargo portal")
+    clock = _clock(lock=True)
+    water = clock.details.get("water")
+    if water is None:
+        raise PhysicsError("Water and sealed waste not commissioned")
+    try:
+        updated = accept_berth(
+            water, acceptance_id=acceptance_id, portal_id=portal_id,
+            berth_id=berth_id, category=category, limit_kg=limit_kg)
+    except WaterError as exc:
+        raise PhysicsError(str(exc)) from exc
+    before = _snapshot(clock)
+    details = dict(clock.details)
+    details["water"] = updated
+    clock.details = details
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    event = _event(clock, "operator_waste_berth_acceptance", before)
+    audit = dict(event.after)
+    audit["waste_acceptance"] = {
+        "acceptance_id": acceptance_id, "portal": portal_id,
+        "berth": berth_id, "category": category, "limit_kg": limit_kg}
+    event.after = audit
+    event.save(update_fields=["after"])
+    return {"acceptance_id": acceptance_id, "category": category,
+            "portal_id": portal_id, "limit_kg": limit_kg}
+
+
+@transaction.atomic
+def survey_waste_freight_route(*, operator_approved=False, receiver_id, portal_id):
+    """Verify original fitted internal logistics rails before loading waste."""
+    if not operator_approved:
+        raise PermissionError("A material route needs a physical operator survey")
+    if portal_id not in PORTALS or receiver_id not in WASTE_RECEIVERS:
+        raise PhysicsError("Unknown installed cassette or commercial portal")
+    clock = _clock(lock=True)
+    water = clock.details.get("water")
+    if water is None:
+        raise PhysicsError("Sealed waste is not commissioned")
+    receiver = state("equipment", receiver_id)
+    door_rows = list(CanonicalShipState.objects.filter(category="access"))
+    try:
+        route = selected_waste_route(
+            receiver.space_id, portal_id[:5] + "-FREIGHT-LOCK",
+            door_rows, _topology()[0])
+        revised = approve_route(
+            water, receiver=receiver_id, portal_id=portal_id, route=route)
+    except WaterError as exc:
+        raise PhysicsError(str(exc)) from exc
+    if revised != water:
+        before = _snapshot(clock)
+        d = dict(clock.details)
+        d["water"] = revised
+        clock.details = d
+        clock.revision += 1
+        clock.save(update_fields=["details", "revision"])
+        event = _event(clock, "operator_waste_freight_route_survey", before)
+        audit = dict(event.after)
+        audit["freight_route_evidence"] = {
+            "receiver": receiver_id, "portal": portal_id, "access_ids": route}
+        event.after = audit
+        event.save(update_fields=["after"])
+    return {"receiver": receiver_id, "portal": portal_id,
+            "access_ids": route, "segments": len(route)}
+
+
+def _waste_freight_ready(job, water, *, rotors, equipment, access, pressure, zones, cargo):
+    """True only for installed, safe and free fixed-spine freight machinery."""
+    portal = job["portal_id"]
+    drum = portal[:5]
+    rotor = rotors.get(drum)
+    gate = access.get("ACC-" + drum + "-FREIGHT-CAPTURE")
+    handler = equipment.get(drum + "-RADIAL-FREIGHT-HANDLER")
+    collar = equipment.get(drum + "-FREIGHT-COLLAR")
+    if (rotor is None or gate is None or handler is None or collar is None
+            or handler.condition in _BROKEN or collar.condition in _BROKEN
+            or gate.condition in _BROKEN or gate.setting != "open"
+            or not (rotor["hardlock"] and rotor["brake"] and
+                    rotor["target_rpm"] == 0 and abs(rotor["rpm"]) < 0.001
+                    and rotor["freight_collar"] and not rotor["passenger_indexer"])
+            or any(p[:5] == drum for p in cargo.get("port_jobs", {}))
+            or drum in cargo.get("jobs", {})
+            or any(p[:5] == drum for p in cargo.get("port_contacts", {}))):
+        return False
+    receiver = equipment.get(next((r for r in WASTE_RECEIVERS
+                                   if WASTE_RECEIVERS[r] == (
+                                       job["category"], job["side"])), ""))
+    if receiver is None or receiver.condition in _BROKEN:
+        return False
+    from_zone, to_zone = zones.get(receiver.space_id), zones.get(drum + "-FREIGHT-LOCK")
+    if not (from_zone in pressure and to_zone in pressure
+            and _air_safe(pressure[from_zone]) and _air_safe(pressure[to_zone])):
+        return False
+    return live_waste_route(
+        job["route"], source_room=receiver.space_id,
+        freight_lock=drum + "-FREIGHT-LOCK",
+        doors=access, zones=zones, pressure_rows=pressure, rotors=rotors)
+
+
+def _waste_port_ready(job, *, rotors, equipment, access, cargo):
+    portal = job["portal_id"]
+    drum = portal[:5]
+    r = rotors.get(drum)
+    seal = access.get("ACC-" + portal)
+    handler = equipment.get(drum + "-RADIAL-FREIGHT-HANDLER")
+    contact = cargo.get("port_contacts", {}).get(portal)
+    return bool(
+        r and seal and handler and contact
+        and contact.get("berth_id") == job["berth_id"]
+        and contact.get("docked", False)
+        and handler.condition not in _BROKEN
+        and seal.condition not in _BROKEN and seal.setting == "closed"
+        and r["hardlock"] and r["brake"] and r["target_rpm"] == 0
+        and abs(r["rpm"]) < 0.001
+        and not r["freight_collar"] and not r["passenger_indexer"]
+        and drum not in cargo.get("jobs", {})
+        and not any(p[:5] == drum for p in cargo.get("port_jobs", {}))
+    )
 
 @transaction.atomic
 def commission_g19_movement(*, operator_approved=False):
