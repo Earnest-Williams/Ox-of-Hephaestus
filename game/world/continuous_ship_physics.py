@@ -923,6 +923,7 @@ def tick_continuous_physics(*, now_game_time=None):
     inventory_before = _snapshot(inventory)
     water_stocks = {
         "normal": inventory,
+        "filter": state("inventory", "INV-DC-CONSUMABLES", lock=True),
         "reserve": state("inventory", "INV-WATER-RESERVE", lock=True),
         "sanitary": state("inventory", "INV-WASTE-RESIDUE", lock=True),
         "industrial": state("inventory", "INV-INDUSTRIAL-SCRAP", lock=True),
@@ -1034,9 +1035,10 @@ def tick_continuous_physics(*, now_game_time=None):
             # Only the oxygen product remains aboard as breathable gas.
             # H2, technical process use and rejected wastewater are charged
             # to mission-fluid mass instead of making ship weight constant.
-            mass_departed = max(
-                0.0, water_report["reject_kg"] +
-                water_report["technical_kg"] - produced)
+            # Unrecoverable domestic/cultivation/process water is transferred
+            # to explicitly counted nonpotable mission sinks still on board;
+            # only the validated H2 exterior vent removes ship mass here.
+            mass_departed = water_report["hydrogen_kg"]
             if motion["mission_fluids_kg"] + 1e-7 < mass_departed:
                 raise PhysicsError("Spent mission fluid exceeds actual ship mass")
             motion["mission_fluids_kg"] -= mass_departed
@@ -1715,7 +1717,7 @@ def crew_physical_action(actor, request_id, action, target, value):
     """
     if not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
         raise PhysicsError("Expected one 32-character lowercase request UUID")
-    if action not in {"switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port"}:
+    if action not in {"switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste"}:
         raise PhysicsError("Unknown physical operation")
     if actor is None or getattr(actor.db, "ox_terminal_dead", False):
         raise PermissionError("A deceased or missing character cannot operate machinery")
@@ -1737,8 +1739,8 @@ def crew_physical_action(actor, request_id, action, target, value):
                     "isolator:" if action == "switch"
                     else "pressure:" if action == "mist"
                     else "access:" if action == "hatch"
-                    else "" if action in {"schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port"}
-                    else "equipment:") + (CLOCK_KEY if action in {"schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port"} else target)
+                    else "" if action in {"schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste"}
+                    else "equipment:") + (CLOCK_KEY if action in {"schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste"} else target)
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
@@ -1772,6 +1774,108 @@ def crew_physical_action(actor, request_id, action, target, value):
             item.details = d
             item.revision += 1
             item.save(update_fields=["details", "revision"])
+    elif action in {"water", "waste"}:
+        import copy
+
+        item = _clock(lock=True)
+        before = _snapshot(item)
+        d = dict(item.details)
+        if "water" not in d:
+            raise PhysicsError("G19 water/waste plant has not been commissioned")
+        w = copy.deepcopy(d["water"])
+        if action == "water" and target == "POTABLE-TANK-MAIN":
+            _crew_at(actor, "WATER-FWD")
+            if state("equipment", "LP-WATER-FWD").condition in _BROKEN:
+                raise PhysicsError("Forward local water panel damaged")
+            if value == "reserve_open":
+                if w["potable_quarantined"]:
+                    raise PhysicsError("Cannot release reserve into contaminated potable circuit")
+                w["reserve_released"] = True
+            elif value == "reserve_close":
+                w["reserve_released"] = False
+            elif value == "quarantine":
+                w["potable_quarantined"] = True
+                w["reserve_released"] = False
+                w["quality_sample"] = None
+            elif value == "sample":
+                # Actual locally attended chemistry observation, not a model
+                # claim that simply toggles a safety flag.
+                w["quality_sample"] = (
+                    "pass" if w["suspected_contamination_kg"] == 0.0 else "fail")
+                w["quality_sample_tick"] = d["last_game_time"]
+            elif value == "clear":
+                if (w["quality_sample"] != "pass" or
+                        w["suspected_contamination_kg"] > 0.0 or
+                        not any(state("equipment", f"WATER-PROC-{side}").condition
+                                not in _BROKEN for side in "AB")):
+                    raise PhysicsError("Potable chemistry has not passed physical sampling")
+                w["potable_quarantined"] = False
+            else:
+                raise PhysicsError("Water tank requires reserve_open|reserve_close|quarantine|sample|clear")
+        elif action == "water" and target in {"WATER-PROC-A", "WATER-PROC-B"}:
+            processor = state("equipment", target, lock=True)
+            _crew_at(actor, processor.space_id)
+            side = target[-1]
+            if value in {"on", "off", "quarantine"}:
+                if value == "on" and processor.condition in _BROKEN:
+                    raise PhysicsError("Damaged purifier cannot resume work")
+                w["water_train"][side] = (
+                    "quarantined" if value == "quarantine" else value)
+                if value != "on":
+                    w["decontaminate"][side] = False
+            elif value in {"decontaminate", "decontaminate_off"}:
+                if value == "decontaminate" and (
+                        processor.condition in _BROKEN or
+                        not w["potable_quarantined"]):
+                    raise PhysicsError("Cannot scrub unisolated or damaged potable supply")
+                w["decontaminate"][side] = value == "decontaminate"
+                if value == "decontaminate":
+                    w["water_train"][side] = "on"
+            else:
+                raise PhysicsError("Unknown local purification work command")
+        elif action == "waste" and target in {"WASTE-PROC-A", "WASTE-PROC-B"}:
+            processor = state("equipment", target, lock=True)
+            _crew_at(actor, processor.space_id)
+            if value not in {"on", "off", "quarantine"}:
+                raise PhysicsError("Unknown sanitation processor command")
+            if value == "on" and processor.condition in _BROKEN:
+                raise PhysicsError("Damaged waste processor cannot restart")
+            w["waste_train"][target[-1]] = (
+                "quarantined" if value == "quarantine" else value)
+        elif action == "waste" and target in {
+                "WASTE-RESIDUE-HOLD-A", "WASTE-RESIDUE-HOLD-B",
+                "IND-SCRAP-HOLD-A", "IND-SCRAP-HOLD-B",
+                "HAZ-ISO-HOLD-A", "HAZ-ISO-HOLD-B"}:
+            receiver = state("equipment", target, lock=True)
+            _crew_at(actor, receiver.space_id)
+            if value not in {"seal", "unseal"}:
+                raise PhysicsError("Waste receiver requires seal or unseal")
+            group = ("sanitary" if target.startswith("WASTE-") else
+                     "industrial" if target.startswith("IND-") else "hazardous")
+            side = target[-1]
+            if value == "unseal" and w["cassettes"][group][side] > 0:
+                raise PhysicsError("Loaded sealed waste cassette needs a real offload cycle")
+            if value == "seal" and receiver.condition in _BROKEN:
+                raise PhysicsError("Damaged cassette cannot be proven sealed")
+            w["cassette_sealed"][group][side] = value == "seal"
+        else:
+            raise PhysicsError("Water or waste target is not an installed local control")
+        stocks = {
+            k: state("inventory", ident).quantity * 1000
+            for k, ident in (
+                ("normal", "INV-WATER-NORMAL"),
+                ("reserve", "INV-WATER-RESERVE"),
+                ("sanitary", "INV-WASTE-RESIDUE"),
+                ("industrial", "INV-INDUSTRIAL-SCRAP"),
+                ("hazardous", "INV-HAZARDOUS-RESIDUE"),
+                ("filter", "INV-DC-CONSUMABLES"),
+            )
+        }
+        validate_water(w, stocks)
+        d["water"] = w
+        item.details = d
+        item.revision += 1
+        item.save(update_fields=["details", "revision"])
     elif action == "port":
         if target not in PORTALS or not isinstance(value, str):
             raise PhysicsError("Unknown commercial loading portal")
@@ -2143,6 +2247,26 @@ def local_physics_readout(actor, target):
     room = getattr(getattr(location, "db", None), "ox_space_id", None)
     if not room:
         raise PermissionError("Stand at an installed ship compartment")
+    if target == "water":
+        if room not in {"WATER-FWD", "HAB-06-ECLSS-A", "HAB-08-ECLSS-B",
+                        "STORE-FLUID-AFT"}:
+            raise PermissionError("Water and waste telemetry is limited to local stations")
+        water = _clock().details.get("water")
+        if not water:
+            raise PhysicsError("G19 water/waste system not commissioned")
+        readings = {
+            "working_kg": round(water["working_kg"], 3),
+            "normal_makeup_kg": state("inventory", "INV-WATER-NORMAL").quantity * 1000,
+            "protected_reserve_kg": state("inventory", "INV-WATER-RESERVE").quantity * 1000,
+            "potable_quarantined": water["potable_quarantined"],
+            "quality_sample": water["quality_sample"],
+            "fixed_holding_kg": water["fixed"],
+            "local_holding_kg": water["local"],
+            "sealed_receivers_kg": water["cassettes"],
+            "cumulative": water["cumulative"],
+            "scope": "installed_local_water_and_waste_telemetry",
+        }
+        return readings
     if target == "cargo":
         if room not in {"CARGO-CTRL-FWD", "ENG-CONTROL"} and not (
                 room and room.endswith("-FREIGHT-LOCK")):
