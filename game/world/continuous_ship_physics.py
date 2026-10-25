@@ -554,6 +554,53 @@ def _water_hardware(water, equipment, edges, isolators, nodes, power):
     }
 
 
+
+@transaction.atomic
+def verify_g19_hydrogen_outlet(side, *, operator_approved=False,
+                               exterior_clearance_verified=False):
+    """Explicit as-installed exterior survey; never infer a safe vacuum port.
+
+    A failed/out-of-clearance rotating H2 nozzle inhibits electrolysis.
+    Closing a live control valve still blocks discharge after verification.
+    """
+    if not operator_approved:
+        raise PermissionError("Physical outlet commissioning is operator-only")
+    if side not in {"A", "B"} or not isinstance(exterior_clearance_verified, bool):
+        raise PhysicsError("Select installed hydrogen outlet A or B and a real survey result")
+    clock = _clock(lock=True)
+    water = clock.details.get("water")
+    if water is None:
+        raise PhysicsError("Water/waste plant not commissioned")
+    vent = state("equipment", f"ECLSS-{side}-H2-VENT")
+    gen = state("equipment", f"ECLSS-{side}-O2-GEN")
+    edge = state("edge", f"EDGE-BYP-{side}-H2")
+    source = state("isolator", f"ISO-BYP-{side}-H2-SOURCE")
+    hull = state("isolator", f"ISO-BYP-{side}-H2-HULL")
+    if (vent.condition in _BROKEN or gen.condition in _BROKEN
+            or edge.condition in _BROKEN or source.condition in _BROKEN
+            or hull.condition in _BROKEN):
+        if exterior_clearance_verified:
+            raise PhysicsError("Damaged byproduct equipment cannot pass exterior survey")
+    if (edge.reference.get("network") != "byproduct_exhaust"
+            or vent.reference.get("attributes", {}).get("gas") != "H2"):
+        raise PhysicsError("Hydrogen outlet provenance no longer matches installed ship")
+    import copy
+    w = copy.deepcopy(water)
+    if w["oxygen_outlet_verified"][side] == exterior_clearance_verified:
+        return {"changed": False, "side": side,
+                "verified": exterior_clearance_verified}
+    before = _snapshot(clock)
+    w["oxygen_outlet_verified"][side] = exterior_clearance_verified
+    details = dict(clock.details)
+    details["water"] = w
+    clock.details = details
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "water_hydrogen_outlet_survey", before)
+    return {"changed": True, "side": side,
+            "verified": exterior_clearance_verified}
+
+
 @transaction.atomic
 def commission_g19_movement(*, operator_approved=False):
     """Explicit non-resetting G18 -> G19 migration of the active ship clock.
@@ -1004,6 +1051,7 @@ def tick_continuous_physics(*, now_game_time=None):
         validate_water(water_state, {k: v.quantity * 1000.0
                                      for k, v in water_stocks.items()})
     water_report = None
+    water_tick_report = None
     changed_equipment = set()
     motion = dict(clock.details.get("motion", {}))
     if not motion:
@@ -1054,6 +1102,14 @@ def tick_continuous_physics(*, now_game_time=None):
                 raise PhysicsError(str(exc)) from exc
             for key, amount in balances.items():
                 water_stocks[key].quantity = amount / 1000.0
+            if water_tick_report is None:
+                water_tick_report = dict(water_report)
+            else:
+                for key, value in water_report.items():
+                    if isinstance(value, bool):
+                        water_tick_report[key] = water_tick_report[key] or value
+                    elif isinstance(value, (int, float)):
+                        water_tick_report[key] += value
             produced = water_report["oxygen_kg"]
             if produced:
                 side = hardware["oxygen_side"]
@@ -1626,7 +1682,7 @@ def tick_continuous_physics(*, now_game_time=None):
             "local_kg": water_state["local"],
             "cumulative": water_state["cumulative"],
             "potable_quarantined": water_state["potable_quarantined"],
-            "last_step": water_report,
+            "last_step": water_tick_report,
         } if water_state is not None else None),
     }
     clock.details = d
@@ -1812,6 +1868,12 @@ def crew_physical_action(actor, request_id, action, target, value):
             item.save(update_fields=["details", "revision"])
     elif action in {"water", "waste"}:
         import copy
+        def wet_crew_at(room):
+            _crew_at(actor, room)
+            zone = _topology()[0].get(room)
+            if (not isinstance(zone, str) or not zone.startswith("PZ-")
+                    or not _air_safe(state("pressure", zone))):
+                raise PhysicsError("Local sanitation work requires verified safe atmosphere")
 
         item = _clock(lock=True)
         before = _snapshot(item)
@@ -1820,7 +1882,7 @@ def crew_physical_action(actor, request_id, action, target, value):
             raise PhysicsError("G19 water/waste plant has not been commissioned")
         w = copy.deepcopy(d["water"])
         if action == "water" and target == "POTABLE-TANK-MAIN":
-            _crew_at(actor, "WATER-FWD")
+            wet_crew_at("WATER-FWD")
             if state("equipment", "LP-WATER-FWD").condition in _BROKEN:
                 raise PhysicsError("Forward local water panel damaged")
             if value == "reserve_open":
@@ -1850,7 +1912,7 @@ def crew_physical_action(actor, request_id, action, target, value):
                 raise PhysicsError("Water tank requires reserve_open|reserve_close|quarantine|sample|clear")
         elif action == "water" and target in {"WATER-PROC-A", "WATER-PROC-B"}:
             processor = state("equipment", target, lock=True)
-            _crew_at(actor, processor.space_id)
+            wet_crew_at(processor.space_id)
             side = target[-1]
             if value in {"on", "off", "quarantine"}:
                 if value == "on" and processor.condition in _BROKEN:
@@ -1871,7 +1933,7 @@ def crew_physical_action(actor, request_id, action, target, value):
                 raise PhysicsError("Unknown local purification work command")
         elif action == "waste" and target in {"WASTE-PROC-A", "WASTE-PROC-B"}:
             processor = state("equipment", target, lock=True)
-            _crew_at(actor, processor.space_id)
+            wet_crew_at(processor.space_id)
             if value not in {"on", "off", "quarantine"}:
                 raise PhysicsError("Unknown sanitation processor command")
             if value == "on" and processor.condition in _BROKEN:
@@ -1883,7 +1945,7 @@ def crew_physical_action(actor, request_id, action, target, value):
                 "IND-SCRAP-HOLD-A", "IND-SCRAP-HOLD-B",
                 "HAZ-ISO-HOLD-A", "HAZ-ISO-HOLD-B"}:
             receiver = state("equipment", target, lock=True)
-            _crew_at(actor, receiver.space_id)
+            wet_crew_at(receiver.space_id)
             if value not in {"seal", "unseal"}:
                 raise PhysicsError("Waste receiver requires seal or unseal")
             group = ("sanitary" if target.startswith("WASTE-") else
@@ -2296,6 +2358,7 @@ def local_physics_readout(actor, target):
             "protected_reserve_kg": state("inventory", "INV-WATER-RESERVE").quantity * 1000,
             "potable_quarantined": water["potable_quarantined"],
             "quality_sample": water["quality_sample"],
+            "hydrogen_outlets_verified": water["oxygen_outlet_verified"],
             "fixed_holding_kg": water["fixed"],
             "local_holding_kg": water["local"],
             "sealed_receivers_kg": water["cassettes"],

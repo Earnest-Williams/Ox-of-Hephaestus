@@ -4,6 +4,7 @@ from evennia.utils.test_resources import EvenniaTestCase
 from world.bootstrap import build_ship
 from world.continuous_ship_physics import (
     PhysicsError, arm_continuous_physics, commission_g19_water,
+    verify_g19_hydrogen_outlet,
     configure_water_casualty, crew_physical_action, local_physics_readout,
     tick_continuous_physics,
 )
@@ -59,7 +60,7 @@ class InstalledWaterRecyclingTests(EvenniaTestCase):
         self.assertEqual(before, self._water()["cumulative"]["domestic_used_kg"])
 
     def test_one_treatment_train_fails_other_carries_domestic_load(self):
-        set_component_condition("WATER-PROC-A" if False else "equipment",
+        set_component_condition("equipment",
                                 "WATER-PROC-A", "failed", operator=True)
         result = tick_continuous_physics(now_game_time=1060)
         self.assertGreater(result["water"]["cumulative"]["domestic_used_kg"], 0)
@@ -112,6 +113,7 @@ class InstalledWaterRecyclingTests(EvenniaTestCase):
         start_filters = state("inventory", "INV-DC-CONSUMABLES").quantity
         result = tick_continuous_physics(now_game_time=1060)
         self.assertGreater(result["water"]["last_step"]["decontaminated_kg"], 0)
+        self.assertGreater(self._water()["cumulative"]["decontaminated_kg"], 0)
         self.assertLess(state("inventory", "INV-DC-CONSUMABLES").quantity, start_filters)
         self.assertGreater(state("inventory", "INV-HAZARDOUS-RESIDUE").quantity, 0)
         self.tech.move_to(find_ship_space("WATER-FWD"), quiet=True)
@@ -121,6 +123,29 @@ class InstalledWaterRecyclingTests(EvenniaTestCase):
             self.tech, "5" * 32, "water", "POTABLE-TANK-MAIN", "clear")
         self.assertFalse(self._water()["potable_quarantined"])
         self.assertFalse(WorkReceipt.objects.filter(pk="2" * 32).exists())
+
+
+    def test_hydrogen_byproduct_has_no_unapproved_vacuum_route(self):
+        self.assertFalse(self._water()["oxygen_outlet_verified"]["A"])
+        with self.assertRaises(PermissionError):
+            verify_g19_hydrogen_outlet(
+                "A", exterior_clearance_verified=True)
+        with self.assertRaises(PhysicsError):
+            verify_g19_hydrogen_outlet(
+                "C", operator_approved=True, exterior_clearance_verified=True)
+        verify_g19_hydrogen_outlet(
+            "A", operator_approved=True, exterior_clearance_verified=True)
+        set_isolator("ISO-BYP-A-H2-SOURCE", "open", operator=True)
+        set_isolator("ISO-BYP-A-H2-HULL", "open", operator=True)
+        before = state("pressure", "PZ-HAB-06").details["physics_oxygen_kg"]
+        result = tick_continuous_physics(now_game_time=1060)
+        self.assertGreater(result["water"]["cumulative"]["oxygen_from_electrolysis_kg"], 0)
+        self.assertGreater(result["water"]["cumulative"]["hydrogen_from_electrolysis_kg"], 0)
+        self.assertGreater(state("pressure", "PZ-HAB-06").details["physics_oxygen_kg"], before)
+        verify_g19_hydrogen_outlet(
+            "A", operator_approved=True, exterior_clearance_verified=False)
+        tick_continuous_physics(now_game_time=1070)
+        self.assertEqual(self._water()["oxygen_outlet_verified"]["A"], False)
 
     def test_closed_network_isolation_blocks_real_water_transfer(self):
         for row in CanonicalShipState.objects.filter(category="isolator"):

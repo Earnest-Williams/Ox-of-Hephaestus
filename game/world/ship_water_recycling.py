@@ -75,6 +75,7 @@ def initial_water():
             "reject_kg": 0.0, "sanitary_solids_kg": 0.0,
             "makeup_kg": 0.0, "emergency_makeup_kg": 0.0,
             "technical_kg": 0.0, "technical_unserved_kg": 0.0,
+            "decontaminated_kg": 0.0,
             "oxygen_from_electrolysis_kg": 0.0,
             "hydrogen_from_electrolysis_kg": 0.0,
             "industrial_waste_kg": 0.0, "hazardous_waste_kg": 0.0,
@@ -218,6 +219,7 @@ def step_water(water, seconds, *, stocks, hardware, crew_count=40):
             w["suspected_contamination_kg"] -= amount
             w["quality_sample"] = None
             report["decontaminated_kg"] += amount
+            w["cumulative"]["decontaminated_kg"] += amount
         if w["suspected_contamination_kg"] <= EPS:
             w["suspected_contamination_kg"] = 0.0
     limits = {side: {stream: (PROCESS_KG_DAY[stream] * daily if process[side]
