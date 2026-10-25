@@ -20,7 +20,7 @@ from world.full_ship_operations import (
     MODEL, R_SPECIFIC_AIR, ShipOperationsError, _BROKEN, _conducts,
     _require_installed, load_candidate, state,
 )
-from world.models import CanonicalShipEvent, CanonicalShipState
+from world.models import CanonicalShipEvent, CanonicalShipState, WorkReceipt
 
 CLOCK_KEY = "meta:continuous-physics"
 SCRIPT_KEY = "OxContinuousShipPhysics"
@@ -546,7 +546,18 @@ def crew_physical_action(actor, request_id, action, target, value):
         raise PhysicsError("Expected one 32-character lowercase request UUID")
     if action not in {"switch", "plant", "schedule", "mist"}:
         raise PhysicsError("Unknown physical operation")
-    _clock(lock=True)  # serializes all these receipt allocations with world ticks
+    if actor is None or getattr(actor.db, "ox_terminal_dead", False):
+        raise PermissionError("A deceased or missing character cannot operate machinery")
+    _clock(lock=True)  # serializes physical actions with world ticks
+    # The pre-existing world WorkReceipt ledger owns the *global* request-ID
+    # namespace across both G18 and legacy social/ship work.
+    old = WorkReceipt.objects.select_for_update().filter(pk=request_id).first()
+    if old is not None:
+        if (old.actor_dbref != actor.dbref or old.target != "ship_physics"
+            or old.operation != action
+            or old.arguments != {"target": target, "value": value}):
+            raise PermissionError("Global work request ID collision")
+        return dict(old.outcome)
     previous = CanonicalShipEvent.objects.filter(request_id=request_id).first()
     if previous is not None:
         if (previous.actor_dbref != getattr(actor, "dbref", None)
@@ -634,7 +645,14 @@ def crew_physical_action(actor, request_id, action, target, value):
     after["requested_value"] = value
     event.after = after
     event.save(update_fields=["after"])
-    return _receipt(event, request_id, actor, action, target)
+    result = _receipt(event, request_id, actor, action, target)
+    WorkReceipt.objects.create(
+        request_id=request_id, actor_dbref=actor.dbref,
+        target="ship_physics", operation=action,
+        arguments={"target": target, "value": value},
+        outcome=result, game_time=event.game_time,
+    )
+    return result
 
 
 def local_physics_readout(actor, target):
