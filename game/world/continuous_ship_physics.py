@@ -41,6 +41,16 @@ AUTHORISED_ROLES = {"watch_engineer", "chief_engineer", "environment_tech"}
 CP_GAS_KJ_KG_K = 1.0
 O2_PER_FUEL = 2.667
 FIRE_HEAT_KJ_KG = 20000.0
+# Coarse installed machinery waste-heat loads (kW), deposited in the
+# equipment's real pressure zone. They require an actually running plant;
+# a disconnected or shut-down unit cannot heat its compartment indefinitely.
+# These are gameplay reference loads, not qualified manufacturer data.
+PLANT_WASTE_HEAT_KW = {
+    "GEN-M": 75.0, "GEN-A": 16.0, "GEN-B": 16.0,
+    "ECLSS-A": 8.0, "ECLSS-B": 8.0,
+    "LT-PLANT": 12.0,
+    "FIRE-PUMP-FWD": 6.0, "FIRE-PUMP-AFT": 6.0,
+}
 
 
 class PhysicsError(ShipOperationsError):
@@ -419,6 +429,24 @@ def tick_continuous_physics(*, now_game_time=None):
                        if powered and _on(equipment, pump)
                        for n in ["NODE-" + pump]]
         fire_nodes = _reachable(edges, isolators, "fire_main", fire_starts)
+        # Waste heat is a physical output of operating machinery, not an
+        # operator-injected scenario fault. It persists through a cooling
+        # failure and can therefore cause a secondary thermal casualty.
+        machinery_heat_kw = defaultdict(float)
+        for plant_id, heat_kw in PLANT_WASTE_HEAT_KW.items():
+            zone = owners.get(plant_id)
+            if zone in cells and _on(equipment, plant_id):
+                if plant_id in GENERATION_MW:
+                    producing = power["available_mw"] > 0 and (
+                        plant_id in GENERATION_MW and
+                        _live_edge(next((e for e in edges if e.source_id ==
+                                         "EDGE-" + plant_id), None), isolators)
+                        if any(e.source_id == "EDGE-" + plant_id for e in edges)
+                        else False)
+                else:
+                    producing = powered
+                if producing:
+                    machinery_heat_kw[zone] += heat_kw
         for cell_id, cell in cells.items():
             mass = cell["mass"]
             leak_rate = cell["leak"]
@@ -466,7 +494,7 @@ def tick_continuous_physics(*, now_game_time=None):
                 cell["mass"] += burn
                 cell["energy"] += burn * FIRE_HEAT_KJ_KG
                 burned += burn
-            cell["energy"] += cell["background"] * dt
+            cell["energy"] += (cell["background"] + machinery_heat_kw[cell_id]) * dt
             cell["temperature"] = cell["energy"] / (
                 cell["capacity"] + cell["mass"] * CP_GAS_KJ_KG_K)
             if cell_id in cool_zones and per_zone_kw > 0:
