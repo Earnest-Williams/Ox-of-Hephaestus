@@ -193,6 +193,67 @@ class CommercialPortTest(unittest.TestCase):
         self.assertEqual(running["port_jobs"]["DR-01-P1"]["startup_remaining_s"], 0)
         self.assertTrue(validate_cargo(running, self.capacity))
 
+    def test_abort_cannot_overload_ship_when_another_berth_fills_capacity(self):
+        cargo = self.outbound()
+        cargo = commission_port_contact(
+            cargo, portal_id="DR-02-P1", berth_id="BERTH-7", docked=True)
+        cargo = register_external_consignment(
+            cargo, lot_id="NEW-2", mass_kg=75_000,
+            portal_id="DR-02-P1", source_reference="BERTH-7")
+        cargo = start_port_job(
+            cargo, self.rotors, lot_id="ORE-1", portal_id="DR-01-P1",
+            direction="unload", capacity_kg=self.capacity,
+            equipment_ready=True, inner_gate_sealed=True)
+        cargo, _ = step_port_jobs(
+            cargo, 60, available_portals={"DR-01-P1"},
+            capacity_kg=self.capacity)
+        cargo, _ = step_port_jobs(
+            cargo, 50, available_portals={"DR-01-P1"},
+            capacity_kg=self.capacity)
+        self.assertEqual(onboard_mass_kg(cargo), self.capacity - 75_000)
+        cargo = start_port_job(
+            cargo, self.rotors, lot_id="NEW-2", portal_id="DR-02-P1",
+            direction="load", capacity_kg=self.capacity,
+            equipment_ready=True, inner_gate_sealed=True)
+        cargo, _ = step_port_jobs(
+            cargo, 60, available_portals={"DR-02-P1"},
+            capacity_kg=self.capacity)
+        cargo, _ = step_port_jobs(
+            cargo, 50, available_portals={"DR-02-P1"},
+            capacity_kg=self.capacity)
+        self.assertEqual(onboard_mass_kg(cargo), self.capacity)
+        cargo = command_port_job(
+            cargo, portal_id="DR-01-P1", lot_id="ORE-1",
+            command="abort")
+        cargo, _ = step_port_jobs(
+            cargo, 60, available_portals={"DR-01-P1"},
+            capacity_kg=self.capacity)
+        blocked, done = step_port_jobs(
+            cargo, 10, available_portals={"DR-01-P1"},
+            capacity_kg=self.capacity)
+        self.assertEqual(done, ())
+        self.assertEqual(onboard_mass_kg(blocked), self.capacity)
+        self.assertTrue(validate_cargo(blocked, self.capacity))
+        # A real offload on the other drum frees room for staged recovery.
+        freed = restow_cargo_lot(
+            blocked, lot_id="NEW-2", azimuth_deg=0, radius_m=1)
+        freed = start_port_job(
+            freed, self.rotors, lot_id="NEW-2", portal_id="DR-02-P1",
+            direction="unload", capacity_kg=self.capacity,
+            equipment_ready=True, inner_gate_sealed=True)
+        freed, _ = step_port_jobs(
+            freed, 60, available_portals={"DR-02-P1"},
+            capacity_kg=self.capacity)
+        freed, _ = step_port_jobs(
+            freed, 10, available_portals={"DR-02-P1"},
+            capacity_kg=self.capacity)
+        self.assertEqual(onboard_mass_kg(freed), self.capacity - 15_000)
+        recovered, _ = step_port_jobs(
+            freed, 10, available_portals={"DR-01-P1"},
+            capacity_kg=self.capacity)
+        self.assertEqual(onboard_mass_kg(recovered), self.capacity)
+        self.assertTrue(validate_cargo(recovered, self.capacity))
+
     def test_seeded_random_blackout_and_port_reversal_conserve_every_kg(self):
         for seed in range(24):
             rng = random.Random(seed)
@@ -204,7 +265,7 @@ class CommercialPortTest(unittest.TestCase):
                 inner_gate_sealed=True)
             issued_abort = False
             for step in range(100):
-                if step == 5:
+                if step == 14:
                     cargo = command_port_job(
                         cargo, portal_id="DR-01-P1",
                         lot_id="ORE-1", command="abort")

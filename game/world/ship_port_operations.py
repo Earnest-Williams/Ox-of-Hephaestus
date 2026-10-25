@@ -237,6 +237,12 @@ def step_port_jobs(manifest, dt, *, available_portals, capacity_kg):
             # inventory. A casualty or blackout suspends the reversal too.
             amount = min(job["transferred_kg"],
                          working_seconds * PORT_RATE_KG_S)
+            if job["direction"] == "unload":
+                # A reversal returns goods to the hold. Other portals may
+                # have occupied the newly freed capacity in the meantime.
+                # Never recover an outbound load by overfilling the ship.
+                amount = min(
+                    amount, max(0.0, capacity_kg - onboard_mass_kg(result)))
             job["transferred_kg"] = max(0.0, job["transferred_kg"] - amount)
             job["remaining_kg"] += amount
             if job["transferred_kg"] <= 0.000001:
