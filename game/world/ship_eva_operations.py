@@ -64,7 +64,8 @@ def initial_eva():
             "buffer": {"mass": 0.0, "oxygen": 0.0, "co2": 0.0, "smoke": 0.0},
             "cycles": 0,
         } for lock in LOCKS},
-        "transits": {}, "charged_kg": 0.0,
+        "transits": {}, "staged_kg": {}, "issued_kg": 0.0,
+        "charged_kg": 0.0,
         "consumed_oxygen_kg": 0.0, "completed_transits": 0,
     }
 
@@ -78,8 +79,17 @@ def validate_eva(eva):
             or not isinstance(eva["transits"], dict)
             or len(eva["transits"]) > 4):
         raise EVAError("Damaged or uncommissioned EVA system")
-    for name in ("charged_kg", "consumed_oxygen_kg"):
+    for name in ("issued_kg", "charged_kg", "consumed_oxygen_kg"):
         _num(eva[name])
+    if not isinstance(eva["staged_kg"], dict) or len(eva["staged_kg"]) > 16:
+        raise EVAError("Invalid carrying-custody record")
+    for actor, mass in eva["staged_kg"].items():
+        if not isinstance(actor, str) or not re.fullmatch(r"#[0-9]+", actor):
+            raise EVAError("Breathing gas is not carried by a real worker")
+        _num(mass, high=4 * SUIT_O2_KG)
+    if abs(sum(eva["staged_kg"].values()) +
+           eva["charged_kg"] - eva["issued_kg"]) > 1e-7:
+        raise EVAError("Airlock oxygen issue, carriage and suit charge do not reconcile")
     if eva["consumed_oxygen_kg"] > eva["charged_kg"] + 1e-8:
         raise EVAError("Suit breathed oxygen which was never issued")
     if (type(eva["completed_transits"]) is not int
@@ -151,6 +161,21 @@ def suit_of(eva, actor):
     return None, None
 
 
+def stage_suit_oxygen(eva, *, actor, kg):
+    """A real worker moves measured DC breathing gas out of source stores."""
+    validate_eva(eva)
+    if not isinstance(actor, str) or not re.fullmatch(r"#[0-9]+", actor):
+        raise EVAError("No verified worker carrying breathing stock")
+    mass = _num(kg, high=SUIT_O2_KG)
+    if mass <= 0:
+        raise EVAError("No breathing gas supplied")
+    result = copy.deepcopy(eva)
+    result["staged_kg"][actor] = result["staged_kg"].get(actor, 0.0) + mass
+    result["issued_kg"] += mass
+    validate_eva(result)
+    return result
+
+
 def checkout_suit(eva, *, actor, lock, supplied_oxygen_kg):
     """Allocate a distinct suit; source stock is debited by world authority."""
     validate_eva(eva)
@@ -166,6 +191,11 @@ def checkout_suit(eva, *, actor, lock, supplied_oxygen_kg):
     needed = SUIT_O2_KG - item["exposure"]["suit_oxygen_kg"]
     if abs(_num(supplied_oxygen_kg) - needed) > 1e-7:
         raise EVAError("Unbalanced suit oxygen issue")
+    if result["staged_kg"].get(actor, 0.0) + 1e-7 < needed:
+        raise EVAError("No physically carried breathing canister at this airlock")
+    result["staged_kg"][actor] -= needed
+    if result["staged_kg"][actor] < 1e-7:
+        del result["staged_kg"][actor]
     item["exposure"]["suit_oxygen_kg"] += needed
     item["holder"] = actor
     result["charged_kg"] += needed
