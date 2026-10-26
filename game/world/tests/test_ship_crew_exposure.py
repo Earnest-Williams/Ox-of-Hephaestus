@@ -64,6 +64,18 @@ class ExposureTransitionsTests(unittest.TestCase):
         self.assertEqual(s["hypoxia_s"], 47.5)
         self.assertEqual(s["injury"], 0.2)
 
+    def test_ending_hazards_stops_new_injury_without_erasing_history(self):
+        s = initial_exposure()
+        s.update(hypoxia_s=100, smoke_dose=110, co2_dose=8,
+                 thermal_dose=200, injury=0.25)
+        after, _ = step_exposure(s, NORMAL, 10)
+        self.assertAlmostEqual(after["injury"], 0.25)
+        self.assertLess(after["smoke_dose"], 110)
+        self.assertLess(after["co2_dose"], 8)
+        self.assertLess(after["thermal_dose"], 200)
+        self.assertLess(after["hypoxia_s"], 100)
+        self.assertAlmostEqual(s["injury"], 0.25)
+
     def test_dead_crew_do_not_metabolise(self):
         s = initial_exposure()
         s["condition"] = "dead"
