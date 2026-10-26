@@ -18,6 +18,13 @@ jobs:
           import json
           from pathlib import Path
           m=json.loads(Path('design/ship/ox_full_ship_v0.5_candidate.json').read_text())
+          print('REPAIR-ZONES')
+          for x in m['spaces']:
+              if x['id'] in ('GEN-B-ROOM','GEN-M-ROOM','HAB-06-ECLSS-A','TRUNK-A-AFT','STORE-FLUID-AFT'):
+                  print(x['id'],x.get('pressure_zone'),x.get('frame'),x.get('environment'))
+          for x in m['isolation_points']:
+              if x['id'] in ('ISO-GEN-B','ISO-GEN-M'):
+                  print('breaker',x['id'],x.get('normal_state'),x.get('current_state'),x.get('kind'))
           print('WASTE-EQUIPMENT')
           for x in m['equipment']:
               if any(y in x['id'] for y in ('WASTE-RESIDUE-HOLD','IND-SCRAP-HOLD','HAZ-ISO-HOLD','RADIAL-FREIGHT-HANDLER','FREIGHT-COLLAR','LCS-PROP','GEN-B','WATER-PROC')):
