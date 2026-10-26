@@ -8,6 +8,7 @@ on:
       - "game/world/tests/test_ship_crew_exposure.py"
       - ".github/workflows/ox-g19-crew-exposure.yml"
   pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - "game/world/ship_crew_exposure.py"
       - "game/world/tests/test_ship_crew_exposure.py"
@@ -19,6 +20,7 @@ permissions:
 
 jobs:
   exposure-kernel:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
