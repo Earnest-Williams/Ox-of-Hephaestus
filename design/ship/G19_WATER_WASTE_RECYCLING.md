@@ -176,14 +176,19 @@ The new `.github/workflows/ox-g19-water.yml` runs:
    including smoke, thermal protection, power failures and finite
    fire suppression, to detect accidental regressions.
 
-**Scope boundary:** A full port-side offload manifest for sealed solid waste
-requires the separate cargo-port handling and crew traversals to be completed;
-no in-flight disappearance of full waste cassettes is permitted. Crew-specific
-health consequences from water shortage are consumed by the separate G19
-physiology/exposure subsystem; this subsystem reports every unserved kilogram.
-Mechanical repairs of failed water machinery are handled by the shared G19
-finite-material equipment-recovery package rather than an invented local
-instant reset. None of these cross-system dependencies is represented as
-already completed.
+**Accepted cross-system dependencies:** The G19 port-side sealed-solid
+offloading system and the shared equipment repair work-order system are now
+implemented and independently accepted. The [waste-offload and shared-repair
+contract](G19_PORT_WASTE_AND_SHARED_REPAIRS.md) records a **74-test** passing
+campaign on 26 October 2026, including true berth acceptance and offship mass
+custody, returned cassettes, six physical reusable toolkits, carried repair
+spares, safe isolation, crew health and delayed equipment restoration. No
+in-flight disappearance of full waste cassettes is permitted.
+
+**Still outside water subsystem acceptance:** autonomous traversal and exposure
+of all forty characters, long-term physiological consequences of missed water
+demand, comprehensive hull damage recovery and whole-voyage integrated
+acceptance. Water physics continues to report every unserved kilogram, rather
+than silently supplying or harming a crew character.
 
 **This subsystem is accepted; no final whole-ship acceptance or merge has been claimed.** The other G19 systems, their cross-system crew/cargo/repair dependencies and the final integrated voyage gate remain separate obligations within the *same* PR.

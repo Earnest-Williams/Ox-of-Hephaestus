@@ -1,6 +1,23 @@
 # G19 — sealed waste port offload and shared equipment repairs
 
-**Status:** implemented on the single draft G19 integration PR #138; installed-world acceptance in progress. This is game-world verisimilitude for an old refitted working freighter, not fabrication or NASA certification.
+**Status: SUBSYSTEM ACCEPTED — 26 October 2026.** Port-side sealed solid-waste offloading and shared finite equipment repairs passed the dedicated real-world and conservation suites. The single G19 PR #138 remains **draft and unmerged**. This is game-world verisimilitude for an old refitted working freighter, not fabrication or NASA certification.
+
+## Verified acceptance
+
+**Tested runtime revision:** `5eb76e257f30ac8a3b6aa6b8109c980eb304306d`. The [dedicated Actions run #40250285584](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40250285584) completed successfully with **all five jobs green, 74 tests passing**:
+
+| Acceptance job | Tests | Result |
+| --- | ---: | --- |
+| Standalone waste custody, spare/toolkit conservation, water endurance and fuzz | 29 | PASS |
+| Installed Evennia solid-waste haul, real port receipt, generator/door/water repairs and crew incapacity | 6 | PASS |
+| Existing installed water and recycling regressions | 12 | PASS |
+| Existing installed cargo, freight, rotor and movement regressions | 13 | PASS |
+| G18 air/pressure, thermal, fire and seeded 80-tick casualty compatibility | 14 | PASS |
+| **Total** | **74** | **PASS** |
+
+The same tested revision also passed [fast PR source checks](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40250289804) and [documentation/CI-scope checks](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40250289769). The original physical waste/design validators passed inside the standalone job. [Machine-readable acceptance record](G19_WASTE_REPAIR_ACCEPTANCE_2026-10-26.json) retains the exact test revision, run and scope; documentation-only commits do not change the validated runtime.
+
+**Acceptance scope:** actual berth-bound cassette offload, sealed waste class custody, finite powered transit, return/reversal, port quota and ship-mass reconciliation; reusable toolkit and carried spares, locally verified repair conditions, timed assisted work, physical crew health and safe restart. Crew traversal across every ship compartment, suit physiology/long-term exposure, hull replacement and the final 40-crew autonomous voyage remain separate full-G19 acceptance obligations.
 
 ## Scope
 

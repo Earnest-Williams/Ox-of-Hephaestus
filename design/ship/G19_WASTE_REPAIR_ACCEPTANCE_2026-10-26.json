@@ -1,0 +1,69 @@
+{
+  "schema": "ox.g19.subsystem_acceptance/1",
+  "accepted_utc_date": "2026-10-26",
+  "scope": [
+    "port_side_sealed_solid_waste_offload",
+    "shared_equipment_repairs"
+  ],
+  "decision": "accepted_subsystem_not_full_ship",
+  "validated_runtime_sha": "5eb76e257f30ac8a3b6aa6b8109c980eb304306d",
+  "single_integration_pull_request": 138,
+  "pull_request_remains_draft": true,
+  "whole_ship_merge_authorised": false,
+  "github_actions": {
+    "workflow_run_id": 40250285584,
+    "conclusion": "success",
+    "jobs": [
+      {
+        "name": "pure",
+        "tests": 29,
+        "conclusion": "success"
+      },
+      {
+        "name": "installed",
+        "tests": 6,
+        "conclusion": "success"
+      },
+      {
+        "name": "water-compatibility",
+        "tests": 12,
+        "conclusion": "success"
+      },
+      {
+        "name": "movement-compatibility",
+        "tests": 13,
+        "conclusion": "success"
+      },
+      {
+        "name": "g18-compatibility",
+        "tests": 14,
+        "conclusion": "success"
+      }
+    ],
+    "total_tests": 74,
+    "passed_tests": 74
+  },
+  "companion_checks": [
+    {
+      "workflow_run_id": 40250289804,
+      "name": "fast PR gate",
+      "conclusion": "success"
+    },
+    {
+      "workflow_run_id": 40250289769,
+      "name": "documentation/CI scope",
+      "conclusion": "success"
+    }
+  ],
+  "validators": [
+    "design/ship/check_waste_byproducts.py",
+    "design/ship/check_physical_operations.py"
+  ],
+  "known_boundaries": [
+    "external accepting berth is operator-attested, not an independently simulated station economy",
+    "fitted reusable toolkits are bounded scenario assets within existing ship stores",
+    "full crew exposure and compartment traversal remain G19 whole-ship work",
+    "catastrophic hull replacement and final sustained voyage acceptance remain open"
+  ],
+  "integration_branch": "g19-complete-ship-systems"
+}
