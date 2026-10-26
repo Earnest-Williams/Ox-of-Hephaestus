@@ -159,6 +159,32 @@ class InstalledPersonnelIndexers(EvenniaTestCase):
         self.assertEqual(self.passenger.location, vest)
         self.assertEqual(_clock().details["personnel_transfers"]["completed"], 1)
 
+    def test_workshop_rotor_indexer_and_20_second_personnel_transit(self):
+        self.tech.move_to(find_ship_space("WR-FIXED-TRANSFER"), quiet=True)
+        self.passenger.move_to(find_ship_space("WR-FIXED-TRANSFER"), quiet=True)
+        self.action(self.tech, "a", "hatch", "ACC-WR-FIXED-IX", "open")
+        capsule = find_ship_space("WR-IX-CAPSULE")
+        fixed_exit = find_world_entity("access:ACC-WR-FIXED-IX:forward")
+        self.assertEqual(traverse_canonical_exit(
+            self.passenger, fixed_exit, capsule,
+            request_id="b" * 32)["status"], "succeeded")
+        self.action(self.tech, "c", "hatch", "ACC-WR-FIXED-IX", "closed")
+        self.tech.move_to(find_ship_space("WR-ROTOR-MACHINERY"), quiet=True)
+        self.action(self.tech, "d", "rotor", "WR-01", "passenger_extend")
+        carrier_exit = find_world_entity("access:ACC-WR-IX-HUB:forward")
+        hub = find_ship_space("WR-HUB")
+        receipt = traverse_canonical_exit(
+            self.passenger, carrier_exit, hub, request_id="e" * 32)
+        self.assertEqual(receipt["status"], "queued")
+        self.assertEqual(receipt["travel_seconds"], 20)
+        tick_continuous_physics(now_game_time=1010)
+        self.assertEqual(self.passenger.location, capsule)
+        tick_continuous_physics(now_game_time=1020)
+        self.assertEqual(self.passenger.location, hub)
+        self.assertEqual(_clock().details["personnel_transfers"]["completed"], 1)
+        self.assertEqual(_clock().details["rotors"]["WR-01"]["rpm"], 0)
+        self.assertTrue(_clock().details["rotors"]["WR-01"]["passenger_indexer"])
+
     def test_bad_pressure_stops_initial_carriage_capture(self):
         from world.continuous_ship_physics import configure_scenario_casualty
         self.tech.move_to(find_ship_space("DR-02-SERVICE-LOCK"), quiet=True)
