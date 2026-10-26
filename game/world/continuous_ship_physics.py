@@ -77,6 +77,11 @@ from world.ship_hab_sync import (
     HabSyncError, initial_hab_sync, validate_hab_sync,
     command_hab_sync, step_hab_sync,
 )
+from world.ship_major_damage import (
+    MajorDamageError, initial_major_damage, validate_major_damage,
+    exterior_face_for, register_major_site, start_containment,
+    step_containments, external_repair_ready,
+)
 from world.ship_eva_operations import (
     EVAError, LOCKS as EVA_LOCKS, SUIT_O2_KG, MAX_GAS_BUFFER_KG,
     initial_eva, validate_eva, lock_contract, suit_of, checkout_suit,
@@ -893,6 +898,90 @@ def commission_g19_eva(*, operator_approved=False):
 
 
 @transaction.atomic
+def commission_g19_major_damage(*, operator_approved=False):
+    """Commission real local pressure-bulkhead isolation plus external repairs."""
+    if not operator_approved:
+        raise PermissionError("Only world operator commissions major hull recovery")
+    clock = _clock(lock=True)
+    if clock.details.get("major_damage") is not None:
+        validate_major_damage(clock.details["major_damage"])
+        return {"commissioned": False}
+    if clock.details.get("hull") is None or clock.details.get("eva") is None:
+        raise PhysicsError("Major damage requires commissioned hull and fitted EVA first")
+    if clock.details.get("repairs") is None:
+        raise PhysicsError("Finite shared spares/toolkits are required")
+    panel = state("equipment", "LP-ENG-CONTROL")
+    if panel.condition in _BROKEN:
+        raise PhysicsError("No usable engineering damage-control panel")
+    before = _snapshot(clock)
+    d = dict(clock.details)
+    d["major_damage"] = initial_major_damage()
+    clock.details = d
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "commission_g19_major_bulkhead_damage", before)
+    return {"commissioned": True}
+
+
+@transaction.atomic
+def register_g19_major_breach_site(*, operator_approved=False, zone_id,
+                                    exterior_room_id):
+    """Attest a direct, bounded external face and all rated boundary locks.
+
+    Detect unisolatable atmosphere ducts and refuse false containment.
+    The registered major hole must already exist as a real pressure leak.
+    """
+    if not operator_approved:
+        raise PermissionError("Major hull face requires world survey")
+    clock = _clock(lock=True)
+    reg = clock.details.get("major_damage")
+    hull = clock.details.get("hull")
+    if reg is None or hull is None:
+        raise PhysicsError("Major hull containment not commissioned")
+    from world.ship_world import find_ship_space
+    if find_ship_space(exterior_room_id) is None:
+        raise PhysicsError("Missing actual exterior maintenance room")
+    zones, _, node_zones = _topology()
+    if zones.get(exterior_room_id) != "VACUUM":
+        raise PhysicsError("External hull repair face is not an installed vacuum worksite")
+    boundaries = []
+    for door in CanonicalShipState.objects.filter(category="access"):
+        spec = door.reference
+        left, right = zones.get(spec.get("from")), zones.get(spec.get("to"))
+        if (left == zone_id) == (right == zone_id):
+            continue
+        if spec.get("pressure_boundary") is not True:
+            raise PhysicsError("Unrated physical access prevents assured bulkhead containment")
+        boundaries.append(door.source_id)
+    for edge in CanonicalShipState.objects.filter(category="edge"):
+        spec = edge.reference
+        if spec.get("network") != "atmosphere":
+            continue
+        left = node_zones.get(spec.get("from_node"))
+        right = node_zones.get(spec.get("to_node"))
+        if (left == zone_id) != (right == zone_id):
+            # This closure model does not remotely actuate unknown ductwork.
+            # Require separately surveyed dampers and explicit isolation
+            # before claiming full compartment containment.
+            raise PhysicsError("Uncontained atmosphere duct crosses this shell; isolate locally first")
+    try:
+        reg = register_major_site(
+            reg, hull, zone=zone_id, exterior_room=exterior_room_id,
+            boundaries=boundaries)
+    except MajorDamageError as exc:
+        raise PhysicsError(str(exc)) from exc
+    before = _snapshot(clock)
+    d = dict(clock.details)
+    d["major_damage"] = reg
+    clock.details = d
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "operator_major_exterior_breach_survey", before)
+    return {"zone": zone_id, "external_room": exterior_room_id,
+            "rated_boundaries": tuple(sorted(boundaries))}
+
+
+@transaction.atomic
 def commission_g19_hull(*, operator_approved=False):
     """Enable physical hull repair using the existing finite-spares service."""
     if not operator_approved:
@@ -1638,6 +1727,12 @@ def tick_continuous_physics(*, now_game_time=None):
         try:
             validate_eva(eva)
         except EVAError as exc:
+            raise PhysicsError(str(exc)) from exc
+    major_damage = clock.details.get("major_damage")
+    if major_damage is not None:
+        try:
+            validate_major_damage(major_damage)
+        except MajorDamageError as exc:
             raise PhysicsError(str(exc)) from exc
     waste_export_kg = 0.0
     changed_equipment = set()
@@ -2592,6 +2687,8 @@ def tick_continuous_physics(*, now_game_time=None):
         d["hab_sync"] = hab_sync
     if eva is not None:
         d["eva"] = eva
+    if major_damage is not None:
+        d["major_damage"] = major_damage
     if water_state is not None:
         d["water"] = water_state
     d["rotors"] = rotors
