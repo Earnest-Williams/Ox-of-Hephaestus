@@ -77,6 +77,13 @@ from world.ship_hab_sync import (
     HabSyncError, initial_hab_sync, validate_hab_sync,
     command_hab_sync, step_hab_sync,
 )
+from world.ship_eva_operations import (
+    EVAError, LOCKS as EVA_LOCKS, SUIT_O2_KG,
+    initial_eva, validate_eva, lock_contract, suit_of, checkout_suit,
+    return_suit, begin_cycle, step_cycles, transfer_recovered_gas,
+    step_suit_metabolism, begin_eva_transit, step_eva_transits,
+    finish_eva_transit,
+)
 
 CLOCK_KEY = "meta:continuous-physics"
 SCRIPT_KEY = "OxContinuousShipPhysics"
@@ -837,6 +844,36 @@ def commission_g19_hab_sync(*, operator_approved=False):
 
 
 @transaction.atomic
+def commission_g19_eva(*, operator_approved=False):
+    """Commission two real EVA locks and four initially empty breathing sets."""
+    if not operator_approved:
+        raise PermissionError("EVA commissioning requires world authority")
+    clock = _clock(lock=True)
+    if clock.details.get("eva") is not None:
+        validate_eva(clock.details["eva"])
+        return {"commissioned": False}
+    stock = state("inventory", "INV-DC-CONSUMABLES")
+    if stock.quantity is None or stock.quantity * 1000 < 4 * SUIT_O2_KG:
+        raise PhysicsError("No physical breathing reserve for issued suits")
+    for lock in EVA_LOCKS:
+        spec = lock_contract(lock)
+        for kind, ident in (
+                ("equipment", spec["panel"]), ("equipment", spec["crawler"]),
+                ("isolator", spec["damper"]), ("isolator", spec["breaker"]),
+                ("access", spec["inner"]), ("access", spec["outer"]),
+                ("pressure", spec["zone"])):
+            state(kind, ident)
+    before = _snapshot(clock)
+    d = dict(clock.details)
+    d["eva"] = initial_eva()
+    clock.details = d
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "commission_g19_eva_airlocks", before)
+    return {"commissioned": True, "suits": 4, "airlocks": 2}
+
+
+@transaction.atomic
 def commission_g19_hull(*, operator_approved=False):
     """Enable physical hull repair using the existing finite-spares service."""
     if not operator_approved:
@@ -1576,6 +1613,12 @@ def tick_continuous_physics(*, now_game_time=None):
         try:
             validate_hab_sync(hab_sync)
         except HabSyncError as exc:
+            raise PhysicsError(str(exc)) from exc
+    eva = clock.details.get("eva")
+    if eva is not None:
+        try:
+            validate_eva(eva)
+        except EVAError as exc:
             raise PhysicsError(str(exc)) from exc
     waste_export_kg = 0.0
     changed_equipment = set()
@@ -2422,6 +2465,8 @@ def tick_continuous_physics(*, now_game_time=None):
         d["personnel_transfers"] = personnel_transfers
     if hab_sync is not None:
         d["hab_sync"] = hab_sync
+    if eva is not None:
+        d["eva"] = eva
     if water_state is not None:
         d["water"] = water_state
     d["rotors"] = rotors
@@ -2661,7 +2706,7 @@ def crew_physical_action(actor, request_id, action, target, value):
     """
     if not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
         raise PhysicsError("Expected one 32-character lowercase request UUID")
-    if action not in {"switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull"}:
+    if action not in {"switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva"}:
         raise PhysicsError("Unknown physical operation")
     if actor is None or getattr(actor.db, "ox_terminal_dead", False):
         raise PermissionError("A deceased or missing character cannot operate machinery")
@@ -2683,8 +2728,8 @@ def crew_physical_action(actor, request_id, action, target, value):
                     "isolator:" if action == "switch"
                     else "pressure:" if action == "mist"
                     else "access:" if action == "hatch"
-                    else "" if action in {"schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull"}
-                    else "equipment:") + (CLOCK_KEY if action in {"schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull"} else target)
+                    else "" if action in {"schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva"}
+                    else "equipment:") + (CLOCK_KEY if action in {"schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva"} else target)
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
