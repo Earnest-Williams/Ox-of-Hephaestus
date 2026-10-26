@@ -107,7 +107,9 @@ def step_exposure(previous, environment, dt, *, suited=False,
         + dt * 0.00002 * (state["smoke_dose"] > 30)
         + dt * 0.00002 * (state["thermal_dose"] > 100)
         + dt * 0.00002 * (state["co2_dose"] > 1))
-    if state["injury"] >= 0.95 or state["hypoxia_s"] >= 600:
+    if state["injury"] >= 1.0 or state["hypoxia_s"] >= 1200:
+        state["condition"] = "dead"
+    elif state["injury"] >= 0.95 or state["hypoxia_s"] >= 600:
         state["condition"] = "critical"
     elif state["injury"] >= 0.5 or state["hypoxia_s"] >= 180:
         state["condition"] = "incapacitated"
