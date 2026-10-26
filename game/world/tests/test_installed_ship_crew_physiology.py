@@ -109,6 +109,9 @@ class InstalledCrewPhysiologyTests(EvenniaTestCase):
         self.assertGreaterEqual(current.details["hypoxia_s"], 180)
         with self.assertRaises(CrewTransitError):
             _health_gate(self.tech)
+        with self.assertRaisesRegex(
+                PermissionError, "Crew casualty cannot operate physical ship controls"):
+            self.action("switch", "ISO-GEN-M", "closed")
 
     def test_real_eva_suit_is_one_breathing_source_not_two(self):
         self.tech.move_to(find_ship_space("EVA-FWD"), quiet=True)
