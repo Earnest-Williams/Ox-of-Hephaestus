@@ -45,7 +45,7 @@ jobs:
           python -m compileall -q game/world/ship_eva_operations.py game/world/ship_hab_sync.py game/world/continuous_ship_physics.py game/world/ship_crew_access.py
       - name: Pure finite suit, transfer and moving-frame proofs
         working-directory: game
-        run: python -m unittest world.tests.test_ship_hab_sync world.tests.test_ship_eva_operations -v
+        run: python -m unittest world.tests.test_ship_hab_sync world.tests.test_ship_eva_operations world.tests.test_ship_major_damage -v
 
   installed:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
