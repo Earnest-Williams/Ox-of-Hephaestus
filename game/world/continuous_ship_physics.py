@@ -2998,7 +2998,7 @@ def crew_physical_action(actor, request_id, action, target, value):
     """
     if not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
         raise PhysicsError("Expected one 32-character lowercase request UUID")
-    if action not in {"switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva"}:
+    if action not in {"switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage"}:
         raise PhysicsError("Unknown physical operation")
     if actor is None or getattr(actor.db, "ox_terminal_dead", False):
         raise PermissionError("A deceased or missing character cannot operate machinery")
@@ -3020,8 +3020,8 @@ def crew_physical_action(actor, request_id, action, target, value):
                     "isolator:" if action == "switch"
                     else "pressure:" if action == "mist"
                     else "access:" if action == "hatch"
-                    else "" if action in {"schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva"}
-                    else "equipment:") + (CLOCK_KEY if action in {"schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva"} else target)
+                    else "" if action in {"schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage"}
+                    else "equipment:") + (CLOCK_KEY if action in {"schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage"} else target)
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
@@ -3387,6 +3387,29 @@ def crew_physical_action(actor, request_id, action, target, value):
             item.details = d
             item.revision += 1
             item.save(update_fields=["details", "revision"])
+    elif action == "damage":
+        if value != "isolate":
+            raise PhysicsError("Damage control requires isolate at the engineering panel")
+        _crew_at(actor, "ENG-CONTROL")
+        panel = state("equipment", "LP-ENG-CONTROL")
+        if panel.condition in _BROKEN:
+            raise PhysicsError("Installed central damage-control panel failed")
+        item = _clock(lock=True)
+        before = _snapshot(item)
+        d = dict(item.details)
+        major = d.get("major_damage")
+        if major is None:
+            raise PhysicsError("Major shell damage and EVA not commissioned")
+        if target not in major["sites"]:
+            raise PhysicsError("No surveyed major hull break in this real pressure cell")
+        try:
+            major = start_containment(major, zone=target, actor=actor.dbref)
+        except MajorDamageError as exc:
+            raise PhysicsError(str(exc)) from exc
+        d["major_damage"] = major
+        item.details = d
+        item.revision += 1
+        item.save(update_fields=["details", "revision"])
     elif action == "eva":
         # All airlock, suit and exterior-platform actions have one durable
         # request receipt and are serialized against the authoritative clock.
