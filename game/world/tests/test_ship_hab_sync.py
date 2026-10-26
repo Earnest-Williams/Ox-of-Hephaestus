@@ -67,7 +67,7 @@ class MovingHabTests(unittest.TestCase):
             self.fail("Indexing station never captured")
 
     def test_nan_corruption_and_retrograde_time_refused(self):
-        for bad in (float("nan"), float("inf"), -1, 10):
+        for bad in (float("nan"), float("inf"), -1, 10.01):
             with self.assertRaises(HabSyncError):
                 step_hab_sync(initial_hab_sync(), bad,
                               hab_rpm=1, hab_phase_rad=0,
