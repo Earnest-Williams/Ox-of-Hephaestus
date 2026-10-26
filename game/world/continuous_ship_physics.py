@@ -3629,9 +3629,12 @@ def crew_physical_action(actor, request_id, action, target, value):
                     if not available:
                         raise EVAError("No real spare suit at this lock")
                     needed = SUIT_O2_KG - available["exposure"]["suit_oxygen_kg"]
+                    health_row = CanonicalShipState.objects.filter(
+                        pk="crew_health:" + actor.dbref).first()
                     eva, _, _ = checkout_suit(
                         eva, actor=actor.dbref, lock=target,
-                        supplied_oxygen_kg=needed)
+                        supplied_oxygen_kg=needed,
+                        wearer_health=health_row.details if health_row else None)
                 except EVAError as exc:
                     raise PhysicsError(str(exc)) from exc
             elif value == "return":
