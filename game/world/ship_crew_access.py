@@ -46,8 +46,10 @@ def _rotary_gate(src, dst, door):
         if {src.db.ox_frame, dst.db.ox_frame} != {"fixed", "indexer"}:
             raise CrewTransitError("Habitation capsule is not at its fixed dock")
         clock = _clock()
-        if clock.details["rotors"]["HAB"]["passenger_indexer"]:
-            raise CrewTransitError("Fixed and rotary HAB collars cannot both be captured")
+        if (clock.details["rotors"]["HAB"]["passenger_indexer"]
+                or clock.details.get("hab_sync", {}).get("mode") not in {
+                    None, "stowed"}):
+            raise CrewTransitError("Moving or parked HAB collar excludes fixed-side hatch")
         for ident in (f"IX-{station}-CARRIER", f"IX-{station}-FIXED-COLLAR"):
             if state("equipment", ident).condition in _BROKEN:
                 raise CrewTransitError("Fixed-side HAB indexer hardware damaged")
@@ -73,7 +75,20 @@ def _rotary_gate(src, dst, door):
     names = set(names)
     if len(names) != 1:
         raise CrewTransitError("Moving-frame transfer mechanism unclassified")
-    rotor = _clock().details.get("rotors", {}).get(names.pop())
+    rotor_name = names.pop()
+    clock = _clock()
+    rotor = clock.details.get("rotors", {}).get(rotor_name)
+    if rotor_name == "HAB" and door.source_id in {
+            "ACC-IX-A-ROT", "ACC-IX-B-ROT"}:
+        from world.ship_hab_sync import moving_hab_ready, HabSyncError
+        try:
+            if moving_hab_ready(
+                    clock.details.get("hab_sync"), station=door.source_id[7],
+                    hab_rpm=rotor["rpm"], hab_phase_rad=rotor["phase_rad"],
+                    hardware_ok=True, powered=True):
+                return
+        except (HabSyncError, TypeError, KeyError):
+            pass
     if not rotor or not (
             rotor.get("passenger_indexer") and not rotor.get("freight_collar")
             and rotor.get("hardlock") and rotor.get("brake")
@@ -143,7 +158,7 @@ def _clearance(actor, exit_obj, dest):
                 link, rotors=clock.details["rotors"], equipment=hardware,
                 access=access, pressure={za: a, zb: b},
                 room_zones=zones, pressure_safe=_air_safe,
-                powered=True):
+                powered=True, hab_sync=clock.details.get("hab_sync")):
             raise CrewTransitError("Indexer capture, fixed hatch or live air is unsafe")
         return door
     if za != zb:
