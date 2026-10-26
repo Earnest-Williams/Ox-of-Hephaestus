@@ -112,6 +112,61 @@ class InstalledEVAMajorDamageTests(EvenniaTestCase):
         self.assertEqual(local_physics_readout(self.tech, "eva")[
             "suit"]["home"], "EVA-FWD")
 
+    def test_real_return_eva_repressurises_from_retained_gas(self):
+        gas_before = state("pressure", "PZ-BOW-EVA").quantity
+        self.issue_suit_at_forward_airlock()
+        self.pumpout_and_exit_forward()
+        reverse = find_world_entity("access:ACC-EVA-FWD-EXT:reverse")
+        return_receipt = traverse_canonical_exit(
+            self.tech, reverse, find_ship_space("EVA-FWD"),
+            request_id=self.ident())
+        self.assertEqual(return_receipt["status"], "queued")
+        self.assertEqual(return_receipt["travel_seconds"], 45)
+        self.advance(45)
+        self.assertEqual(self.tech.location.db.ox_space_id, "EVA-FWD")
+        self.action("eva", "EVA-FWD", "outer_close")
+        self.action("eva", "EVA-FWD", "repressurise")
+        self.advance(90)
+        self.assertEqual(
+            _clock().details["eva"]["locks"]["EVA-FWD"]["mode"], "pressurised")
+        self.assertAlmostEqual(
+            state("pressure", "PZ-BOW-EVA").quantity, gas_before, delta=.5)
+        self.assertAlmostEqual(
+            _clock().details["eva"]["locks"]["EVA-FWD"]["buffer"]["mass"], 0)
+        self.action("eva", "EVA-FWD", "return")
+        self.assertIsNone(
+            _clock().details["eva"]["suits"]["EVA-FWD-SUIT-1"]["holder"])
+        self.assertEqual(
+            _clock().details["eva"]["completed_transits"], 2)
+        self.assertEqual(CanonicalShipEvent.objects.filter(
+            operation="crew_eva_transit_complete").count(), 2)
+
+    def test_later_pressure_door_failure_revokes_major_containment(self):
+        zone = "PZ-DR-03-SVC"
+        register_g19_hull_breach(
+            operator_approved=True, zone_id=zone,
+            site_room_id="DR-03-GALLERY", leak_kg_s=.8)
+        registration = register_g19_major_breach_site(
+            operator_approved=True, zone_id=zone,
+            exterior_room_id="EXT-DR03-SKIN")
+        self.move("ENG-CONTROL")
+        self.action("switch", "ISO-LP-ENG-CONTROL", "closed")
+        self.action("damage", zone, "isolate")
+        self.advance(120)
+        self.assertTrue(
+            _clock().details["major_damage"]["sites"][zone]["isolated"])
+        # Operator-introduced later bulkhead failure: loss is detected by
+        # the authoritative clock and prohibits any subsequent EVA repair.
+        door = state("access", registration["rated_boundaries"][0], lock=True)
+        door.setting = "open"
+        door.revision += 1
+        door.save(update_fields=["setting", "revision"])
+        self.advance(10)
+        self.assertFalse(
+            _clock().details["major_damage"]["sites"][zone]["isolated"])
+        self.assertEqual(CanonicalShipEvent.objects.filter(
+            operation="major_hull_containment_lost").count(), 1)
+
     def test_large_breach_isolation_and_suited_exterior_hull_recovery(self):
         zone = "PZ-DR-01-SVC"
         register_g19_hull_breach(
