@@ -2963,7 +2963,7 @@ def _personnel_fixed_hatch_preflight(hatch):
     r = clock.details.get("rotors", {}).get(rotor)
     if not r or r.get("passenger_indexer") or r.get("freight_collar"):
         raise PhysicsError("Cannot open fixed hatch while a rotary interface is captured")
-    if rotor == "HAB" and clock.details.get("hab_sync", {}).get("mode") != "stowed":
+    if rotor == "HAB" and clock.details.get("hab_sync", {}).get("mode") not in {None, "stowed"}:
         raise PhysicsError("Moving HAB capture must stow before fixed hatch access")
     transfers = clock.details.get("personnel_transfers")
     if transfers and rotor in transfers["jobs"]:
