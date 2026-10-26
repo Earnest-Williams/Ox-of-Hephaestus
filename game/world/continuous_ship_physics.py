@@ -64,6 +64,10 @@ from world.ship_equipment_repair import (
 from world.ship_waste_repair_world import (
     selected_waste_route, live_waste_route, safe_repair_target,
 )
+from world.ship_hull_restoration import (
+    HullError, initial_hull, validate_hull, register_breach,
+    effective_leak, expected_repair_condition, finish_hull_work,
+)
 
 CLOCK_KEY = "meta:continuous-physics"
 SCRIPT_KEY = "OxContinuousShipPhysics"
@@ -775,6 +779,67 @@ def verify_g19_hydrogen_outlet(side, *, operator_approved=False,
 
 
 @transaction.atomic
+def commission_g19_hull(*, operator_approved=False):
+    """Enable physical hull repair using the existing finite-spares service."""
+    if not operator_approved:
+        raise PermissionError("Hull commissioning is operator-only")
+    clock = _clock(lock=True)
+    if clock.details.get("hull") is not None:
+        return {"commissioned": False}
+    if clock.details.get("repairs") is None:
+        raise PhysicsError("Commission physical shared repairs first")
+    before = _snapshot(clock)
+    d = dict(clock.details)
+    d["hull"] = initial_hull()
+    clock.details = d
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "operator_hull_commissioned", before)
+    return {"commissioned": True}
+
+
+@transaction.atomic
+def register_g19_hull_breach(*, operator_approved=False, zone_id,
+                             site_room_id, leak_kg_s):
+    """Survey a real room on the affected pressure shell, then record damage."""
+    if not operator_approved:
+        raise PermissionError("Hull damage commissioning is operator-only")
+    clock = _clock(lock=True)
+    hull = clock.details.get("hull")
+    if hull is None:
+        raise PhysicsError("G19 hull has not been commissioned")
+    from world.ship_world import find_ship_space
+    if (find_ship_space(site_room_id) is None
+            or _topology()[0].get(site_room_id) != zone_id):
+        raise PhysicsError("Hull repair face does not belong to this installed cell")
+    cell = state("pressure", zone_id, lock=True)
+    if (cell.details.get("physics_leak_kg_s", 0) != 0
+            or cell.details.get("physics_leak_isolator_id")):
+        raise PhysicsError("Existing valved/service leak cannot become a hull breach")
+    try:
+        new_hull = register_breach(
+            hull, zone=zone_id, site_room=site_room_id, leak_kg_s=leak_kg_s)
+    except HullError as exc:
+        raise PhysicsError(str(exc)) from exc
+    previous = _snapshot(cell)
+    d = dict(cell.details)
+    d["physics_leak_kg_s"] = new_hull["breaches"][zone_id]["original_leak_kg_s"]
+    cell.details = d
+    cell.revision += 1
+    cell.save(update_fields=["details", "revision"])
+    _event(cell, "operator_hull_breach", previous)
+    before = _snapshot(clock)
+    d = dict(clock.details)
+    d["hull"] = new_hull
+    clock.details = d
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "operator_hull_repair_face_survey", before)
+    return {"zone": zone_id, "repair_room": site_room_id,
+            "leak_kg_s": new_hull["breaches"][zone_id]["original_leak_kg_s"]}
+
+
+@transaction.atomic
 def commission_g19_repairs(*, operator_approved=False):
     """Explicitly install durable shared maintenance, not an instant repair."""
     if not operator_approved:
@@ -1396,6 +1461,17 @@ def tick_continuous_physics(*, now_game_time=None):
     equipment = {x.source_id: x for x in equipment_rows}
     zones, owners, node_zones = _topology()
     cells = {r.source_id: _load_cell(r) for r in pressure_rows}
+    hull = clock.details.get("hull")
+    if hull is not None:
+        try:
+            validate_hull(hull)
+            for zone, breach in hull["breaches"].items():
+                if (zone not in cells or zones.get(breach["site_room"]) != zone
+                        or not math.isclose(cells[zone]["leak"], effective_leak(breach),
+                                            rel_tol=0, abs_tol=1e-7)):
+                    raise PhysicsError("Hull leak and authoritative pressure cell disagree")
+        except HullError as exc:
+            raise PhysicsError(str(exc)) from exc
     leak_isolators = {r.source_id: r.details.get("physics_leak_isolator_id")
                       for r in pressure_rows}
     # Reference node ownership is static within a tick. Avoid a database
@@ -2105,6 +2181,15 @@ def tick_continuous_physics(*, now_game_time=None):
         safe = set()
         for key, job in repairs["jobs"].items():
             category, identifier = key.split(":", 1)
+            if category == "hull":
+                breach = (hull or {}).get("breaches", {}).get(identifier)
+                cell = by_pressure.get(identifier)
+                if (breach and cell and breach["site_room"] == job["room"]
+                        and zones.get(job["room"]) == identifier
+                        and expected_repair_condition(hull, identifier) == job["condition"]
+                        and _air_safe(cell)):
+                    safe.add(key)
+                continue
             row = (equipment.get(identifier) if category == "equipment" else
                    by_isolator.get(identifier) if category == "isolator" else
                    by_access.get(identifier))
@@ -2130,6 +2215,27 @@ def tick_continuous_physics(*, now_game_time=None):
             raise PhysicsError(str(exc)) from exc
         for key, original, installed_spares in repair_completed:
             category, identifier = key.split(":", 1)
+            if category == "hull":
+                if hull is None or identifier not in by_pressure:
+                    raise PhysicsError("Hull repair lost its installed pressure cell")
+                try:
+                    hull, new_leak = finish_hull_work(
+                        hull, zone=identifier, condition=original,
+                        installed_kg=installed_spares)
+                except HullError as exc:
+                    raise PhysicsError(str(exc)) from exc
+                cell = by_pressure[identifier]
+                previous = _snapshot(cell)
+                d = dict(cell.details)
+                d["physics_leak_kg_s"] = new_leak
+                d["hull_installed_spares_kg"] = hull["breaches"][identifier]["installed_spares_kg"]
+                d["hull_repair_game_time"] = last + seconds
+                cell.details = d
+                cell.revision += 1
+                cell.save(update_fields=["details", "revision"])
+                cells[identifier]["leak"] = new_leak
+                _event(cell, "crew_hull_restoration_complete", previous)
+                continue
             item = (equipment[identifier] if category == "equipment" else
                     by_isolator[identifier] if category == "isolator" else
                     by_access[identifier])
@@ -2161,6 +2267,8 @@ def tick_continuous_physics(*, now_game_time=None):
     d["motion"] = motion
     if repairs is not None:
         d["repairs"] = repairs
+    if hull is not None:
+        d["hull"] = hull
     if water_state is not None:
         d["water"] = water_state
     d["rotors"] = rotors
