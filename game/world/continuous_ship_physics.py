@@ -2449,7 +2449,7 @@ def crew_physical_action(actor, request_id, action, target, value):
     """
     if not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
         raise PhysicsError("Expected one 32-character lowercase request UUID")
-    if action not in {"switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair"}:
+    if action not in {"switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull"}:
         raise PhysicsError("Unknown physical operation")
     if actor is None or getattr(actor.db, "ox_terminal_dead", False):
         raise PermissionError("A deceased or missing character cannot operate machinery")
@@ -2476,7 +2476,7 @@ def crew_physical_action(actor, request_id, action, target, value):
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
-    if action in {"repair", "wasteport"}:
+    if action in {"repair", "wasteport", "hull"}:
         # A worker who has become incapacitated cannot command or advance
         # a physical repair or sealed waste movement. Deduplicated historic
         # receipts above remain replayable without issuing a second action.
@@ -2828,6 +2828,58 @@ def crew_physical_action(actor, request_id, action, target, value):
             item.details = d
             item.revision += 1
             item.save(update_fields=["details", "revision"])
+    elif action == "hull":
+        # This is a real two-stage service order, not a pressure reset. Every
+        # gram of repair stock was first issued at the original stores.
+        item = _clock(lock=True)
+        before = _snapshot(item)
+        d = dict(item.details)
+        hull = d.get("hull")
+        repairs = d.get("repairs")
+        if hull is None or repairs is None:
+            raise PhysicsError("Hull and shared spares are not commissioned")
+        try:
+            validate_hull(hull)
+        except HullError as exc:
+            raise PhysicsError(str(exc)) from exc
+        breach = hull["breaches"].get(target)
+        if not breach:
+            raise PhysicsError("No installed hull breach at this pressure cell")
+        room = getattr(getattr(getattr(actor, "location", None), "db", None),
+                       "ox_space_id", None)
+        _crew_at(actor, breach["site_room"])
+        if (room != breach["site_room"]
+                or _topology()[0].get(room) != target):
+            raise PermissionError("Crew not at the surveyed physical hull repair face")
+        cell = state("pressure", target, lock=True)
+        if (not _air_safe(cell) or
+                not math.isclose(cell.details.get("physics_leak_kg_s", -1),
+                                 effective_leak(breach), rel_tol=0, abs_tol=1e-7)):
+            raise PhysicsError("Hull site unsafe or breach and pressure state disagree")
+        phase = expected_repair_condition(hull, target)
+        work_key = "hull:" + target
+        try:
+            if value in {"patch", "restore"}:
+                if (value == "patch" and phase != "jammed"
+                        or value == "restore" and phase != "severed"):
+                    raise HullError("Hull work sequence invalid; patch before permanent restoration")
+                repairs = begin_repair(
+                    repairs, target=work_key, room=room,
+                    actor_dbref=actor.dbref, condition=phase)
+            elif value == "join":
+                active = repairs["jobs"].get(work_key)
+                if not active or active["condition"] != phase:
+                    raise HullError("No active matching hull repair order")
+                repairs = join_repair(
+                    repairs, target=work_key, actor_dbref=actor.dbref, room=room)
+            else:
+                raise HullError("Hull operation requires patch, restore or join")
+        except (WaterError, HullError) as exc:
+            raise PhysicsError(str(exc)) from exc
+        d["repairs"] = repairs
+        item.details = d
+        item.revision += 1
+        item.save(update_fields=["details", "revision"])
     elif action == "repair":
         item = _clock(lock=True)
         before = _snapshot(item)
@@ -3331,6 +3383,25 @@ def local_physics_readout(actor, target):
     room = getattr(getattr(location, "db", None), "ox_space_id", None)
     if not room:
         raise PermissionError("Stand at an installed ship compartment")
+    if target == "hull":
+        hull = _clock().details.get("hull")
+        if hull is None:
+            raise PhysicsError("G19 hull is not commissioned")
+        local = {zone: breach for zone, breach in hull["breaches"].items()
+                 if breach["site_room"] == room}
+        if not local:
+            raise PermissionError("No registered hull repair face in this room")
+        repairs = _clock().details.get("repairs", {})
+        return {
+            "breaches_here": {
+                zone: {"phase": breach["phase"],
+                       "measured_leak_kg_s": state("pressure", zone).details.get(
+                           "physics_leak_kg_s"),
+                       "installed_spares_kg": breach["installed_spares_kg"],
+                       "work": repairs.get("jobs", {}).get("hull:" + zone)}
+                for zone, breach in local.items()},
+            "scope": "locally_surveyed_hull_faces_only",
+        }
     if target == "repairs":
         repairs = _clock().details.get("repairs")
         if repairs is None:
@@ -3500,6 +3571,8 @@ def configure_scenario_casualty(cell_id, *, operator=False, leak_kg_s=None,
     before = _snapshot(item)
     d = dict(item.details)
     if leak_kg_s is not None:
+        if cell_id in _clock().details.get("hull", {}).get("breaches", {}):
+            raise PhysicsError("Registered hull breach requires finite physical repair")
         d["physics_leak_kg_s"] = _positive(leak_kg_s, zero=True, maximum=50)
     if leak_isolator_id is not None:
         if leak_kg_s is None or leak_kg_s <= 0:
