@@ -310,6 +310,24 @@ def _snapshot(item):
                 "toolkit_carriers": jobs["toolkit_carriers"],
                 "site_surveys": jobs["site_surveys"],
             }
+        if item.details.get("hab_sync") is not None:
+            result["hab_sync"] = item.details["hab_sync"]
+        if item.details.get("personnel_transfers") is not None:
+            result["personnel_transfers"] = item.details["personnel_transfers"]
+        if item.details.get("eva") is not None:
+            system = item.details["eva"]
+            result["eva"] = {
+                "locks": system["locks"],
+                "transits": system["transits"],
+                "issued_kg": system["issued_kg"],
+                "charged_kg": system["charged_kg"],
+                "consumed_oxygen_kg": system["consumed_oxygen_kg"],
+                "suits": {key: {
+                    "holder": value["holder"],
+                    "oxygen_kg": value["exposure"]["suit_oxygen_kg"],
+                    "condition": value["exposure"]["condition"]}
+                    for key, value in system["suits"].items()},
+            }
         result["motion"] = item.details.get("motion")
         result["rotors"] = item.details.get("rotors")
         cargo = item.details.get("cargo")
@@ -2843,11 +2861,14 @@ def crew_physical_action(actor, request_id, action, target, value):
     # Once a person has boarded a moving indexed carrier they cannot
     # operate machinery elsewhere until the real transport completes.
     transfers = _clock().details.get("personnel_transfers")
+    eva_system = _clock().details.get("eva")
+    if eva_system and actor.dbref in eva_system["transits"]:
+        raise PermissionError("Character occupies a timed exterior route")
     if transfers and any(
             job["actor"] == actor.dbref
             for job in transfers["jobs"].values()):
         raise PermissionError("Character is committed to a moving personnel carriage")
-    if action in {"repair", "wasteport", "hull"}:
+    if action in {"repair", "wasteport", "hull", "eva"}:
         # A worker who has become incapacitated cannot command or advance
         # a physical repair or sealed waste movement. Deduplicated historic
         # receipts above remain replayable without issuing a second action.
@@ -4020,6 +4041,36 @@ def local_physics_readout(actor, target):
     room = getattr(getattr(location, "db", None), "ox_space_id", None)
     if not room:
         raise PermissionError("Stand at an installed ship compartment")
+    if target == "eva":
+        system = _clock().details.get("eva")
+        if system is None:
+            raise PhysicsError("G19 EVA is not commissioned")
+        _, suit = suit_of(system, actor.dbref)
+        local = {}
+        for lock in EVA_LOCKS:
+            spec = lock_contract(lock)
+            if room in {lock, spec["trunk"], spec["outside"]}:
+                local[lock] = {
+                    "mode": system["locks"][lock]["mode"],
+                    "remaining_s": system["locks"][lock]["remaining_s"],
+                    "recovered_gas_kg": system["locks"][lock]["buffer"]["mass"],
+                    "inner": state("access", spec["inner"]).setting,
+                    "outer": state("access", spec["outer"]).setting,
+                    "air_damper": state("isolator", spec["damper"]).setting,
+                }
+        if not local and not room.startswith("EXT-") and suit is None:
+            raise PermissionError("No EVA station or suit at this location")
+        return {
+            "locks_here": local,
+            "suit": ({"home": suit["home"], "integrity": suit["integrity"],
+                      "oxygen_kg": suit["exposure"]["suit_oxygen_kg"],
+                      "co2_kg": suit["exposure"]["suit_co2_kg"],
+                      "condition": suit["exposure"]["condition"]}
+                     if suit else None),
+            "staged_oxygen_kg": system["staged_kg"].get(actor.dbref, 0.0),
+            "active_transit": system["transits"].get(actor.dbref),
+            "scope": "local_issued_suit_and_airlock_only",
+        }
     if target == "personnel":
         from world.ship_indexed_personnel import link_contract
         transfers = _clock().details.get("personnel_transfers")
