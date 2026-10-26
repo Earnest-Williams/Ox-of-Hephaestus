@@ -13,13 +13,17 @@ from world.ship_motion_machinery import initial_rotors, set_rotor_command
 
 
 class IndexedPersonTransferTests(unittest.TestCase):
-    def test_exact_eight_authored_links_and_times(self):
+    def test_exact_nine_authored_links_and_times(self):
         for i in range(1, 7):
             spec = link_contract(f"ACC-DR-{i:02d}-LOCK-ROT")
             self.assertEqual(spec["seconds"], 180)
         for station in "AB":
             spec = link_contract(f"ACC-IX-{station}-ROT")
             self.assertEqual(spec["seconds"], 300)
+        workshop = link_contract("ACC-WR-IX-HUB")
+        self.assertEqual(workshop["rotor"], "WR-01")
+        self.assertEqual(workshop["seconds"], 20)
+        self.assertEqual(workshop["fixed_hatch"], "ACC-WR-FIXED-IX")
         with self.assertRaises(IndexedTransferError):
             link_contract("ACC-DR-07-LOCK-ROT")
         with self.assertRaises(IndexedTransferError):
