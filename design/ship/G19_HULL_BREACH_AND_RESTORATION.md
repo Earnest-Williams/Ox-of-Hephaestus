@@ -1,6 +1,6 @@
 # G19 — installed hull breach and finite restoration
 
-**Status: implemented on draft G19 PR #138; acceptance is pending installed-world CI.** The whole-ship PR is not merged. This is causal gameplay for an extensively refitted freighter, not spacecraft certification, FEA or fabrication detail. No 40-crew voyage is included in this work.
+**Status: BOUNDED HULL-REPAIR SLICE ACCEPTED (26 October 2026), on draft G19 PR #138.** The whole-ship PR is not merged. This is causal gameplay for an extensively refitted freighter, not spacecraft certification, FEA or fabrication detail. No 40-crew voyage is included in this work.
 
 ## Authoritative pressure-shell damage
 
@@ -27,6 +27,13 @@ Every step is issued through an authenticated, idempotent 32-hex request and per
 General pressure-hatch opening and ordinary machinery repair still reject any active leak. The special inside-hull repair face is accessible only with a verified **small** loss at or below **0.05 kg/s (50 g/s)** and otherwise fully healthy pressure, gas fractions, smoke, fire and temperature. This is a bounded *gameplay* approach for a local gasket/small plating repair, not permission to work in hard vacuum. A larger rupture, dangerous thermal state, smoke, pressure loss or missing room mapping requires separate isolation/suited operations and cannot be repaired by this unsuited crew action. Suit-enabled larger-breach work and exterior worksite traversal are **not claimed implemented** here.
 
 The operator-surveyed site is an attestation to a reachable inner repair face on the installed shell. This is not a new room, a simulated hull mesh or proof of physical exterior accessibility.
+
+## Accepted subsystem evidence — 26 October 2026
+
+Tested code revision: `c22ff2eb9a025dfe6dc6da8cb233f79d4cc52fd9`.
+[Dedicated Actions run #40261981436](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40261981436) completed **both jobs successfully**, with **12/12 tests passing**: seven pure finite-hull conservation, phase and corruption tests; five installed-world Evennia cases including the active-fire interruption with parts retained. The fast PR and documentation gates also passed. Adjacent G19 waste/repair and water/G18 compatibility workflows completed successfully on `126ef5ac`, the same production physics code; the only later runtime-adjacent change was the extra installed fire-interruption test.
+
+This accepts **only** the small-breach, interior local patch and permanent repair implementation; it does not claim EVA, major hull repair or complete ship readiness.
 
 ## Verification and limits
 
