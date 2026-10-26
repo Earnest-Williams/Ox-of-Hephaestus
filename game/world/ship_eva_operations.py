@@ -34,6 +34,36 @@ def _num(x, low=0.0, high=None):
     return float(x)
 
 
+def human_exterior_site_safe(room, rotors):
+    """As-authored external access: never approach a rotating drum skin.
+
+    Radiator and propulsion work faces remain inaccessible until their own
+    cooling/isolation/plume-keepout controls are implemented. Rail travel
+    between fixed-spine anchors is governed separately.
+    """
+    if room == "EXT-BOW-SHIELD":
+        return True
+    match = re.fullmatch(r"EXT-DR(0[1-6])-SKIN", room or "")
+    if match is None:
+        return False
+    drum = "DR-" + match.group(1)
+    row = rotors.get(drum)
+    if row is None:
+        return False
+    rpm = row.get("rpm")
+    target = row.get("target_rpm")
+    phase = row.get("phase_rad")
+    if (any(isinstance(v, bool) or not isinstance(v, (int, float))
+            or not math.isfinite(v) for v in (rpm, target, phase))
+            or abs(rpm) > .001 or target != 0 or not row.get("hardlock")
+            or not row.get("brake") or row.get("indexing")
+            or row.get("freight_collar") or row.get("passenger_indexer")
+            or row.get("condition") not in {"serviceable", "worn"}):
+        return False
+    phase %= 2 * math.pi
+    return min(phase, 2 * math.pi - phase) < .01
+
+
 def lock_contract(room):
     if room not in LOCKS:
         raise EVAError("No installed primary EVA airlock at that room")
