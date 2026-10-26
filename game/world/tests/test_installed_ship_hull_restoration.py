@@ -133,6 +133,22 @@ class InstalledHullRepairTests(EvenniaTestCase):
         tick_continuous_physics(now_game_time=1010)
         self.assertLess(state("pressure", self.zone).quantity, original_air)
 
+    def test_active_fire_stops_hull_work_without_refunding_reserved_parts(self):
+        from world.continuous_ship_physics import configure_scenario_casualty
+        self.prepare_repair_parts(2)
+        self.register(.001)
+        self.action("8", "hull", self.zone, "patch")
+        self.assertEqual(_clock().details["repairs"]["jobs"][
+            "hull:" + self.zone]["staged_kg"], 2)
+        configure_scenario_casualty(
+            self.zone, fire_fuel_kg=2, fire_burn_kg_s=.1, operator=True)
+        tick_continuous_physics(now_game_time=1060)
+        job = _clock().details["repairs"]["jobs"]["hull:" + self.zone]
+        self.assertEqual(job["remaining_s"], 600)
+        self.assertEqual(job["staged_kg"], 2)
+        self.assertEqual(state("pressure", self.zone).details["physics_leak_kg_s"],
+                         .001)
+
     def test_operator_cannot_relabel_existing_leak_or_reset_registered_breach(self):
         from world.continuous_ship_physics import configure_scenario_casualty
         configure_scenario_casualty(self.zone, leak_kg_s=.02, operator=True)
