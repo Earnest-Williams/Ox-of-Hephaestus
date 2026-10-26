@@ -185,7 +185,7 @@ def traverse_canonical_exit(actor, exit_obj, dest, *, request_id=None):
     door = _clearance(actor, exit_obj, dest)
     origin = actor.location.db.ox_space_id
     if (door.reference.get("kind") == "indexed_rotary_transfer"
-            or link == "ACC-WR-IX-HUB")
+            or link == "ACC-WR-IX-HUB"):
         from world.continuous_ship_physics import _snapshot, _event
         clock = _clock(lock=True)
         try:
