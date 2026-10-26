@@ -199,8 +199,10 @@ class InstalledPersonnelIndexers(EvenniaTestCase):
         self.passenger.move_to(find_ship_space("IX-A-CAPSULE"), quiet=True)
         first = self.action(self.tech, "1", "rotor", "HAB", "sync:A")
         self.assertEqual(first["status"], "succeeded")
+        self.tech.move_to(find_ship_space("ENG-CONTROL"), quiet=True)
         with self.assertRaises(PhysicsError):
             self.action(self.tech, "2", "rotor", "HAB", "sync:B")
+        self.tech.move_to(find_ship_space("HUB-FIXED-A"), quiet=True)
         now = 1360
         for _ in range(20):
             now += 60
