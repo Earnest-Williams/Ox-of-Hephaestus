@@ -3178,6 +3178,14 @@ def crew_physical_action(actor, request_id, action, target, value):
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
+    # A physically incapacitated engineer cannot operate ANY remote switch,
+    # helm or machinery after injury. Previously issued request receipts
+    # above stay replayable without executing a new action.
+    health_row = CanonicalShipState.objects.filter(
+        pk="crew_health:" + getattr(actor, "dbref", "")).first()
+    if health_row and health_row.condition in {
+            "incapacitated", "critical", "dead"}:
+        raise PermissionError("Crew casualty cannot operate physical ship controls")
     # Once a person has boarded a moving indexed carrier they cannot
     # operate machinery elsewhere until the real transport completes.
     transfers = _clock().details.get("personnel_transfers")
