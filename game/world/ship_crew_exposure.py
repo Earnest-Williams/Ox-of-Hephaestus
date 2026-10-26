@@ -89,10 +89,19 @@ def step_exposure(previous, environment, dt, *, suited=False,
         state["hypoxia_s"] = max(0.0, state["hypoxia_s"] - dt * 0.25)
     else:
         state["hypoxia_s"] += dt
-    # Suits reduce smoke contact but do not make extreme radiant heat harmless.
-    if not suited:
-        state["smoke_dose"] += env["smoke_density"] * dt
-        state["co2_dose"] += max(0, env["co2_fraction"] - 0.005) * dt
+    # Suit seals shield airborne smoke/CO2 contact; cumulative dose decays
+    # when the exposure ends. Lasting injury is tracked separately and
+    # never un-does itself merely because the air has become breathable.
+    smoke_now = 0.0 if suited else env["smoke_density"]
+    co2_now = 0.0 if suited else max(0.0, env["co2_fraction"] - 0.005)
+    if smoke_now > 0:
+        state["smoke_dose"] += smoke_now * dt
+    else:
+        state["smoke_dose"] = max(0.0, state["smoke_dose"] - 0.05 * dt)
+    if co2_now > 0:
+        state["co2_dose"] += co2_now * dt
+    else:
+        state["co2_dose"] = max(0.0, state["co2_dose"] - 0.05 * dt)
     temperature = env["temperature_k"]
     if temperature < 273 or temperature > 320:
         state["thermal_dose"] += dt * (max(0, 273 - temperature)
@@ -101,12 +110,14 @@ def step_exposure(previous, environment, dt, *, suited=False,
         state["thermal_dose"] = max(0.0, state["thermal_dose"] - dt * 0.1)
     state["water_deficit_kg"] = max(0.0, state["water_deficit_kg"]
                                    + dt * 2.0 / 86400 - drink)
-    # Nonlinear chronic damage; breathing recovery does not instantly heal injury.
+    # Chronic injury persists, but exposure that has actually ended must
+    # not continue adding injury indefinitely from a historical dose.
+    thermal_active = temperature < 273 or temperature > 320
     state["injury"] = min(1.0, state["injury"]
-        + dt * (0.001 if state["hypoxia_s"] >= 60 else 0.0)
-        + dt * 0.00002 * (state["smoke_dose"] > 30)
-        + dt * 0.00002 * (state["thermal_dose"] > 100)
-        + dt * 0.00002 * (state["co2_dose"] > 1))
+        + dt * (0.001 if not breathable and state["hypoxia_s"] >= 60 else 0.0)
+        + dt * 0.00002 * (smoke_now > 0 and state["smoke_dose"] > 30)
+        + dt * 0.00002 * (thermal_active and state["thermal_dose"] > 100)
+        + dt * 0.00002 * (co2_now > 0 and state["co2_dose"] > 1))
     if state["injury"] >= 1.0 or state["hypoxia_s"] >= 1200:
         state["condition"] = "dead"
     elif state["injury"] >= 0.95 or state["hypoxia_s"] >= 600:
