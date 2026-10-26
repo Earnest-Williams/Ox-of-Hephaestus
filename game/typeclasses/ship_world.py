@@ -32,7 +32,11 @@ class CanonicalShipAccess(DefaultExit):
             return
         from world.ship_crew_access import CrewTransitError, traverse_canonical_exit
         try:
-            traverse_canonical_exit(traversing_object, self, target_location)
+            result = traverse_canonical_exit(traversing_object, self, target_location)
+            if result.get("status") == "queued":
+                traversing_object.msg(
+                    f"Indexed personnel transfer engaged: {result['travel_seconds']:.0f}"
+                    " game-seconds at the rated station. Remain aboard until arrival.")
         except (CrewTransitError, PermissionError) as exc:
             traversing_object.msg(str(exc))
 
