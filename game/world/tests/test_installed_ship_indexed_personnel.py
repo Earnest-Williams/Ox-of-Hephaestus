@@ -91,7 +91,7 @@ class InstalledPersonnelIndexers(EvenniaTestCase):
         exit_obj, hub = self.drum()
         origin = self.tech.location
         traverse_canonical_exit(self.tech, exit_obj, hub, request_id="3" * 32)
-        with self.assertRaises(PhysicsError):
+        with self.assertRaisesRegex(PermissionError, "moving personnel carriage"):
             self.action(self.tech, "4", "rotor", "DR-01", "passenger_retract")
         set_isolator("ISO-GEN-M", "open", operator=True)
         tick_continuous_physics(now_game_time=1060)
