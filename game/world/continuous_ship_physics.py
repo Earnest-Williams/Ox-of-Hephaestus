@@ -3575,6 +3575,29 @@ def local_physics_readout(actor, target):
     room = getattr(getattr(location, "db", None), "ox_space_id", None)
     if not room:
         raise PermissionError("Stand at an installed ship compartment")
+    if target == "personnel":
+        from world.ship_indexed_personnel import link_contract
+        transfers = _clock().details.get("personnel_transfers")
+        if transfers is None:
+            raise PhysicsError("G19 indexed passenger mechanisms not commissioned")
+        local = {}
+        for link in (
+                *(f"ACC-DR-{n:02d}-LOCK-ROT" for n in range(1, 7)),
+                "ACC-IX-A-ROT", "ACC-IX-B-ROT"):
+            spec = link_contract(link)
+            if room not in {spec["from"], spec["to"]}:
+                continue
+            rotor = _clock().details["rotors"][spec["rotor"]]
+            local[link] = {
+                "captured": bool(rotor["passenger_indexer"]),
+                "station": rotor.get("passenger_station"),
+                "active_job": transfers["jobs"].get(spec["rotor"]),
+                "fixed_hatch_setting": state("access", spec["fixed_hatch"]).setting,
+            }
+        if not local:
+            raise PermissionError("No indexed personnel transfer station here")
+        return {"stations_here": local,
+                "scope": "physically_local_indexed_passenger_transfer"}
     if target == "hull":
         hull = _clock().details.get("hull")
         if hull is None:
