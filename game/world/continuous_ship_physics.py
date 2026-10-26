@@ -2527,6 +2527,41 @@ def _hatch_open_preflight(hatch):
             raise PhysicsError("Opposite bridge pressure hatch must close first")
 
 
+def _personnel_fixed_hatch_preflight(hatch):
+    """Protect the six drum service locks and two independent HAB capsules."""
+    source_id = hatch.source_id
+    if re.fullmatch(r"ACC-DR-0[1-6]-LOCK-FIX", source_id):
+        rotor, kind = source_id[4:9], "pressure_door"
+    elif source_id in {"ACC-IX-A-FIX", "ACC-IX-B-FIX"}:
+        rotor, kind = "HAB", "pressure_hatch"
+    else:
+        raise PhysicsError("Not an installed fixed-side indexer hatch")
+    spec = hatch.reference
+    if spec.get("kind") != kind or spec.get("pressure_boundary") is not True:
+        raise PhysicsError("Fixed-side indexer pressure boundary misclassified")
+    clock = _clock(lock=True)
+    r = clock.details.get("rotors", {}).get(rotor)
+    if not r or r.get("passenger_indexer") or r.get("freight_collar"):
+        raise PhysicsError("Cannot open fixed hatch while a rotary interface is captured")
+    transfers = clock.details.get("personnel_transfers")
+    if transfers and rotor in transfers["jobs"]:
+        raise PhysicsError("Fixed hatch cannot open during an indexed passenger run")
+    zones = _topology()[0]
+    a, b = zones.get(spec["from"]), zones.get(spec["to"])
+    if (not isinstance(a, str) or not a.startswith("PZ-")
+            or not isinstance(b, str) or not b.startswith("PZ-") or a == b):
+        raise PhysicsError("No verified independent fixed-side gas cells")
+    left = state("pressure", a, lock=True)
+    right = state("pressure", b, lock=True)
+    if not _air_safe(left) or not _air_safe(right):
+        raise PhysicsError("Fixed-side indexer air quality or pressure unsafe")
+    def pressure(cell):
+        return cell.quantity * R_SPECIFIC_AIR * cell.details[
+            "temperature_k"] / cell.details["gas_volume_m3"]
+    if abs(pressure(left) - pressure(right)) > 2000:
+        raise PhysicsError("Fixed-side hatch differential pressure unsafe")
+
+
 def _helm_at(actor):
     """Crew physically at an installed ship command or aft machinery console."""
     room = getattr(getattr(getattr(actor, "location", None), "db", None),
@@ -3302,7 +3337,11 @@ def crew_physical_action(actor, request_id, action, target, value):
                        "ox_space_id", None)
         roles = {"chief_engineer", "watch_engineer"}
         permitted = ("ENG-CONTROL", "WR-ROTOR-MACHINERY") if target == "WR-01" else (
-            ("ENG-CONTROL",) if target == "HAB" else
+            ("ENG-CONTROL", "HUB-FIXED-A", "HUB-FIXED-B")
+            if target == "HAB" and (
+                value.startswith("passenger_extend:") or
+                value == "passenger_retract")
+            else ("ENG-CONTROL",) if target == "HAB" else
             (target + "-FREIGHT-LOCK", target + "-SERVICE-LOCK"))
         if room not in permitted or (
                 getattr(actor.db, "crew_role", None) not in roles and
@@ -3332,6 +3371,31 @@ def crew_physical_action(actor, request_id, action, target, value):
         if target in DRUMS and target in _clock().details.get("cargo", {}).get("jobs", {}):
             if value in {"start", "release", "freight_retract", "passenger_extend"}:
                 raise PhysicsError("Freight operation underway; cannot release its capture")
+        transfers = _clock().details.get("personnel_transfers") or {"jobs": {}}
+        if target in transfers["jobs"] and value in {
+                "passenger_retract", "start", "release", "index",
+                "freight_extend", "freight_retract", "hardlock",
+                "passenger_extend", "passenger_extend:A", "passenger_extend:B"}:
+            raise PhysicsError("Occupied personnel carriage cannot be released or re-indexed")
+        if target in DRUMS and value == "passenger_extend":
+            fixed = state("access", "ACC-" + target + "-LOCK-FIX")
+            rotary = state("access", "ACC-" + target + "-LOCK-ROT")
+            if (fixed.condition in _BROKEN or fixed.setting != "closed"
+                    or rotary.condition in _BROKEN or rotary.setting != "closed"):
+                raise PhysicsError("Drum personnel locks must both be shut and sound")
+        if target == "HAB" and value in {
+                "passenger_extend:A", "passenger_extend:B"}:
+            station = value[-1]
+            if room != "ENG-CONTROL" and room != "HUB-FIXED-" + station:
+                raise PermissionError("Indexing must be ordered at its actual HAB station")
+            fixed = state("access", f"ACC-IX-{station}-FIX")
+            rotary = state("access", f"ACC-IX-{station}-ROT")
+            if (fixed.condition in _BROKEN or fixed.setting != "closed"
+                    or rotary.condition in _BROKEN or rotary.setting != "closed"
+                    or any(state("equipment", f"IX-{station}-{suffix}").condition
+                           in _BROKEN for suffix in (
+                               "DRIVE", "CARRIER", "FIXED-COLLAR", "ROT-COLLAR"))):
+                raise PhysicsError("Independent habitation indexer station not serviceable")
         if target in DRUMS and value in {"freight_extend", "passenger_extend"}:
             suffix = ("-FREIGHT-COLLAR" if value == "freight_extend"
                       else "-PERSONNEL-INDEXER")
@@ -3417,13 +3481,20 @@ def crew_physical_action(actor, request_id, action, target, value):
         if room_id not in {spec["from"], spec["to"]}:
             raise PermissionError("Worker is not at the actual hatch")
         _crew_at(actor, room_id)
-        if (not item.source_id.startswith("ACC-BR-") or
-                "hatch" not in str(spec.get("kind", "")).lower()):
-            raise PhysicsError("Machinery-indexed and cargo doors are not ordinary hatches")
+        ordinary_bridge = (item.source_id.startswith("ACC-BR-") and
+                           "hatch" in str(spec.get("kind", "")).lower())
+        fixed_indexer = (
+            re.fullmatch(r"ACC-DR-0[1-6]-LOCK-FIX", item.source_id) is not None
+            or item.source_id in {"ACC-IX-A-FIX", "ACC-IX-B-FIX"})
+        if not ordinary_bridge and not fixed_indexer:
+            raise PhysicsError("Other cargo, EVA and machinery doors need their own interlocks")
         if item.condition in _BROKEN:
             raise PhysicsError("Damaged hatch cannot be safely actuated")
         if value == "open" and item.setting != "open":
-            _hatch_open_preflight(item)
+            if ordinary_bridge:
+                _hatch_open_preflight(item)
+            else:
+                _personnel_fixed_hatch_preflight(item)
         before = _snapshot(item)
         if item.setting != value:
             item.setting = value
