@@ -80,7 +80,7 @@ from world.ship_hab_sync import (
 from world.ship_major_damage import (
     MajorDamageError, initial_major_damage, validate_major_damage,
     exterior_face_for, register_major_site, start_containment,
-    step_containments, external_repair_ready,
+    step_containments, revoke_containment, external_repair_ready,
 )
 from world.ship_eva_operations import (
     EVAError, LOCKS as EVA_LOCKS, SUIT_O2_KG, MAX_GAS_BUFFER_KG,
@@ -319,6 +319,8 @@ def _snapshot(item):
             result["hab_sync"] = item.details["hab_sync"]
         if item.details.get("personnel_transfers") is not None:
             result["personnel_transfers"] = item.details["personnel_transfers"]
+        if item.details.get("major_damage") is not None:
+            result["major_damage"] = item.details["major_damage"]
         if item.details.get("eva") is not None:
             system = item.details["eva"]
             result["eva"] = {
@@ -2457,6 +2459,74 @@ def tick_continuous_physics(*, now_game_time=None):
     # Maintenance progresses only with qualified workers still physically
     # on site, and equipment still provably isolated and environmentally safe.
     # A recorded fault cannot be repaired by simply toggling a status flag.
+    if major_damage is not None and major_damage["sites"]:
+        from evennia.objects.models import ObjectDB
+        by_access_major = {door.source_id: door for door in access_rows}
+        ready_zones = set()
+        for zone, work in major_damage["sites"].items():
+            fitted = [by_access_major.get(k) for k in work["boundaries"]]
+            doors_sound = all(
+                door is not None and door.condition not in _BROKEN
+                and door.reference.get("pressure_boundary") is True
+                for door in fitted)
+            closed = doors_sound and all(
+                door.setting == "closed" for door in fitted)
+            if work["isolated"]:
+                if not closed:
+                    major_damage = revoke_containment(major_damage, zone=zone)
+                    CanonicalShipEvent.objects.create(
+                        component_key="pressure:" + zone,
+                        operation="major_hull_containment_lost",
+                        before={"isolated": True},
+                        after={"isolated": False, "reason": "rated_pressure_door_changed"},
+                        game_time=last + seconds)
+                continue
+            if work["remaining_s"] <= 0 or not doors_sound:
+                continue
+            ref = work["operator"]
+            operator = (ObjectDB.objects.filter(id=int(ref[1:])).first()
+                        if ref and ref[1:].isdigit() else None)
+            if (operator is None or getattr(operator, "location", None) is None
+                    or getattr(operator.location.db, "ox_space_id", None) != "ENG-CONTROL"
+                    or getattr(operator.db, "ox_terminal_dead", False)
+                    or getattr(operator.db, "crew_role", None) not in AUTHORISED_ROLES):
+                continue
+            panel = equipment.get("LP-ENG-CONTROL")
+            if (panel is None or panel.condition in _BROKEN
+                    or not power["assured"]
+                    or "NODE-LP-ENG-CONTROL" not in power["nodes"]):
+                continue
+            # A live cargo/manpower interface must finish before its door can
+            # be closed: no traveller is silently ejected into the bulkhead.
+            if any(j["link"] in work["boundaries"] for j in
+                   (personnel_transfers or {"jobs": {}})["jobs"].values()):
+                continue
+            if any(j.get("portal_id", "")[:5] in zone for j in
+                   (water_state or {}).get("waste_offload", {}).get("jobs", {}).values()):
+                continue
+            ready_zones.add(zone)
+        try:
+            major_damage, completed_seals = step_containments(
+                major_damage, seconds, ready_zones=ready_zones)
+        except MajorDamageError as exc:
+            raise PhysicsError(str(exc)) from exc
+        for zone in completed_seals:
+            for identifier in major_damage["sites"][zone]["boundaries"]:
+                door = by_access_major[identifier]
+                prior = _snapshot(door)
+                if door.setting != "closed":
+                    door.setting = "closed"
+                    door.revision += 1
+                    door.save(update_fields=["setting", "revision"])
+                    _event(door, "major_hull_bulkhead_sealed", prior)
+            CanonicalShipEvent.objects.create(
+                component_key="pressure:" + zone,
+                operation="major_hull_containment_complete",
+                before={"isolated": False},
+                after={"isolated": True,
+                       "rated_boundaries": major_damage["sites"][zone]["boundaries"],
+                       "seconds": 120.0},
+                game_time=last + seconds)
     if repairs is not None and repairs["jobs"]:
         from evennia.objects.models import ObjectDB
         refs = {ref for job in repairs["jobs"].values()
