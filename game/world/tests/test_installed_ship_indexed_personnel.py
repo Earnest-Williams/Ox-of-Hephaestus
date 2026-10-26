@@ -185,6 +185,46 @@ class InstalledPersonnelIndexers(EvenniaTestCase):
         self.assertEqual(_clock().details["rotors"]["WR-01"]["rpm"], 0)
         self.assertTrue(_clock().details["rotors"]["WR-01"]["passenger_indexer"])
 
+    def test_hab_stays_rotating_during_actual_synchronised_boarding(self):
+        from world.continuous_ship_physics import commission_g19_hab_sync
+        self.assertTrue(commission_g19_hab_sync(
+            operator_approved=True)["commissioned"])
+        self.tech.move_to(find_ship_space("ENG-CONTROL"), quiet=True)
+        self.action(self.tech, "0", "rotor", "HAB", "start")
+        # Operate the real HAB drive for six game minutes: do not inject
+        # a fictional stationary or pre-aligned carrier.
+        self.advance(1000, 360)
+        self.assertGreater(_clock().details["rotors"]["HAB"]["rpm"], 0.30)
+        self.tech.move_to(find_ship_space("HUB-FIXED-A"), quiet=True)
+        self.passenger.move_to(find_ship_space("IX-A-CAPSULE"), quiet=True)
+        first = self.action(self.tech, "1", "rotor", "HAB", "sync:A")
+        self.assertEqual(first["status"], "succeeded")
+        with self.assertRaises(PhysicsError):
+            self.action(self.tech, "2", "rotor", "HAB", "sync:B")
+        now = 1360
+        for _ in range(20):
+            now += 60
+            tick_continuous_physics(now_game_time=now)
+            if _clock().details["hab_sync"]["captured"]:
+                break
+        self.assertTrue(_clock().details["hab_sync"]["captured"])
+        self.assertGreater(_clock().details["rotors"]["HAB"]["rpm"], 0.30)
+        dest = find_ship_space("IX-A-ROT-VEST")
+        exit_obj = find_world_entity("access:ACC-IX-A-ROT:forward")
+        receipt = traverse_canonical_exit(
+            self.passenger, exit_obj, dest, request_id="3" * 32)
+        self.assertEqual(receipt["status"], "queued")
+        self.assertEqual(self.passenger.location.db.ox_space_id, "IX-A-CAPSULE")
+        for _ in range(5):
+            now += 60
+            tick_continuous_physics(now_game_time=now)
+        self.assertEqual(self.passenger.location, dest)
+        self.assertGreater(_clock().details["rotors"]["HAB"]["rpm"], 0.30)
+        self.assertTrue(_clock().details["hab_sync"]["captured"])
+        self.assertFalse(_clock().details["personnel_transfers"]["jobs"])
+        self.action(self.tech, "4", "rotor", "HAB", "sync_release")
+        self.assertEqual(_clock().details["hab_sync"]["mode"], "stowed")
+
     def test_bad_pressure_stops_initial_carriage_capture(self):
         from world.continuous_ship_physics import configure_scenario_casualty
         self.tech.move_to(find_ship_space("DR-02-SERVICE-LOCK"), quiet=True)
