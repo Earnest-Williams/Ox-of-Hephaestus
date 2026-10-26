@@ -130,6 +130,20 @@ def step_containments(registry, seconds, *, ready_zones):
     return out, tuple(completed)
 
 
+def revoke_containment(registry, *, zone):
+    """Reopen a previously captured casualty if a boundary is physically lost."""
+    validate_major_damage(registry)
+    if zone not in registry["sites"]:
+        raise MajorDamageError("No such surveyed hull shell")
+    result = copy.deepcopy(registry)
+    row = result["sites"][zone]
+    row["isolated"] = False
+    row["remaining_s"] = 0.0
+    row["operator"] = None
+    validate_major_damage(result)
+    return result
+
+
 def external_repair_ready(registry, *, zone, room, suit_valid,
                           actual_closed_boundaries):
     validate_major_damage(registry)
