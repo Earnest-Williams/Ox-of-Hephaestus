@@ -1,6 +1,6 @@
 # G19 — installed indexed personnel transfer machinery
 
-**Status:** implemented on draft PR #138; installed-world acceptance pending. The 40-crew autonomous voyage is excluded from this engineering phase. This is a causal game-world system for a repeatedly refitted working freighter, not a spacecraft certification or moving-frame structural analysis.
+**Status:** **bounded indexed personnel subsystem accepted** on 26 October 2026; draft PR #138 remains unmerged. The 40-crew autonomous voyage is excluded from this engineering phase. This is a causal game-world system for a repeatedly refitted working freighter, not a spacecraft certification or moving-frame structural analysis.
 
 ## Physical contract
 
@@ -32,4 +32,6 @@ A local `oxplantread personnel` readout reports only the caller's nearby carriag
 
 ## Verification
 
-`.github/workflows/ox-g19-indexed-personnel.yml` compiles the actual movement and physical-world source, runs pure transfer/carriage safety checks and installed Evennia movement, pressure-hatch, interruption, replay and G19 compatibility tests. As with all G19 subsystem work, a documented implementation is not equivalent to a CI acceptance pass, and PR #138 remains draft and unmerged.
+`.github/workflows/ox-g19-indexed-personnel.yml` compiles the actual movement and physical-world source, runs pure transfer/carriage safety checks and installed Evennia movement, pressure-hatch, interruption, replay and G19 compatibility tests. **Acceptance:** [GitHub Actions run #40309694557](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40309694557) passed all three jobs (**40/40 tests**): 5 pure transfer transitions, 6 installed Evennia transfers/interlocks, and 29 existing movement and cargo compatibility regressions. Tested runtime commit: `7c210fd0`. Subsequent branch changes through `43ff19a1` are documentation and command-help updates, not alterations to the tested transfer physics.
+
+This acceptance applies **only to parked, indexed and hardlocked passenger transfer**, including all nine rated connections. It does not imply that moving HAB rotation boarding, EVA or all-room crew traversal is complete. PR #138 remains draft and unmerged.
