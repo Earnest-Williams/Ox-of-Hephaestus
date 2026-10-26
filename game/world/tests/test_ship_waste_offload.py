@@ -4,7 +4,8 @@ import unittest
 from world.ship_water_recycling import (
     WaterError, initial_water, validate_water, water_inventory_total)
 from world.ship_waste_offload import (
-    accept_berth, approve_route, prepare, command, step_offload, RECEIVERS)
+    accept_berth, approve_route, prepare, command, step_offload,
+    debit_ship_mass_for_waste, RECEIVERS)
 from world.tests.test_ship_water_recycling import stock
 
 
@@ -74,6 +75,20 @@ class WastePortContractTests(unittest.TestCase):
         self.assertFalse(self.w["waste_offload"]["jobs"])
         self.assertEqual(self.w["cassettes"]["sanitary"]["A"], 0)
         self.assertEqual(self.w["waste_offload"]["acceptances"]["YARD-A-1"]["accepted_kg"], 1200)
+
+    def test_export_mass_uses_mission_fluid_for_sanitary_and_dry_for_scrap(self):
+        motion = {"dry_mass_kg": 25.0, "mission_fluids_kg": 9.0}
+        categories = {"sanitary": 4.0, "industrial": 2.0, "hazardous": 1.0}
+        updated = debit_ship_mass_for_waste(motion, categories)
+        self.assertEqual(updated["mission_fluids_kg"], 5)
+        self.assertEqual(updated["dry_mass_kg"], 22)
+        self.assertEqual(motion["dry_mass_kg"], 25)
+        self.assertEqual(sum(motion.values()) - sum(updated.values()), 7)
+        with self.assertRaises(WaterError):
+            debit_ship_mass_for_waste(motion, {"sanitary": 10,
+                                "industrial": 2, "hazardous": 1})
+        with self.assertRaises(WaterError):
+            debit_ship_mass_for_waste(motion, {"sanitary": 2})
 
     def test_abort_while_hauling_returns_same_source_mass(self):
         self._stage()

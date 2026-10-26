@@ -197,6 +197,12 @@ class InstalledWasteAndRepairTests(EvenniaTestCase):
         self.assertEqual(_clock().details["water"]["water_train"]["A"], "off")
         self.assertEqual(state("equipment", "WATER-PROC-A").details[
             "repair_cumulative_kg"], 3)
+        # A reusable tool roll returns to the real crib after maintenance,
+        # rather than being regenerated or remaining remotely available.
+        self.tech.move_to(find_ship_space("TOOL-CRIB"), quiet=True)
+        self._action(self.tech, "e", "repair", "TOOL-CRIB", "return_toolkit")
+        self.assertEqual(_clock().details["repairs"]["toolkits_at_crib"], 6)
+        self.assertEqual(_clock().details["repairs"]["toolkit_carriers"], [])
 
 
     def test_damaged_access_door_is_repaired_at_actual_safe_endpoint(self):

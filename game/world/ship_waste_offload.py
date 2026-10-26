@@ -30,6 +30,31 @@ STOCK_KEYS = {
 }
 
 
+def debit_ship_mass_for_waste(motion, exported):
+    """Charge true external waste against the original material mass family.
+
+    Stabilised sanitary solids originate in mission water/food flows; sorted
+    scrap and cartridge refuse come from the pre-existing dry equipment and
+    spare stores. The whole-ship inertial sum falls by precisely the actual
+    delivered mass, without treating wet residue as structural dry hull.
+    """
+    if not isinstance(exported, dict) or set(exported) != set(CASSETTE_KG):
+        raise WaterError("Missing or unknown externally delivered waste class")
+    out = dict(motion)
+    charges = {"dry_mass_kg": 0.0, "mission_fluids_kg": 0.0}
+    for category in CASSETTE_KG:
+        mass = _quantity(exported[category])
+        account = ("mission_fluids_kg" if category == "sanitary"
+                   else "dry_mass_kg")
+        charges[account] += mass
+    for account, debit in charges.items():
+        original = _quantity(out[account])
+        if original + 1e-7 < debit:
+            raise WaterError("External waste exceeds actual finite shipboard mass")
+        out[account] = max(0.0, original - debit)
+    return out
+
+
 def initial_offload():
     return {"acceptances": {}, "routes": {}, "jobs": {}, "delivered_kg": {
         k: 0.0 for k in CASSETTE_KG}}

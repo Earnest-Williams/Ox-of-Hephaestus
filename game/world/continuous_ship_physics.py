@@ -55,6 +55,7 @@ from world.ship_waste_offload import (
     RECEIVERS as WASTE_RECEIVERS, WASTE_PORT_AUX_MW, initial_offload,
     validate_offload, accept_berth, approve_route, prepare as prepare_waste_offload,
     command as command_waste_offload, step_offload,
+    debit_ship_mass_for_waste,
 )
 from world.ship_equipment_repair import (
     REPAIR_CLASSES, initial_repairs, validate_repairs,
@@ -1662,9 +1663,11 @@ def tick_continuous_physics(*, now_game_time=None):
                 water_stocks[cat].quantity = qty / 1000.0
             exported = waste_step["exported_kg"]
             if exported:
-                if motion["dry_mass_kg"] + 1e-7 < exported:
-                    raise PhysicsError("Sealed waste export exceeds finite ship mass")
-                motion["dry_mass_kg"] -= exported
+                try:
+                    motion = debit_ship_mass_for_waste(
+                        motion, waste_step["exported"])
+                except WaterError as exc:
+                    raise PhysicsError(str(exc)) from exc
                 waste_export_kg += exported
             waste_load = (len(freight_ready) * CARGO_TRANSFER_MW +
                           len(waste_ports_ready) * WASTE_PORT_AUX_MW)
