@@ -82,6 +82,10 @@ from world.ship_major_damage import (
     exterior_face_for, register_major_site, start_containment,
     step_containments, revoke_containment, external_repair_ready,
 )
+from world.ship_crew_physiology import (
+    CrewPhysiologyError, validate_crew_health, step_crew_in_space,
+)
+from world.ship_crew_exposure import initial_exposure
 from world.ship_eva_operations import (
     EVAError, LOCKS as EVA_LOCKS, SUIT_O2_KG, MAX_GAS_BUFFER_KG,
     initial_eva, validate_eva, lock_contract, suit_of, checkout_suit,
@@ -870,6 +874,57 @@ def commission_g19_hab_sync(*, operator_approved=False):
 
 
 @transaction.atomic
+def commission_g19_crew_physiology(*, actor_dbrefs, operator_approved=False):
+    """Register ACTUAL named crew, never simulate a hypothetical 40-person trip.
+
+    Persists each person's injury, water deficit and measured exposure in
+    CanonicalShipState (crew_health:#id). An already registered person
+    retains all cumulative damage when commissioned again.
+    """
+    if not operator_approved:
+        raise PermissionError("Only the operator can enrol live crew physiology")
+    _clock(lock=True)
+    if not isinstance(actor_dbrefs, (tuple, list)) or not actor_dbrefs:
+        raise PhysicsError("Specify real crew actors to enrol")
+    if len(actor_dbrefs) > 40 or len(set(actor_dbrefs)) != len(actor_dbrefs):
+        raise PhysicsError("Duplicate or unbounded individual enrolment")
+    from evennia.objects.models import ObjectDB
+    from world.ship_world import find_ship_space
+    zones = _topology()[0]
+    newly = 0
+    for ref in actor_dbrefs:
+        if (not isinstance(ref, str)
+                or re.fullmatch(r"#[0-9]+", ref) is None):
+            raise PhysicsError("Crew enrolment requires an exact Evennia dbref")
+        actor = ObjectDB.objects.filter(id=int(ref[1:])).first()
+        room = getattr(getattr(getattr(actor, "location", None), "db", None),
+                       "ox_space_id", None)
+        if (actor is None or not getattr(actor.db, "crew_role", None)
+                or find_ship_space(room) != getattr(actor, "location", None)
+                or zones.get(room) is None):
+            raise PhysicsError("Actor is not identified crew inside a real Ox space")
+        key = "crew_health:" + ref
+        prior = CanonicalShipState.objects.select_for_update().filter(pk=key).first()
+        if prior:
+            if prior.source_id != ref or prior.source_model != MODEL:
+                raise PhysicsError("Existing crew physiological record belongs elsewhere")
+            try:
+                validate_crew_health(prior.details)
+            except CrewPhysiologyError as exc:
+                raise PhysicsError(str(exc)) from exc
+            continue
+        CanonicalShipState.objects.create(
+            key=key, category="crew_health", source_id=ref,
+            source_model=MODEL, space_id=room,
+            condition="fit", setting="unprotected",
+            reference={"type": "registered_real_crew"},
+            details=initial_exposure(),
+        )
+        newly += 1
+    return {"registered": newly, "requested": len(actor_dbrefs)}
+
+
+@transaction.atomic
 def commission_g19_eva(*, operator_approved=False):
     """Commission two real EVA locks and four initially empty breathing sets."""
     if not operator_approved:
@@ -1646,6 +1701,8 @@ def tick_continuous_physics(*, now_game_time=None):
         raise PhysicsError("Pressure topology incomplete")
     equipment_rows = list(CanonicalShipState.objects.select_for_update()
                           .filter(category="equipment").order_by("key"))
+    crew_rows = list(CanonicalShipState.objects.select_for_update()
+                     .filter(category="crew_health").order_by("key"))
     inventory = CanonicalShipState.objects.select_for_update().get(
         pk="inventory:INV-WATER-NORMAL")
     inventory_before = _snapshot(inventory)
@@ -2371,6 +2428,69 @@ def tick_continuous_physics(*, now_game_time=None):
             except EVAError as exc:
                 raise PhysicsError(str(exc)) from exc
 
+    # Every explicitly enrolled character inhales from their ACTUAL
+    # pressure cell. Oxygen becomes equal accounted CO2 mass in that cell;
+    # no free gas is created, and cumulative injury is durable per person.
+    # EVA's existing suit clock is the sole respiratory source for anyone
+    # wearing a real issued suit: do not charge room air or suit oxygen twice.
+    crew_used_o2 = 0.0
+    crew_exhaled_co2 = 0.0
+    crew_incapacitated = 0
+    if crew_rows:
+        import copy
+        from evennia.objects.models import ObjectDB
+        ids = [int(row.source_id[1:]) for row in crew_rows
+               if re.fullmatch(r"#[0-9]+", row.source_id or "")]
+        if len(ids) != len(crew_rows):
+            raise PhysicsError("Corrupt live crew health identifier")
+        actors = {actor.dbref: actor for actor in ObjectDB.objects.filter(
+            id__in=ids)}
+        from world.ship_world import find_ship_space
+        for row in crew_rows:
+            actor = actors.get(row.source_id)
+            room = getattr(getattr(getattr(actor, "location", None), "db", None),
+                           "ox_space_id", None)
+            if (actor is None or find_ship_space(room) !=
+                    getattr(actor, "location", None)):
+                raise PhysicsError("Registered crew location is not an installed ship space")
+            try:
+                validate_crew_health(row.details)
+            except CrewPhysiologyError as exc:
+                raise PhysicsError(str(exc)) from exc
+            _, worn = suit_of(eva, row.source_id) if eva is not None else (None, None)
+            if worn:
+                state_now = copy.deepcopy(worn["exposure"])
+            else:
+                zone = zones.get(room)
+                if zone not in cells and zone != "VACUUM":
+                    raise PhysicsError("Unknown life-support envelope at crew position")
+                state_now = copy.deepcopy(row.details)
+                cell = cells.get(zone)
+                time_sampled = 0.0
+                while time_sampled < seconds - 1e-9:
+                    dt = min(STEP_SECONDS, seconds - time_sampled)
+                    try:
+                        state_now, cell, breath = step_crew_in_space(
+                            state_now, cell, dt)
+                    except CrewPhysiologyError as exc:
+                        raise PhysicsError(str(exc)) from exc
+                    crew_used_o2 += breath["o2_used_kg"]
+                    crew_exhaled_co2 += breath["co2_added_kg"]
+                    time_sampled += dt
+                if zone in cells:
+                    cells[zone] = cell
+            if getattr(actor.db, "ox_terminal_dead", False):
+                state_now["condition"] = "dead"
+            if (row.condition != state_now["condition"]
+                    or row.details != state_now or row.space_id != room):
+                row.condition = state_now["condition"]
+                row.details = state_now
+                row.space_id = room
+                row.revision += 1
+                row.save(update_fields=[
+                    "condition", "details", "space_id", "revision"])
+            if state_now["condition"] in {"incapacitated", "critical", "dead"}:
+                crew_incapacitated += 1
     pressure_changed = []
     for row in pressure_rows:
         c = cells[row.source_id]
@@ -2795,6 +2915,10 @@ def tick_continuous_physics(*, now_game_time=None):
     d["cargo"] = cargo
     d["summary"] = {
         **summary,
+        "crew_exposure_registered": len(crew_rows),
+        "crew_incapacitated_or_worse": crew_incapacitated,
+        "crew_o2_used_this_tick_kg": round(crew_used_o2, 7),
+        "crew_co2_added_this_tick_kg": round(crew_exhaled_co2, 7),
         "gas_kg": round(sum(c["mass"] for c in cells.values()), 6),
         "oxygen_kg": round(sum(c["oxygen"] for c in cells.values()), 6),
         "smoke_kg": round(sum(c["smoke"] for c in cells.values()), 6),
@@ -4308,6 +4432,21 @@ def local_physics_readout(actor, target):
             raise PermissionError("No surveyed major casualty at this position")
         return {"major_sites": visible,
                 "scope": "engineering_damage_board_or_local_hull_face"}
+    if target == "crew":
+        own = CanonicalShipState.objects.filter(
+            pk="crew_health:" + actor.dbref).first()
+        if own is None:
+            raise PhysicsError("This character is not enrolled in living-crew physics")
+        return {
+            "condition": own.condition, "room": own.space_id,
+            "hypoxia_seconds": own.details["hypoxia_s"],
+            "smoke_dose": own.details["smoke_dose"],
+            "thermal_dose": own.details["thermal_dose"],
+            "co2_dose": own.details["co2_dose"],
+            "water_deficit_kg": own.details["water_deficit_kg"],
+            "injury": own.details["injury"],
+            "scope": "own_physically_measured_crew_health_only",
+        }
     if target == "eva":
         system = _clock().details.get("eva")
         if system is None:
