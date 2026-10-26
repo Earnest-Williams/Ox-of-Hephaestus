@@ -149,7 +149,8 @@ def finish_personnel_transfer(transfers, *, rotor, request_id, aborted=False):
 
 
 def indexed_mechanism_ready(link, *, rotors, equipment, access,
-                            pressure, room_zones, pressure_safe, powered):
+                            pressure, room_zones, pressure_safe, powered,
+                            hab_sync=None):
     """Conservative *live* check: real capture, intact gear and matched air.
 
     The double pressure doors stay physically closed during carriage motion.
@@ -182,13 +183,28 @@ def indexed_mechanism_ready(link, *, rotors, equipment, access,
             or not math.isfinite(phase)):
         return False
     phase %= 2 * math.pi
-    if not (rotor.get("passenger_indexer")
-            and rotor.get("passenger_station") == spec["station"]
-            and rotor.get("hardlock") and rotor.get("brake")
-            and not rotor.get("freight_collar") and not rotor.get("indexing")
-            and rotor.get("target_rpm") == 0
-            and abs(rotor.get("rpm", 1.0)) < 0.001
-            and min(phase, 2 * math.pi - phase) < 0.01):
+    parked_capture = (
+        rotor.get("passenger_indexer")
+        and rotor.get("passenger_station") == spec["station"]
+        and rotor.get("hardlock") and rotor.get("brake")
+        and not rotor.get("freight_collar") and not rotor.get("indexing")
+        and rotor.get("target_rpm") == 0
+        and abs(rotor.get("rpm", 1.0)) < 0.001
+        and min(phase, 2 * math.pi - phase) < 0.01)
+    moving_capture = False
+    if spec["rotor"] == "HAB" and hab_sync is not None:
+        from world.ship_hab_sync import moving_hab_ready
+        try:
+            moving_capture = (
+                not rotor.get("passenger_indexer")
+                and not rotor.get("freight_collar")
+                and moving_hab_ready(
+                    hab_sync, station=spec["station"],
+                    hab_rpm=rotor["rpm"], hab_phase_rad=rotor["phase_rad"],
+                    hardware_ok=True, powered=powered))
+        except (ValueError, KeyError, TypeError):
+            moving_capture = False
+    if not (parked_capture or moving_capture):
         return False
     a_zone = room_zones.get(spec["from"])
     b_zone = room_zones.get(spec["to"])
