@@ -30,7 +30,8 @@ def initial_rotors():
             "rpm": 0.0, "target_rpm": 0.0, "phase_rad": 0.0,
             "brake": True, "hardlock": True, "indexing": False,
             "freight_collar": False,
-            "passenger_indexer": False, "condition": "serviceable",
+            "passenger_indexer": False, "passenger_station": None,
+            "condition": "serviceable",
             "imbalance_kg_m": 0.0, "bearing_temperature_k": 293.15,
             "mode": "PARKED", "bearing_hours": 0.0,
             "work_radius_m": WORK_RADIUS_M if key == "WR-01" else None,
@@ -115,13 +116,29 @@ def set_rotor_command(rotors, name, command):
         state["freight_collar"] = True
     elif command == "freight_retract":
         state["freight_collar"] = False
-    elif command == "passenger_extend":
-        if name == "WR-01" or name in DRUMS or name == "HAB":
-            if state["freight_collar"]:
-                raise RotorError("Passenger and freight interfaces mutually exclude")
-            state["passenger_indexer"] = True
+    elif command == "passenger_extend" or command in {
+            "passenger_extend:A", "passenger_extend:B"}:
+        if name == "HAB":
+            if command not in {"passenger_extend:A", "passenger_extend:B"}:
+                raise RotorError("Habitation indexer needs explicit A or B station")
+            station = command.rsplit(":", 1)[1]
+        elif command == "passenger_extend":
+            station = None
+        else:
+            raise RotorError("Only HAB has individually selected indexer stations")
+        if (state["freight_collar"] or state["indexing"]
+                or not state["hardlock"] or not state["brake"]
+                or state["target_rpm"] != 0 or abs(state["rpm"]) >= 0.001
+                or min(state["phase_rad"] % (2 * math.pi),
+                       (2 * math.pi - state["phase_rad"]) % (2 * math.pi)) > 0.01):
+            raise RotorError("Passenger carriage needs indexed stationary hardlock")
+        if state["passenger_indexer"] and state.get("passenger_station") != station:
+            raise RotorError("Different passenger station already captured")
+        state["passenger_indexer"] = True
+        state["passenger_station"] = station
     elif command == "passenger_retract":
         state["passenger_indexer"] = False
+        state["passenger_station"] = None
     else:
         raise RotorError("Unknown rotary command")
     return rows
