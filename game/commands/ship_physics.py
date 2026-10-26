@@ -9,7 +9,7 @@ from world.full_ship_operations import ShipOperationsError
 
 
 class CmdOxPhysicsRead(Command):
-    """Local air/plant readings. Usage: oxplantread <air|water|wasteport|repairs|hull|personnel|eva|damage|helm|cargo|rotor-id|equipment-id|isolator-id>"""
+    """Local air/plant readings. Usage: oxplantread <air|water|wasteport|repairs|hull|personnel|crew|eva|damage|helm|cargo|rotor-id|equipment-id|isolator-id>"""
 
     key = "oxplantread"
     locks = "cmd:all()"
@@ -18,7 +18,7 @@ class CmdOxPhysicsRead(Command):
         from world.continuous_ship_physics import local_physics_readout
         name = self.args.strip()
         if not name:
-            self.caller.msg("Usage: oxplantread <air|water|wasteport|repairs|hull|personnel|eva|damage|helm|cargo|rotor-id|equipment-id|isolator-id>")
+            self.caller.msg("Usage: oxplantread <air|water|wasteport|repairs|hull|personnel|crew|eva|damage|helm|cargo|rotor-id|equipment-id|isolator-id>")
             return
         try:
             result = local_physics_readout(self.caller, name)
