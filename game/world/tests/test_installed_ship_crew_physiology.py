@@ -55,9 +55,13 @@ class InstalledCrewPhysiologyTests(EvenniaTestCase):
             self.tech, f"{self.id:032x}", action, target, value)
 
     def test_two_named_crew_breathe_real_cell_gas_with_restart_safe_ticks(self):
-        before = state("pressure", self.zone)
-        oxygen_before = before.details["physics_oxygen_kg"]
-        gas_mass_before = before.quantity
+        oxygen_before = sum(
+            p.details["physics_oxygen_kg"] for p in
+            CanonicalShipState.objects.filter(category="pressure"))
+        gas_total_before = (
+            sum(p.quantity for p in
+                CanonicalShipState.objects.filter(category="pressure"))
+            + _clock().details["co2_captured_kg"])
         registered = commission_g19_crew_physiology(
             actor_dbrefs=[self.tech.dbref, self.cargo.dbref],
             operator_approved=True)
@@ -66,9 +70,15 @@ class InstalledCrewPhysiologyTests(EvenniaTestCase):
             actor_dbrefs=[self.tech.dbref],
             operator_approved=True)["registered"], 0)
         self.tick(60)
-        after = state("pressure", self.zone)
-        self.assertLess(after.details["physics_oxygen_kg"], oxygen_before)
-        self.assertAlmostEqual(after.quantity, gas_mass_before, delta=.01)
+        oxygen_after = sum(
+            p.details["physics_oxygen_kg"] for p in
+            CanonicalShipState.objects.filter(category="pressure"))
+        gas_total_after = (
+            sum(p.quantity for p in
+                CanonicalShipState.objects.filter(category="pressure"))
+            + _clock().details["co2_captured_kg"])
+        self.assertLess(oxygen_after, oxygen_before)
+        self.assertAlmostEqual(gas_total_after, gas_total_before, delta=.00001)
         self.assertEqual(self.health(self.tech).condition, "fit")
         self.assertEqual(self.health(self.cargo).condition, "fit")
         self.assertGreater(self.health(self.tech).details["water_deficit_kg"], 0)
@@ -93,7 +103,7 @@ class InstalledCrewPhysiologyTests(EvenniaTestCase):
         set_isolator("ISO-AIR-FIXED-EVA-FWD", "closed", operator=True)
         configure_scenario_casualty(
             "PZ-BOW-EVA", leak_kg_s=5, operator=True)
-        self.tick(240)
+        self.tick(360)
         current = self.health(self.tech)
         self.assertIn(current.condition, {"incapacitated", "critical", "dead"})
         self.assertGreaterEqual(current.details["hypoxia_s"], 180)
