@@ -2187,7 +2187,7 @@ def tick_continuous_physics(*, now_game_time=None):
                 if (breach and cell and breach["site_room"] == job["room"]
                         and zones.get(job["room"]) == identifier
                         and expected_repair_condition(hull, identifier) == job["condition"]
-                        and _air_safe(cell)):
+                        and _hull_repair_air_safe(cell)):
                     safe.add(key)
                 continue
             row = (equipment.get(identifier) if category == "equipment" else
@@ -2370,6 +2370,26 @@ def _air_safe(cell):
         and not _leak_active(cell)
         and d["physics_burn_kg_s"] == 0
     )
+
+
+def _hull_repair_air_safe(cell):
+    """Allow hand sealing only a *small* leak in otherwise verified safe air.
+
+    General hatch opening and ordinary machine repair still reject ANY active
+    leak. A hull patcher can approach a surveyed inner repair face only while
+    the unvalved release is <=50 g/s and actual pressure, oxygen, smoke,
+    temperature and fire are safe. Larger losses need separate suited access.
+    """
+    d = cell.details
+    rate = d.get("physics_leak_kg_s")
+    if (not isinstance(rate, (int, float)) or isinstance(rate, bool)
+            or not math.isfinite(rate) or not 0 < rate <= 0.05
+            or d.get("physics_leak_isolator_id")):
+        return False
+    from types import SimpleNamespace
+    screened = SimpleNamespace(
+        quantity=cell.quantity, details={**d, "physics_leak_kg_s": 0.0})
+    return _air_safe(screened)
 
 
 def _hatch_open_preflight(hatch):
@@ -2852,7 +2872,7 @@ def crew_physical_action(actor, request_id, action, target, value):
                 or _topology()[0].get(room) != target):
             raise PermissionError("Crew not at the surveyed physical hull repair face")
         cell = state("pressure", target, lock=True)
-        if (not _air_safe(cell) or
+        if (not _hull_repair_air_safe(cell) or
                 not math.isclose(cell.details.get("physics_leak_kg_s", -1),
                                  effective_leak(breach), rel_tol=0, abs_tol=1e-7)):
             raise PhysicsError("Hull site unsafe or breach and pressure state disagree")
