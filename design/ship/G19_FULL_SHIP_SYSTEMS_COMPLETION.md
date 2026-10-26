@@ -86,7 +86,7 @@ A measured high-rate pressure-shell breach may be surveyed to its authentic exte
 
 ### Current G19 follow-on — individually persistent crew physiology
 
-The separate [crew physiology integration](G19_CREW_PHYSIOLOGY.md) registers **named real Evennia crew objects**, samples measured compartment oxygen/CO2/smoke/temperature/pressure during bounded physics ticks, consumes finite room O2 with equal accounted CO2 mass, and persists injury and incapacity. Worn suits remain one distinct source of finite breathing gas, not a second addition to the room's oxygen demand. Focused CI is pending; no broad acceptance is claimed. The previously accepted G19 casualty tests did not prove this newer code. **The 40-crew voyage remains expressly excluded.**
+The separate [crew physiology integration](G19_CREW_PHYSIOLOGY.md) registers **named real Evennia crew objects**, samples measured compartment oxygen/CO2/smoke/temperature/pressure during bounded physics ticks, consumes finite room O2 with equal accounted CO2 mass, and persists injury and incapacity. Worn suits remain one distinct source of finite breathing gas, not a second addition to the room's oxygen demand. [Focused crew-physiology CI #40422476968](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40422476968) passed **20 pure and four installed tests** at tested runtime `32761e716`. This is bounded subsystem evidence, not completed medical assistance, not proven all-crew endurance, and not completion of the broader G19 integration regression matrix. **The 40-crew voyage remains expressly excluded.**
 
 Every row requires a real integrated implementation, not merely documentation,
 static JSON entries, an isolated demonstration or operator-injected outcomes.
