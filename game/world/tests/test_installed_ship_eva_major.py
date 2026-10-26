@@ -120,6 +120,7 @@ class InstalledEVAMajorDamageTests(EvenniaTestCase):
             exterior_room_id="EXT-DR01-SKIN")
         self.assertGreaterEqual(len(survey["rated_boundaries"]), 3)
         self.move("ENG-CONTROL")
+        self.action("switch", "ISO-LP-ENG-CONTROL", "closed")
         self.action("damage", zone, "isolate")
         self.advance(60)
         self.assertFalse(
@@ -180,6 +181,7 @@ class InstalledEVAMajorDamageTests(EvenniaTestCase):
         damaged = survey["rated_boundaries"][0]
         set_component_condition("access", damaged, "failed", operator=True)
         self.move("ENG-CONTROL")
+        self.action("switch", "ISO-LP-ENG-CONTROL", "closed")
         self.action("damage", zone, "isolate")
         self.advance(120)
         site = _clock().details["major_damage"]["sites"][zone]
