@@ -2550,10 +2550,21 @@ def tick_continuous_physics(*, now_game_time=None):
                 room_id = getattr(actor.location.db, "ox_space_id", None)
                 if room_id:
                     zone = zones.get(room_id)
-                    if zone not in by_pressure and not (
-                            repairs["site_surveys"].get(room_id) == "suited_service"
-                            and getattr(actor.db, "ox_suit_verified", False)):
-                        continue
+                    if zone not in by_pressure:
+                        _, worn = suit_of(eva, ref) if eva is not None else (None, None)
+                        at_major_face = any(
+                            v["external_face"] == room_id
+                            for v in (major_damage or {"sites": {}})["sites"].values())
+                        fitted_eva = bool(
+                            at_major_face and worn is not None
+                            and worn["integrity"] >= .8
+                            and worn["exposure"]["suit_oxygen_kg"] > 0
+                            and worn["exposure"]["condition"] not in {
+                                "incapacitated", "critical", "dead"})
+                        if not fitted_eva and not (
+                                repairs["site_surveys"].get(room_id) == "suited_service"
+                                and getattr(actor.db, "ox_suit_verified", False)):
+                            continue
                     present[room_id].add(ref)
         by_isolator = {x.source_id: x for x in isolators.values()}
         by_access = {x.source_id: x for x in access_rows}
@@ -2563,10 +2574,28 @@ def tick_continuous_physics(*, now_game_time=None):
             if category == "hull":
                 breach = (hull or {}).get("breaches", {}).get(identifier)
                 cell = by_pressure.get(identifier)
-                if (breach and cell and breach["site_room"] == job["room"]
+                major_site = (major_damage or {"sites": {}})["sites"].get(identifier)
+                if major_site is not None:
+                    boundaries_closed = {
+                        id for id in major_site["boundaries"]
+                        if id in by_access and
+                        by_access[id].condition not in _BROKEN and
+                        by_access[id].setting == "closed"
+                    }
+                    safe_repair = external_repair_ready(
+                        major_damage, zone=identifier, room=job["room"],
+                        suit_valid=any(
+                            ref in present.get(job["room"], set())
+                            for ref in job["workers"]),
+                        actual_closed_boundaries=boundaries_closed)
+                else:
+                    safe_repair = bool(
+                        breach and breach["site_room"] == job["room"]
                         and zones.get(job["room"]) == identifier
+                        and _hull_repair_air_safe(cell))
+                if (breach and cell
                         and expected_repair_condition(hull, identifier) == job["condition"]
-                        and _hull_repair_air_safe(cell)):
+                        and safe_repair):
                     safe.add(key)
                 continue
             row = (equipment.get(identifier) if category == "equipment" else
@@ -3599,13 +3628,34 @@ def crew_physical_action(actor, request_id, action, target, value):
             raise PhysicsError("No installed hull breach at this pressure cell")
         room = getattr(getattr(getattr(actor, "location", None), "db", None),
                        "ox_space_id", None)
-        _crew_at(actor, breach["site_room"])
-        if (room != breach["site_room"]
-                or _topology()[0].get(room) != target):
-            raise PermissionError("Crew not at the surveyed physical hull repair face")
+        major = (d.get("major_damage") or {}).get("sites", {}).get(target)
+        if major is None:
+            _crew_at(actor, breach["site_room"])
+            if (room != breach["site_room"]
+                    or _topology()[0].get(room) != target):
+                raise PermissionError("Crew not at the surveyed physical hull repair face")
+        else:
+            _crew_at(actor, major["external_face"])
+            eva_state = d.get("eva")
+            if eva_state is None:
+                raise PhysicsError("External repair requires commissioned fitted EVA")
+            _, suit = suit_of(eva_state, actor.dbref)
+            closed = {
+                door_id for door_id in major["boundaries"]
+                if (state("access", door_id).condition not in _BROKEN
+                    and state("access", door_id).setting == "closed")
+            }
+            if not external_repair_ready(
+                    d["major_damage"], zone=target, room=room,
+                    suit_valid=bool(suit and suit["integrity"] >= .8
+                                    and suit["exposure"]["suit_oxygen_kg"] > 0
+                                    and suit["exposure"]["condition"] not in {
+                                        "incapacitated", "critical", "dead"}),
+                    actual_closed_boundaries=closed):
+                raise PhysicsError("Unsealed major breach or unprotected exterior repair face")
         cell = state("pressure", target, lock=True)
-        if (not _hull_repair_air_safe(cell) or
-                not math.isclose(cell.details.get("physics_leak_kg_s", -1),
+        if (major is None and not _hull_repair_air_safe(cell)
+                or not math.isclose(cell.details.get("physics_leak_kg_s", -1),
                                  effective_leak(breach), rel_tol=0, abs_tol=1e-7)):
             raise PhysicsError("Hull site unsafe or breach and pressure state disagree")
         phase = expected_repair_condition(hull, target)
