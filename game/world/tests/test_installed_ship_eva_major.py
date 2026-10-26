@@ -28,6 +28,8 @@ class InstalledEVAMajorDamageTests(EvenniaTestCase):
         initialize_nominal_atmosphere(operator_approved=True)
         arm_continuous_physics(operator_approved=True, now_game_time=1000)
         set_isolator("ISO-GEN-M", "closed", operator=True)
+        set_isolator("ISO-DB-A-BOW", "closed", operator=True)
+        set_isolator("ISO-DB-A-HAB-HUB-SERVICES", "closed", operator=True)
         commission_g19_water(operator_approved=True)
         commission_g19_repairs(operator_approved=True)
         commission_g19_hull(operator_approved=True)
