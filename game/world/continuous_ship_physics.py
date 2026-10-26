@@ -73,6 +73,10 @@ from world.ship_indexed_personnel import (
     validate_personnel_transfers, indexed_mechanism_ready,
     step_personnel_transfers, finish_personnel_transfer,
 )
+from world.ship_hab_sync import (
+    HabSyncError, initial_hab_sync, validate_hab_sync,
+    command_hab_sync, step_hab_sync,
+)
 
 CLOCK_KEY = "meta:continuous-physics"
 SCRIPT_KEY = "OxContinuousShipPhysics"
@@ -806,6 +810,30 @@ def commission_g19_personnel_transfers(*, operator_approved=False):
     clock.save(update_fields=["details", "revision"])
     _event(clock, "commission_g19_indexed_personnel", original)
     return {"commissioned": True, "rated_links": 9}
+
+
+@transaction.atomic
+def commission_g19_hab_sync(*, operator_approved=False):
+    """Commission the existing pair of independent moving HAB indexer drives."""
+    if not operator_approved:
+        raise PermissionError("World operator must commission HAB moving carriers")
+    clock = _clock(lock=True)
+    if clock.details.get("hab_sync") is not None:
+        validate_hab_sync(clock.details["hab_sync"])
+        return {"commissioned": False}
+    if clock.details.get("personnel_transfers") is None:
+        raise PhysicsError("Commission the real indexed-carriage service first")
+    for station in "AB":
+        for suffix in ("DRIVE", "CARRIER", "FIXED-COLLAR", "ROT-COLLAR"):
+            state("equipment", f"IX-{station}-{suffix}")
+    before = _snapshot(clock)
+    d = dict(clock.details)
+    d["hab_sync"] = initial_hab_sync()
+    clock.details = d
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "commission_g19_moving_hab_indexer", before)
+    return {"commissioned": True, "stations": 2}
 
 
 @transaction.atomic
@@ -1543,6 +1571,12 @@ def tick_continuous_physics(*, now_game_time=None):
             validate_personnel_transfers(personnel_transfers)
         except IndexedTransferError as exc:
             raise PhysicsError(str(exc)) from exc
+    hab_sync = clock.details.get("hab_sync")
+    if hab_sync is not None:
+        try:
+            validate_hab_sync(hab_sync)
+        except HabSyncError as exc:
+            raise PhysicsError(str(exc)) from exc
     waste_export_kg = 0.0
     changed_equipment = set()
     motion = dict(clock.details.get("motion", {}))
@@ -1836,6 +1870,21 @@ def tick_continuous_physics(*, now_game_time=None):
         rotors = step_rotors(
             rotors, dt, powered=rotary_power_by_unit,
             equipment_ok=rotor_equipment, extension_ok=extension_ok)
+        if hab_sync is not None:
+            station = hab_sync.get("station")
+            hardware_ok = bool(
+                station and all(
+                    equipment.get(f"IX-{station}-{suffix}") is not None
+                    and equipment[f"IX-{station}-{suffix}"].condition not in _BROKEN
+                    for suffix in ("DRIVE", "CARRIER", "FIXED-COLLAR", "ROT-COLLAR")))
+            try:
+                hab_sync = step_hab_sync(
+                    hab_sync, dt, hab_rpm=rotors["HAB"]["rpm"],
+                    hab_phase_rad=rotors["HAB"]["phase_rad"],
+                    powered=bool(rotary_power_by_unit["HAB"]),
+                    hardware_ok=hardware_ok)
+            except HabSyncError as exc:
+                raise PhysicsError(str(exc)) from exc
         if rotary_load and rotary_can_power:
             power["requested_mw"] += rotary_load
             power["dispatched_mw"] += rotary_load
@@ -2309,7 +2358,8 @@ def tick_continuous_physics(*, now_game_time=None):
                     access=by_access, pressure=by_pressure, room_zones=zones,
                     pressure_safe=_air_safe,
                     powered=(power["assured"] and
-                             rotary_power_by_unit.get(rotor_name, False))):
+                             rotary_power_by_unit.get(rotor_name, False)),
+                    hab_sync=hab_sync):
                 ready_links.add(job["link"])
         try:
             personnel_transfers, completed_candidates = step_personnel_transfers(
@@ -2370,6 +2420,8 @@ def tick_continuous_physics(*, now_game_time=None):
         d["hull"] = hull
     if personnel_transfers is not None:
         d["personnel_transfers"] = personnel_transfers
+    if hab_sync is not None:
+        d["hab_sync"] = hab_sync
     if water_state is not None:
         d["water"] = water_state
     d["rotors"] = rotors
@@ -2545,6 +2597,8 @@ def _personnel_fixed_hatch_preflight(hatch):
     r = clock.details.get("rotors", {}).get(rotor)
     if not r or r.get("passenger_indexer") or r.get("freight_collar"):
         raise PhysicsError("Cannot open fixed hatch while a rotary interface is captured")
+    if rotor == "HAB" and clock.details.get("hab_sync", {}).get("mode") != "stowed":
+        raise PhysicsError("Moving HAB capture must stow before fixed hatch access")
     transfers = clock.details.get("personnel_transfers")
     if transfers and rotor in transfers["jobs"]:
         raise PhysicsError("Fixed hatch cannot open during an indexed passenger run")
@@ -3349,6 +3403,7 @@ def crew_physical_action(actor, request_id, action, target, value):
             ("ENG-CONTROL", "HUB-FIXED-A", "HUB-FIXED-B")
             if target == "HAB" and (
                 value.startswith("passenger_extend:") or
+                value.startswith("sync:") or value == "sync_release" or
                 value == "passenger_retract")
             else ("ENG-CONTROL",) if target == "HAB" else
             (target + "-FREIGHT-LOCK", target + "-SERVICE-LOCK"))
@@ -3381,11 +3436,57 @@ def crew_physical_action(actor, request_id, action, target, value):
             if value in {"start", "release", "freight_retract", "passenger_extend"}:
                 raise PhysicsError("Freight operation underway; cannot release its capture")
         transfers = _clock().details.get("personnel_transfers") or {"jobs": {}}
-        if target in transfers["jobs"] and value in {
+        if target == "HAB" and value in {"passenger_extend:A", "passenger_extend:B"}:
+            if _clock().details.get("hab_sync", {}).get("mode") not in {None, "stowed"}:
+                raise PhysicsError("Parked HAB collar cannot overlap its moving carrier")
+        if target == "HAB" and value in {"sync:A", "sync:B", "sync_release"}:
+            sync = _clock().details.get("hab_sync")
+            if sync is None:
+                raise PhysicsError("HAB moving indexer is not commissioned")
+            if value.startswith("sync:"):
+                station = value[-1]
+                if room not in {"ENG-CONTROL", "HUB-FIXED-" + station}:
+                    raise PermissionError("Engineer must select the actual HAB indexer station")
+                if any(state("equipment", f"IX-{station}-{suffix}").condition
+                       in _BROKEN for suffix in (
+                           "DRIVE", "CARRIER", "FIXED-COLLAR", "ROT-COLLAR")):
+                    raise PhysicsError("Moving HAB carrier hardware damaged")
+                for door_id in (f"ACC-IX-{station}-FIX", f"ACC-IX-{station}-ROT"):
+                    door = state("access", door_id)
+                    if door.condition in _BROKEN or door.setting != "closed":
+                        raise PhysicsError("Both HAB carrier hatches must be closed")
+                if not _power(
+                        {r.source_id: r for r in CanonicalShipState.objects.filter(
+                            category="equipment")},
+                        list(CanonicalShipState.objects.filter(category="edge")),
+                        {r.source_id:r for r in CanonicalShipState.objects.filter(
+                            category="isolator")},
+                        _clock().details["load_profile"])["assured"]:
+                    raise PhysicsError("No confirmed electrical power for phase matching")
+            item = _clock(lock=True)
+            before = _snapshot(item)
+            d = dict(item.details)
+            try:
+                d["hab_sync"] = command_hab_sync(
+                    sync, "release" if value == "sync_release" else value,
+                    hab_rpm=d["rotors"]["HAB"]["rpm"],
+                    parked_indexer=d["rotors"]["HAB"]["passenger_indexer"],
+                    occupied="HAB" in transfers["jobs"])
+            except HabSyncError as exc:
+                raise PhysicsError(str(exc)) from exc
+            item.details = d
+            item.revision += 1
+            item.save(update_fields=["details", "revision"])
+        elif target in transfers["jobs"] and value in {
                 "passenger_retract", "start", "release", "index",
                 "freight_extend", "freight_retract", "hardlock",
                 "passenger_extend", "passenger_extend:A", "passenger_extend:B"}:
             raise PhysicsError("Occupied personnel carriage cannot be released or re-indexed")
+        if target == "HAB" and value not in {"sync:A", "sync:B", "sync_release"} and (
+                _clock().details.get("hab_sync", {}).get("mode") not in {None, "stowed"}
+                and value in {"release", "index", "hardlock", "passenger_retract",
+                              "passenger_extend:A", "passenger_extend:B"}):
+            raise PhysicsError("Moving HAB phase lock excludes stationary collars and release")
         if target in DRUMS and value == "passenger_extend":
             fixed = state("access", "ACC-" + target + "-LOCK-FIX")
             rotary = state("access", "ACC-" + target + "-LOCK-ROT")
@@ -3421,10 +3522,15 @@ def crew_physical_action(actor, request_id, action, target, value):
         item = _clock(lock=True)
         before = _snapshot(item)
         d = dict(item.details)
-        try:
-            d["rotors"] = set_rotor_command(d["rotors"], target, value)
-        except RotorError as exc:
-            raise PhysicsError(str(exc)) from exc
+        if target == "HAB" and value in {"sync:A", "sync:B", "sync_release"}:
+            # Already applied to the separately persistent moving-carrier
+            # state, never submitted to the stationary rotor command parser.
+            pass
+        else:
+            try:
+                d["rotors"] = set_rotor_command(d["rotors"], target, value)
+            except RotorError as exc:
+                raise PhysicsError(str(exc)) from exc
         if d != item.details:
             item.details = d
             item.revision += 1
