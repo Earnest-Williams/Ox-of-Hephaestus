@@ -58,7 +58,7 @@ from world.ship_waste_offload import (
 )
 from world.ship_equipment_repair import (
     REPAIR_CLASSES, initial_repairs, validate_repairs,
-    take_parts, begin_repair, join_repair, step_repairs,
+    take_parts, begin_repair, join_repair, step_repairs, move_toolkit,
 )
 from world.ship_waste_repair_world import (
     selected_waste_route, live_waste_route, safe_repair_target,
@@ -284,6 +284,8 @@ def _snapshot(item):
                 "active": jobs["jobs"], "completed": jobs["completed"],
                 "installed_spares_kg": jobs["installed_kg"],
                 "carried_spares_kg": jobs["carried_kg"],
+                "toolkits_at_crib": jobs["toolkits_at_crib"],
+                "toolkit_carriers": jobs["toolkit_carriers"],
                 "site_surveys": jobs["site_surveys"],
             }
         result["motion"] = item.details.get("motion")
@@ -2727,7 +2729,20 @@ def crew_physical_action(actor, request_id, action, target, value):
         r = copy.deepcopy(repairs)
         room = getattr(getattr(getattr(actor, "location", None), "db", None),
                        "ox_space_id", None)
-        if target == "INV-SPARES":
+        if target == "TOOL-CRIB":
+            _crew_at(actor, "TOOL-CRIB")
+            zone = _topology()[0].get("TOOL-CRIB")
+            if zone is None or not _air_safe(state("pressure", zone)):
+                raise PhysicsError("Tool-crate station atmosphere unsafe")
+            if "TOOL-CRIB" not in state("inventory", "INV-SPARES").reference.get(
+                    "location_ids", ()):
+                raise PhysicsError("Existing fitted tool crib is not commissioned")
+            try:
+                d["repairs"] = move_toolkit(
+                    r, actor_dbref=actor.dbref, verb=value)
+            except WaterError as exc:
+                raise PhysicsError(str(exc)) from exc
+        elif target == "INV-SPARES":
             if not isinstance(value, str) or not value.startswith("pickup:"):
                 raise PhysicsError("Spare collection requires pickup:<kg>")
             _crew_at(actor, room)
@@ -3211,6 +3226,9 @@ def local_physics_readout(actor, target):
             raise PhysicsError("Shared equipment repairs not commissioned")
         return {
             "carried_spares_kg": repairs["carried_kg"].get(actor.dbref, 0.0),
+            "toolkit_carried": actor.dbref in repairs["toolkit_carriers"],
+            "available_toolkits_here": (
+                repairs["toolkits_at_crib"] if room == "TOOL-CRIB" else None),
             "work_orders_here": {
                 key: job for key, job in repairs["jobs"].items()
                 if job["room"] == room},

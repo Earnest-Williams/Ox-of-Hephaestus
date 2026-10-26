@@ -3,13 +3,14 @@ import unittest
 
 from world.ship_water_recycling import WaterError
 from world.ship_equipment_repair import (
-    initial_repairs, take_parts, begin_repair, join_repair,
+    initial_repairs, take_parts, begin_repair, join_repair, move_toolkit,
     step_repairs, validate_repairs, REPAIR_CLASSES)
 
 
 class SharedRepairContractTests(unittest.TestCase):
     def test_spares_follow_worker_and_are_installed_only_after_time(self):
         r = initial_repairs()
+        r = move_toolkit(r, actor_dbref="#15", verb="pickup_toolkit")
         r, stock = take_parts(
             r, actor_dbref="#15", kg=3, stock_kg=25000)
         self.assertEqual(stock, 24997)
@@ -38,6 +39,8 @@ class SharedRepairContractTests(unittest.TestCase):
 
     def test_shared_assistance_is_limited_and_cannot_invent_parts(self):
         r = initial_repairs()
+        for worker in ("#15", "#20"):
+            r = move_toolkit(r, actor_dbref=worker, verb="pickup_toolkit")
         r, stock = take_parts(r, actor_dbref="#15", kg=2, stock_kg=50)
         r = begin_repair(
             r, target="isolator:ISO-GEN-M", room="GEN-M-ROOM",
@@ -56,6 +59,26 @@ class SharedRepairContractTests(unittest.TestCase):
         self.assertAlmostEqual(stock + r["installed_kg"] +
             sum(r["carried_kg"].values()) +
             sum(job["staged_kg"] for job in r["jobs"].values()), 50)
+
+    def test_six_reusable_crib_toolkits_cannot_be_invented_or_returned_mid_job(self):
+        r = initial_repairs()
+        for n in range(1, 7):
+            r = move_toolkit(r, actor_dbref="#" + str(n), verb="pickup_toolkit")
+        self.assertEqual(r["toolkits_at_crib"], 0)
+        with self.assertRaises(WaterError):
+            move_toolkit(r, actor_dbref="#7", verb="pickup_toolkit")
+        r, remaining = take_parts(r, actor_dbref="#1", kg=3, stock_kg=30)
+        r = begin_repair(r, target="equipment:GEN-M", room="GEN-M-ROOM",
+                         actor_dbref="#1", condition="failed")
+        with self.assertRaises(WaterError):
+            move_toolkit(r, actor_dbref="#1", verb="return_toolkit")
+        r = move_toolkit(r, actor_dbref="#6", verb="return_toolkit")
+        self.assertEqual(r["toolkits_at_crib"], 1)
+        self.assertEqual(remaining, 27)
+        validate_repairs(r)
+        r["toolkits_at_crib"] = 6
+        with self.assertRaises(WaterError):
+            validate_repairs(r)
 
     def test_nonexistent_spares_and_unrepairable_damage_fail_closed(self):
         with self.assertRaises(WaterError):

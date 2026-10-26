@@ -45,6 +45,13 @@ class InstalledWasteAndRepairTests(EvenniaTestCase):
             tick_continuous_physics(now_game_time=now)
         return now
 
+    def _toolkit(self):
+        self.tech.move_to(find_ship_space("TOOL-CRIB"), quiet=True)
+        receipt = self._action(self.tech, "0", "repair", "TOOL-CRIB",
+                               "pickup_toolkit")
+        self.assertEqual(receipt["status"], "succeeded")
+        return receipt
+
     def _industrial(self):
         survey_g19_water_material(
             operator_approved=True, source="INV-SPARES",
@@ -150,6 +157,7 @@ class InstalledWasteAndRepairTests(EvenniaTestCase):
                          "IND-SCRAP-HOLD-A", "offload")
 
     def test_crew_carried_spares_repair_failed_water_processor_after_real_work(self):
+        self._toolkit()
         self.tech.move_to(find_ship_space("HAB-06-ECLSS-A"), quiet=True)
         self._action(self.tech, "a", "water", "WATER-PROC-A", "off")
         set_component_condition("equipment", "WATER-PROC-A",
@@ -192,6 +200,7 @@ class InstalledWasteAndRepairTests(EvenniaTestCase):
 
 
     def test_damaged_access_door_is_repaired_at_actual_safe_endpoint(self):
+        self._toolkit()
         door = state("access", "ACC-STORE-FLUID-AFT")
         self.assertIsNone(door.space_id)
         set_component_condition(
@@ -215,6 +224,7 @@ class InstalledWasteAndRepairTests(EvenniaTestCase):
         self.assertEqual(_clock().details["repairs"]["completed"], 1)
 
     def test_incapacitated_worker_cannot_progress_or_issue_repair_work(self):
+        self._toolkit()
         self.tech.move_to(find_ship_space("HAB-06-ECLSS-A"), quiet=True)
         self._action(self.tech, "a", "water", "WATER-PROC-A", "off")
         set_component_condition("equipment", "WATER-PROC-A",
@@ -249,6 +259,7 @@ class InstalledWasteAndRepairTests(EvenniaTestCase):
             "equipment:WATER-PROC-A"]["remaining_s"], 540)
 
     def test_failed_generator_needs_isolation_and_never_restarts_after_repair(self):
+        self._toolkit()
         self.tech.move_to(find_ship_space("GEN-B-ROOM"), quiet=True)
         self._action(self.tech, "e", "plant", "GEN-B", "off")
         set_isolator("ISO-GEN-B", "open", operator=True)
