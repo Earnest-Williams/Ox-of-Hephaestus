@@ -2789,12 +2789,12 @@ def crew_physical_action(actor, request_id, action, target, value):
             try:
                 if value == "start":
                     r = begin_repair(
-                        r, target=target, room=unit.space_id,
+                        r, target=target, room=room,
                         actor_dbref=actor.dbref, condition=unit.condition)
                 elif value == "join":
                     r = join_repair(
                         r, target=target, actor_dbref=actor.dbref,
-                        room=unit.space_id)
+                        room=room)
                 else:
                     raise WaterError("Repair operation requires start or join")
             except WaterError as exc:
