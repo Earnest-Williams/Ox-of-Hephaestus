@@ -68,6 +68,39 @@ class ShipMovementRegressions(unittest.TestCase):
             rotors = step_rotors(rotors, 10, powered=True)
         self.assertAlmostEqual(rotors["WR-01"]["work_radius_m"], 60)
 
+    def test_passenger_carriage_requires_stationary_indexed_capture(self):
+        park = initial_rotors()
+        running = set_rotor_command(park, "DR-01", "start")
+        with self.assertRaises(RotorError):
+            set_rotor_command(running, "DR-01", "passenger_extend")
+        with self.assertRaises(RotorError):
+            set_rotor_command(
+                set_rotor_command(park, "DR-01", "release"),
+                "DR-01", "passenger_extend")
+        locked = set_rotor_command(park, "DR-01", "passenger_extend")
+        self.assertTrue(locked["DR-01"]["passenger_indexer"])
+        with self.assertRaises(RotorError):
+            set_rotor_command(locked, "DR-01", "release")
+        with self.assertRaises(RotorError):
+            set_rotor_command(locked, "DR-01", "start")
+        stowed = set_rotor_command(locked, "DR-01", "passenger_retract")
+        self.assertFalse(stowed["DR-01"]["passenger_indexer"])
+
+    def test_two_hab_stations_are_positive_and_mutually_exclusive(self):
+        rows = initial_rotors()
+        with self.assertRaises(RotorError):
+            set_rotor_command(rows, "HAB", "passenger_extend")
+        with self.assertRaises(RotorError):
+            set_rotor_command(rows, "DR-01", "passenger_extend:A")
+        a = set_rotor_command(rows, "HAB", "passenger_extend:A")
+        self.assertEqual(a["HAB"]["passenger_station"], "A")
+        with self.assertRaises(RotorError):
+            set_rotor_command(a, "HAB", "passenger_extend:B")
+        b = set_rotor_command(
+            set_rotor_command(a, "HAB", "passenger_retract"),
+            "HAB", "passenger_extend:B")
+        self.assertEqual(b["HAB"]["passenger_station"], "B")
+
     def test_freight_and_passenger_interlocks(self):
         rotors = initial_rotors()
         rotors = set_rotor_command(rotors, "DR-01", "freight_extend")
