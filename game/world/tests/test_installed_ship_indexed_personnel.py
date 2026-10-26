@@ -116,12 +116,12 @@ class InstalledPersonnelIndexers(EvenniaTestCase):
         fixed_exit = find_world_entity("access:" + hatch + ":forward")
         lock = find_ship_space("DR-01-SERVICE-LOCK")
         self.action(self.tech, "5", "hatch", hatch, "open")
-        with self.assertRaises(PermissionError):
-            self.action(self.tech, "6", "rotor", "DR-01", "passenger_extend")
-        self.assertEqual(state("access", hatch).setting, "open")
         self.assertEqual(traverse_canonical_exit(
             self.tech, fixed_exit, lock, request_id="7" * 32)["status"],
             "succeeded")
+        with self.assertRaises(PhysicsError):
+            self.action(self.tech, "6", "rotor", "DR-01", "passenger_extend")
+        self.assertEqual(state("access", hatch).setting, "open")
         self.action(self.tech, "8", "hatch", hatch, "closed")
         self.action(self.tech, "9", "rotor", "DR-01", "passenger_extend")
         with self.assertRaises(PhysicsError):
