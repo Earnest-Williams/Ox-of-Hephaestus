@@ -13,6 +13,10 @@ from world.ship_indexed_personnel import (
     IndexedTransferError, begin_personnel_transfer,
     indexed_mechanism_ready, link_contract,
 )
+from world.ship_eva_operations import (
+    EVAError, LOCKS as EVA_LOCKS, lock_contract, suit_of,
+    begin_eva_transit,
+)
 
 
 class CrewTransitError(ShipOperationsError):
@@ -27,6 +31,13 @@ def _health_gate(actor):
     health = CanonicalShipState.objects.filter(pk="crew_health:" + str(actor.dbref)).first()
     if health and health.condition in {"incapacitated", "critical", "dead"}:
         raise CrewTransitError("Crew member is physically unable to travel")
+    from world.continuous_ship_physics import _clock
+    eva = _clock().details.get("eva")
+    if eva is not None:
+        _, suit = suit_of(eva, actor.dbref)
+        if suit and suit["exposure"]["condition"] in {
+                "incapacitated", "critical", "dead"}:
+            raise CrewTransitError("Suited worker has suffered disabling exposure")
     if not actor.db.crew_role and not actor.check_permstring("Developer"):
         raise CrewTransitError("No shipboard crew identity")
 
@@ -127,6 +138,60 @@ def _clearance(actor, exit_obj, dest):
         raise CrewTransitError("Access boundary is not in its rated transfer position")
     zones = _topology()[0]
     za, zb = zones.get(src_id), zones.get(dst_id)
+    # EVA's pre-installed outer airlocks, work platforms and external rails
+    # are VACUUM by topology. Never misclassify them as normal air doors.
+    from world.continuous_ship_physics import _clock
+    eva = _clock().details.get("eva")
+    if (link in {lock_contract(room)["inner"] for room in EVA_LOCKS}
+            or link in {lock_contract(room)["outer"] for room in EVA_LOCKS}
+            or kind in {"eva_rail", "eva_work_platform_transfer"}):
+        if eva is None:
+            raise CrewTransitError("Fitted EVA suits and airlock machinery not commissioned")
+        _, suit = suit_of(eva, actor.dbref)
+        if link in {lock_contract(room)["inner"] for room in EVA_LOCKS}:
+            room = next(room for room in EVA_LOCKS
+                        if lock_contract(room)["inner"] == link)
+            spec = lock_contract(room)
+            outer = state("access", spec["outer"])
+            if (eva["locks"][room]["mode"] != "pressurised"
+                    or outer.setting != "closed"
+                    or door.setting != "open"):
+                raise CrewTransitError("Inner hatch not isolated from external vacuum")
+            if not za.startswith("PZ-") or not zb.startswith("PZ-"):
+                raise CrewTransitError("No real pressure cells at inner lock")
+            a, b = state("pressure", za), state("pressure", zb)
+            if not _air_safe(a) or not _air_safe(b):
+                raise CrewTransitError("Unsafe breathing gas on either side of airlock")
+            pa = a.quantity * R_SPECIFIC_AIR * a.details["temperature_k"] / a.details["gas_volume_m3"]
+            pb = b.quantity * R_SPECIFIC_AIR * b.details["temperature_k"] / b.details["gas_volume_m3"]
+            if abs(pa - pb) > 2000:
+                raise CrewTransitError("Airlock inner hatch unequal pressure")
+            return door
+        if not suit or suit["integrity"] < 0.8 or (
+                suit["exposure"]["suit_oxygen_kg"] <= 0):
+            raise CrewTransitError("Exterior traversal requires a charged issued suit")
+        crawler = state("equipment", lock_contract(suit["home"])["crawler"])
+        if crawler.condition in _BROKEN:
+            raise CrewTransitError("Assigned real EVA crawler is unserviceable")
+        if link in {lock_contract(room)["outer"] for room in EVA_LOCKS}:
+            room = next(room for room in EVA_LOCKS
+                        if lock_contract(room)["outer"] == link)
+            spec = lock_contract(room)
+            if (eva["locks"][room]["mode"] != "vacuum"
+                    or state("access", spec["inner"]).setting != "closed"
+                    or state("pressure", spec["zone"]).quantity > 0.001
+                    or {src_id, dst_id} != {room, spec["outside"]}):
+                raise CrewTransitError("Outer hatch lacks pumped-down gas isolation")
+            return door
+        if kind not in {"eva_rail", "eva_work_platform_transfer"}:
+            raise CrewTransitError("No rated EVA access")
+        if (za != "VACUUM" or zb != "VACUUM"
+                or not src_id.startswith("EXT-") or not dst_id.startswith("EXT-")):
+            raise CrewTransitError("External route does not join two real vacuum sites")
+        if kind == "eva_work_platform_transfer" and state(
+                "equipment", "EVA-WORK-PLATFORM").condition in _BROKEN:
+            raise CrewTransitError("Rated exterior work platform damaged")
+        return door
     if (not isinstance(za, str) or not isinstance(zb, str)
             or not za.startswith("PZ-") or not zb.startswith("PZ-")):
         raise CrewTransitError("Unknown atmosphere or EVA access cannot be traversed")
@@ -231,7 +296,45 @@ def traverse_canonical_exit(actor, exit_obj, dest, *, request_id=None):
             outcome=outcome, game_time=float(clock.details["last_game_time"]),
         )
         return outcome
+    if (link in {lock_contract(room)["outer"] for room in EVA_LOCKS}
+            or door.reference.get("kind") in {
+                "eva_rail", "eva_work_platform_transfer"}):
+        from world.continuous_ship_physics import _snapshot, _event
+        item = _clock(lock=True)
+        eva = item.details.get("eva")
+        if eva is None:
+            raise CrewTransitError("EVA suit system is not commissioned")
+        try:
+            altered = begin_eva_transit(
+                eva, actor=actor.dbref, link=link,
+                source=origin, destination=dest.db.ox_space_id,
+                seconds=door.reference["traverse_time_s"], request_id=request_id)
+        except EVAError as exc:
+            raise CrewTransitError(str(exc)) from exc
+        previous = _snapshot(item)
+        d = dict(item.details)
+        d["eva"] = altered
+        item.details = d
+        item.revision += 1
+        item.save(update_fields=["details", "revision"])
+        event = _event(item, "crew_eva_transit_queued", previous,
+                       actor=actor, request_id=request_id)
+        outcome = {
+            "request_id": request_id, "actor_dbref": actor.dbref,
+            "operation": "traverse", "target": link, "status": "queued",
+            "source_event_id": str(event.sequence),
+            "destination": dest.db.ox_space_id,
+            "travel_seconds": door.reference["traverse_time_s"],
+        }
+        WorkReceipt.objects.create(
+            request_id=request_id, actor_dbref=actor.dbref,
+            target="ship_physics", operation="traverse", arguments=args,
+            outcome=outcome, game_time=float(item.details["last_game_time"]))
+        return outcome
     from world.continuous_ship_physics import _clock
+    if (_clock().details.get("eva") is not None and
+            actor.dbref in _clock().details["eva"]["transits"]):
+        raise CrewTransitError("Suit traveler is already on an exterior route")
     if any(j["actor"] == actor.dbref for j in
            (_clock().details.get("personnel_transfers") or
             {"jobs": {}})["jobs"].values()):
