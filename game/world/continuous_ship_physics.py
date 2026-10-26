@@ -78,8 +78,9 @@ from world.ship_hab_sync import (
     command_hab_sync, step_hab_sync,
 )
 from world.ship_eva_operations import (
-    EVAError, LOCKS as EVA_LOCKS, SUIT_O2_KG,
+    EVAError, LOCKS as EVA_LOCKS, SUIT_O2_KG, MAX_GAS_BUFFER_KG,
     initial_eva, validate_eva, lock_contract, suit_of, checkout_suit,
+    stage_suit_oxygen,
     return_suit, begin_cycle, step_cycles, transfer_recovered_gas,
     step_suit_metabolism, begin_eva_transit, step_eva_transits,
     finish_eva_transit,
