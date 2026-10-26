@@ -64,7 +64,8 @@ def initial_eva():
             "buffer": {"mass": 0.0, "oxygen": 0.0, "co2": 0.0, "smoke": 0.0},
             "cycles": 0,
         } for lock in LOCKS},
-        "transits": {}, "staged_kg": {}, "issued_kg": 0.0,
+        "transits": {}, "staged_kg": {}, "source_used_kg": {},
+        "issued_kg": 0.0,
         "charged_kg": 0.0,
         "consumed_oxygen_kg": 0.0, "completed_transits": 0,
     }
@@ -81,6 +82,16 @@ def validate_eva(eva):
         raise EVAError("Damaged or uncommissioned EVA system")
     for name in ("issued_kg", "charged_kg", "consumed_oxygen_kg"):
         _num(eva[name])
+    if not isinstance(eva["source_used_kg"], dict) or len(eva["source_used_kg"]) > 4:
+        raise EVAError("Unaccounted damage-control canister source")
+    for room, mass in eva["source_used_kg"].items():
+        if room not in {"ENG-LOCKER", "STORE-CRIT-SPARES",
+                        "HAB-04-REFUGE", "HAB-08-REFUGE"}:
+            raise EVAError("Oxygen source not installed at this room")
+        _num(mass)
+    if abs(sum(eva["source_used_kg"].values()) -
+           eva["issued_kg"]) > 1e-7:
+        raise EVAError("Oxygen issued from inaccessible stock")
     if not isinstance(eva["staged_kg"], dict) or len(eva["staged_kg"]) > 16:
         raise EVAError("Invalid carrying-custody record")
     for actor, mass in eva["staged_kg"].items():
@@ -161,7 +172,7 @@ def suit_of(eva, actor):
     return None, None
 
 
-def stage_suit_oxygen(eva, *, actor, kg):
+def stage_suit_oxygen(eva, *, actor, room, kg):
     """A real worker moves measured DC breathing gas out of source stores."""
     validate_eva(eva)
     if not isinstance(actor, str) or not re.fullmatch(r"#[0-9]+", actor):
@@ -169,7 +180,12 @@ def stage_suit_oxygen(eva, *, actor, kg):
     mass = _num(kg, high=SUIT_O2_KG)
     if mass <= 0:
         raise EVAError("No breathing gas supplied")
+    if room not in {"ENG-LOCKER", "STORE-CRIT-SPARES",
+                    "HAB-04-REFUGE", "HAB-08-REFUGE"}:
+        raise EVAError("Worker is not at a real damage-control breathing store")
     result = copy.deepcopy(eva)
+    result["source_used_kg"][room] = (
+        result["source_used_kg"].get(room, 0.0) + mass)
     result["staged_kg"][actor] = result["staged_kg"].get(actor, 0.0) + mass
     result["issued_kg"] += mass
     validate_eva(result)
