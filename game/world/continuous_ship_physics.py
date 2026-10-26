@@ -2188,6 +2188,73 @@ def tick_continuous_physics(*, now_game_time=None):
     if not math.isclose(total_before + oxygen_generated, total_after + lost,
                         abs_tol=1e-5, rel_tol=1e-10):
         raise PhysicsError("Gas, fire fuel and vented mass did not reconcile")
+    # Two real airlock chambers, isolated by their installed atmospheric
+    # dampers, have a physically finite recovered-gas buffer. The transfer
+    # occurs ONLY after the full rated pump cycle, never by simply opening
+    # an airlock door. Gas moved to the buffer is not vented or fabricated.
+    if eva is not None:
+        by_access_eva = {row.source_id: row for row in access_rows}
+        carried_time = 0.0
+        while carried_time < seconds - 1e-9:
+            delta = min(STEP_SECONDS, seconds - carried_time)
+            carried_time += delta
+            ready_locks = set()
+            for lock in EVA_LOCKS:
+                spec = lock_contract(lock)
+                damper = isolators.get(spec["damper"])
+                breaker = isolators.get(spec["breaker"])
+                panel = equipment.get(spec["panel"])
+                inner = by_access_eva.get(spec["inner"])
+                outer = by_access_eva.get(spec["outer"])
+                if (damper and breaker and panel and inner and outer
+                        and damper.setting == "closed"
+                        and breaker.setting == "closed"
+                        and damper.condition not in _BROKEN
+                        and breaker.condition not in _BROKEN
+                        and panel.condition not in _BROKEN
+                        and inner.condition not in _BROKEN
+                        and outer.condition not in _BROKEN
+                        and inner.setting == "closed" and outer.setting == "closed"
+                        and power["assured"]
+                        and "NODE-LP-" + lock in power["nodes"]):
+                    ready_locks.add(lock)
+            try:
+                eva, events = step_cycles(eva, delta, ready_locks=ready_locks)
+                for lock, operation in events:
+                    eva, cells = transfer_recovered_gas(
+                        eva, cells, lock=lock, cycle=operation)
+                eva = step_suit_metabolism(eva, delta)
+                ready_links = set()
+                for actor_key, job in eva["transits"].items():
+                    door = by_access_eva.get(job["link"])
+                    if not door or door.condition in _BROKEN or door.setting != "open":
+                        continue
+                    _, worn = suit_of(eva, actor_key)
+                    if not worn:
+                        continue
+                    crawler_id = lock_contract(worn["home"])["crawler"]
+                    crawler = equipment.get(crawler_id)
+                    if not crawler or crawler.condition in _BROKEN:
+                        continue
+                    kind = door.reference.get("kind")
+                    if kind == "airlock_outer_hatch":
+                        chamber = next((room for room in EVA_LOCKS
+                                        if lock_contract(room)["outer"] == job["link"]), None)
+                        if (chamber is None
+                                or eva["locks"][chamber]["mode"] != "vacuum"
+                                or by_access_eva[lock_contract(chamber)["inner"]].setting != "closed"):
+                            continue
+                    elif kind not in {"eva_rail", "eva_work_platform_transfer"}:
+                        continue
+                    if kind == "eva_work_platform_transfer":
+                        platform = equipment.get("EVA-WORK-PLATFORM")
+                        if not platform or platform.condition in _BROKEN:
+                            continue
+                    ready_links.add(job["link"])
+                eva, _ = step_eva_transits(eva, delta, ready_links=ready_links)
+            except EVAError as exc:
+                raise PhysicsError(str(exc)) from exc
+
     pressure_changed = []
     for row in pressure_rows:
         c = cells[row.source_id]
