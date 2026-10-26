@@ -52,6 +52,15 @@ def _rotary_gate(src, dst, door):
             if state("equipment", ident).condition in _BROKEN:
                 raise CrewTransitError("Fixed-side HAB indexer hardware damaged")
         return
+    if door.source_id == "ACC-WR-FIXED-IX":
+        if {src.db.ox_frame, dst.db.ox_frame} != {
+                "fixed", "indexer-workrotor"}:
+            raise CrewTransitError("Workshop indexer does not meet its fixed dock")
+        if _clock().details["rotors"]["WR-01"]["passenger_indexer"]:
+            raise CrewTransitError("Workshop fixed hatch and rotating capture overlap")
+        if state("equipment", "WR-INDEXER").condition in _BROKEN:
+            raise CrewTransitError("Workshop personnel indexer damaged")
+        return
     names = []
     for rotor in ROTORS:
         if (str(src.db.ox_space_id).startswith(rotor + "-") or
@@ -96,7 +105,8 @@ def _clearance(actor, exit_obj, dest):
     if (src_id, dst_id) != ends or door.condition in _BROKEN:
         raise CrewTransitError("Access link damaged or not in the approved topology")
     kind = str(door.reference.get("kind", "")).lower()
-    indexed = kind == "indexed_rotary_transfer"
+    indexed = (kind == "indexed_rotary_transfer"
+               or link == "ACC-WR-IX-HUB" and kind == "indexer_hatch")
     if (indexed and door.setting != "closed"
             or not indexed and door.setting not in {"open", "closed_or_auto"}):
         raise CrewTransitError("Access boundary is not in its rated transfer position")
@@ -174,7 +184,8 @@ def traverse_canonical_exit(actor, exit_obj, dest, *, request_id=None):
         return dict(previous.outcome)
     door = _clearance(actor, exit_obj, dest)
     origin = actor.location.db.ox_space_id
-    if door.reference.get("kind") == "indexed_rotary_transfer":
+    if (door.reference.get("kind") == "indexed_rotary_transfer"
+            or link == "ACC-WR-IX-HUB")
         from world.continuous_ship_physics import _snapshot, _event
         clock = _clock(lock=True)
         try:
