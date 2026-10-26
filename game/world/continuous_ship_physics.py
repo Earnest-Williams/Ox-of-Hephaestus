@@ -4281,6 +4281,33 @@ def local_physics_readout(actor, target):
     room = getattr(getattr(location, "db", None), "ox_space_id", None)
     if not room:
         raise PermissionError("Stand at an installed ship compartment")
+    if target == "damage":
+        major = _clock().details.get("major_damage")
+        if major is None:
+            raise PhysicsError("Major-hull damage control is not commissioned")
+        visible = {}
+        for zone, site in major["sites"].items():
+            breach = (_clock().details.get("hull") or {}).get(
+                "breaches", {}).get(zone)
+            if (room not in {"ENG-CONTROL", site["external_face"],
+                             breach["site_room"] if breach else None}):
+                continue
+            visible[zone] = {
+                "isolated": site["isolated"],
+                "remaining_s": site["remaining_s"],
+                "external_face": site["external_face"],
+                "rated_boundaries": len(site["boundaries"]),
+                "open_or_damaged_boundaries": tuple(
+                    door for door in site["boundaries"]
+                    if state("access", door).setting != "closed"
+                    or state("access", door).condition in _BROKEN),
+                "measured_leak_kg_s": state("pressure", zone).details.get(
+                    "physics_leak_kg_s"),
+            }
+        if not visible and room != "ENG-CONTROL":
+            raise PermissionError("No surveyed major casualty at this position")
+        return {"major_sites": visible,
+                "scope": "engineering_damage_board_or_local_hull_face"}
     if target == "eva":
         system = _clock().details.get("eva")
         if system is None:
