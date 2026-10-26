@@ -805,7 +805,7 @@ def commission_g19_personnel_transfers(*, operator_approved=False):
     clock.revision += 1
     clock.save(update_fields=["details", "revision"])
     _event(clock, "commission_g19_indexed_personnel", original)
-    return {"commissioned": True, "rated_links": 8}
+    return {"commissioned": True, "rated_links": 9}
 
 
 @transaction.atomic
@@ -2534,6 +2534,8 @@ def _personnel_fixed_hatch_preflight(hatch):
         rotor, kind = source_id[4:9], "pressure_door"
     elif source_id in {"ACC-IX-A-FIX", "ACC-IX-B-FIX"}:
         rotor, kind = "HAB", "pressure_hatch"
+    elif source_id == "ACC-WR-FIXED-IX":
+        rotor, kind = "WR-01", "indexer_hatch"
     else:
         raise PhysicsError("Not an installed fixed-side indexer hatch")
     spec = hatch.reference
@@ -3390,6 +3392,13 @@ def crew_physical_action(actor, request_id, action, target, value):
             if (fixed.condition in _BROKEN or fixed.setting != "closed"
                     or rotary.condition in _BROKEN or rotary.setting != "closed"):
                 raise PhysicsError("Drum personnel locks must both be shut and sound")
+        if target == "WR-01" and value == "passenger_extend":
+            fixed = state("access", "ACC-WR-FIXED-IX")
+            rotary = state("access", "ACC-WR-IX-HUB")
+            if (state("equipment", "WR-INDEXER").condition in _BROKEN
+                    or fixed.condition in _BROKEN or fixed.setting != "closed"
+                    or rotary.condition in _BROKEN or rotary.setting != "closed"):
+                raise PhysicsError("Workshop personnel indexer or its two hatches unsafe")
         if target == "HAB" and value in {
                 "passenger_extend:A", "passenger_extend:B"}:
             station = value[-1]
@@ -3492,7 +3501,8 @@ def crew_physical_action(actor, request_id, action, target, value):
                            "hatch" in str(spec.get("kind", "")).lower())
         fixed_indexer = (
             re.fullmatch(r"ACC-DR-0[1-6]-LOCK-FIX", item.source_id) is not None
-            or item.source_id in {"ACC-IX-A-FIX", "ACC-IX-B-FIX"})
+            or item.source_id in {"ACC-IX-A-FIX", "ACC-IX-B-FIX",
+                                  "ACC-WR-FIXED-IX"})
         if not ordinary_bridge and not fixed_indexer:
             raise PhysicsError("Other cargo, EVA and machinery doors need their own interlocks")
         if item.condition in _BROKEN:
@@ -3590,7 +3600,7 @@ def local_physics_readout(actor, target):
         local = {}
         for link in (
                 *(f"ACC-DR-{n:02d}-LOCK-ROT" for n in range(1, 7)),
-                "ACC-IX-A-ROT", "ACC-IX-B-ROT"):
+                "ACC-IX-A-ROT", "ACC-IX-B-ROT", "ACC-WR-IX-HUB"):
             spec = link_contract(link)
             if room not in {spec["from"], spec["to"]}:
                 continue
