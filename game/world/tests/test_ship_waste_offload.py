@@ -107,6 +107,25 @@ class WastePortContractTests(unittest.TestCase):
             approve_route(self.w, receiver="INVALID",
                           portal_id="DR-01-P1", route=self.route)
 
+    def test_corrupt_port_ledger_and_missing_inboard_mass_are_rejected(self):
+        import copy
+        self._stage()
+        self.w = command(self.w, receiver=self.receiver, verb="haul")
+        for _ in range(4):
+            self._step(60, freight=(self.receiver,))
+        altered = copy.deepcopy(self.w)
+        altered["waste_offload"]["jobs"][self.receiver]["aboard_kg"] -= 1
+        with self.assertRaises(WaterError):
+            validate_water(altered, self.s)
+        altered = copy.deepcopy(self.w)
+        altered["waste_offload"]["acceptances"]["YARD-A-1"]["accepted_kg"] = 1
+        with self.assertRaises(WaterError):
+            validate_water(altered, self.s)
+        altered = copy.deepcopy(self.w)
+        altered["waste_offload"]["jobs"][self.receiver]["paused"] = "yes"
+        with self.assertRaises(WaterError):
+            validate_water(altered, self.s)
+
     def test_unsealed_or_empty_receiver_cannot_be_exported(self):
         self.w["cassette_sealed"]["sanitary"]["A"] = False
         with self.assertRaises(WaterError):

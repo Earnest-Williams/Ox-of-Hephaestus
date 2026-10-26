@@ -42,6 +42,10 @@ def validate_offload(water, stocks):
         raise WaterError("Invalid external waste custody state")
     for category in CASSETTE_KG:
         _quantity(off["delivered_kg"][category])
+    # External acceptance ledgers and the per-class cumulative delivery
+    # gauges must reconcile. One cannot erase previously exported matter
+    # by editing only a job, a receipt, or a berth balance.
+    delivered = {category: 0.0 for category in CASSETTE_KG}
     if not isinstance(off["routes"], dict):
         raise WaterError("Missing installed waste freight-route evidence")
     reserved = {}
@@ -54,8 +58,15 @@ def validate_offload(water, stocks):
         if (not isinstance(entry.get("berth_id"), str)
                 or not entry["berth_id"]):
             raise WaterError("Unidentified waste accepting berth")
-        if _quantity(entry["accepted_kg"]) > _quantity(entry["limit_kg"]) + 1e-7:
+        accepted = _quantity(entry["accepted_kg"])
+        limit = _quantity(entry["limit_kg"])
+        if limit <= 0 or accepted > limit + 1e-7:
             raise WaterError("External berth accepted more than its finite limit")
+        delivered[entry["category"]] += accepted
+    for category in CASSETTE_KG:
+        if not math.isclose(delivered[category], off["delivered_kg"][category],
+                            abs_tol=1e-6, rel_tol=1e-10):
+            raise WaterError("External waste acceptance and delivery ledgers differ")
     for receiver, job in off["jobs"].items():
         if receiver not in RECEIVERS:
             raise WaterError("Unknown waste cassette in custody")
@@ -76,8 +87,14 @@ def validate_offload(water, stocks):
         original = _quantity(job["original_kg"])
         exported = _quantity(job["offship_kg"])
         wait = _quantity(job["remaining_s"])
-        if mass + exported > original + 1e-6 or wait > 240 + 1e-7:
-            raise WaterError("Cassette transfer exceeds original physical contents")
+        if (original <= 0 or mass + exported > original + 1e-6
+                or wait > 240 + 1e-7 or not isinstance(job.get("paused"), bool)):
+            raise WaterError("Invalid cassette cargo custody, wait or pause state")
+        if (job["phase"] in {"port_ready", "offloading", "return_ready",
+                             "returning"} and
+                not math.isclose(mass + exported, original,
+                                 abs_tol=1e-6, rel_tol=1e-10)):
+            raise WaterError("Outbound cassette lost unexported physical material")
         if (job["phase"] in {"prepared", "hauling", "aborting"}
                 and (mass > 1e-7 or exported > 1e-7)):
             raise WaterError("Waste moved before physical freight capture completed")

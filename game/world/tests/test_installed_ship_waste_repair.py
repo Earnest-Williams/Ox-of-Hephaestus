@@ -15,7 +15,8 @@ from world.full_ship_operations import (
     set_component_condition, set_isolator, state,
 )
 from world.ship_world import build_canonical_ship, find_ship_space
-from world.models import WorkReceipt, CanonicalShipEvent
+from world.models import WorkReceipt, CanonicalShipEvent, CanonicalShipState
+from world.ship_crew_access import CrewTransitError
 
 
 class InstalledWasteAndRepairTests(EvenniaTestCase):
@@ -212,6 +213,40 @@ class InstalledWasteAndRepairTests(EvenniaTestCase):
         self.assertEqual(repaired.condition, "serviceable")
         self.assertNotEqual(repaired.setting, "open")
         self.assertEqual(_clock().details["repairs"]["completed"], 1)
+
+    def test_incapacitated_worker_cannot_progress_or_issue_repair_work(self):
+        self.tech.move_to(find_ship_space("HAB-06-ECLSS-A"), quiet=True)
+        self._action(self.tech, "a", "water", "WATER-PROC-A", "off")
+        set_component_condition("equipment", "WATER-PROC-A",
+                                "failed", operator=True)
+        survey_g19_water_material(
+            operator_approved=True, source="INV-SPARES",
+            room_id="STORE-CRIT-SPARES", verified_kg=3)
+        self.tech.move_to(find_ship_space("STORE-CRIT-SPARES"), quiet=True)
+        self._action(self.tech, "b", "repair", "INV-SPARES", "pickup:3")
+        self.tech.move_to(find_ship_space("HAB-06-ECLSS-A"), quiet=True)
+        started = self._action(self.tech, "c", "repair",
+                               "equipment:WATER-PROC-A", "start")
+        health = CanonicalShipState.objects.create(
+            key="crew_health:" + str(self.tech.dbref),
+            category="crew_health", source_id=str(self.tech.dbref),
+            source_model="ox.g19.crew-health", condition="incapacitated")
+        with self.assertRaises(CrewTransitError):
+            self._action(self.tech, "d", "repair",
+                         "equipment:WATER-PROC-A", "join")
+        with self.assertRaises(CrewTransitError):
+            self._action(self.tech, "e", "wasteport",
+                         "IND-SCRAP-HOLD-A", "pause")
+        self.assertEqual(self._action(self.tech, "c", "repair",
+                                      "equipment:WATER-PROC-A", "start"), started)
+        tick_continuous_physics(now_game_time=1060)
+        self.assertEqual(_clock().details["repairs"]["jobs"][
+            "equipment:WATER-PROC-A"]["remaining_s"], 600)
+        health.condition = "serviceable"
+        health.save(update_fields=["condition"])
+        tick_continuous_physics(now_game_time=1120)
+        self.assertEqual(_clock().details["repairs"]["jobs"][
+            "equipment:WATER-PROC-A"]["remaining_s"], 540)
 
     def test_failed_generator_needs_isolation_and_never_restarts_after_repair(self):
         self.tech.move_to(find_ship_space("GEN-B-ROOM"), quiet=True)

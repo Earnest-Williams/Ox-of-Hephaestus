@@ -2074,12 +2074,19 @@ def tick_continuous_physics(*, now_game_time=None):
         ids = [int(ref[1:]) for ref in refs if isinstance(ref, str)
                and ref.startswith("#") and ref[1:].isdigit()]
         by_id = {obj.dbref: obj for obj in ObjectDB.objects.filter(id__in=ids)}
+        crew_health = {
+            row.key.split(":", 1)[1]: row.condition
+            for row in CanonicalShipState.objects.filter(
+                key__in=["crew_health:" + ref for ref in refs])
+        }
         present = defaultdict(set)
         by_pressure = {row.source_id: row for row in pressure_rows}
         for ref, actor in by_id.items():
             if (getattr(actor, "location", None) is not None
                     and getattr(actor.db, "crew_role", None) in AUTHORISED_ROLES
-                    and not getattr(actor.db, "ox_terminal_dead", False)):
+                    and not getattr(actor.db, "ox_terminal_dead", False)
+                    and crew_health.get(ref) not in {
+                        "incapacitated", "critical", "dead"}):
                 room_id = getattr(actor.location.db, "ox_space_id", None)
                 if room_id:
                     zone = zones.get(room_id)
@@ -2356,6 +2363,12 @@ def crew_physical_action(actor, request_id, action, target, value):
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
+    if action in {"repair", "wasteport"}:
+        # A worker who has become incapacitated cannot command or advance
+        # a physical repair or sealed waste movement. Deduplicated historic
+        # receipts above remain replayable without issuing a second action.
+        from world.ship_crew_access import _health_gate
+        _health_gate(actor)
     if action == "switch":
         item = state("isolator", target, lock=True)
         _crew_at(actor, item.space_id)
