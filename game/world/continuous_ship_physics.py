@@ -68,6 +68,11 @@ from world.ship_hull_restoration import (
     HullError, initial_hull, validate_hull, register_breach,
     effective_leak, expected_repair_condition, finish_hull_work,
 )
+from world.ship_indexed_personnel import (
+    IndexedTransferError, initial_personnel_transfers,
+    validate_personnel_transfers, indexed_mechanism_ready,
+    step_personnel_transfers, finish_personnel_transfer,
+)
 
 CLOCK_KEY = "meta:continuous-physics"
 SCRIPT_KEY = "OxContinuousShipPhysics"
@@ -776,6 +781,31 @@ def verify_g19_hydrogen_outlet(side, *, operator_approved=False,
             "verified": exterior_clearance_verified}
 
 
+
+
+@transaction.atomic
+def commission_g19_personnel_transfers(*, operator_approved=False):
+    """Explicitly commission eight existing indexed personnel mechanisms.
+
+    This adds a durable job book, not compartments, pressure stock or new
+    machinery. Existing voyages and older G18 tests are not auto-retrofitted.
+    """
+    if not operator_approved:
+        raise PermissionError("World operator must commission indexed transfer machinery")
+    clock = _clock(lock=True)
+    if clock.details.get("personnel_transfers") is not None:
+        validate_personnel_transfers(clock.details["personnel_transfers"])
+        return {"commissioned": False}
+    if set(clock.details.get("rotors", {})) != set(ROTORS):
+        raise PhysicsError("Eight separate rotary mechanisms not commissioned")
+    original = _snapshot(clock)
+    d = dict(clock.details)
+    d["personnel_transfers"] = initial_personnel_transfers()
+    clock.details = d
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "commission_g19_indexed_personnel", original)
+    return {"commissioned": True, "rated_links": 8}
 
 
 @transaction.atomic
@@ -1507,6 +1537,12 @@ def tick_continuous_physics(*, now_game_time=None):
     repairs = clock.details.get("repairs")
     if repairs is not None:
         validate_repairs(repairs)
+    personnel_transfers = clock.details.get("personnel_transfers")
+    if personnel_transfers is not None:
+        try:
+            validate_personnel_transfers(personnel_transfers)
+        except IndexedTransferError as exc:
+            raise PhysicsError(str(exc)) from exc
     waste_export_kg = 0.0
     changed_equipment = set()
     motion = dict(clock.details.get("motion", {}))
@@ -2256,6 +2292,69 @@ def tick_continuous_physics(*, now_game_time=None):
             item.revision += 1
             item.save(update_fields=["details", "condition", "revision"])
             _event(item, "crew_finite_equipment_repair_complete", prior)
+    # The eight indexed personnel carriers share the same physical world
+    # clock and pressure state. Doors stay shut while a carriage moves.
+    # A failed actuator, lost power, unsafe air, or lost hardlock PAUSES work;
+    # no inhabitant is teleported to a drum on a failed cycle.
+    if personnel_transfers is not None and personnel_transfers["jobs"]:
+        from evennia.objects.models import ObjectDB
+        from world.ship_world import find_ship_space
+        by_access = {item.source_id: item for item in access_rows}
+        by_pressure = {item.source_id: item for item in pressure_rows}
+        ready_links = set()
+        for job in personnel_transfers["jobs"].values():
+            rotor_name = job["rotor"]
+            if indexed_mechanism_ready(
+                    job["link"], rotors=rotors, equipment=equipment,
+                    access=by_access, pressure=by_pressure, room_zones=zones,
+                    pressure_safe=_air_safe,
+                    powered=(power["assured"] and
+                             rotary_power_by_unit.get(rotor_name, False))):
+                ready_links.add(job["link"])
+        try:
+            personnel_transfers, completed_candidates = step_personnel_transfers(
+                personnel_transfers, seconds, ready_links=ready_links)
+        except IndexedTransferError as exc:
+            raise PhysicsError(str(exc)) from exc
+        for job in completed_candidates:
+            source = find_ship_space(job["from"])
+            destination = find_ship_space(job["to"])
+            ref = job["actor"]
+            actor = ObjectDB.objects.filter(id=int(ref[1:])).first()
+            if (actor is None or source is None or destination is None
+                    or actor.location != source):
+                # A character removed/repositioned by world authority cannot
+                # be pulled back by a stale work order. Cancel and audit it.
+                personnel_transfers = finish_personnel_transfer(
+                    personnel_transfers, rotor=job["rotor"],
+                    request_id=job["request_id"], aborted=True)
+                CanonicalShipEvent.objects.create(
+                    component_key="access:" + job["link"],
+                    operation="crew_indexed_transfer_aborted",
+                    before={"space_id": job["from"]},
+                    after={"reason": "occupant_or_room_changed",
+                           "request_id": job["request_id"]},
+                    actor_dbref=ref, game_time=last + seconds)
+                continue
+            health = CanonicalShipState.objects.filter(
+                pk="crew_health:" + ref).first()
+            if (getattr(actor.db, "ox_terminal_dead", False)
+                    or (health and health.condition in {
+                        "incapacitated", "critical", "dead"})):
+                continue  # an incapacitated occupant needs recovery, not teleport
+            if not actor.move_to(destination, quiet=True):
+                continue
+            personnel_transfers = finish_personnel_transfer(
+                personnel_transfers, rotor=job["rotor"],
+                request_id=job["request_id"])
+            CanonicalShipEvent.objects.create(
+                component_key="access:" + job["link"],
+                operation="crew_indexed_transfer_complete",
+                before={"space_id": job["from"]},
+                after={"space_id": job["to"], "request_id": job["request_id"],
+                       "duration_s": job["total_s"]},
+                actor_dbref=ref, game_time=last + seconds)
+            actor.msg("The indexed personnel carriage reaches its destination.")
     old = _snapshot(clock)
     d = dict(clock.details)
     d["last_game_time"] = last + seconds
@@ -2269,6 +2368,8 @@ def tick_continuous_physics(*, now_game_time=None):
         d["repairs"] = repairs
     if hull is not None:
         d["hull"] = hull
+    if personnel_transfers is not None:
+        d["personnel_transfers"] = personnel_transfers
     if water_state is not None:
         d["water"] = water_state
     d["rotors"] = rotors
