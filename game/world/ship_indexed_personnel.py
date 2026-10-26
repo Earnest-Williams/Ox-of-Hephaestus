@@ -1,7 +1,7 @@
 """G19 finite crew transfers through *installed* indexed rotary mechanisms.
 
-The eight existing rated access links, two independent HAB indexer stations
-and six drum personnel carriers are the only supported links. Persistent job
+The nine existing rated access links, two HAB stations, six drum carriers
+and the separate WR workshop-rotor indexer are the only supported links. Persistent job
 state belongs to the canonical physics clock, never to a character's intent.
 This pure module neither creates rooms nor moves characters or gas.
 """
@@ -31,6 +31,14 @@ def link_contract(link_id):
             "station": None, "seconds": 180.0,
             "hardware": (drum + "-PERSONNEL-INDEXER", drum + "-ROT-PWR"),
         }
+    if link_id == "ACC-WR-IX-HUB":
+        return {
+            "link": link_id, "rotor": "WR-01",
+            "from": "WR-IX-CAPSULE", "to": "WR-HUB",
+            "fixed_hatch": "ACC-WR-FIXED-IX",
+            "station": None, "seconds": 20.0,
+            "hardware": ("WR-INDEXER", "WR-ROT-PWR-IF"),
+        }
     if link_id in {"ACC-IX-A-ROT", "ACC-IX-B-ROT"}:
         station = link_id[7]
         return {
@@ -52,7 +60,7 @@ def initial_personnel_transfers():
 def validate_personnel_transfers(value):
     if not isinstance(value, dict) or set(value) != {"jobs", "completed", "aborted"}:
         raise IndexedTransferError("Uncommissioned or corrupt transfer state")
-    if not isinstance(value["jobs"], dict) or len(value["jobs"]) > 7:
+    if not isinstance(value["jobs"], dict) or len(value["jobs"]) > 8:
         raise IndexedTransferError("Too many concurrent installed indexers")
     for key in ("completed", "aborted"):
         if (isinstance(value[key], bool)
@@ -154,7 +162,9 @@ def indexed_mechanism_ready(link, *, rotors, equipment, access,
     if not door or not fixed or not powered:
         return False
     if (door.condition in BROKEN or fixed.condition in BROKEN
-            or door.reference.get("kind") != "indexed_rotary_transfer"
+            or door.reference.get("kind") != (
+                "indexer_hatch" if link == "ACC-WR-IX-HUB"
+                else "indexed_rotary_transfer")
             or door.reference.get("pressure_boundary") is not True
             or door.reference.get("from") != spec["from"]
             or door.reference.get("to") != spec["to"]
