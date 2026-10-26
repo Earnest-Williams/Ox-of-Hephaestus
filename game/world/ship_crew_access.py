@@ -15,7 +15,7 @@ from world.ship_indexed_personnel import (
 )
 from world.ship_eva_operations import (
     EVAError, LOCKS as EVA_LOCKS, lock_contract, suit_of,
-    begin_eva_transit,
+    begin_eva_transit, human_exterior_site_safe,
 )
 
 
@@ -188,9 +188,14 @@ def _clearance(actor, exit_obj, dest):
         if (za != "VACUUM" or zb != "VACUUM"
                 or not src_id.startswith("EXT-") or not dst_id.startswith("EXT-")):
             raise CrewTransitError("External route does not join two real vacuum sites")
-        if kind == "eva_work_platform_transfer" and state(
-                "equipment", "EVA-WORK-PLATFORM").condition in _BROKEN:
-            raise CrewTransitError("Rated exterior work platform damaged")
+        if kind == "eva_work_platform_transfer":
+            if state("equipment", "EVA-WORK-PLATFORM").condition in _BROKEN:
+                raise CrewTransitError("Rated exterior work platform damaged")
+            if not human_exterior_site_safe(
+                    door.reference.get("to"),
+                    _clock().details.get("rotors", {})):
+                raise CrewTransitError(
+                    "Drum skin must be parked/hardlocked; hot radiators and thrusters remain excluded")
         return door
     if (not isinstance(za, str) or not isinstance(zb, str)
             or not za.startswith("PZ-") or not zb.startswith("PZ-")):
