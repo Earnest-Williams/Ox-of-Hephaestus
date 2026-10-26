@@ -3198,6 +3198,176 @@ def crew_physical_action(actor, request_id, action, target, value):
             item.details = d
             item.revision += 1
             item.save(update_fields=["details", "revision"])
+    elif action == "eva":
+        # All airlock, suit and exterior-platform actions have one durable
+        # request receipt and are serialized against the authoritative clock.
+        item = _clock(lock=True)
+        before = _snapshot(item)
+        d = dict(item.details)
+        eva = d.get("eva")
+        if eva is None:
+            raise PhysicsError("Real EVA plant and four finite suits not commissioned")
+        try:
+            validate_eva(eva)
+        except EVAError as exc:
+            raise PhysicsError(str(exc)) from exc
+        import copy
+        eva = copy.deepcopy(eva)
+        room = getattr(getattr(getattr(actor, "location", None), "db", None),
+                       "ox_space_id", None)
+        if not room:
+            raise PermissionError("Suited physical worker must stand in the ship")
+        carried_id, carried = suit_of(eva, actor.dbref)
+        if target == "INV-DC-CONSUMABLES":
+            if not value.startswith("stage:"):
+                raise PhysicsError("EVA source issue requires stage:<kg>")
+            _crew_at(actor, room)
+            stock = state("inventory", target, lock=True)
+            try:
+                kg = _positive(float(value.partition(":")[2]), maximum=SUIT_O2_KG)
+                allocations = stock.reference.get("location_allocations_t", {})
+                if (room not in allocations or
+                        eva["source_used_kg"].get(room, 0) + kg >
+                        allocations[room] * 1000 + 1e-7 or
+                        stock.quantity * 1000 + 1e-7 < kg):
+                    raise PhysicsError("No verified unused breathing stock at this real locker")
+                new_eva = stage_suit_oxygen(eva, actor=actor.dbref,
+                                            room=room, kg=kg)
+            except (ValueError, TypeError, EVAError) as exc:
+                raise PhysicsError(str(exc)) from exc
+            old_stock = _snapshot(stock)
+            stock.quantity -= kg / 1000.0
+            stock.revision += 1
+            stock.save(update_fields=["quantity", "revision"])
+            _event(stock, "crew_eva_breathing_canister_issued", old_stock)
+            eva = new_eva
+        elif target in EVA_LOCKS:
+            spec = lock_contract(target)
+            if room not in {target, spec["trunk"], spec["outside"]}:
+                raise PermissionError("Airlock controls are local to actual hatches")
+            inner = state("access", spec["inner"], lock=True)
+            outer = state("access", spec["outer"], lock=True)
+            panel = state("equipment", spec["panel"])
+            if panel.condition in _BROKEN:
+                raise PhysicsError("Installed EVA local panel is damaged")
+            mode = eva["locks"][target]["mode"]
+            if value == "checkout":
+                _crew_at(actor, target)
+                if mode != "pressurised" or not _air_safe(
+                        state("pressure", spec["zone"])):
+                    raise PhysicsError("Suit must be checked out in breathable dock")
+                if outer.setting != "closed":
+                    raise PhysicsError("Suit issue requires outer pressure hatch shut")
+                try:
+                    available = next((row for key, row in sorted(eva["suits"].items())
+                                      if row["home"] == target and row["holder"] is None), None)
+                    if not available:
+                        raise EVAError("No real spare suit at this lock")
+                    needed = SUIT_O2_KG - available["exposure"]["suit_oxygen_kg"]
+                    eva, _, _ = checkout_suit(
+                        eva, actor=actor.dbref, lock=target,
+                        supplied_oxygen_kg=needed)
+                except EVAError as exc:
+                    raise PhysicsError(str(exc)) from exc
+            elif value == "return":
+                _crew_at(actor, target)
+                if (mode != "pressurised" or inner.setting != "closed"
+                        or outer.setting != "closed"):
+                    raise PhysicsError("Return only in sealed re-pressurised airlock")
+                try:
+                    eva = return_suit(eva, actor=actor.dbref, lock=target)
+                except EVAError as exc:
+                    raise PhysicsError(str(exc)) from exc
+            elif value in {"pumpdown", "repressurise"}:
+                _crew_at(actor, target)
+                if not carried or carried["home"] != target or carried["integrity"] < .8:
+                    raise PhysicsError("Properly fitted issued suit required inside chamber")
+                damper = state("isolator", spec["damper"])
+                breaker = state("isolator", spec["breaker"])
+                if (inner.setting != "closed" or outer.setting != "closed"
+                        or damper.setting != "closed" or breaker.setting != "closed"
+                        or damper.condition in _BROKEN or breaker.condition in _BROKEN):
+                    raise PhysicsError("Seal both airlock doors and isolate the actual air branch")
+                supply = _power(
+                    {r.source_id:r for r in CanonicalShipState.objects.filter(
+                        category="equipment")},
+                    list(CanonicalShipState.objects.filter(category="edge")),
+                    {r.source_id:r for r in CanonicalShipState.objects.filter(
+                        category="isolator")},
+                    item.details["load_profile"])
+                if not supply["assured"] or "NODE-LP-" + target not in supply["nodes"]:
+                    raise PhysicsError("EVA pump has no verified local electrical feeder")
+                if value == "pumpdown":
+                    cell = state("pressure", spec["zone"])
+                    if (not _air_safe(cell) or cell.quantity > MAX_GAS_BUFFER_KG):
+                        raise PhysicsError("Unsafe gas or finite recovery-bottle capacity")
+                try:
+                    eva = begin_cycle(eva, lock=target, direction=value)
+                except EVAError as exc:
+                    raise PhysicsError(str(exc)) from exc
+            elif value in {"inner_open", "inner_close"}:
+                if room not in {target, spec["trunk"]}:
+                    raise PermissionError("Cannot reach inner airlock hatch")
+                if inner.condition in _BROKEN:
+                    raise PhysicsError("Installed inner hatch damaged")
+                if value == "inner_open":
+                    if mode != "pressurised" or outer.setting != "closed":
+                        raise PhysicsError("Inner hatch interlocked until full re-pressurisation")
+                    zones = _topology()[0]
+                    a = state("pressure", zones[spec["trunk"]])
+                    b = state("pressure", spec["zone"])
+                    if not _air_safe(a) or not _air_safe(b):
+                        raise PhysicsError("No verified breathable gas both sides of inner hatch")
+                    pa = a.quantity * R_SPECIFIC_AIR * a.details["temperature_k"] / a.details["gas_volume_m3"]
+                    pb = b.quantity * R_SPECIFIC_AIR * b.details["temperature_k"] / b.details["gas_volume_m3"]
+                    if abs(pa - pb) > 2000:
+                        raise PhysicsError("Inner hatch differential pressure not equalised")
+                original_door = _snapshot(inner)
+                inner.setting = "open" if value == "inner_open" else "closed"
+                inner.revision += 1
+                inner.save(update_fields=["setting", "revision"])
+                _event(inner, "crew_eva_inner_hatch", original_door)
+            elif value in {"outer_open", "outer_close"}:
+                if room not in {target, spec["outside"]}:
+                    raise PermissionError("Exterior hatch only reachable at real airlock")
+                if outer.condition in _BROKEN:
+                    raise PhysicsError("Outer EVA hatch is damaged")
+                if value == "outer_open":
+                    if (mode != "vacuum" or inner.setting != "closed"
+                            or not carried or carried["integrity"] < .8
+                            or carried["exposure"]["suit_oxygen_kg"] <= 0):
+                        raise PhysicsError("Unpressurised lock and sound breathing suit required")
+                original_door = _snapshot(outer)
+                outer.setting = "open" if value == "outer_open" else "closed"
+                outer.revision += 1
+                outer.save(update_fields=["setting", "revision"])
+                _event(outer, "crew_eva_outer_hatch", original_door)
+            else:
+                raise PhysicsError("Use checkout, return, pumpdown, repressurise or hatch action")
+        elif target.startswith("ACC-EXT-") and value in {"deploy", "stow"}:
+            if not carried or carried["integrity"] < .8:
+                raise PermissionError("Exterior work platform requires physical EVA suit")
+            panel = state("access", target, lock=True)
+            if (panel.reference.get("kind") != "eva_work_platform_transfer"
+                    or room not in {panel.reference["from"], panel.reference["to"]}):
+                raise PermissionError("No installed work platform at this exterior position")
+            if panel.condition in _BROKEN:
+                raise PhysicsError("EVA platform access mechanism damaged")
+            platform = state("equipment", "EVA-WORK-PLATFORM")
+            crawler = state("equipment", lock_contract(carried["home"])["crawler"])
+            if platform.condition in _BROKEN or crawler.condition in _BROKEN:
+                raise PhysicsError("Unserviceable EVA platform or issued crawler")
+            original_door = _snapshot(panel)
+            panel.setting = "open" if value == "deploy" else "closed"
+            panel.revision += 1
+            panel.save(update_fields=["setting", "revision"])
+            _event(panel, "crew_eva_work_platform", original_door)
+        else:
+            raise PhysicsError("Unknown external worksite or fitted EVA airlock")
+        d["eva"] = eva
+        item.details = d
+        item.revision += 1
+        item.save(update_fields=["details", "revision"])
     elif action == "hull":
         # This is a real two-stage service order, not a pressure reset. Every
         # gram of repair stock was first issued at the original stores.
