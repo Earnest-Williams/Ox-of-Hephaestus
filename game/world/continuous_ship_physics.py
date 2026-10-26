@@ -1701,8 +1701,12 @@ def tick_continuous_physics(*, now_game_time=None):
         raise PhysicsError("Pressure topology incomplete")
     equipment_rows = list(CanonicalShipState.objects.select_for_update()
                           .filter(category="equipment").order_by("key"))
+    # Only operator-commissioned physiology records have the full gas and
+    # injury schema. Earlier G19 repair fixtures legitimately use a simple
+    # crew_health marker with a different source_model.
     crew_rows = list(CanonicalShipState.objects.select_for_update()
-                     .filter(category="crew_health").order_by("key"))
+                     .filter(category="crew_health", source_model=MODEL)
+                     .order_by("key"))
     inventory = CanonicalShipState.objects.select_for_update().get(
         pk="inventory:INV-WATER-NORMAL")
     inventory_before = _snapshot(inventory)
@@ -3185,7 +3189,8 @@ def crew_physical_action(actor, request_id, action, target, value):
         pk="crew_health:" + getattr(actor, "dbref", "")).first()
     if health_row and health_row.condition in {
             "incapacitated", "critical", "dead"}:
-        raise PermissionError("Crew casualty cannot operate physical ship controls")
+        from world.ship_crew_access import CrewTransitError
+        raise CrewTransitError("Crew casualty cannot operate physical ship controls")
     # Once a person has boarded a moving indexed carrier they cannot
     # operate machinery elsewhere until the real transport completes.
     transfers = _clock().details.get("personnel_transfers")
