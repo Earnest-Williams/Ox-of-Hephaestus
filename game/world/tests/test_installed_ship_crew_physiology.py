@@ -110,7 +110,7 @@ class InstalledCrewPhysiologyTests(EvenniaTestCase):
         with self.assertRaises(CrewTransitError):
             _health_gate(self.tech)
         with self.assertRaisesRegex(
-                PermissionError, "Crew casualty cannot operate physical ship controls"):
+                CrewTransitError, "Crew casualty cannot operate physical ship controls"):
             self.action("switch", "ISO-GEN-M", "closed")
 
     def test_real_eva_suit_is_one_breathing_source_not_two(self):
