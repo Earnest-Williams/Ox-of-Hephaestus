@@ -2455,6 +2455,45 @@ def tick_continuous_physics(*, now_game_time=None):
     # clock and pressure state. Doors stay shut while a carriage moves.
     # A failed actuator, lost power, unsafe air, or lost hardlock PAUSES work;
     # no inhabitant is teleported to a drum on a failed cycle.
+    if eva is not None and eva["transits"]:
+        from evennia.objects.models import ObjectDB
+        from world.ship_world import find_ship_space
+        for actor_key, transit in tuple(eva["transits"].items()):
+            if transit["remaining_s"] > 1e-8:
+                continue
+            traveler = ObjectDB.objects.filter(id=int(actor_key[1:])).first()
+            origin = find_ship_space(transit["from"])
+            destination = find_ship_space(transit["to"])
+            _, worn = suit_of(eva, actor_key)
+            if (not traveler or not origin or not destination
+                    or traveler.location != origin):
+                eva = finish_eva_transit(
+                    eva, actor=actor_key,
+                    request_id=transit["request_id"], aborted=True)
+                CanonicalShipEvent.objects.create(
+                    component_key="access:" + transit["link"],
+                    operation="crew_eva_transit_aborted",
+                    before={"space_id": transit["from"]},
+                    after={"reason": "occupant_or_room_changed",
+                           "request_id": transit["request_id"]},
+                    actor_dbref=actor_key, game_time=last + seconds)
+                continue
+            if (not worn or worn["integrity"] < 0.8
+                    or worn["exposure"]["condition"] in {
+                        "incapacitated", "critical", "dead"}):
+                continue
+            if not traveler.move_to(destination, quiet=True):
+                continue
+            eva = finish_eva_transit(
+                eva, actor=actor_key, request_id=transit["request_id"])
+            CanonicalShipEvent.objects.create(
+                component_key="access:" + transit["link"],
+                operation="crew_eva_transit_complete",
+                before={"space_id": transit["from"]},
+                after={"space_id": transit["to"], "request_id": transit["request_id"],
+                       "travel_seconds": transit["total_s"]},
+                actor_dbref=actor_key, game_time=last + seconds)
+            traveler.msg("Your suited exterior transfer has reached its worksite.")
     if personnel_transfers is not None and personnel_transfers["jobs"]:
         from evennia.objects.models import ObjectDB
         from world.ship_world import find_ship_space
