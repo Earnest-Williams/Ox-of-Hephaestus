@@ -222,7 +222,8 @@ def stage_suit_oxygen(eva, *, actor, room, kg):
     return result
 
 
-def checkout_suit(eva, *, actor, lock, supplied_oxygen_kg):
+def checkout_suit(eva, *, actor, lock, supplied_oxygen_kg,
+                  wearer_health=None):
     """Allocate a distinct suit; source stock is debited by world authority."""
     validate_eva(eva)
     lock_contract(lock)
@@ -234,6 +235,19 @@ def checkout_suit(eva, *, actor, lock, supplied_oxygen_kg):
         raise EVAError("No physical suit remains at this airlock")
     result = copy.deepcopy(eva)
     item = result["suits"][eligible]
+    # The suit has its own physical O2/CO2 stock, but never carries the
+    # previous wearer's trauma, fatigue or injury into the next person.
+    prior_stock_o2 = item["exposure"]["suit_oxygen_kg"]
+    prior_stock_co2 = item["exposure"]["suit_co2_kg"]
+    if wearer_health is None:
+        fresh = initial_exposure()
+    else:
+        from world.ship_crew_physiology import validate_crew_health
+        validate_crew_health(wearer_health)
+        fresh = copy.deepcopy(wearer_health)
+    fresh["suit_oxygen_kg"] = prior_stock_o2
+    fresh["suit_co2_kg"] = prior_stock_co2
+    item["exposure"] = fresh
     needed = SUIT_O2_KG - item["exposure"]["suit_oxygen_kg"]
     if abs(_num(supplied_oxygen_kg) - needed) > 1e-7:
         raise EVAError("Unbalanced suit oxygen issue")
