@@ -1,0 +1,33 @@
+name: Ox G19 crew exposure kernel
+
+on:
+  push:
+    branches: [g19-complete-ship-systems]
+    paths:
+      - "game/world/ship_crew_exposure.py"
+      - "game/world/tests/test_ship_crew_exposure.py"
+      - ".github/workflows/ox-g19-crew-exposure.yml"
+  pull_request:
+    paths:
+      - "game/world/ship_crew_exposure.py"
+      - "game/world/tests/test_ship_crew_exposure.py"
+      - ".github/workflows/ox-g19-crew-exposure.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  exposure-kernel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile exposure kernel and regression tests
+        run: python -m compileall -q game/world/ship_crew_exposure.py game/world/tests/test_ship_crew_exposure.py
+      - name: Finite oxygen, suit, casualty and recovery unit tests
+        working-directory: game
+        run: python -m unittest world.tests.test_ship_crew_exposure -v
