@@ -4,7 +4,8 @@ from evennia.utils.test_resources import EvenniaTestCase
 from world.bootstrap import build_ship
 from world.continuous_ship_physics import (
     arm_continuous_physics, commission_g19_water,
-    commission_g19_repairs, commission_commercial_port,
+    commission_g19_repairs, survey_g19_repair_site,
+    commission_commercial_port,
     commission_waste_acceptance, survey_waste_freight_route,
     survey_g19_water_material, crew_physical_action, _clock,
     tick_continuous_physics, PhysicsError, local_physics_readout,
@@ -137,6 +138,12 @@ class InstalledWasteAndRepairTests(EvenniaTestCase):
             self._action(self.tech, "5", "waste", "IND-SCRAP-HOLD-A",
                          "stage:BERTH-HAZ")
         self.assertFalse(WorkReceipt.objects.filter(pk="5" * 32).exists())
+        commission_waste_acceptance(
+            operator_approved=True, acceptance_id="BERTH-IND",
+            portal_id="DR-02-P1", berth_id="YARD-IND",
+            category="industrial", limit_kg=200)
+        self._action(self.tech, "7", "waste", "IND-SCRAP-HOLD-A",
+                     "stage:BERTH-IND")
         with self.assertRaises(PermissionError):
             self._action(self.cargo, "6", "wasteport",
                          "IND-SCRAP-HOLD-A", "offload")
@@ -182,6 +189,30 @@ class InstalledWasteAndRepairTests(EvenniaTestCase):
         self.assertEqual(state("equipment", "WATER-PROC-A").details[
             "repair_cumulative_kg"], 3)
 
+
+    def test_damaged_access_door_is_repaired_at_actual_safe_endpoint(self):
+        door = state("access", "ACC-STORE-FLUID-AFT")
+        self.assertIsNone(door.space_id)
+        set_component_condition(
+            "access", "ACC-STORE-FLUID-AFT", "failed", operator=True)
+        survey_g19_water_material(
+            operator_approved=True, source="INV-SPARES",
+            room_id="STORE-CRIT-SPARES", verified_kg=3)
+        self.tech.move_to(find_ship_space("STORE-CRIT-SPARES"), quiet=True)
+        self._action(self.tech, "9", "repair", "INV-SPARES", "pickup:3")
+        self.tech.move_to(find_ship_space("CMD-PRIMARY"), quiet=True)
+        with self.assertRaises(PermissionError):
+            self._action(self.tech, "8", "repair",
+                         "access:ACC-STORE-FLUID-AFT", "start")
+        self.tech.move_to(find_ship_space("TRUNK-A-AFT"), quiet=True)
+        self._action(self.tech, "7", "repair",
+                     "access:ACC-STORE-FLUID-AFT", "start")
+        self._tick(600)
+        repaired = state("access", "ACC-STORE-FLUID-AFT")
+        self.assertEqual(repaired.condition, "serviceable")
+        self.assertNotEqual(repaired.setting, "open")
+        self.assertEqual(_clock().details["repairs"]["completed"], 1)
+
     def test_failed_generator_needs_isolation_and_never_restarts_after_repair(self):
         self.tech.move_to(find_ship_space("GEN-B-ROOM"), quiet=True)
         self._action(self.tech, "e", "plant", "GEN-B", "off")
@@ -193,8 +224,21 @@ class InstalledWasteAndRepairTests(EvenniaTestCase):
         self.tech.move_to(find_ship_space("STORE-CRIT-SPARES"), quiet=True)
         self._action(self.tech, "f", "repair", "INV-SPARES", "pickup:3")
         self.tech.move_to(find_ship_space("GEN-B-ROOM"), quiet=True)
-        self._action(self.tech, "1", "repair", "equipment:GEN-B", "start")
-        self._tick(600)
+        with self.assertRaises(PhysicsError):
+            self._action(self.tech, "1", "repair", "equipment:GEN-B", "start")
+        survey_g19_repair_site(
+            operator_approved=True, room_id="GEN-B-ROOM",
+            work_class="suited_service")
+        with self.assertRaises(PhysicsError):
+            self._action(self.tech, "2", "repair", "equipment:GEN-B", "start")
+        self.tech.db.ox_suit_verified = True
+        self._action(self.tech, "3", "repair", "equipment:GEN-B", "start")
+        self.tech.db.ox_suit_verified = False
+        tick_continuous_physics(now_game_time=1060)
+        self.assertEqual(_clock().details["repairs"]["jobs"][
+            "equipment:GEN-B"]["remaining_s"], 600)
+        self.tech.db.ox_suit_verified = True
+        self._tick(600, start=1060)
         self.assertEqual(state("equipment", "GEN-B").condition, "serviceable")
         self.assertFalse(state("equipment", "GEN-B").details["physics_online"])
         self.assertEqual(state("isolator", "ISO-GEN-B").setting, "open")

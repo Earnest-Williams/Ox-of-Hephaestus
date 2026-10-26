@@ -77,4 +77,29 @@ jobs:
       - name: Real port offload, spare custody, repair and G19 water compatibility
         working-directory: game
         run: |
-          python -m world.test_runner world.tests.test_installed_ship_waste_repair world.tests.test_installed_ship_water_recycling --verbosity=2
+          python -m world.test_runner world.tests.test_installed_ship_waste_repair --verbosity=2
+
+  water-compatibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install real Evennia
+        run: python -m pip install .
+      - name: Provision disposable authoritative ship database
+        working-directory: game
+        env:
+          EVENNIA_SUPERUSER_USERNAME: OxCI
+          EVENNIA_SUPERUSER_EMAIL: oxci@example.invalid
+        run: |
+          export EVENNIA_SUPERUSER_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+          evennia migrate --noinput
+      - name: Existing installed water system must remain compatible
+        working-directory: game
+        run: |
+          python -m world.test_runner world.tests.test_installed_ship_water_recycling --verbosity=2

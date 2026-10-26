@@ -284,6 +284,7 @@ def _snapshot(item):
                 "active": jobs["jobs"], "completed": jobs["completed"],
                 "installed_spares_kg": jobs["installed_kg"],
                 "carried_spares_kg": jobs["carried_kg"],
+                "site_surveys": jobs["site_surveys"],
             }
         result["motion"] = item.details.get("motion")
         result["rotors"] = item.details.get("rotors")
@@ -788,6 +789,50 @@ def commission_g19_repairs(*, operator_approved=False):
     clock.save(update_fields=["details", "revision"])
     _event(clock, "commission_g19_maintenance", before)
     return {"commissioned": True, "live_repair_slots": 32}
+
+
+
+@transaction.atomic
+def survey_g19_repair_site(*, operator_approved=False, room_id=None,
+                           work_class=None):
+    """Operator verifies nonbreathable generator machinery worksite.
+
+    This is NOT a pressure-zone mutation or a universal suit bypass. Only
+    identified generator bays outside the pressurised map qualify, and every
+    participating engineer must additionally have independently verified PPE.
+    """
+    if not operator_approved:
+        raise PermissionError("Hazardous generator-service survey is operator-only")
+    if work_class != "suited_service" or room_id not in {
+            "GEN-M-ROOM", "GEN-A-ROOM", "GEN-B-ROOM"}:
+        raise PhysicsError("Only installed unpressurised generator bays can be surveyed")
+    from world.ship_world import find_ship_space
+    if find_ship_space(room_id) is None or _topology()[0].get(room_id) is not None:
+        raise PhysicsError("No eligible unclassified generator service bay")
+    generator = state("equipment", room_id.replace("-ROOM", ""))
+    if generator.space_id != room_id:
+        raise PhysicsError("Generator service-room identity mismatch")
+    clock = _clock(lock=True)
+    if clock.details.get("repairs") is None:
+        raise PhysicsError("Shared repairs have not been commissioned")
+    import copy
+    repairs = copy.deepcopy(clock.details["repairs"])
+    if repairs["site_surveys"].get(room_id) == work_class:
+        return {"changed": False, "room_id": room_id}
+    before = _snapshot(clock)
+    repairs["site_surveys"][room_id] = work_class
+    validate_repairs(repairs)
+    details = dict(clock.details)
+    details["repairs"] = repairs
+    clock.details = details
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    event = _event(clock, "operator_suited_generator_site_survey", before)
+    audit = dict(event.after)
+    audit["repair_site_survey"] = {"room": room_id, "class": work_class}
+    event.after = audit
+    event.save(update_fields=["after"])
+    return {"changed": True, "room_id": room_id}
 
 
 @transaction.atomic
@@ -2030,14 +2075,19 @@ def tick_continuous_physics(*, now_game_time=None):
                and ref.startswith("#") and ref[1:].isdigit()]
         by_id = {obj.dbref: obj for obj in ObjectDB.objects.filter(id__in=ids)}
         present = defaultdict(set)
+        by_pressure = {row.source_id: row for row in pressure_rows}
         for ref, actor in by_id.items():
             if (getattr(actor, "location", None) is not None
                     and getattr(actor.db, "crew_role", None) in AUTHORISED_ROLES
                     and not getattr(actor.db, "ox_terminal_dead", False)):
                 room_id = getattr(actor.location.db, "ox_space_id", None)
                 if room_id:
+                    zone = zones.get(room_id)
+                    if zone not in by_pressure and not (
+                            repairs["site_surveys"].get(room_id) == "suited_service"
+                            and getattr(actor.db, "ox_suit_verified", False)):
+                        continue
                     present[room_id].add(ref)
-        by_pressure = {row.source_id: row for row in pressure_rows}
         by_isolator = {x.source_id: x for x in isolators.values()}
         by_access = {x.source_id: x for x in access_rows}
         safe = set()
@@ -2046,13 +2096,19 @@ def tick_continuous_physics(*, now_game_time=None):
             row = (equipment.get(identifier) if category == "equipment" else
                    by_isolator.get(identifier) if category == "isolator" else
                    by_access.get(identifier))
-            if (row is not None and row.space_id == job["room"] and
-                    row.condition == job["condition"] and
+            valid_site = row is not None and (
+                row.space_id == job["room"] or
+                category == "access" and job["room"] in {
+                    row.reference.get("from"), row.reference.get("to")})
+            if (valid_site and row.condition == job["condition"] and
                     safe_repair_target(
                         row, pressure_rows=by_pressure, zones=zones,
                         rotors=rotors, motion=motion, water=water_state,
                         cargo=cargo, equipment=equipment,
-                        isolators=isolators)):
+                        isolators=isolators, workroom=job["room"],
+                        surveyed_suit_work=(
+                            repairs["site_surveys"].get(job["room"]) ==
+                            "suited_service"))):
                 safe.add(key)
         try:
             repairs, repair_completed = step_repairs(
@@ -2457,6 +2513,10 @@ def crew_physical_action(actor, request_id, action, target, value):
                     raise PhysicsError("Damaged sealed receiver cannot depart its store")
                 acc_id = value.partition(":")[2]
                 permit = w["waste_offload"]["acceptances"].get(acc_id)
+                if permit and any(
+                        p[:5] == permit["portal_id"][:5]
+                        for p in d.get("cargo", {}).get("port_jobs", {})):
+                    raise PhysicsError("Port's installed radial handler already has commercial cargo")
                 route = (w["waste_offload"]["routes"].get(
                     target + ":" + permit["portal_id"]) if permit else None)
                 try:
@@ -2700,7 +2760,18 @@ def crew_physical_action(actor, request_id, action, target, value):
             if category not in {"equipment", "isolator", "access"}:
                 raise PhysicsError("Only installed physical machinery can be repaired")
             unit = state(category, ident, lock=True)
-            _crew_at(actor, unit.space_id)
+            _crew_at(actor, room)
+            if category == "access":
+                if room not in {unit.reference.get("from"),
+                                unit.reference.get("to")}:
+                    raise PermissionError("Repairer must stand at the actual hatch endpoint")
+            elif room != unit.space_id:
+                raise PermissionError("Repairer is not at the installed machinery")
+            zone = _topology()[0].get(room)
+            if not (isinstance(zone, str) and zone.startswith("PZ-")):
+                if not (r["site_surveys"].get(room) == "suited_service"
+                        and bool(getattr(actor.db, "ox_suit_verified", False))):
+                    raise PhysicsError("Unpressurised machinery requires surveyed suited maintenance")
             pressure = {x.source_id: x for x in
                         CanonicalShipState.objects.filter(category="pressure")}
             isolators = {x.source_id: x for x in
@@ -2711,7 +2782,9 @@ def crew_physical_action(actor, request_id, action, target, value):
                     unit, pressure_rows=pressure, zones=_topology()[0],
                     rotors=d["rotors"], motion=d["motion"],
                     water=water, cargo=d["cargo"], equipment=equipment,
-                    isolators=isolators):
+                    isolators=isolators, workroom=room,
+                    surveyed_suit_work=(
+                        r["site_surveys"].get(room) == "suited_service")):
                 raise PhysicsError("Safe local isolation and known repairable damage required")
             try:
                 if value == "start":

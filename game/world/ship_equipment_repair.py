@@ -27,16 +27,22 @@ MAX_HELPERS = 3
 
 def initial_repairs():
     return {"carried_kg": {}, "jobs": {}, "installed_kg": 0.0,
-            "completed": 0, "delivered_spares_kg": 0.0}
+            "completed": 0, "delivered_spares_kg": 0.0,
+            "site_surveys": {}}
 
 
 def validate_repairs(repairs):
     if not isinstance(repairs, dict) or set(repairs) != {
             "carried_kg", "jobs", "installed_kg", "completed",
-            "delivered_spares_kg"}:
+            "delivered_spares_kg", "site_surveys"}:
         raise WaterError("Invalid commissioned repair state")
     for value in ("installed_kg", "delivered_spares_kg"):
         _quantity(repairs[value])
+    if (not isinstance(repairs["site_surveys"], dict)
+            or any(not isinstance(room, str) or not room
+                   or kind != "suited_service"
+                   for room, kind in repairs["site_surveys"].items())):
+        raise WaterError("Unknown operator-surveyed maintenance environment")
     if (isinstance(repairs["completed"], bool) or
             not isinstance(repairs["completed"], int) or
             repairs["completed"] < 0):

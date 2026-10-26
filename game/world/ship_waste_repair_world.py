@@ -125,14 +125,27 @@ def live_waste_route(route, *, source_room, freight_lock, doors,
 
 
 def safe_repair_target(item, *, pressure_rows, zones, rotors, motion,
-                       water, cargo, equipment, isolators):
+                       water, cargo, equipment, isolators,
+                       workroom=None, surveyed_suit_work=False):
     """A machinery repair is allowed only when real conditions permit it."""
     from world.continuous_ship_physics import PLANTS, _air_safe
 
     if item.category not in {"equipment", "access", "isolator"}:
         return False
-    zone = zones.get(item.space_id)
-    if zone not in pressure_rows or not _air_safe(pressure_rows[zone]):
+    room = item.space_id if workroom is None else workroom
+    if item.category == "access":
+        if room not in {item.reference.get("from"), item.reference.get("to")}:
+            return False
+    elif room != item.space_id:
+        return False
+    zone = zones.get(room)
+    if zone in pressure_rows:
+        if not _air_safe(pressure_rows[zone]):
+            return False
+    elif not (surveyed_suit_work and zone in {None, "VACUUM"}):
+        # Unclassified generator service bays cannot be treated as breathable.
+        # A separate positive operator survey and VERIFIED suited worker are
+        # required before work; air is never invented by this exemption.
         return False
     if item.condition not in {"degraded", "faulted", "failed", "jammed", "severed"}:
         return False
@@ -144,7 +157,7 @@ def safe_repair_target(item, *, pressure_rows, zones, rotors, motion,
         kind = str(item.reference.get("kind", "")).lower()
         return item.setting == ("open" if kind.startswith("breaker") else "closed")
     if item.category == "access":
-        return item.setting == "closed"
+        return item.setting in {"closed", "closed_or_auto"}
     if item.source_id in PLANTS and (
             item.details.get("physics_online", False) or
             item.details.get("physics_commanded_on", False) or
