@@ -62,11 +62,11 @@ CFD, structural FEA or fabrication-grade qualification is required.
 
 **Remaining:** This closes the selected port-offload and shared-repair systems, **not** the full Equipment, Hull, Crew exposure, Navigation/access or whole-ship Recovery and voyage gates. PR #138 stays draft and unmerged until all G19 closure criteria are met.
 
-### G19 implementation in progress — damaged pressure shell and finite repairs
+### Accepted bounded G19 implementation slice — inner hull patching and restoration
 
 A bounded **as-installed hull-breach restoration** path is now implemented on the G19 branch. It uses the existing 133 real pressure cells, mass-conserving vent physics, operator-attested repair room, shared individually carried spare parts and reusable toolkits. Qualified local engineers can perform a 600-second 2 kg temporary patch (leak reduced to 10%), then a 900-second 4 kg permanent restoration (residual leak closed). Work pauses if the worker leaves, loses qualification, or the compartment becomes unsafe. Atmospheric gas already lost is never recreated; major unpressurised ruptures cannot be patched from an ordinary unsuited worksite.
 
-[Hull restoration operational contract](G19_HULL_BREACH_AND_RESTORATION.md) and dedicated `ox-g19-hull.yml` pure/installed-world tests document the limited feature. **CI acceptance is pending**; do not mark the Hull closure gate satisfied from source code alone. External suit access, comprehensive breach isolation, major hull replacement and all installed equipment family coverage remain outstanding. **The 40-crew voyage is explicitly excluded from the current work at the user's request.**
+[Hull restoration operational contract](G19_HULL_BREACH_AND_RESTORATION.md) and dedicated `ox-g19-hull.yml` pure/installed-world tests document the limited feature. **Subsystem CI accepted on 26 October 2026:** [run #40261981436](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40261981436) passed **7 pure and 5 installed-world tests**, including fire interruption and correct material custody, at tested runtime `c22ff2eb`. This does **not** close the overall Hull gate. External suit access, comprehensive breach isolation, major hull replacement and all installed equipment family coverage remain outstanding. **The 40-crew voyage is explicitly excluded from the current work at the user's request.**
 
 Every row requires a real integrated implementation, not merely documentation,
 static JSON entries, an isolated demonstration or operator-injected outcomes.
