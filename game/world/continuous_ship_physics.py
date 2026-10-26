@@ -2632,6 +2632,13 @@ def crew_physical_action(actor, request_id, action, target, value):
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
+    # Once a person has boarded a moving indexed carrier they cannot
+    # operate machinery elsewhere until the real transport completes.
+    transfers = _clock().details.get("personnel_transfers")
+    if transfers and any(
+            job["actor"] == actor.dbref
+            for job in transfers["jobs"].values()):
+        raise PermissionError("Character is committed to a moving personnel carriage")
     if action in {"repair", "wasteport", "hull"}:
         # A worker who has become incapacitated cannot command or advance
         # a physical repair or sealed waste movement. Deduplicated historic
