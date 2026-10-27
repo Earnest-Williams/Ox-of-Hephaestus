@@ -5400,31 +5400,116 @@ def crew_physical_action(actor, request_id, action, target, value):
             item.revision += 1
             item.save(update_fields=["setting", "revision"])
     elif action == "service":
-        if target not in PLANTS or value != "reset":
-            raise PhysicsError("Only a local protection reset is currently modelled")
-        item = state("equipment", target, lock=True)
-        _crew_at(actor, item.space_id)
-        d = dict(item.details)
-        if (item.condition != "faulted"
-                or d.get("physics_trip_reason") != "local_overtemperature_protection"
-                or d.get("physics_online")
-                or d.get("physics_commanded_on")
-                or d.get("physics_startup_s", 0.0) != 0):
-            raise PhysicsError("No safely isolated thermal protection trip to reset")
-        zone = _topology()[1].get(target)
-        if not zone or not _air_safe(state("pressure", zone, lock=True)):
-            raise PhysicsError("Local air, temperature or persistent physical damage unsafe")
-        if target in GENERATION_MW:
-            breaker = state("isolator", "ISO-" + target, lock=True)
-            if breaker.setting != "open" or breaker.condition in _BROKEN:
-                raise PhysicsError("Generator feeder not positively isolated")
-        before = _snapshot(item)
-        d.pop("physics_trip_reason", None)
-        d.pop("physics_trip_game_time", None)
-        item.details = d
-        item.condition = "serviceable"
-        item.revision += 1
-        item.save(update_fields=["details", "condition", "revision"])
+        if target in REFUGE_PACKS:
+            if not isinstance(value, str) or not value.startswith("refill:"):
+                raise PhysicsError("Refuge filter needs refill:<kg> of surveyed local media")
+            item = state("equipment", target, lock=True)
+            room, battery_id = REFUGE_PACKS[target]
+            _crew_at(actor, room)
+            if item.condition in _BROKEN or item.space_id != room:
+                raise PhysicsError("Refuge filter appliance is unavailable for servicing")
+            zone = _topology()[0].get(room)
+            if not zone or not _air_safe(state("pressure", zone, lock=True)):
+                raise PhysicsError("Refuge gas and temperature unsafe for unsuited filter service")
+            # Both independent fitted electrical paths must be physically
+            # locked open before an engineer removes the cartridge cassette.
+            for iso_id in ("ISO-PWR-" + target,
+                           "ISO-G19-LOCAL-" + battery_id):
+                isolator = state("isolator", iso_id, lock=True)
+                if isolator.condition in _BROKEN or isolator.setting != "open":
+                    raise PhysicsError("Isolate both normal and emergency refuge electricity before service")
+            try:
+                media_kg = _positive(
+                    float(value.partition(":")[2]),
+                    maximum=4.0)
+            except (TypeError, ValueError) as exc:
+                raise PhysicsError("Portable refuge media is limited to four kilograms") from exc
+            clock = _clock(lock=True)
+            details = dict(clock.details)
+            if (details.get("water") is None
+                    or details.get("refuge_scrubbers") is None
+                    or details.get("refuge_media_service") is None):
+                raise PhysicsError("Refuge maintenance requires commissioned supplies and media")
+            stock = state("inventory", "INV-DC-CONSUMABLES", lock=True)
+            allocated = stock.reference.get("location_allocations_t", {})
+            if room not in allocated:
+                raise PhysicsError("No originally fitted consumable stock at this refuge")
+            import copy
+            water = copy.deepcopy(details["water"])
+            source_sites = water["source_surveys"].get(
+                "INV-DC-CONSUMABLES", {})
+            at_room = source_sites.get(room, 0.0)
+            try:
+                scrubbers, media, remaining = load_refuge_media(
+                    details["refuge_scrubbers"],
+                    details["refuge_media_service"], target, media_kg,
+                    surveyed_local_stock_kg=at_room,
+                    inventory_stock_kg=stock.quantity * 1000.0)
+                if at_room > allocated[room] * 1000.0 + 1e-7:
+                    raise RefugeAirError("Unverified remote refuge stock allocation")
+                source_sites[room] -= media_kg
+                # The existing water/disposal ledger already owns verified
+                # local material custody; spend the exact same real source.
+                validate_water(water, {
+                    "normal": state("inventory", "INV-WATER-NORMAL").quantity * 1000,
+                    "reserve": state("inventory", "INV-WATER-RESERVE").quantity * 1000,
+                    "sanitary": state("inventory", "INV-WASTE-RESIDUE").quantity * 1000,
+                    "industrial": state("inventory", "INV-INDUSTRIAL-SCRAP").quantity * 1000,
+                    "hazardous": state("inventory", "INV-HAZARDOUS-RESIDUE").quantity * 1000,
+                    "filter": remaining,
+                    "spares": state("inventory", "INV-SPARES").quantity * 1000,
+                })
+            except (RefugeAirError, WaterError) as exc:
+                raise PhysicsError(str(exc)) from exc
+            previous_clock = _snapshot(clock)
+            previous_stock = _snapshot(stock)
+            details["water"] = water
+            details["refuge_scrubbers"] = scrubbers
+            details["refuge_media_service"] = media
+            clock.details = details
+            clock.revision += 1
+            clock.save(update_fields=["details", "revision"])
+            _event(clock, "refuge_media_installed_in_actual_pack",
+                   previous_clock, actor=actor)
+            stock.quantity = remaining / 1000.0
+            stock.revision += 1
+            stock.save(update_fields=["quantity", "revision"])
+            _event(stock, "refuge_local_consumable_to_cartridge",
+                   previous_stock, actor=actor)
+            before = _snapshot(item)
+            d = dict(item.details)
+            d["refuge_media_service_count"] = d.get(
+                "refuge_media_service_count", 0) + 1
+            d["last_media_service_kg"] = media_kg
+            item.details = d
+            item.revision += 1
+            item.save(update_fields=["details", "revision"])
+        else:
+            if target not in PLANTS or value != "reset":
+                raise PhysicsError("Only original local thermal protection can be reset")
+            item = state("equipment", target, lock=True)
+            _crew_at(actor, item.space_id)
+            d = dict(item.details)
+            if (item.condition != "faulted"
+                    or d.get("physics_trip_reason") != "local_overtemperature_protection"
+                    or d.get("physics_online")
+                    or d.get("physics_commanded_on")
+                    or d.get("physics_startup_s", 0.0) != 0):
+                raise PhysicsError("No safely isolated thermal protection trip to reset")
+            zone = _topology()[1].get(target)
+            if not zone or not _air_safe(state("pressure", zone, lock=True)):
+                raise PhysicsError("Local air, temperature or persistent physical damage unsafe")
+            if target in GENERATION_MW:
+                breaker = state("isolator", "ISO-" + target, lock=True)
+                if breaker.setting != "open" or breaker.condition in _BROKEN:
+                    raise PhysicsError("Generator feeder not positively isolated")
+            before = _snapshot(item)
+            d.pop("physics_trip_reason", None)
+            d.pop("physics_trip_game_time", None)
+            item.details = d
+            item.condition = "serviceable"
+            item.revision += 1
+            item.save(update_fields=["details", "condition", "revision"])
     else:
         if value not in {"stop", "start"} or not target.startswith("PZ-HAB-"):
             raise PhysicsError("Only real HAB mist outlets can be commanded")
