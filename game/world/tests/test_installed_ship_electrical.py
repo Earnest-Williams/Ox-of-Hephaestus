@@ -137,6 +137,9 @@ class InstalledElectricalTests(EvenniaTestCase):
         commission_g19_electrical(operator_approved=True)
         self.line_up_real_feeder(
             "NODE-GEN-M", "NODE-HAB-03-FIRE-DETECT")
+        # This actual protected MSB feed has a distinct breaker from
+        # the HAB-03 detector's own protected panel.
+        self.line_up_real_feeder("NODE-GEN-M", "PWR-PROT")
         def power_status():
             clock = CanonicalShipState.objects.get(pk="meta:continuous-physics")
             equipment = {row.source_id: row for row in CanonicalShipState.objects.filter(
@@ -229,8 +232,12 @@ class InstalledElectricalTests(EvenniaTestCase):
 
     def test_eclss_motor_is_independently_shed_without_disabling_main_bus(self):
         commission_g19_electrical(operator_approved=True)
+        # ECLSS-A was physically refitted to HAB-06's B-fed panel,
+        # while ECLSS-B uses HAB-08's A panel. Do not silently crossfeed.
         self.line_up_real_feeder(
-            "NODE-GEN-M", "NODE-HAB-06-ECLSS-A-LP")
+            "NODE-GEN-B", "NODE-HAB-06-ECLSS-A-LP")
+        self.line_up_real_feeder(
+            "NODE-GEN-M", "NODE-HAB-08-ECLSS-B-LP")
         first = tick_continuous_physics(now_game_time=1010)
         self.assertTrue(first["ventilation_powered"])
         self.assertTrue(first["power_assured"])
