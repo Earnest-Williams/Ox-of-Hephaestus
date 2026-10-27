@@ -35,16 +35,24 @@ def _finite(number, low=0.0, high=None):
     return float(number)
 
 
-def initial_equipment_wear(service_operations):
-    """Seed from existing runtime so upgrading an old world loses no history."""
+def initial_equipment_wear(service_operations, equipment=None):
+    """Seed runtime and original repair receipts without resetting old history."""
     validate_service_operations(service_operations)
+    equipment = equipment if equipment is not None else {}
+    receipts = {}
+    for name in SERVICE_LOADS:
+        item = equipment.get(name)
+        stamp = (item.details.get("repair_completed_game_time")
+                 if item is not None and isinstance(item.details, dict)
+                 else None)
+        receipts[name] = _finite(stamp) if stamp is not None else None
     return {
         "version": 1,
         "units": {
             name: {
                 "wear_s": 0.0,
                 "seen_runtime_s": service_operations["units"][name]["runtime_s"],
-                "last_repair_game_time": None,
+                "last_repair_game_time": receipts[name],
                 "stage": "normal", "surveyed": False,
                 "wear_faults": 0,
             }
