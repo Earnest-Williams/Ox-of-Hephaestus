@@ -8,7 +8,8 @@ from types import SimpleNamespace as Row
 from world.ship_electrical_power import (
     ElectricalError, audit_topology, connected_nodes, initial_electrical,
     validate_electrical, source_dispatch, survey_battery, step_energy,
-    register_fault, step_protection, reset_protection,
+    register_fault, step_protection, reset_protection, survey_flywheel,
+    migrate_v1_electrical, FLYWHEELS,
 )
 
 
@@ -172,6 +173,107 @@ class ElectricalPhysicalContracts(unittest.TestCase):
         self.assertFalse(power["assured"])
         self.assertEqual(power["available_mw"], .65)
         self.assertLessEqual(power["battery_dispatched_mw"], .1)
+
+    def test_sixty_four_real_flywheel_names_and_nameplate_invariant(self):
+        self.assertEqual(len(FLYWHEELS), 64)
+        self.assertEqual(FLYWHEELS[0], "F1-FW-01")
+        self.assertEqual(FLYWHEELS[-1], "F2-FW-32")
+        s = survey_flywheel(initial_electrical(), "F1-FW-01",
+                            capacity_kwh=3906.25, charge_kwh=12,
+                            max_charge_mw=.5, max_discharge_mw=1)
+        self.assertTrue(validate_electrical(s))
+        with self.assertRaises(ElectricalError):
+            survey_flywheel(s, "F1-FW-01", capacity_kwh=1,
+                            charge_kwh=0, max_charge_mw=.1,
+                            max_discharge_mw=.1)
+        with self.assertRaises(ElectricalError):
+            survey_flywheel(initial_electrical(), "F2-FW-32",
+                            capacity_kwh=3906.26, charge_kwh=0,
+                            max_charge_mw=.2, max_discharge_mw=.2)
+
+    def test_flywheel_island_safes_against_parallel_sources_and_saves_energy(self):
+        _, edges, switches, equipment = grid()
+        edges.extend((
+            edge("EDGE-F1-BUS-IN-1", "PWR-MSB-A", "NODE-F1-BUS",
+                 kind="bank_infeed"),
+            edge("EDGE-PWR-F1-FW-01", "NODE-F1-BUS",
+                 "NODE-PWR-F1-FW-01", kind="module_feeder"),
+        ))
+        switches["ISO-F1-BUS-IN-1"] = switch("ISO-F1-BUS-IN-1")
+        switches["ISO-PWR-F1-FW-01"] = switch("ISO-PWR-F1-FW-01")
+        equipment["F1-FW-01"] = eq()
+        account = survey_flywheel(initial_electrical(), "F1-FW-01",
+                                  capacity_kwh=3906.25, charge_kwh=1,
+                                  max_charge_mw=.4, max_discharge_mw=.8)
+        account["flywheels"]["F1-FW-01"]["mode"] = "discharge"
+        equipment["GEN-M"] = eq(False)
+        equipment["GEN-B"] = eq(False)
+        backup = source_dispatch(equipment, edges, switches, "essential",
+                                 ledger=account, dt_s=10)
+        self.assertTrue(backup["assured"])
+        self.assertEqual(backup["main_available_mw"], .8)
+        self.assertIn("PWR-MSB-A", backup["main_nodes"])
+        self.assertEqual(backup["flywheel_available_mw"], .8)
+        after = step_energy(account, backup, 10)
+        self.assertAlmostEqual(after["flywheels"]["F1-FW-01"]["discharged_kwh"],
+                               .65 / 360)
+        self.assertAlmostEqual(after["meter"]["flywheel_discharge_kwh"], .65 / 360)
+        self.assertEqual(after["meter"]["generation_kwh"], 0)
+        self.assertTrue(validate_electrical(after))
+        # A broken module feeder removes its energy source, not its custody.
+        switches["ISO-PWR-F1-FW-01"].setting = "open"
+        isolated = source_dispatch(equipment, edges, switches, "essential",
+                                   ledger=after)
+        self.assertFalse(isolated["assured"])
+        self.assertEqual(isolated["flywheel_available_mw"], 0)
+        switches["ISO-PWR-F1-FW-01"].setting = "closed"
+        # No unsynchronised flywheel parallel supply while GEN-M is running.
+        equipment["GEN-M"] = eq(True)
+        produced = source_dispatch(equipment, edges, switches, "normal",
+                                   ledger=after)
+        self.assertEqual(produced["flywheel_available_mw"], 0)
+
+    def test_flywheel_recharge_requires_live_generator_and_selected_bank(self):
+        _, edges, switches, equipment = grid()
+        edges.extend((
+            edge("EDGE-F2-BUS-IN-1", "PWR-MSB-B", "NODE-F2-BUS",
+                 kind="bank_infeed"),
+            edge("EDGE-PWR-F2-FW-01", "NODE-F2-BUS",
+                 "NODE-PWR-F2-FW-01", kind="module_feeder"),
+        ))
+        switches["ISO-F2-BUS-IN-1"] = switch("ISO-F2-BUS-IN-1")
+        switches["ISO-PWR-F2-FW-01"] = switch("ISO-PWR-F2-FW-01")
+        equipment["F2-FW-01"] = eq()
+        s = survey_flywheel(initial_electrical(), "F2-FW-01",
+                            capacity_kwh=3906.25, charge_kwh=0,
+                            max_charge_mw=.2, max_discharge_mw=.5)
+        s["flywheels"]["F2-FW-01"]["mode"] = "charge"
+        supply = source_dispatch(equipment, edges, switches, "essential",
+                                 ledger=s)
+        self.assertIn("F2-FW-01", supply["charge_feeders"])
+        after = step_energy(s, supply, 10)
+        self.assertAlmostEqual(after["meter"]["flywheel_charge_kwh"],
+                               .2 / 360)
+        self.assertAlmostEqual(after["flywheels"]["F2-FW-01"]["charge_kwh"],
+                               .2 / 360)
+        self.assertEqual(s["flywheels"]["F2-FW-01"]["charge_kwh"], 0)
+        switches["ISO-F2-BUS-IN-1"].setting = "open"
+        blocked = source_dispatch(equipment, edges, switches, "essential",
+                                  ledger=s)
+        self.assertNotIn("F2-FW-01", blocked["charge_feeders"])
+
+    def test_v1_electrical_migration_preserves_every_old_energy_count(self):
+        v1 = initial_electrical()
+        v1["version"] = 1
+        del v1["flywheels"]
+        del v1["meter"]["flywheel_charge_kwh"]
+        del v1["meter"]["flywheel_discharge_kwh"]
+        v1["meter"]["served_kwh"] = 56
+        after = migrate_v1_electrical(v1)
+        self.assertEqual(after["version"], 2)
+        self.assertEqual(after["meter"]["served_kwh"], 56)
+        self.assertTrue(validate_electrical(after))
+        self.assertNotIn("flywheels", v1)
 
     def test_operational_common_battery_supplies_only_its_main_board(self):
         _, edges, switches, equipment = grid()
