@@ -133,6 +133,50 @@ contracts.
 Full implementation and per-room circuit mapping are in
 [G19 electrical power and recovery](G19_ELECTRICAL_POWER_AND_RECOVERY.md).
 
+### Continuing equipment implementation — cargo thermal custody and deterministic wear
+
+The original six cargo drums now have explicitly **surveyed packaged-freight
+thermal stores** with measured finite capacity, target setpoint and gallery
+wall conductance. Cooling requires the existing independently fused
+`DR-xx-CARGO-HX` plus `DR-xx-CARGO-GAS` operating pair, its
+`DR-xx-LT-IF` original rotary coolant valve, the LT plant and live
+shared radiator capacity. Six individual cargo skids are capped at
+**20 kW equivalent each**, and the entire cargo cooling allowance is
+limited to 10% of the LT thermal budget after propulsion, leaving occupied
+spaces priority. Heat transferred between a cargo store and the original
+`PZ-DR-xx-SVC` gallery is explicitly reconciled in that pressure cell.
+
+Commercial freight stays in the existing authoritative cargo manifest.
+Operator-confirmed temperature-sensitive lots have persistent temperature
+excursions and **irreversible quality deterioration** when their actual
+drum environment departs from the surveyed cargo band; split daughter
+lots inherit an already spoiled parent condition. Freight mass, balance
+and legal transfer custody remain unchanged. Local engineer setpoints
+are attended, receipted and require a sound feeder and safe gallery.
+[Cargo cooling contract](G19_CARGO_ENVIRONMENT.md) defines the bounded
+thermal simulation, original valve/geometry audit and CI.
+
+The 26 auxiliary crop, cargo and workshop machines now also have an
+individual *running-hours-derived* wear history and service-clock state.
+Fitted equipment becomes **degraded** after a calibrated service interval
+and **faulted** after a larger interval. Only real operational time
+accrues; an isolated breaker does not wear an idle bearing. A recorded
+actual completed crew repair with finite material and worksite custody
+can clear worn-out part history; an electrical reset cannot.
+Original run-hour and repair provenance are imported without crediting
+an inherited freighter as freshly overhauled. A one-time operator
+attestation may record pre-existing fatigue.
+[Machinery wear and service contract](G19_EQUIPMENT_WEAR_AND_MAINTENANCE.md)
+documents operating classes and test cases.
+
+The current four-job electrical workflow includes **pure and installed
+cross-system tests** for cargo heat/mass custody, physical LT valve
+isolation, cold-freight quality and split inheritance, machine
+degradation and faulted attended restart, plus the inherited G18/G19
+atmosphere, water, movement and full power compatibility suites.
+The formal completion gate is the **same revision's final run**, not an
+earlier pure-only pass.
+
 ## Completion criteria
 
 1. All installed equipment families and resource networks are inventoried.
