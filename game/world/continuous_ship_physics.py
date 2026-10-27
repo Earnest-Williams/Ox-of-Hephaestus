@@ -2642,8 +2642,15 @@ def tick_continuous_physics(*, now_game_time=None):
         fan_nodes = (_reachable(
             powered_air_edges, isolators, "atmosphere", air_source_nodes)
                      if air_source_nodes else set())
+        spine_discharge_nodes = {
+            "SPINE-AIR-FWD": "NODE-SPINE-AIR-A-BOW",
+            "SPINE-AIR-AFT": "NODE-SPINE-AIR-B-AFT",
+        }
+        spine_flow_ready = any(
+            spine_discharge_nodes[station] in fan_nodes
+            for station in active_spine_air)
         air_on = bool(
-            fan_nodes.intersection(powered_ahu_nodes) or active_spine_air)
+            fan_nodes.intersection(powered_ahu_nodes) or spine_flow_ready)
         # Process gas at the *installed* ECLSS intake zone. The capture
         # medium is finite and remains aboard, so removing CO2 from the
         # circulating gas cannot silently delete mass from the ship.
