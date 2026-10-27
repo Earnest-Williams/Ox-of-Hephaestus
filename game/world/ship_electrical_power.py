@@ -86,9 +86,12 @@ def validate_electrical(s):
             raise ElectricalError("Invalid protection latch")
     if s["sync"] is not None:
         if not isinstance(s["sync"], dict) or set(s["sync"]) != {
-                "expires_game_time", "source_signature"}:
+                "expires_game_time", "ready_game_time", "source_signature"}:
             raise ElectricalError("Unmeasured bus synchronization")
         number(s["sync"]["expires_game_time"])
+        number(s["sync"]["ready_game_time"])
+        if s["sync"]["ready_game_time"] > s["sync"]["expires_game_time"]:
+            raise ElectricalError("Invalid bounded synchronization window")
         if not isinstance(s["sync"]["source_signature"], list):
             raise ElectricalError("Invalid synchronisation witness")
     if set(s["meter"]) != {
@@ -258,7 +261,11 @@ def source_dispatch(equipment, edges, switches, profile, *, ledger=None,
         "battery_sources": qualified,
         "shore_active": shore_active,
         "protected_assured": has_protected and essential_assured,
-        "source_signature": sorted(sources),
+        "source_signature": sorted(sources) + [
+            "MSBA:" + str("PWR-MSB-A" in reached),
+            "MSBB:" + str("PWR-MSB-B" in reached),
+            "PROT:" + str("PWR-PROT" in reached),
+        ],
     }
 
 
