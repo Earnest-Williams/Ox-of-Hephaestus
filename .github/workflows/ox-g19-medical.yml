@@ -9,14 +9,21 @@ on:
       - 'game/world/ship_crew_exposure.py'
       - '.github/workflows/ox-g19-medical.yml'
   pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - 'game/world/ship_crew_medical.py'
       - 'game/world/tests/test_ship_crew_medical.py'
       - 'game/world/ship_crew_physiology.py'
       - 'game/world/ship_crew_exposure.py'
       - '.github/workflows/ox-g19-medical.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
 jobs:
   pure:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
