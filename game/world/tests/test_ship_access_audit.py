@@ -2,7 +2,8 @@
 import unittest
 
 from world.ship_access_audit import (
-    ShipAccessAuditError, audit_access_topology, authored_route)
+    ShipAccessAuditError, audit_access_topology, authored_route,
+    candidate_personnel_routes)
 from world.ship_model import ShipWorldModel, SpaceSpec, AccessLinkSpec, load_ship_model
 
 
@@ -68,3 +69,36 @@ class AccessTopologyAuditTests(unittest.TestCase):
         self.assertEqual(audit["physical_links"], 517)
         self.assertEqual(audit["installed_exit_directions_expected"], 1034)
         self.assertEqual(sum(audit["component_sizes"]), 421)
+
+    def test_crew_candidate_prefers_real_doors_over_freight_or_eva_shortcut(self):
+        rooms = tuple(SpaceSpec(
+            id=key, name=key, kind="room", frame="fixed", zone="test",
+            current_condition="serviceable", metadata={})
+            for key in ("CMD-PRIMARY", "MID", "SHOP", "EXT-BOW"))
+        links = (
+            AccessLinkSpec(
+                id="FREIGHT", from_id="CMD-PRIMARY", to_id="SHOP",
+                kind="freight_gate", metadata={}),
+            AccessLinkSpec(
+                id="A", from_id="CMD-PRIMARY", to_id="MID",
+                kind="pressure_door", metadata={}),
+            AccessLinkSpec(
+                id="B", from_id="MID", to_id="SHOP",
+                kind="pressure_door", metadata={}),
+            AccessLinkSpec(
+                id="EVA", from_id="CMD-PRIMARY", to_id="EXT-BOW",
+                kind="eva_rail", metadata={}),
+            AccessLinkSpec(
+                id="EVA-DOOR", from_id="EXT-BOW", to_id="SHOP",
+                kind="pressure_door", metadata={}),
+        )
+        model = ShipWorldModel(
+            schema_version="ox.ship-world/0.1", model_version="paths",
+            principal={}, spaces=rooms, access_links=links)
+        self.assertEqual(authored_route(model, "SHOP"),
+                         [("CMD-PRIMARY", "FREIGHT", "SHOP")])
+        self.assertEqual(candidate_personnel_routes(model)["SHOP"], [
+            ("CMD-PRIMARY", "A", "MID"), ("MID", "B", "SHOP")])
+        self.assertNotIn("FREIGHT", [
+            link for steps in candidate_personnel_routes(model).values()
+            for _, link, _ in steps])
