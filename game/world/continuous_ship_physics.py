@@ -353,11 +353,11 @@ def _snapshot(item):
                 "meter": power["meter"], "last": power["last"],
                 "banks": power["banks"],
                 "flywheels": {
-                    "commissioned_modules": len(power["flywheels"]),
+                    "commissioned_modules": len(power.get("flywheels", {})),
                     "rated_capacity_kwh": sum(
-                        x["capacity_kwh"] for x in power["flywheels"].values()),
+                        x["capacity_kwh"] for x in power.get("flywheels", {}).values()),
                     "stored_kwh": sum(
-                        x["charge_kwh"] for x in power["flywheels"].values())},
+                        x["charge_kwh"] for x in power.get("flywheels", {}).values())},
                 "shore": power["shore"],
                 "faults": power["faults"], "sync": power["sync"],
             }
