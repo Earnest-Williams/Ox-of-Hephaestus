@@ -569,10 +569,28 @@ def step_energy(ledger, dispatch, seconds, *, actual_requested_mw=None):
         else:
             result["meter"]["generation_kwh"] += energy
         headroom -= charge_rate
+    # All loads, including recharging real finite storage, consume source
+    # energy. Check tick deltas independently of older historical meters.
+    generation_delta_kwh = (
+        result["meter"]["generation_kwh"] - ledger["meter"]["generation_kwh"])
+    shore_delta_kwh = (
+        result["meter"]["shore_import_kwh"] - ledger["meter"]["shore_import_kwh"])
+    served_delta_kwh = (
+        result["meter"]["served_kwh"] - ledger["meter"]["served_kwh"])
+    charged_delta_kwh = (
+        result["meter"]["battery_charge_kwh"] - ledger["meter"]["battery_charge_kwh"]
+        + result["meter"]["flywheel_charge_kwh"]
+        - ledger["meter"]["flywheel_charge_kwh"])
+    source_energy_kwh = (generation_delta_kwh + shore_delta_kwh
+                         + battery_out + flywheel_out)
+    applied_energy_kwh = served_delta_kwh + charged_delta_kwh
+    if not math.isclose(source_energy_kwh, applied_energy_kwh,
+                        rel_tol=1e-10, abs_tol=1e-7):
+        raise ElectricalError("Source energy does not balance delivered and stored energy")
     result["last"] = {
         "sources": list(dispatch["active_generators"]),
         "generator_cartridge_consumed_kg": (
-            generated * dt / 3600.0 * GENERATOR_CARTRIDGE_KG_PER_MWH
+            generation_delta_kwh / 1000.0 * GENERATOR_CARTRIDGE_KG_PER_MWH
             if dispatch.get("cartridges_metered") and not dispatch["shore_active"]
             else 0.0),
         "shore": dispatch["shore_active"],

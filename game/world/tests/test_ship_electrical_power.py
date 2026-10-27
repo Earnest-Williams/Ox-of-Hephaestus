@@ -81,6 +81,43 @@ class ElectricalPhysicalContracts(unittest.TestCase):
         self.assertAlmostEqual(report["meter"]["unserved_kwh"],
                                (1.35 - .36) * 10 / 3.6)
 
+    def test_generator_cartridges_pay_for_finite_storage_charging(self):
+        _, edges, switches, equipment = grid()
+        ledger = survey_battery(initial_electrical(), "BAT-COMMON-PROT",
+                                capacity_kwh=100.0, charge_kwh=20.0,
+                                max_charge_mw=0.2, max_discharge_mw=0.4)
+        ledger["banks"]["BAT-COMMON-PROT"]["mode"] = "charge"
+        dispatch = source_dispatch(equipment, edges, switches, "normal",
+                                   ledger=ledger, dt_s=10, cartridge_kg=100)
+        updated = step_energy(ledger, dispatch, 10)
+        generated = (1.35 + 0.2) * 10 / 3.6
+        self.assertAlmostEqual(updated["meter"]["generation_kwh"], generated)
+        self.assertAlmostEqual(updated["meter"]["battery_charge_kwh"],
+                               0.2 * 10 / 3.6)
+        self.assertAlmostEqual(updated["last"][
+            "generator_cartridge_consumed_kg"], generated / 1000.0 * 2.0)
+        self.assertAlmostEqual(
+            updated["meter"]["generation_kwh"],
+            updated["meter"]["served_kwh"] + updated["meter"]["battery_charge_kwh"])
+        self.assertEqual(ledger["banks"]["BAT-COMMON-PROT"]["charge_kwh"], 20)
+
+    def test_generator_cartridge_limit_covers_service_and_charging_together(self):
+        _, edges, switches, equipment = grid()
+        ledger = survey_battery(initial_electrical(), "BAT-COMMON-PROT",
+                                capacity_kwh=100, charge_kwh=20,
+                                max_charge_mw=1.0, max_discharge_mw=1.0)
+        ledger["banks"]["BAT-COMMON-PROT"]["mode"] = "charge"
+        power = source_dispatch(equipment, edges, switches, "normal",
+                                ledger=ledger, dt_s=10, cartridge_kg=0.01)
+        self.assertAlmostEqual(power["producer_available_mw"], 1.8)
+        after = step_energy(ledger, power, 10)
+        self.assertAlmostEqual(after["meter"]["served_kwh"], 1.35 * 10 / 3.6)
+        self.assertAlmostEqual(after["meter"]["battery_charge_kwh"],
+                               (1.8 - 1.35) * 10 / 3.6)
+        self.assertAlmostEqual(after["last"]["generator_cartridge_consumed_kg"],
+                               0.01)
+        self.assertTrue(validate_electrical(after))
+
     def test_source_dispatch_bounded_by_generators_and_ship_envelope(self):
         _, edges, switches, equipment = grid()
         result = source_dispatch(equipment, edges, switches, "normal")

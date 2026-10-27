@@ -118,6 +118,34 @@ class InstalledElectricalTests(EvenniaTestCase):
         self.assertGreater(again["electrical"][
             "spent_cartridge_housings_kg"], e["spent_cartridge_housings_kg"])
 
+    def test_fitted_battery_charging_consumes_real_generator_cartridges(self):
+        commission_g19_electrical(operator_approved=True)
+        self.line_up_real_feeder("NODE-GEN-M", "NODE-HAB-03-FIRE-DETECT")
+        self.line_up_real_feeder("NODE-GEN-M", "PWR-PROT")
+        set_isolator("ISO-BAT-COMMON-PROT", "closed", operator=True)
+        survey_g19_electrical_source(
+            operator_approved=True, source="BAT-COMMON-PROT",
+            capacity_kwh=12000, initial_kwh=1000,
+            max_charge_mw=.2, max_discharge_mw=.2)
+        self.crew_at("PWR-AFT")
+        work = crew_physical_action(
+            self.worker, "f" * 32, "power", "BAT-COMMON-PROT", "charge")
+        self.assertEqual(work["status"], "succeeded")
+        original = state("inventory", "INV-GEN-CART").quantity * 1000.0
+        tick = tick_continuous_physics(now_game_time=1010)
+        meter = tick["electrical"]["meter"]
+        self.assertAlmostEqual(meter["battery_charge_kwh"], .2 * 10 / 3.6)
+        self.assertAlmostEqual(
+            meter["generation_kwh"], meter["served_kwh"] + meter["battery_charge_kwh"])
+        consumed = tick["electrical"]["last"]["generator_cartridge_consumed_kg"]
+        self.assertAlmostEqual(consumed, meter["generation_kwh"] / 1000.0 * 2.0)
+        self.assertAlmostEqual(
+            original - state("inventory", "INV-GEN-CART").quantity * 1000.0,
+            consumed, places=6)
+        self.assertAlmostEqual(
+            tick["electrical"]["spent_cartridge_housings_kg"], consumed)
+        self.assertFalse(tick_continuous_physics(now_game_time=1010)["advanced"])
+
     def test_generator_cartridge_magazine_tamper_fails_before_any_energy_tick(self):
         commission_g19_electrical(operator_approved=True)
         stock = state("inventory", "INV-GEN-CART")

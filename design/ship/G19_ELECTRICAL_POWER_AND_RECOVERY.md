@@ -75,3 +75,10 @@ The actual installed `INV-GEN-CART` magazine contains **125 tonnes** at the sele
 
 **Important remaining model limitation:** Device-level electrical nameplate loads are not completely enumerated in the as-installed graph. The G19 operating schedule uses selected ship-wide MW budgets (rather than invented per-component kW values); actual **fitted and conducting load branches** are still required for metered dispatch. Thus demand/shortfall is a deliberately lumped game-world operating profile, not a full circuit-by-circuit electrical power-flow or fault-current certification. The 16 local batteries without independently authored grid service paths cannot silently become another 16 whole-ship power sources. The missing individually fitted LT-plant and fire-pump electrical motor endpoints remain conditional witnesses in the current mechanical/thermal integration. These identity gaps should be closed only by an explicit updated installed wiring reference, not guessed.
 
+
+
+## Source-to-storage energy reconciliation
+
+Generator cartridges now pay for **all actual metered production**, including kWh delivered into a physically connected battery or flywheel charger. A generator is not allowed to recharge the ship's storage for free while debit accounting sees only ordinary ship service. The power ledger checks each bounded tick independently: generator output, shore imports and finite-storage discharge must equal delivered ship-load energy plus the energy newly stored in batteries/flywheels. This permits retention of historical v1 meter values without rewriting prior receipts.
+
+The fitted 125-tonne generator cartridge magazine remains authoritative; spent cartridges retain the corresponding mass aboard. Pure and installed tests now include charging from real generation, fuel-limited replenishment, metered energy balance, and replay-safe inventory custody. These revisions follow the previously accepted four-job baseline at `c586378e` and require their own CI pass before the updated electrical runtime can be accepted.
