@@ -257,6 +257,10 @@ class InstalledElectricalTests(EvenniaTestCase):
     def test_workshop_rotor_redundant_drive_fuses_do_not_blackout_ship(self):
         commission_g19_electrical(operator_approved=True)
         self.line_up_real_feeder("NODE-GEN-M", "NODE-WR-PWR-IF")
+        # The rotary interface itself is not a consuming load. Confirm that
+        # the generator also actually serves an intact branch before asserting
+        # the whole selected ship schedule is assured.
+        self.line_up_real_feeder("NODE-GEN-M", "NODE-HAB-03-FIRE-DETECT")
         self.crew_at("WR-ROTOR-MACHINERY")
         self.assertTrue(local_physics_readout(
             self.worker, "WR-DRIVE-A")["feeder_conducting"])
