@@ -81,6 +81,29 @@ LOCAL_LOADS = {
 }
 
 
+# These physically routed protected fire-main trunks are fitted along
+# the real A-side spine chase, separately from B-side room supply panels.
+PROTECTED_FIRE_MOTORS = ("FIRE-PUMP-FWD", "FIRE-PUMP-AFT")
+PROTECTED_TRUNK_A = (
+    "TRUNK-A-AFT", "TRUNK-A-DR-06", "TRUNK-A-GAP-56",
+    "TRUNK-A-DR-05", "TRUNK-A-GAP-45", "TRUNK-A-DR-04",
+    "TRUNK-A-BE-07-ENVELOPE", "TRUNK-A-F2-DRUM-BUFFER",
+    "TRUNK-A-F2", "TRUNK-A-AFT-RESERVE",
+    "TRUNK-A-F2-HAB-BUFFER", "TRUNK-A-HAB-HUB-SERVICES",
+    "TRUNK-A-F1-HAB-BUFFER", "TRUNK-A-FWD-RESERVE",
+    "TRUNK-A-F1", "TRUNK-A-F1-DRUM-BUFFER",
+    "TRUNK-A-BE-06-ENVELOPE", "TRUNK-A-DR-03",
+    "TRUNK-A-GAP-23", "TRUNK-A-DR-02",
+    "TRUNK-A-GAP-12", "TRUNK-A-DR-01", "TRUNK-A-BOW",
+)
+
+
+def protected_fire_ids(name):
+    if name not in PROTECTED_FIRE_MOTORS:
+        raise ElectricalError("No dedicated protected fire-pump conductor")
+    return ("EDGE-G19-PROT-" + name, "ISO-G19-PROT-" + name)
+
+
 def auxiliary_ids(name, *, motor=False):
     prefix = "G19-MOTOR" if motor else "G19-LOCAL"
     return (f"NODE-{prefix}-" + name,
@@ -118,6 +141,26 @@ def _specs():
             "id": switch, "network": "g19_motor", "kind": "breaker",
             "manual_operation": True, "remote_operable": False,
             "current_state": "closed",
+        }, "closed")
+    for name in PROTECTED_FIRE_MOTORS:
+        room, _normal_panel = MOTORS[name]
+        edge, breaker = protected_fire_ids(name)
+        route = (["PWR-AFT", *PROTECTED_TRUNK_A, room]
+                 if name.endswith("FWD") else
+                 ["PWR-AFT", "TRUNK-A-AFT", room])
+        add("edge", edge, room, {
+            "id": edge, "network": "g19_motor_protected",
+            "kind": "dedicated_protected_fire_pump_transfer",
+            "from_node": "PWR-PROT",
+            "to_node": auxiliary_ids(name, motor=True)[0],
+            "isolator_ids": [breaker], "route_spaces": route,
+            "source_selection": "manual_break_before_make",
+            "protected_source_node": "PWR-PROT",
+        }, "standby")
+        add("isolator", breaker, room, {
+            "id": breaker, "network": "g19_motor_protected",
+            "kind": "breaker", "manual_operation": True,
+            "remote_operable": False, "current_state": "closed",
         }, "closed")
     for name, (room, consumer, panel, cap, draw) in LOCAL_LOADS.items():
         terminal, edge, switch = auxiliary_ids(name)
@@ -192,6 +235,16 @@ def install_auxiliary_circuits(world_state):
                 isinstance(nominal, bool) or not isinstance(nominal, (int, float))
                 or not math.isclose(nominal * 1000, limit, abs_tol=1e-8)):
             raise ElectricalError("Local battery nameplate differs from fitted contract")
+    # The protected branch must trace only original, physically present
+    # spine spaces and the actual common protected distribution source.
+    if world_state.objects.get(pk="node:PWR-PROT").reference.get("owner_id") != "PROT-BUS":
+        raise ElectricalError("Protected fire-pump source is not the fitted common protected bus")
+    from world.ship_world import find_ship_space
+    for name in PROTECTED_FIRE_MOTORS:
+        edge_id, _ = protected_fire_ids(name)
+        route = intended["edge:" + edge_id]["reference"]["route_spaces"]
+        if not all(find_ship_space(space) is not None for space in route):
+            raise ElectricalError("Protected fire motor cable crosses a nonexistent ship space")
     count = 0
     for key, values in sorted(intended.items()):
         obj, created = world_state.objects.get_or_create(
@@ -203,7 +256,9 @@ def install_auxiliary_circuits(world_state):
                 raise ElectricalError("Auxiliary circuit identity or provenance changed")
         count += int(created)
     return {"created": count, "total": len(intended),
-            "local_dc_circuits": len(LOCAL_LOADS), "motor_feeders": len(MOTORS)}
+            "local_dc_circuits": len(LOCAL_LOADS),
+            "motor_feeders": len(MOTORS),
+            "protected_fire_alternates": len(PROTECTED_FIRE_MOTORS)}
 
 
 def initial_local_backup():
@@ -319,12 +374,32 @@ def motor_power(name, *, nodes, equipment, edges, switches):
     terminal, edge_id, switch = auxiliary_ids(name, motor=True)
     wire = edges.get(edge_id)
     component = equipment.get(name)
-    return bool(panel in nodes and component is not None
-                and component.space_id == room and component.condition not in BROKEN
-                and wire is not None and wire.reference.get("network") == "g19_motor"
-                and wire.reference.get("to_node") == terminal
-                and wire.reference.get("from_node") == panel
-                and _live_edge(wire, switches))
+    if (component is None or component.space_id != room
+            or component.condition in BROKEN):
+        return False
+    if wire is None or wire.reference.get("network") != "g19_motor":
+        return False
+    if (wire.reference.get("to_node") != terminal
+            or wire.reference.get("from_node") != panel):
+        return False
+    primary_selected = wire.setting == "available"
+    if name not in PROTECTED_FIRE_MOTORS:
+        return bool(panel in nodes and _live_edge(wire, switches))
+    protected_edge_id, _ = protected_fire_ids(name)
+    alternate = edges.get(protected_edge_id)
+    if (alternate is None
+            or alternate.reference.get("network") != "g19_motor_protected"
+            or alternate.reference.get("from_node") != "PWR-PROT"
+            or alternate.reference.get("to_node") != terminal):
+        raise ElectricalError("Protected fire pump has lost its fitted separate supply")
+    protected_selected = alternate.setting == "available"
+    if primary_selected and protected_selected:
+        raise ElectricalError("Two independent motor source contacts cannot be paralleled")
+    return bool(
+        (primary_selected and panel in nodes and _live_edge(wire, switches))
+        or (protected_selected and "PWR-PROT" in nodes
+            and _live_edge(alternate, switches))
+    )
 
 
 def step_local_backup(ledger, seconds, *, nodes, equipment, edges, switches,
