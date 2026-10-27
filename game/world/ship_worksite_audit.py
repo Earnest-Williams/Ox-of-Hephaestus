@@ -7,7 +7,8 @@ from __future__ import annotations
 
 from collections import Counter
 
-from world.ship_access_audit import audit_access_topology, authored_route
+from world.ship_access_audit import (audit_access_topology, authored_route,
+                                     candidate_personnel_routes)
 from world.ship_model import ShipWorldModel
 
 
@@ -39,7 +40,9 @@ def audit_equipment_worksites(model: ShipWorldModel, equipment: list[dict],
     exterior_items = []
     obligations = Counter()
     sited_rooms = set()
-    paths = {}
+    paths = candidate_personnel_routes(model, anchor=anchor)
+    no_candidate = []
+    freight_shortcuts = []
 
     for number, item in enumerate(equipment):
         if not isinstance(item, dict):
@@ -62,18 +65,32 @@ def audit_equipment_worksites(model: ShipWorldModel, equipment: list[dict],
             disconnected_items.append(ident)
             route_classes["disconnected"] += 1
             continue
+        if room_id.startswith("EXT-"):
+            exterior_items.append(ident)
         if room_id not in paths:
-            paths[room_id] = authored_route(model, room_id, anchor=anchor)
+            no_candidate.append(ident)
+            route_classes["no_personnel_route_candidate"] += 1
+            continue
         route = paths[room_id]
+        shortest = authored_route(model, room_id, anchor=anchor)
+        if any("freight" in links[link_id].kind
+               or links[link_id].kind == "cargo_portal_inner"
+               for _, link_id, _ in shortest):
+            freight_shortcuts.append(ident)
         tags = set()
         if room_id.startswith("EXT-"):
             tags.add("exterior_suit_required")
-            exterior_items.append(ident)
         for source, link_id, destination in route:
             link = links[link_id]
             name = link.kind.lower()
-            if "eva" in name or "external" in name or "airlock" in name:
+            if "eva" in name or "external" in name:
                 tags.add("exterior_transfer")
+            if name == "airlock_outer_hatch":
+                tags.add("exterior_transfer")
+            if name == "service_airlock":
+                tags.add("vacuum_service_airlock_needs_separate_control")
+            if name == "service_panel":
+                tags.add("service_panel_not_walking_passage")
             if ("indexed" in name or "rotary" in name
                     or rooms[source].frame != rooms[destination].frame):
                 tags.add("rotating_transfer")
@@ -88,6 +105,10 @@ def audit_equipment_worksites(model: ShipWorldModel, equipment: list[dict],
             obligations[tag] += 1
         if "exterior_suit_required" in tags or "exterior_transfer" in tags:
             route_classes["exterior_or_eva"] += 1
+        elif "vacuum_service_airlock_needs_separate_control" in tags:
+            route_classes["uncommissioned_vacuum_airlock"] += 1
+        elif "service_panel_not_walking_passage" in tags:
+            route_classes["service_panel_access_not_entry"] += 1
         elif "rotating_transfer" in tags:
             route_classes["rotary_or_indexed"] += 1
         elif "freight_segment_not_crew_authorised" in tags:
@@ -108,6 +129,8 @@ def audit_equipment_worksites(model: ShipWorldModel, equipment: list[dict],
         "selected_route_obligations": dict(sorted(obligations.items())),
         "unplaced_equipment": sorted(unplaced),
         "disconnected_equipment": sorted(disconnected_items),
+        "no_personnel_route_candidate": sorted(no_candidate),
+        "geometry_shortest_freight_shortcuts": sorted(freight_shortcuts),
         "selected_route_uses_freight_hardware": sorted(freight_passages),
         "exterior_equipment_ids": sorted(exterior_items),
         "exterior_equipment_count": len(exterior_items),
