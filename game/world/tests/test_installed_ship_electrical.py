@@ -77,7 +77,7 @@ class InstalledElectricalTests(EvenniaTestCase):
         for key, spec in expected.items():
             row = CanonicalShipState.objects.get(pk=key)
             self.assertEqual(row.reference, spec["reference"])
-        self.assertEqual(len(expected), 3 * len(MOTORS) + 4 * len(LOCAL_LOADS))
+        self.assertEqual(len(expected), 3 * len(MOTORS) + 6 * len(LOCAL_LOADS))
         self.assertFalse(commission_g19_electrical(
             operator_approved=True)["commissioned"])
         self.assertEqual(CanonicalShipState.objects.filter(
@@ -131,6 +131,51 @@ class InstalledElectricalTests(EvenniaTestCase):
         self.assertTrue(ready())
         set_isolator("ISO-G19-MOTOR-FIRE-PUMP-FWD", "open", operator=True)
         self.assertFalse(ready())
+
+    def test_local_charger_uses_generator_cartridges_and_never_replays(self):
+        commission_g19_electrical(operator_approved=True)
+        name = "IX-A-LOCAL-BAT"
+        survey_g19_electrical_source(
+            operator_approved=True, source=name,
+            capacity_kwh=1., initial_kwh=0.)
+        self.line_up_real_feeder("NODE-GEN-M", "NODE-LP-HUB-FIXED-A")
+        self.crew_at("HUB-FIXED-A")
+        receipt = crew_physical_action(
+            self.worker, "e" * 32, "power", name, "charge")
+        self.assertEqual(receipt["status"], "succeeded")
+        stock_before = state("inventory", "INV-GEN-CART").quantity * 1000.0
+        tick_continuous_physics(now_game_time=1010)
+        clock = CanonicalShipState.objects.get(pk="meta:continuous-physics")
+        unit = clock.details["local_backup"]["units"][name]
+        charging = clock.details["local_backup"]["meter"]["charged_kwh"]
+        self.assertGreater(charging, 0)
+        self.assertAlmostEqual(charging, 2.0 * 10 / 3600.0)
+        self.assertAlmostEqual(unit["charge_kwh"], charging)
+        self.assertAlmostEqual(unit["charged_kwh"], charging)
+        energy = clock.details["electrical"]["last"]
+        self.assertAlmostEqual(energy["local_battery_recharged_kwh"], charging)
+        self.assertGreater(energy["generator_cartridge_consumed_kg"], 0)
+        self.assertAlmostEqual(
+            stock_before - state("inventory", "INV-GEN-CART").quantity * 1000,
+            energy["generator_cartridge_consumed_kg"])
+        readout = local_physics_readout(self.worker, name)
+        self.assertTrue(readout["charger_fuse_closed"])
+        self.assertEqual(readout["mode"], "charge")
+        self.assertEqual(crew_physical_action(
+            self.worker, "e" * 32, "power", name, "charge"), receipt)
+        self.assertFalse(tick_continuous_physics(
+            now_game_time=1010)["advanced"])
+        after = CanonicalShipState.objects.get(pk="meta:continuous-physics")
+        self.assertEqual(after.details["local_backup"], clock.details["local_backup"])
+        # The dedicated charger fuse removes recharge without disabling
+        # the protected/local emergency discharge conductor.
+        set_isolator("ISO-G19-CHARGE-" + name, "open", operator=True)
+        tick_continuous_physics(now_game_time=1020)
+        still = CanonicalShipState.objects.get(pk="meta:continuous-physics")
+        self.assertAlmostEqual(
+            still.details["local_backup"]["units"][name]["charge_kwh"], charging)
+        self.assertEqual(still.details["local_backup"]["last"][
+            "grid_charge_requested_mw"], 0)
 
     def test_eclss_motor_is_independently_shed_without_disabling_main_bus(self):
         commission_g19_electrical(operator_approved=True)
