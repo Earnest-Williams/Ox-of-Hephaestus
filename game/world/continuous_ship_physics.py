@@ -67,6 +67,15 @@ from world.ship_equipment_repair import (
     REPAIR_CLASSES, initial_repairs, validate_repairs,
     take_parts, begin_repair, join_repair, step_repairs, move_toolkit,
 )
+from world.ship_freight_service import (
+    GATES as FREIGHT_SERVICE_GATES, WORKSITES as FREIGHT_SERVICE_WORKSITES,
+    QUALIFIED_ROLES as FREIGHT_SERVICE_ROLES, FreightServiceError,
+    verify_as_built as verify_freight_service_source,
+    initial_service_access, validate_service_access,
+    secured as freight_service_secured,
+    service_command as command_freight_service,
+    service_hardware_ready,
+)
 from world.ship_waste_repair_world import (
     selected_waste_route, live_waste_route, safe_repair_target,
 )
@@ -373,6 +382,8 @@ def _snapshot(item):
             result["personnel_transfers"] = item.details["personnel_transfers"]
         if item.details.get("major_damage") is not None:
             result["major_damage"] = item.details["major_damage"]
+        if item.details.get("freight_service") is not None:
+            result["freight_service"] = item.details["freight_service"]
         if item.details.get("eva") is not None:
             system = item.details["eva"]
             result["eva"] = {
@@ -1296,6 +1307,36 @@ def verify_g19_hydrogen_outlet(side, *, operator_approved=False,
             "verified": exterior_clearance_verified}
 
 
+
+
+@transaction.atomic
+def commission_g19_freight_service(*, operator_approved=False):
+    """Adopt nine already-mounted service openings without reinitialising them."""
+    if not operator_approved:
+        raise PermissionError("Service-opening commissioning requires world authority")
+    _require_installed()
+    verify_freight_service_source(load_candidate())
+    clock = _clock(lock=True)
+    if clock.details.get("freight_service") is not None:
+        validate_service_access(clock.details["freight_service"])
+        return {"commissioned": False, "gates": len(FREIGHT_SERVICE_GATES)}
+    for gate, (control, site, kind, boundary, _rotor) in FREIGHT_SERVICE_GATES.items():
+        door = state("access", gate)
+        if (door.reference.get("from") != control
+                or door.reference.get("to") != site
+                or door.reference.get("kind") != kind
+                or door.reference.get("pressure_boundary") is not boundary
+                or door.setting != "closed"):
+            raise PhysicsError("Service opening is not in original sealed position")
+    before = _snapshot(clock)
+    d = dict(clock.details)
+    d["freight_service"] = initial_service_access()
+    clock.details = d
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "commission_g19_freight_service", before)
+    return {"commissioned": True, "gates": len(FREIGHT_SERVICE_GATES),
+            "equipment_served": len(FREIGHT_SERVICE_WORKSITES)}
 
 
 @transaction.atomic
@@ -4079,6 +4120,63 @@ CREW_LOCAL_DOOR_KINDS = frozenset({
     "service_panel", "cabin_door", "pressure_hatch", "service_hatch",
     "store_door", "fire_door",
 })
+
+
+def _freight_service_site_safe(gate, *, clock_details=None):
+    """Verified pressure, idle machinery and sealed capture for an access bay."""
+    if gate not in FREIGHT_SERVICE_GATES:
+        return False
+    control, site, kind, boundary, rotor = FREIGHT_SERVICE_GATES[gate]
+    door = state("access", gate)
+    if (door.condition in _BROKEN
+            or (door.reference.get("from"), door.reference.get("to"),
+                door.reference.get("kind"),
+                door.reference.get("pressure_boundary")) !=
+               (control, site, kind, boundary)):
+        return False
+    d = clock_details if clock_details is not None else _clock().details
+    if not service_hardware_ready(
+            gate, rotors=d.get("rotors"), cargo=d.get("cargo"),
+            water=d.get("water"), motion=d.get("motion")):
+        return False
+    capture = (f"ACC-{rotor}-FREIGHT-CAPTURE"
+               if rotor and rotor.startswith("DR-")
+               else "ACC-WR-HEAVY-DOCK" if gate == "ACC-WR-FREIGHT-STAGING"
+               else None)
+    if capture is not None:
+        fixed = state("access", capture)
+        if fixed.condition in _BROKEN or fixed.setting != "closed":
+            return False
+    zones = _topology()[0]
+    a, b = zones.get(control), zones.get(site)
+    if (not isinstance(a, str) or not a.startswith("PZ-")
+            or not isinstance(b, str) or not b.startswith("PZ-")):
+        return False
+    left, right = state("pressure", a), state("pressure", b)
+    if not _air_safe(left) or not _air_safe(right):
+        return False
+    pa = left.quantity * R_SPECIFIC_AIR * left.details[
+        "temperature_k"] / left.details["gas_volume_m3"]
+    pb = right.quantity * R_SPECIFIC_AIR * right.details[
+        "temperature_k"] / right.details["gas_volume_m3"]
+    return bool(math.isfinite(pa) and math.isfinite(pb)
+                and abs(pa - pb) <= 2000.0)
+
+
+def _freight_service_entry_ready(gate, *, clock_details=None):
+    """Recheck current custody and plant conditions at each actual crossing."""
+    if gate not in FREIGHT_SERVICE_GATES:
+        return False
+    d = clock_details if clock_details is not None else _clock().details
+    ledger = d.get("freight_service")
+    if ledger is None:
+        return False
+    validate_service_access(ledger)
+    if gate not in ledger["secured_links"]:
+        return False
+    door = state("access", gate)
+    return bool(door.setting == "open" and
+                _freight_service_site_safe(gate, clock_details=d))
 
 
 def _ordinary_crew_door_preflight(hatch):
