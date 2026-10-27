@@ -34,7 +34,7 @@ def number(value, *, positive=False):
 def initial_electrical():
     return {
         "version": 1, "banks": {}, "shore": None, "faults": {},
-        "sync": None,
+        "worksite_surveys": {}, "sync": None,
         "meter": {"generation_kwh": 0.0, "shore_import_kwh": 0.0,
                   "served_kwh": 0.0, "unserved_kwh": 0.0,
                   "battery_discharge_kwh": 0.0,
@@ -45,7 +45,8 @@ def initial_electrical():
 
 def validate_electrical(s):
     if not isinstance(s, dict) or set(s) != {
-            "version", "banks", "shore", "faults", "sync", "meter", "last"
+            "version", "banks", "shore", "faults", "worksite_surveys",
+            "sync", "meter", "last"
     } or s["version"] != 1:
         raise ElectricalError("Unrecognised commissioned electrical ledger")
     if not isinstance(s["banks"], dict) or not set(s["banks"]) <= set(BATTERIES):
@@ -73,6 +74,11 @@ def validate_electrical(s):
         number(shore["import_kwh"])
         if type(shore["connected"]) is not bool:
             raise ElectricalError("Invalid shore switching state")
+    if (not isinstance(s["worksite_surveys"], dict)
+            or any(room not in {"GEN-M-ROOM", "GEN-A-ROOM", "GEN-B-ROOM"}
+                   or category != "suited_service"
+                   for room, category in s["worksite_surveys"].items())):
+        raise ElectricalError("Unverified or invented hazardous electrical worksite")
     if not isinstance(s["faults"], dict):
         raise ElectricalError("Invalid breaker fault ledger")
     for target, fault in s["faults"].items():
