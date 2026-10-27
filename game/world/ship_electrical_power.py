@@ -390,14 +390,21 @@ def register_fault(ledger, name, *, rating_mw, observed_mw):
         raise ElectricalError("Power fault requires a real breaker identity")
     result = copy.deepcopy(ledger)
     old = result["faults"].get(name)
+    # A field measurement may report that the original fault has ended,
+    # but the protective latch is historical physical state and cannot be
+    # cleared by another measurement or an operator re-rating.
     if old and old["latched"]:
-        raise ElectricalError("A tripped breaker must be repaired/reset locally")
-    result["faults"][name] = {
-        "rating_mw": number(rating_mw, positive=True),
-        "observed_mw": number(observed_mw),
-        "overload_s": old["overload_s"] if old else 0.0,
-        "latched": False,
-    }
+        if not math.isclose(number(rating_mw, positive=True),
+                            old["rating_mw"], abs_tol=1e-12):
+            raise ElectricalError("Protection rating cannot change under a trip")
+        result["faults"][name]["observed_mw"] = number(observed_mw)
+    else:
+        result["faults"][name] = {
+            "rating_mw": number(rating_mw, positive=True),
+            "observed_mw": number(observed_mw),
+            "overload_s": old["overload_s"] if old else 0.0,
+            "latched": False,
+        }
     validate_electrical(result)
     return result
 
