@@ -90,6 +90,37 @@ class InstalledElectricalTests(EvenniaTestCase):
             state("isolator", service_ids("SHOP-CNC-MILL")[2]).setting,
             "closed")
 
+    def test_preexisting_equipment_faults_survive_service_control_enrolment(self):
+        # A previously armed ship predating these service controller fields
+        # may legitimately have no physics state for a cargo or tool unit.
+        unit = state("equipment", "DR-02-CARGO-GAS")
+        original = dict(unit.details)
+        for key in ("physics_online", "physics_commanded_on",
+                    "physics_startup_s"):
+            original.pop(key, None)
+        unit.details = original
+        unit.save(update_fields=["details"])
+        shop = state("equipment", "SHOP-GRINDER")
+        damage = dict(shop.details)
+        for key in ("physics_online", "physics_commanded_on",
+                    "physics_startup_s"):
+            damage.pop(key, None)
+        shop.details = damage
+        shop.condition = "failed"
+        shop.save(update_fields=["details", "condition"])
+        commission_g19_electrical(operator_approved=True)
+        recovered = state("equipment", "DR-02-CARGO-GAS")
+        self.assertTrue(recovered.details["physics_commanded_on"])
+        self.assertTrue(recovered.details["physics_online"])
+        self.assertEqual(recovered.details["physics_startup_s"], 0)
+        failed = state("equipment", "SHOP-GRINDER")
+        self.assertFalse(failed.details["physics_online"])
+        self.assertFalse(failed.details["physics_commanded_on"])
+        self.assertEqual(failed.condition, "failed")
+        self.assertFalse(commission_g19_electrical(
+            operator_approved=True)["commissioned"])
+        self.assertEqual(state("equipment", "SHOP-GRINDER").condition, "failed")
+
     def test_machine_shop_power_loss_latches_attended_restart_and_history(self):
         from world.ship_equipment_services import service_ids
         commission_g19_electrical(operator_approved=True)
