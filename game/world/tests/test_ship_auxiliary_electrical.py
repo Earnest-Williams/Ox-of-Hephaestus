@@ -274,6 +274,43 @@ class AuxiliaryPowerContracts(unittest.TestCase):
         self.assertEqual(result["meter"]["delivered_kwh"], 0)
         self.assertEqual(result["units"][name]["charge_kwh"], 12)
 
+    def test_local_reserve_cuts_in_when_connected_bus_is_browned_out(self):
+        edges, switches, equipment = fitted()
+        battery = "HAB-04-REFUGE-BAT"
+        consumer = LOCAL_LOADS[battery][1]
+        live_endpoint = "NODE-PWR-" + consumer
+        bank = survey_local_backup(
+            initial_local_backup(), battery,
+            capacity_kwh=1.0, initial_kwh=0.08)
+        bank = set_local_mode(bank, battery, "reserve")
+        # The actual original appliance's contact is still connected,
+        # but 3.3-MW bus dispatch cannot assure the essential load budget.
+        out = step_local_backup(
+            bank, 10, nodes={live_endpoint}, equipment=equipment,
+            edges=edges, switches=switches, normal_assured=False)
+        self.assertAlmostEqual(
+            out["meter"]["delivered_kwh"], 10 / 360, places=7)
+        self.assertEqual(out["last"]["active_local_consumers"][battery],
+                         consumer)
+        # No needless battery discharge when the very same connected
+        # normal circuit is demonstrably supplying adequate power.
+        good = step_local_backup(
+            bank, 10, nodes={live_endpoint}, equipment=equipment,
+            edges=edges, switches=switches, normal_assured=True)
+        self.assertEqual(good["meter"]["delivered_kwh"], 0)
+        # Local emergency fuse still defeats a brownout takeover.
+        _, _, fuse = auxiliary_ids(battery)
+        switches[fuse].setting = "open"
+        failed = step_local_backup(
+            bank, 10, nodes={live_endpoint}, equipment=equipment,
+            edges=edges, switches=switches, normal_assured=False)
+        self.assertNotIn(battery, failed["last"]["active_local_consumers"])
+        self.assertGreater(failed["meter"]["unserved_kwh"], 0)
+        with self.assertRaises(ElectricalError):
+            step_local_backup(
+                bank, 10, nodes={live_endpoint}, equipment=equipment,
+                edges=edges, switches=switches, normal_assured="unknown")
+
     def test_refuge_bypasses_failed_primary_appliance_branch_not_entire_panel(self):
         e, sw, units = fitted()
         name = "HAB-04-REFUGE-BAT"
