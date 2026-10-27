@@ -4162,7 +4162,9 @@ def crew_physical_action(actor, request_id, action, target, value):
                     list(CanonicalShipState.objects.filter(category="edge")),
                     {r.source_id:r for r in CanonicalShipState.objects.filter(
                         category="isolator")},
-                    item.details["load_profile"])
+                    item.details["load_profile"],
+                    ledger=item.details.get("electrical"),
+                    moored=contacts_active(item.details.get("cargo", {})))
                 if not supply["assured"] or "NODE-LP-" + target not in supply["nodes"]:
                     raise PhysicsError("EVA pump has no verified local electrical feeder")
                 if value == "pumpdown":
@@ -4665,14 +4667,21 @@ def crew_physical_action(actor, request_id, action, target, value):
                     door = state("access", door_id)
                     if door.condition in _BROKEN or door.setting != "closed":
                         raise PhysicsError("Both HAB carrier hatches must be closed")
-                if not _power(
-                        {r.source_id: r for r in CanonicalShipState.objects.filter(
-                            category="equipment")},
-                        list(CanonicalShipState.objects.filter(category="edge")),
-                        {r.source_id:r for r in CanonicalShipState.objects.filter(
-                            category="isolator")},
-                        _clock().details["load_profile"])["assured"]:
+                clock_details = _clock().details
+                supply = _power(
+                    {r.source_id: r for r in CanonicalShipState.objects.filter(
+                        category="equipment")},
+                    list(CanonicalShipState.objects.filter(category="edge")),
+                    {r.source_id: r for r in CanonicalShipState.objects.filter(
+                        category="isolator")},
+                    clock_details["load_profile"],
+                    ledger=clock_details.get("electrical"),
+                    moored=contacts_active(clock_details.get("cargo", {})))
+                if not supply["assured"]:
                     raise PhysicsError("No confirmed electrical power for phase matching")
+                if (clock_details.get("electrical") is not None
+                        and "NODE-LP-" + room not in supply["nodes"]):
+                    raise PhysicsError("Actual HAB indexer control station has lost its power feeder")
             item = _clock(lock=True)
             before = _snapshot(item)
             d = dict(item.details)
