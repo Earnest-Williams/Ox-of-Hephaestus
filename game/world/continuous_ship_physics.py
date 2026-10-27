@@ -3737,6 +3737,16 @@ def tick_continuous_physics(*, now_game_time=None):
                 row.space_id == job["room"] or
                 category == "access" and job["room"] in {
                     row.reference.get("from"), row.reference.get("to")})
+            if (valid_site and category == "equipment"
+                    and identifier in FREIGHT_SERVICE_WORKSITES
+                    and not _freight_service_entry_ready(
+                        FREIGHT_SERVICE_WORKSITES[identifier][1],
+                        clock_details={
+                            **_clock().details, "rotors": rotors,
+                            "cargo": cargo, "water": water_state,
+                            "motion": motion,
+                        })):
+                valid_site = False
             if (valid_site and row.condition == job["condition"] and
                     safe_repair_target(
                         row, pressure_rows=by_pressure, zones=zones,
@@ -4297,7 +4307,7 @@ def crew_physical_action(actor, request_id, action, target, value):
     """
     if not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
         raise PhysicsError("Expected one 32-character lowercase request UUID")
-    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage"}:
+    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service"}:
         raise PhysicsError("Unknown physical operation")
     if actor is None or getattr(actor.db, "ox_terminal_dead", False):
         raise PermissionError("A deceased or missing character cannot operate machinery")
@@ -4319,11 +4329,20 @@ def crew_physical_action(actor, request_id, action, target, value):
                     "isolator:" if action == "switch"
                     else "pressure:" if action == "mist"
                     else "access:" if action == "hatch"
-                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage"}
-                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage"} else target)
+                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service"}
+                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service"} else target)
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
+    service_ledger = _clock().details.get("freight_service")
+    if service_ledger is not None:
+        validate_service_access(service_ledger)
+        if freight_service_secured(service_ledger):
+            if action in {"freight", "port", "wasteport", "helm", "attitude",
+                          "drive", "ftl"}:
+                raise PhysicsError("Attended freight service inhibits ship and cargo movement")
+            if action == "rotor" and value not in {"stop", "hardlock"}:
+                raise PhysicsError("Service work party holds rotary machinery inhibited")
     # A physically incapacitated engineer cannot operate ANY remote switch,
     # helm or machinery after injury. Previously issued request receipts
     # above stay replayable without executing a new action.
@@ -5308,6 +5327,13 @@ def crew_physical_action(actor, request_id, action, target, value):
                 raise PhysicsError("Only installed physical machinery can be repaired")
             unit = state(category, ident, lock=True)
             _crew_at(actor, room)
+            if (category == "equipment"
+                    and ident in FREIGHT_SERVICE_WORKSITES
+                    and (room != FREIGHT_SERVICE_WORKSITES[ident][0]
+                         or not _freight_service_entry_ready(
+                             FREIGHT_SERVICE_WORKSITES[ident][1],
+                             clock_details=d))):
+                raise PhysicsError("Service equipment requires live attended freight lockout")
             if category == "access":
                 if room not in {unit.reference.get("from"),
                                 unit.reference.get("to")}:
@@ -5406,6 +5432,62 @@ def crew_physical_action(actor, request_id, action, target, value):
         except CargoError as exc:
             raise PhysicsError(str(exc)) from exc
         item.details = d
+        item.revision += 1
+        item.save(update_fields=["details", "revision"])
+    elif action == "freight_service":
+        # A rated existing freight entry is not ordinarily walkable.
+        # Qualified engineers open its maintenance wicket at the original
+        # upstream station only after cargo/rotary lockout and gas checks.
+        if target not in FREIGHT_SERVICE_GATES or value not in {"open", "close"}:
+            raise PhysicsError("No fitted attended freight service passage")
+        control, site, kind, boundary, rotor = FREIGHT_SERVICE_GATES[target]
+        _crew_at(actor, control)
+        if (actor.db.crew_role not in FREIGHT_SERVICE_ROLES
+                and not actor.check_permstring("Developer")):
+            raise PermissionError("Freight service requires an engineer or cargo officer")
+        item = _clock(lock=True)
+        before = _snapshot(item)
+        ledger = item.details.get("freight_service")
+        if ledger is None:
+            raise PhysicsError("Fitted maintenance gates are not commissioned")
+        validate_service_access(ledger)
+        door = state("access", target, lock=True)
+        if door.condition in _BROKEN:
+            raise PhysicsError("Damaged freight service hatch cannot be actuated")
+        if value == "open":
+            if (door.setting != "closed" or
+                    freight_service_secured(ledger) or
+                    not _freight_service_site_safe(target,
+                                                   clock_details=item.details)):
+                raise PhysicsError("Freight service lockout, gas or parked machinery unsafe")
+        else:
+            if (target not in ledger["secured_links"]
+                    or door.setting != "open"):
+                raise PhysicsError("No matching live service access to release")
+            from evennia.objects.models import ObjectDB
+            from world.ship_world import find_ship_space
+            workroom = find_ship_space(site)
+            if workroom is None:
+                raise PhysicsError("Fitted service compartment disappeared")
+            if any(getattr(person.db, "crew_role", None)
+                   for person in ObjectDB.objects.filter(db_location=workroom)):
+                raise PhysicsError("Crew member remains in isolated freight worksite")
+            if any(job["room"] == site for job in
+                   (item.details.get("repairs") or {"jobs": {}})["jobs"].values()):
+                raise PhysicsError("Finish on-site maintenance before restoring freight")
+        try:
+            altered = command_freight_service(ledger, target, value)
+        except FreightServiceError as exc:
+            raise PhysicsError(str(exc)) from exc
+        prior_door = _snapshot(door)
+        door.setting = "open" if value == "open" else "closed"
+        door.revision += 1
+        door.save(update_fields=["setting", "revision"])
+        _event(door, "crew_attended_freight_service_gate", prior_door,
+               actor=actor)
+        details = dict(item.details)
+        details["freight_service"] = altered
+        item.details = details
         item.revision += 1
         item.save(update_fields=["details", "revision"])
     elif action == "freight":
