@@ -6,8 +6,10 @@ on:
     paths:
       - "game/world/ship_electrical_power.py"
       - "game/world/ship_auxiliary_electrical.py"
+      - "game/world/ship_refuge_life_support.py"
       - "design/ship/check_g19_electrical_inventory.py"
       - "game/world/tests/test_ship_auxiliary_electrical.py"
+      - "game/world/tests/test_ship_refuge_life_support.py"
       - "game/world/continuous_ship_physics.py"
       - "game/world/tests/test_ship_electrical_power.py"
       - "game/world/tests/test_installed_ship_electrical.py"
@@ -18,8 +20,10 @@ on:
     paths:
       - "game/world/ship_electrical_power.py"
       - "game/world/ship_auxiliary_electrical.py"
+      - "game/world/ship_refuge_life_support.py"
       - "design/ship/check_g19_electrical_inventory.py"
       - "game/world/tests/test_ship_auxiliary_electrical.py"
+      - "game/world/tests/test_ship_refuge_life_support.py"
       - "game/world/continuous_ship_physics.py"
       - "game/world/tests/test_ship_electrical_power.py"
       - "game/world/tests/test_installed_ship_electrical.py"
@@ -46,10 +50,10 @@ jobs:
           python-version: "3.12"
       - name: Compile G19 electricity and shared physics
         run: |
-          python -m compileall -q game/world/ship_electrical_power.py game/world/ship_auxiliary_electrical.py game/world/continuous_ship_physics.py game/world/tests/test_ship_electrical_power.py game/world/tests/test_ship_auxiliary_electrical.py
+          python -m compileall -q game/world/ship_electrical_power.py game/world/ship_auxiliary_electrical.py game/world/ship_refuge_life_support.py game/world/continuous_ship_physics.py game/world/tests/test_ship_electrical_power.py game/world/tests/test_ship_auxiliary_electrical.py game/world/tests/test_ship_refuge_life_support.py
       - name: Finite electric energy, real source paths, protection and no-backfeed
         working-directory: game
-        run: python -m unittest world.tests.test_ship_electrical_power world.tests.test_ship_auxiliary_electrical -v
+        run: python -m unittest world.tests.test_ship_electrical_power world.tests.test_ship_auxiliary_electrical world.tests.test_ship_refuge_life_support -v
       - name: Audit all v0.5 priority motors against original co-located power panels
         run: python design/ship/check_g19_electrical_inventory.py
 
