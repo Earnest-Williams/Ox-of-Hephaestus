@@ -2176,6 +2176,15 @@ def tick_continuous_physics(*, now_game_time=None):
             validate_local_backup(local_backup)
         except ElectricalError as exc:
             raise PhysicsError(str(exc)) from exc
+    refuge_scrubbers = clock.details.get("refuge_scrubbers")
+    if refuge_scrubbers is not None:
+        try:
+            validate_refuge_scrubbers(refuge_scrubbers)
+        except RefugeAirError as exc:
+            raise PhysicsError(str(exc)) from exc
+    refuge_captured_before = (
+        refuge_scrubbers["meter"]["captured_kg"]
+        if refuge_scrubbers is not None else 0.0)
     aux_edges = {x.source_id: x for x in edges
                  if x.reference.get("network") in {
                      "g19_motor", "g19_motor_protected",
@@ -2199,7 +2208,8 @@ def tick_continuous_physics(*, now_game_time=None):
     captured_co2 = float(clock.details.get("co2_captured_kg", 0.0))
     if not math.isfinite(captured_co2) or not 0 <= captured_co2 <= CO2_CAPTURE_CAPACITY_KG:
         raise PhysicsError("Invalid finite CO2 sorbent inventory")
-    total_before = sum(c["mass"] + c["fuel"] for c in cells.values()) + captured_co2
+    total_before = (sum(c["mass"] + c["fuel"] for c in cells.values())
+                    + captured_co2 + refuge_captured_before)
     lost = burned = water = oxygen_generated = 0.0
     water_state = clock.details.get("water")
     if water_state is not None:
@@ -2914,6 +2924,27 @@ def tick_continuous_physics(*, now_game_time=None):
             if local_charge_mw > 0:
                 power["requested_mw"] += local_charge_mw
                 power["dispatched_mw"] += local_charge_mw
+        if refuge_scrubbers is not None:
+            # The actual normal refuge air load or the individually surveyed
+            # and fully supplied local DC battery may drive its own package.
+            # The main board's mere presence is insufficient: the original
+            # appliance endpoint must be energised as well.
+            normal_refuges = {
+                pack for pack in REFUGE_PACKS
+                if "NODE-PWR-" + pack in power["nodes"]
+                and power["essential_assured"]
+            }
+            local_refuges = (
+                set(local_backup["last"].get(
+                    "active_local_consumers", {}).values())
+                if local_backup is not None else set())
+            try:
+                refuge_scrubbers, cells = step_refuge_scrubbers(
+                    refuge_scrubbers, dt,
+                    powered_consumers=normal_refuges | local_refuges,
+                    equipment=equipment, room_zones=zones, cells=cells)
+            except RefugeAirError as exc:
+                raise PhysicsError(str(exc)) from exc
         if electrical is not None:
             try:
                 electrical = step_energy(
@@ -2948,6 +2979,10 @@ def tick_continuous_physics(*, now_game_time=None):
             "shortfall_mw": round(power["shortfall_mw"], 4),
             "ventilation_powered": air_on,
             "cooling_kw": round(total_cool_kw, 3),
+            "refuge_co2_captured_kg": (
+                round(refuge_scrubbers["meter"]["captured_kg"]
+                      - refuge_captured_before, 6)
+                if refuge_scrubbers is not None else 0.0),
             "burning_cells": sum(c["burn"] > 0 for c in cells.values()),
             "open_pressure_hatches": len(open_hatches),
             "active_leaking_cells": sum(
@@ -2957,7 +2992,10 @@ def tick_continuous_physics(*, now_game_time=None):
                 for zone, c in cells.items()),
         }
 
-    total_after = sum(c["mass"] + c["fuel"] for c in cells.values()) + captured_co2
+    total_after = (sum(c["mass"] + c["fuel"] for c in cells.values())
+                   + captured_co2
+                   + (refuge_scrubbers["meter"]["captured_kg"]
+                      if refuge_scrubbers is not None else 0.0))
     if not math.isclose(total_before + oxygen_generated, total_after + lost,
                         abs_tol=1e-5, rel_tol=1e-10):
         raise PhysicsError("Gas, fire fuel and vented mass did not reconcile")
@@ -3507,6 +3545,8 @@ def tick_continuous_physics(*, now_game_time=None):
     d["motion"] = motion
     if local_backup is not None:
         d["local_backup"] = local_backup
+    if refuge_scrubbers is not None:
+        d["refuge_scrubbers"] = refuge_scrubbers
     if electrical is not None:
         d["electrical"] = electrical
         d["generator_spent_cartridge_kg"] = cartridge_spent
