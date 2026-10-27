@@ -52,6 +52,40 @@ MOTORS = {
             (f"DR-{n:02d}-SERVICE-LOCK", f"NODE-LP-DR-{n:02d}-SERVICE-LOCK")
         for n in range(1, 7)
     },
+    # The rotating workshop carries separate maintained motor drives and
+    # carriage extension motors on the fitted WR-PWR interface, not the
+    # fixed-spine HAB drive distribution.
+    **{
+        name: ("WR-ROTOR-MACHINERY", "NODE-WR-PWR-IF")
+        for name in ("WR-DRIVE-A", "WR-DRIVE-B",
+                     "WR-EXTEND-SHOP", "WR-EXTEND-STORES")
+    },
+    # Electrolytic oxygen production is electrically independent of the host
+    # ECLSS circulation machinery. CO2 regeneration likewise has its own
+    # feed, and cannot produce an infinite sink without a valid receiver.
+    **{
+        f"ECLSS-{side}-{function}":
+            (f"HAB-{'06-ECLSS-A' if side == 'A' else '08-ECLSS-B'}",
+             f"NODE-HAB-{'06-ECLSS-A' if side == 'A' else '08-ECLSS-B'}-LP")
+        for side in "AB" for function in ("O2-GEN", "CO2-REGEN")
+    },
+    **{
+        f"DEHUM-{n}":
+            (f"HAB-{'06-ECLSS-A' if n <= 2 else '08-ECLSS-B'}",
+             f"NODE-HAB-{'06-ECLSS-A' if n <= 2 else '08-ECLSS-B'}-LP")
+        for n in range(1, 5)
+    },
+    # Arc fan power is intentionally split between installed A/B distribution
+    # where available; the two host arcs follow their actual ECLSS sides.
+    **{
+        f"HAB-{n:02d}-AHU":
+            (f"HAB-{n:02d}-SERVICE-GALLERY",
+             f"NODE-HAB-{n:02d}-PDB-"
+             + ("A" if n == 8 or n % 2 else "B"))
+        for n in range(1, 9)
+    },
+    "SPINE-AIR-FWD": ("ENV-FWD", "NODE-LP-ENV-FWD"),
+    "SPINE-AIR-AFT": ("ENV-AFT", "NODE-LP-ENV-AFT"),
 }
 
 # Explicitly fitted, short local battery-to-appliance harnesses. These are
