@@ -17,6 +17,7 @@ from world.continuous_ship_physics import (
     survey_g19_electrical_source, survey_g19_electrical_worksite,
     configure_g19_electrical_fault, commission_commercial_port,
     commission_ftl_route, survey_g19_refuge_sorbent,
+    survey_cargo_lot, survey_g19_cargo_environment,
     crew_physical_action, tick_continuous_physics, local_physics_readout,
 )
 
@@ -72,6 +73,96 @@ class InstalledElectricalTests(EvenniaTestCase):
                     set_isolator(isolator_id, "closed", operator=True)
             position = a if position == b else b
 
+    def test_surveyed_cargo_hold_rejects_finite_heat_through_real_lt_valve(self):
+        commission_g19_electrical(operator_approved=True)
+        survey_cargo_lot(
+            operator_approved=True, operation="declare",
+            lot_id="VACCINES", mass_kg=20000, drum="DR-03",
+            azimuth_deg=0, radius_m=5, kind="sled")
+        survey_g19_cargo_environment(
+            operator_approved=True, operation="drum", drum="DR-03",
+            temperature_k=294., target_k=275.,
+            heat_capacity_kj_k=1000., conductance_kw_k=1.)
+        survey_g19_cargo_environment(
+            operator_approved=True, operation="lot", drum="DR-03",
+            lot_id="VACCINES", profile="cold_chain")
+        self.line_up_real_feeder("NODE-GEN-M", "NODE-DR-03-SVC-DB")
+        self.line_up_real_feeder("NODE-GEN-M", "NODE-LP-ROTARY-UTIL-A")
+        self.line_up_real_feeder("NODE-GEN-M", "NODE-HAB-03-FIRE-DETECT")
+        set_isolator("ISO-DR-03-LT-IF", "open", operator=True)
+        first = tick_continuous_physics(now_game_time=1010)
+        self.assertTrue(first["power_assured"])
+        self.assertEqual(first["active_cargo_environment_pairs"], 1)
+        self.assertGreater(first["cargo_cooling_kw"], 0)
+        self.assertEqual(first["cargo_conditioned_drums"], 1)
+        self.assertEqual(first["cargo_sensitive_lots_exposed"], 1)
+        self.crew_at("DR-03-GALLERY")
+        panel = local_physics_readout(self.worker, "DR-03-CARGO-HX")
+        self.assertTrue(panel["sampled"])
+        self.assertLess(panel["temperature_k"], 294)
+        quality = panel["sensitive_lots"]["VACCINES"]["quality"]
+        self.assertLess(quality, 1)
+        set_isolator("ISO-DR-03-LT-IF", "closed", operator=True)
+        isolated = tick_continuous_physics(now_game_time=1020)
+        self.assertEqual(isolated["cargo_cooling_kw"], 0)
+        warmer = local_physics_readout(self.worker, "DR-03-CARGO-HX")
+        self.assertGreater(warmer["temperature_k"], panel["temperature_k"])
+        self.assertLess(warmer["sensitive_lots"]["VACCINES"]["quality"], quality)
+        self.assertTrue(isolated["power_assured"])
+        set_isolator("ISO-DR-03-LT-IF", "open", operator=True)
+        recovered = tick_continuous_physics(now_game_time=1030)
+        self.assertGreater(recovered["cargo_cooling_kw"], 0)
+        receipt = crew_physical_action(
+            self.worker, "9" * 32,
+            "service", "DR-03-CARGO-HX", "target:274")
+        self.assertEqual(receipt["status"], "succeeded")
+        changed = local_physics_readout(self.worker, "DR-03-CARGO-HX")
+        self.assertEqual(changed["target_temperature_k"], 274.0)
+        self.assertEqual(crew_physical_action(
+            self.worker, "9" * 32,
+            "service", "DR-03-CARGO-HX", "target:274"), receipt)
+        with self.assertRaises(PermissionError):
+            local_physics_readout(self.worker, "DR-04-CARGO-HX")
+
+    def test_cargo_thermal_quality_survives_manifest_split_and_restart(self):
+        commission_g19_electrical(operator_approved=True)
+        survey_cargo_lot(
+            operator_approved=True, operation="declare",
+            lot_id="COLDLOT", mass_kg=30000, drum="DR-01",
+            azimuth_deg=0, radius_m=10, kind="sled")
+        survey_g19_cargo_environment(
+            operator_approved=True, operation="drum", drum="DR-01",
+            temperature_k=290., target_k=273.,
+            heat_capacity_kj_k=1000., conductance_kw_k=1.)
+        survey_g19_cargo_environment(
+            operator_approved=True, operation="lot", drum="DR-01",
+            lot_id="COLDLOT", profile="cold_chain")
+        # Electrical generator routing is intentionally absent: this is
+        # an actual service casualty, not a healthy refrigeration fiction.
+        thermal = tick_continuous_physics(now_game_time=1010)
+        self.assertEqual(thermal["cargo_cooling_kw"], 0)
+        now = CanonicalShipState.objects.get(
+            pk="meta:continuous-physics").details["cargo_environment"]
+        self.assertLess(now["lots"]["COLDLOT"]["quality"], 1)
+        survey_cargo_lot(
+            operator_approved=True, operation="split",
+            source_id="COLDLOT", lot_id="CHILDLOT", mass_kg=4000)
+        clock = CanonicalShipState.objects.get(
+            pk="meta:continuous-physics")
+        care = clock.details["cargo_environment"]
+        self.assertEqual(care["lots"]["COLDLOT"]["quality"],
+                         care["lots"]["CHILDLOT"]["quality"])
+        old = care["lots"]["CHILDLOT"]["quality"]
+        self.assertFalse(commission_g19_electrical(
+            operator_approved=True)["commissioned"])
+        self.assertEqual(
+            CanonicalShipState.objects.get(
+                pk="meta:continuous-physics").details[
+                    "cargo_environment"]["lots"]["CHILDLOT"]["quality"], old)
+        with self.assertRaises(PhysicsError):
+            survey_g19_cargo_environment(
+                operator_approved=True, operation="lot", drum="DR-01",
+                lot_id="CHILDLOT", profile="cold_chain")
     def test_second_stage_equipment_feeders_installed_from_authentic_rooms(self):
         from world.ship_equipment_services import (
             SERVICE_LOADS, service_specs, service_ids)
