@@ -467,6 +467,7 @@ def source_dispatch(equipment, edges, switches, profile, *, ledger=None,
         "active_generators": tuple(sorted(sources)),
         "nodes": main_nodes | (prot_nodes if backed_mw else set()),
         "main_nodes": main_nodes,
+        "producer_nodes": producer_nodes,
         "main_available_mw": main_mw,
         "producer_available_mw": generator_mw,
         "cartridges_metered": cartridge_kg is not None,
@@ -493,7 +494,8 @@ def source_dispatch(equipment, edges, switches, profile, *, ledger=None,
     }
 
 
-def step_energy(ledger, dispatch, seconds, *, actual_requested_mw=None):
+def step_energy(ledger, dispatch, seconds, *, actual_requested_mw=None,
+                external_charge_mw=0.0):
     """Meter live supply under authoritative bounded ship time.
 
     Source-specific credits reconcile with finite storage debits. General
@@ -508,6 +510,9 @@ def step_energy(ledger, dispatch, seconds, *, actual_requested_mw=None):
     demand = number(dispatch["requested_mw"] if actual_requested_mw is None
                     else actual_requested_mw)
     producing = number(dispatch["producer_available_mw"])
+    external_charging = number(external_charge_mw)
+    if external_charging > demand + 1e-9:
+        raise ElectricalError("Local charger demand exceeds the accounted electrical load")
     ops_rating = number(dispatch["operational_battery_available_mw"])
     flywheel_rating = number(dispatch["flywheel_available_mw"])
     main = number(dispatch["main_available_mw"])
@@ -518,6 +523,9 @@ def step_energy(ledger, dispatch, seconds, *, actual_requested_mw=None):
         number(dispatch["protected_battery_dispatched_mw"]), demand) if live else 0.0
     main_served = min(main, max(0.0, demand - protected)) if live else 0.0
     generated = min(producing, main_served)
+    if (external_charging > generated + 1e-8
+            or external_charging > main_served + 1e-8):
+        raise ElectricalError("Local charger attempted to borrow battery or nonexistent generator power")
     ops_served = min(ops_rating, max(0.0, main_served - generated))
     flywheel_served = max(0.0, main_served - generated - ops_served)
     if flywheel_served > flywheel_rating + 1e-8:
@@ -549,7 +557,9 @@ def step_energy(ledger, dispatch, seconds, *, actual_requested_mw=None):
         result["meter"]["generation_kwh"] += produced_kwh
     result["meter"]["battery_discharge_kwh"] += battery_out
     result["meter"]["flywheel_discharge_kwh"] += flywheel_out
-    result["meter"]["served_kwh"] += main_served * dt / MW_SECONDS_PER_KWH + protected * dt / MW_SECONDS_PER_KWH
+    # Store charging is a distinct physical sink, not delivered consumer service.
+    result["meter"]["served_kwh"] += (
+        main_served - external_charging + protected) * dt / MW_SECONDS_PER_KWH
     result["meter"]["unserved_kwh"] += max(
         0.0, demand - main_served - protected) * dt / MW_SECONDS_PER_KWH
     headroom = max(0.0, producing - generated)
@@ -590,7 +600,8 @@ def step_energy(ledger, dispatch, seconds, *, actual_requested_mw=None):
         - ledger["meter"]["flywheel_charge_kwh"])
     source_energy_kwh = (generation_delta_kwh + shore_delta_kwh
                          + battery_out + flywheel_out)
-    applied_energy_kwh = served_delta_kwh + charged_delta_kwh
+    applied_energy_kwh = (served_delta_kwh + charged_delta_kwh
+                          + external_charging * dt / MW_SECONDS_PER_KWH)
     if not math.isclose(source_energy_kwh, applied_energy_kwh,
                         rel_tol=1e-10, abs_tol=1e-7):
         raise ElectricalError("Source energy does not balance delivered and stored energy")
@@ -608,6 +619,7 @@ def step_energy(ledger, dispatch, seconds, *, actual_requested_mw=None):
         "operational_battery_delivered_mw": ops_served,
         "flywheel_delivered_mw": flywheel_served,
         "protected_battery_delivered_mw": protected,
+        "local_battery_recharged_kwh": external_charging * dt / MW_SECONDS_PER_KWH,
         "battery_dispatched_mw": ops_served + protected,
         "unserved_mw": max(0.0, demand - main_served - protected),
         "protected_power": dispatch["protected_assured"],
