@@ -2534,7 +2534,8 @@ def tick_continuous_physics(*, now_game_time=None):
         field_healthy = bool(
             ftl_field and ftl_field.condition not in _BROKEN
             and equipment.get("LCS-FTL") is not None
-            and equipment["LCS-FTL"].condition not in _BROKEN)
+            and equipment["LCS-FTL"].condition not in _BROKEN
+            and motor_ready("FTL-TRANSLATION-FIELD"))
         ftl_active = (motion.get("ftl_leg") or {}).get("status") == "engaged"
         try:
             motion, ftl_aux = advance_leg(
@@ -4851,6 +4852,27 @@ def crew_physical_action(actor, request_id, action, target, value):
             station = state("equipment", "LCS-FTL")
             if field.condition in _BROKEN or station.condition in _BROKEN:
                 raise PhysicsError("Installed translation-field machinery unavailable")
+            # Dispatching a leg requires the *actual* separately fitted
+            # translation-control feeder, not just a healthy machine object.
+            # Before G19 electrical commissioning retain legacy G19 movement.
+            if d.get("electrical") is not None:
+                units = {x.source_id: x for x in
+                         CanonicalShipState.objects.filter(category="equipment")}
+                edges = list(CanonicalShipState.objects.filter(category="edge"))
+                switches = {x.source_id: x for x in
+                            CanonicalShipState.objects.filter(category="isolator")}
+                supply = _power(
+                    units, edges, switches, d["load_profile"],
+                    ledger=d["electrical"],
+                    moored=contacts_active(d.get("cargo", {})))
+                if (not supply["assured"]
+                        or not motor_power(
+                            "FTL-TRANSLATION-FIELD", nodes=supply["nodes"],
+                            equipment=units,
+                            edges={x.source_id: x for x in edges},
+                            switches=switches)):
+                    raise PhysicsError(
+                        "FTL translation control lacks its powered local feeder")
         try:
             d["motion"] = command_leg(d["motion"], target, value)
         except NavigationError as exc:
