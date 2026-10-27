@@ -88,6 +88,10 @@ def auxiliary_ids(name, *, motor=False):
             f"ISO-{prefix}-" + name)
 
 
+def charger_ids(name):
+    return ("EDGE-G19-CHARGE-" + name, "ISO-G19-CHARGE-" + name)
+
+
 def _specs():
     """Construct the exact authored extension identities once, deterministically."""
     rows = {}
@@ -139,6 +143,20 @@ def _specs():
             "manual_operation": True, "remote_operable": False,
             "current_state": "closed",
         }, "closed")
+        # Local AC input is a different physical cable and isolator from
+        # the one-way battery-to-appliance emergency conductor.
+        charge_edge, charge_iso = charger_ids(name)
+        add("edge", charge_edge, room, {
+            "id": charge_edge, "network": "g19_local_charger",
+            "kind": "bounded_local_battery_charger",
+            "from_node": panel, "to_node": source_node,
+            "isolator_ids": [charge_iso], "route_spaces": [room],
+        }, "available")
+        add("isolator", charge_iso, room, {
+            "id": charge_iso, "network": "g19_local_charger",
+            "kind": "breaker", "manual_operation": True,
+            "remote_operable": False, "current_state": "closed",
+        }, "closed")
     return rows
 
 
@@ -156,8 +174,7 @@ def install_auxiliary_circuits(world_state):
                 or not isinstance(owner_id, str)):
             return False
         owner = world_state.objects.filter(pk="equipment:" + owner_id).first()
-        return bool(owner and owner.space_id == room
-                    and owner.condition not in BROKEN)
+        return bool(owner and owner.space_id == room)
     for name, (room, panel) in MOTORS.items():
         target = world_state.objects.get(pk="equipment:" + name)
         parent = world_state.objects.get(pk="node:" + panel)
@@ -190,18 +207,20 @@ def install_auxiliary_circuits(world_state):
 
 
 def initial_local_backup():
-    return {"version": 1, "units": {}, "meter": {
-        "delivered_kwh": 0.0, "unserved_kwh": 0.0}, "last": {}}
+    return {"version": 2, "units": {}, "meter": {
+        "delivered_kwh": 0.0, "charged_kwh": 0.0,
+        "unserved_kwh": 0.0}, "last": {}}
 
 
 def validate_local_backup(ledger):
     if not isinstance(ledger, dict) or set(ledger) != {
-            "version", "units", "meter", "last"} or ledger["version"] != 1:
+            "version", "units", "meter", "last"} or ledger["version"] != 2:
         raise ElectricalError("Unknown local emergency electrical ledger")
     if not isinstance(ledger["units"], dict) or not set(ledger["units"]) <= set(LOCAL_LOADS):
         raise ElectricalError("Unfitted local battery")
     if not isinstance(ledger["meter"], dict) or set(ledger["meter"]) != {
-            "delivered_kwh", "unserved_kwh"} or not isinstance(ledger["last"], dict):
+            "delivered_kwh", "charged_kwh", "unserved_kwh"
+            } or not isinstance(ledger["last"], dict):
         raise ElectricalError("Corrupt local electrical meters")
     for x in ledger["meter"].values():
         if type(x) not in (int, float) or not math.isfinite(x) or x < 0:
@@ -209,25 +228,54 @@ def validate_local_backup(ledger):
     for name, bank in ledger["units"].items():
         if not isinstance(bank, dict) or set(bank) != {
                 "capacity_kwh", "charge_kwh", "initial_kwh",
-                "delivered_kwh", "mode"}:
+                "delivered_kwh", "charged_kwh", "mode"}:
             raise ElectricalError("Unknown local electrical store account")
         for value in [bank[k] for k in ("capacity_kwh", "charge_kwh",
-                                         "initial_kwh", "delivered_kwh")]:
+                   "initial_kwh", "delivered_kwh", "charged_kwh")]:
             if type(value) not in (int, float) or not math.isfinite(value) or value < 0:
                 raise ElectricalError("Invalid local battery quantity")
         if (bank["capacity_kwh"] > LOCAL_LOADS[name][3] + 1e-8
                 or bank["capacity_kwh"] <= 0
                 or bank["initial_kwh"] > bank["capacity_kwh"]
                 or bank["charge_kwh"] > bank["capacity_kwh"] + 1e-8
-                or bank["mode"] not in {"standby", "reserve"}
+                or bank["mode"] not in {"standby", "reserve", "charge"}
                 or not math.isclose(
-                    bank["initial_kwh"] - bank["delivered_kwh"],
+                    bank["initial_kwh"] + bank["charged_kwh"]
+                    - bank["delivered_kwh"],
                     bank["charge_kwh"], abs_tol=1e-7, rel_tol=1e-10)):
             raise ElectricalError("Local emergency battery energy created or lost")
-    if not math.isclose(sum(x["delivered_kwh"] for x in ledger["units"].values()),
-                        ledger["meter"]["delivered_kwh"], abs_tol=1e-6, rel_tol=1e-10):
-        raise ElectricalError("Local power discharge meter does not reconcile")
+    for field, unit_field in (("delivered_kwh", "delivered_kwh"),
+                              ("charged_kwh", "charged_kwh")):
+        if not math.isclose(sum(x[unit_field] for x in ledger["units"].values()),
+                            ledger["meter"][field], abs_tol=1e-6, rel_tol=1e-10):
+            raise ElectricalError("Local power aggregate meter does not reconcile")
     return True
+
+
+def migrate_local_backup(existing):
+    """Retain every v1 unit's actual charge and recorded discharges."""
+    if existing.get("version") == 2:
+        validate_local_backup(existing)
+        return copy.deepcopy(existing)
+    if not isinstance(existing, dict) or existing.get("version") != 1:
+        raise ElectricalError("Unknown historical local emergency ledger")
+    if (set(existing) != {"version", "units", "meter", "last"}
+            or not isinstance(existing["units"], dict)
+            or not set(existing["units"]) <= set(LOCAL_LOADS)
+            or set(existing["meter"]) != {"delivered_kwh", "unserved_kwh"}):
+        raise ElectricalError("Unverified historical local battery account")
+    old = copy.deepcopy(existing)
+    if not isinstance(old["last"], dict):
+        raise ElectricalError("Invalid historical local battery readout")
+    for name, bank in old["units"].items():
+        if set(bank) != {"capacity_kwh", "initial_kwh", "charge_kwh",
+                         "delivered_kwh", "mode"}:
+            raise ElectricalError("Corrupt historical local battery")
+        bank["charged_kwh"] = 0.0
+    old["version"] = 2
+    old["meter"]["charged_kwh"] = 0.0
+    validate_local_backup(old)
+    return old
 
 
 def survey_local_backup(ledger, name, *, capacity_kwh, initial_kwh):
@@ -246,7 +294,7 @@ def survey_local_backup(ledger, name, *, capacity_kwh, initial_kwh):
         "capacity_kwh": float(capacity_kwh),
         "initial_kwh": float(initial_kwh),
         "charge_kwh": float(initial_kwh),
-        "delivered_kwh": 0.0, "mode": "standby",
+        "delivered_kwh": 0.0, "charged_kwh": 0.0, "mode": "standby",
     }
     validate_local_backup(result)
     return result
@@ -254,7 +302,7 @@ def survey_local_backup(ledger, name, *, capacity_kwh, initial_kwh):
 
 def set_local_mode(ledger, name, mode):
     validate_local_backup(ledger)
-    if name not in ledger["units"] or mode not in {"standby", "reserve"}:
+    if name not in ledger["units"] or mode not in {"standby", "reserve", "charge"}:
         raise ElectricalError("Unsurveyed or incorrectly selected emergency battery")
     result = copy.deepcopy(ledger)
     result["units"][name]["mode"] = mode
@@ -277,47 +325,80 @@ def motor_power(name, *, nodes, equipment, edges, switches):
                 and _live_edge(wire, switches))
 
 
-def step_local_backup(ledger, seconds, *, nodes, equipment, edges, switches):
-    """Finite local-only discharge on loss of an actual parent panel.
+def step_local_backup(ledger, seconds, *, nodes, equipment, edges, switches,
+                      producer_nodes=(), producing_mw=0.0, other_requested_mw=0.0):
+    """Advance isolated DC reserves and separately fused grid recharging.
 
-    Never inserts the emergency circuit into the ship-wide source traversal;
-    a damaged local fuse, battery or appliance refuses service and energy.
+    Local batteries cannot backfeed the grid. Only a verified generator/shore
+    path to the real room panel and spare real production can recharge one.
+    The requested charging MW must be metered by the same ship physics tick.
     """
     validate_local_backup(ledger)
-    if type(seconds) not in (int, float) or not math.isfinite(seconds) or seconds < 0 or seconds > 10:
+    for value in (seconds, producing_mw, other_requested_mw):
+        if type(value) not in (int, float) or not math.isfinite(value) or value < 0:
+            raise ElectricalError("Nonphysical local battery integration")
+    if seconds > 10:
         raise ElectricalError("Local battery integration must be bounded")
     result = copy.deepcopy(ledger)
-    active, blocked = {}, {}
+    active, blocked, recharging = {}, {}, {}
+    headroom_mw = max(0.0, producing_mw - other_requested_mw)
+    total_charge_mw = 0.0
+    source_nodes = set(producer_nodes)
     for name, bank in sorted(result["units"].items()):
+        room, consumer, parent, limit, draw_kw = LOCAL_LOADS[name]
+        battery = equipment.get(name)
+        battery_ok = bool(battery and battery.space_id == room
+                          and battery.condition not in BROKEN)
+        if bank["mode"] == "charge":
+            edge_id, iso = charger_ids(name)
+            wire = edges.get(edge_id)
+            ready = (battery_ok and parent in source_nodes
+                     and wire is not None
+                     and wire.reference.get("network") == "g19_local_charger"
+                     and wire.reference.get("from_node") == parent
+                     and wire.reference.get("to_node") == "NODE-G19-BAT-" + name
+                     and _live_edge(wire, switches))
+            if not ready:
+                blocked[name] = "charger_or_generator_path_unavailable"
+                continue
+            if seconds == 0 or headroom_mw <= 0:
+                continue
+            fill_kw = min(
+                draw_kw, headroom_mw * 1000.0,
+                (bank["capacity_kwh"] - bank["charge_kwh"]) * 3600.0 / seconds)
+            if fill_kw <= 1e-9:
+                continue
+            energy = fill_kw * seconds / 3600.0
+            bank["charge_kwh"] += energy
+            bank["charged_kwh"] += energy
+            result["meter"]["charged_kwh"] += energy
+            headroom_mw -= fill_kw / 1000.0
+            total_charge_mw += fill_kw / 1000.0
+            recharging[name] = energy
+            continue
         if bank["mode"] != "reserve":
             continue
-        room, consumer, parent, limit, draw_kw = LOCAL_LOADS[name]
-        # The refuge appliance has its own authored protected-load breaker.
-        # An energised room panel is NOT proof that the air machine itself
-        # receives electricity; a local battery may bridge that distinct
-        # appliance trip. BE and IX stations have no further original
-        # grid-load endpoint, so their known room panel is the witness.
+        # The separately breaker-fed refuge air appliance is the normal
+        # endpoint; an energised room panel is insufficient proof of power.
         normal_endpoint = ("NODE-PWR-" + consumer
                            if name.endswith("-REFUGE-BAT") else parent)
         if normal_endpoint in nodes:
-            continue  # the actual primary load is already energised
-        source, edge_id, isolator = auxiliary_ids(name)
+            continue
+        terminal, edge_id, iso = auxiliary_ids(name)
         wire = edges.get(edge_id)
-        battery = equipment.get(name)
         load = equipment.get(consumer)
-        ready = (battery is not None and load is not None
-                 and battery.space_id == room and load.space_id == room
-                 and battery.condition not in BROKEN and load.condition not in BROKEN
+        ready = (battery_ok and load is not None and load.space_id == room
+                 and load.condition not in BROKEN
                  and wire is not None
                  and wire.reference.get("network") == "g19_local_dc"
                  and wire.reference.get("from_node") == "NODE-G19-BAT-" + name
-                 and wire.reference.get("to_node") == source
+                 and wire.reference.get("to_node") == terminal
                  and _live_edge(wire, switches))
+        requested_kwh = draw_kw * seconds / 3600.0
         if not ready:
             blocked[name] = "local_circuit_or_load_failed"
-            result["meter"]["unserved_kwh"] += draw_kw * seconds / 3600.0
+            result["meter"]["unserved_kwh"] += requested_kwh
             continue
-        requested_kwh = draw_kw * seconds / 3600.0
         provided = min(requested_kwh, bank["charge_kwh"])
         bank["charge_kwh"] -= provided
         bank["delivered_kwh"] += provided
@@ -325,11 +406,15 @@ def step_local_backup(ledger, seconds, *, nodes, equipment, edges, switches):
         result["meter"]["unserved_kwh"] += requested_kwh - provided
         if provided >= requested_kwh - 1e-10 and requested_kwh > 0:
             active[name] = consumer
-        else:
+        elif requested_kwh > 0:
             blocked[name] = "battery_exhausted"
-    result["last"] = {"active_local_consumers": active,
-                      "unserved_local_consumers": blocked,
-                      "available_stored_kwh": sum(
-                          x["charge_kwh"] for x in result["units"].values())}
+    result["last"] = {
+        "active_local_consumers": active,
+        "unserved_local_consumers": blocked,
+        "charged_local_units_kwh": recharging,
+        "grid_charge_requested_mw": total_charge_mw,
+        "available_stored_kwh": sum(
+            x["charge_kwh"] for x in result["units"].values()),
+    }
     validate_local_backup(result)
     return result
