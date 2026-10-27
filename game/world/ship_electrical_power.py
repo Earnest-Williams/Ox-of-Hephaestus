@@ -17,6 +17,9 @@ LOAD_MW = {"essential": .65, "protected": .75, "normal": 1.35,
 SHIP_CAP_MW = 3.3
 EXPECTED_TOPOLOGY = (438, 450, 466)
 BATTERIES = ("BAT-COMMON-OPS", "BAT-COMMON-PROT")
+FLYWHEELS = tuple(f"F{side}-FW-{n:02d}" for side in (1, 2)
+                  for n in range(1, 33))
+FLYWHEEL_NAMEPLATE_KWH = 3906.25
 MAIN_BOARDS = ("PWR-MSB-A", "PWR-MSB-B")
 
 
@@ -33,25 +36,30 @@ def number(value, *, positive=False):
 
 def initial_electrical():
     return {
-        "version": 1, "banks": {}, "shore": None, "faults": {},
-        "worksite_surveys": {}, "sync": None,
+        "version": 2, "banks": {}, "flywheels": {}, "shore": None,
+        "faults": {}, "worksite_surveys": {}, "sync": None,
         "meter": {"generation_kwh": 0.0, "shore_import_kwh": 0.0,
                   "served_kwh": 0.0, "unserved_kwh": 0.0,
                   "battery_discharge_kwh": 0.0,
-                  "battery_charge_kwh": 0.0},
+                  "battery_charge_kwh": 0.0,
+                  "flywheel_discharge_kwh": 0.0,
+                  "flywheel_charge_kwh": 0.0},
         "last": {},
     }
 
 
 def validate_electrical(s):
     if not isinstance(s, dict) or set(s) != {
-            "version", "banks", "shore", "faults", "worksite_surveys",
-            "sync", "meter", "last"
-    } or s["version"] != 1:
+            "version", "banks", "flywheels", "shore", "faults",
+            "worksite_surveys", "sync", "meter", "last"
+    } or s["version"] != 2:
         raise ElectricalError("Unrecognised commissioned electrical ledger")
     if not isinstance(s["banks"], dict) or not set(s["banks"]) <= set(BATTERIES):
         raise ElectricalError("Fictional battery source")
-    for name, bank in s["banks"].items():
+    if (not isinstance(s["flywheels"], dict)
+            or not set(s["flywheels"]) <= set(FLYWHEELS)):
+        raise ElectricalError("Unknown installed energy-storage module")
+    for name, bank in {**s["banks"], **s["flywheels"]}.items():
         if set(bank) != {"capacity_kwh", "charge_kwh", "initial_kwh",
                          "charged_kwh", "discharged_kwh", "max_charge_mw",
                          "max_discharge_mw", "mode"}:
@@ -75,7 +83,8 @@ def validate_electrical(s):
         if type(shore["connected"]) is not bool:
             raise ElectricalError("Invalid shore switching state")
     if (not isinstance(s["worksite_surveys"], dict)
-            or any(room not in {"GEN-M-ROOM", "GEN-A-ROOM", "GEN-B-ROOM"}
+            or any(room not in {"GEN-M-ROOM", "GEN-A-ROOM", "GEN-B-ROOM",
+                                "F1-BAY", "F2-BAY"}
                    or category != "suited_service"
                    for room, category in s["worksite_surveys"].items())):
         raise ElectricalError("Unverified or invented hazardous electrical worksite")
@@ -102,13 +111,56 @@ def validate_electrical(s):
             raise ElectricalError("Invalid synchronisation witness")
     if set(s["meter"]) != {
             "generation_kwh", "shore_import_kwh", "served_kwh",
-            "unserved_kwh", "battery_discharge_kwh", "battery_charge_kwh"}:
+            "unserved_kwh", "battery_discharge_kwh", "battery_charge_kwh",
+            "flywheel_discharge_kwh", "flywheel_charge_kwh"}:
         raise ElectricalError("Invalid energy metering")
     for v in s["meter"].values():
         number(v)
     if not isinstance(s["last"], dict):
         raise ElectricalError("Invalid electrical readback")
     return True
+
+
+def migrate_v1_electrical(existing):
+    """One-way non-resetting schema migration for earlier commissioned G19."""
+    if not isinstance(existing, dict):
+        raise ElectricalError("Invalid historical electrical account")
+    if existing.get("version") == 2:
+        validate_electrical(existing)
+        return copy.deepcopy(existing)
+    if existing.get("version") != 1:
+        raise ElectricalError("Unknown electrical ledger version")
+    value = copy.deepcopy(existing)
+    value["version"] = 2
+    value["flywheels"] = {}
+    value["meter"]["flywheel_discharge_kwh"] = 0.0
+    value["meter"]["flywheel_charge_kwh"] = 0.0
+    validate_electrical(value)
+    return value
+
+
+def survey_flywheel(ledger, name, *, capacity_kwh, charge_kwh,
+                    max_charge_mw, max_discharge_mw):
+    """Register one independently measured installed module; no free 250 MWh."""
+    validate_electrical(ledger)
+    if name not in FLYWHEELS or name in ledger["flywheels"]:
+        raise ElectricalError("Unknown or previously commissioned flywheel module")
+    capacity = number(capacity_kwh, positive=True)
+    charge = number(charge_kwh)
+    charge_rate = number(max_charge_mw, positive=True)
+    discharge_rate = number(max_discharge_mw, positive=True)
+    if (capacity > FLYWHEEL_NAMEPLATE_KWH + 1e-7 or charge > capacity
+            or charge_rate > SHIP_CAP_MW or discharge_rate > SHIP_CAP_MW):
+        raise ElectricalError("Survey exceeds fitted module's bounded design rating")
+    result = copy.deepcopy(ledger)
+    result["flywheels"][name] = {
+        "capacity_kwh": capacity, "charge_kwh": charge,
+        "initial_kwh": charge, "charged_kwh": 0.0,
+        "discharged_kwh": 0.0, "max_charge_mw": charge_rate,
+        "max_discharge_mw": discharge_rate, "mode": "standby",
+    }
+    validate_electrical(result)
+    return result
 
 
 def _ref(obj):
