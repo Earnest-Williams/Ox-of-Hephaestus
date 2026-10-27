@@ -149,19 +149,26 @@ def install_auxiliary_circuits(world_state):
     enclosing transaction and serialized ship-clock lock.
     """
     intended = _specs()
+    def panel_in_room(node, room):
+        owner_id = node.reference.get("owner_id")
+        if (node.reference.get("network") != "power"
+                or node.reference.get("owner_type") != "equipment"
+                or not isinstance(owner_id, str)):
+            return False
+        owner = world_state.objects.filter(pk="equipment:" + owner_id).first()
+        return bool(owner and owner.space_id == room
+                    and owner.condition not in BROKEN)
     for name, (room, panel) in MOTORS.items():
         target = world_state.objects.get(pk="equipment:" + name)
         parent = world_state.objects.get(pk="node:" + panel)
-        if (target.space_id != room or parent.reference.get("network") != "power"
-               ):
+        if (target.space_id != room or not panel_in_room(parent, room)):
             raise ElectricalError("Motor retrofit does not match real installed plant or panel")
     for name, (room, consumer, panel, limit, draw) in LOCAL_LOADS.items():
         battery = world_state.objects.get(pk="equipment:" + name)
         load = world_state.objects.get(pk="equipment:" + consumer)
         parent = world_state.objects.get(pk="node:" + panel)
         if (battery.space_id != room or load.space_id != room
-                or parent.reference.get("network") != "power"
-               ):
+                or not panel_in_room(parent, room)):
             raise ElectricalError("Emergency DC harness crosses an unverified physical site")
         nominal = battery.reference.get("attributes", {}).get("MWh")
         if nominal is not None and (
