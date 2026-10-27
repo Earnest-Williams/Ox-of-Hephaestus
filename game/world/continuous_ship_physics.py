@@ -599,6 +599,19 @@ def survey_g19_electrical_source(*, operator_approved=False, source,
         if source in POWER_BANKS:
             if rated_mw is not None:
                 raise ElectricalError("Battery needs independently rated energy and current")
+            # The two fitted banks have distinct 8/12 MWh design capacity
+            # ratings. A site survey may derate a damaged/refitted bank but
+            # cannot attest an arbitrary store larger than the installed one.
+            nominal_mwh = equipment.reference.get("attributes", {}).get("MWh")
+            if (not isinstance(nominal_mwh, (int, float))
+                    or isinstance(nominal_mwh, bool)
+                    or not math.isfinite(nominal_mwh)
+                    or nominal_mwh <= 0
+                    or not isinstance(capacity_kwh, (int, float))
+                    or isinstance(capacity_kwh, bool)
+                    or not math.isfinite(capacity_kwh)
+                    or capacity_kwh > nominal_mwh * 1000.0 + 1e-7):
+                raise ElectricalError("Battery survey exceeds fitted finite nameplate energy")
             e = survey_battery(
                 e, source, capacity_kwh=capacity_kwh,
                 charge_kwh=initial_kwh, max_charge_mw=max_charge_mw,
