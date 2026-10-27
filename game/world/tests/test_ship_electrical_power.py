@@ -40,12 +40,13 @@ def grid():
         edge("EDGE-MSB-XTIE", "PWR-MSB-A", "PWR-MSB-B",
              setting="standby", kind="cross_tie"),
         edge("EDGE-BAT-COMMON-PROT", "NODE-BAT-COMMON-PROT", "PWR-PROT"),
+        edge("EDGE-BAT-COMMON-OPS", "NODE-BAT-COMMON-OPS", "PWR-MSB-B"),
         edge("EDGE-SHORE-PWR", "NODE-SHORE-PWR", "PWR-MSB-A"),
     ]
     switches = {x.reference["isolator_ids"][0]:
                 switch(x.reference["isolator_ids"][0]) for x in e}
     equipment = {"GEN-M": eq(True), "GEN-A": eq(False),
-                 "GEN-B": eq(True), "BAT-COMMON-PROT": eq(),
+                 "GEN-B": eq(True), "BAT-COMMON-PROT": eq(), "BAT-COMMON-OPS": eq(),
                  "SHORE-PWR": eq()}
     nodes = [Row(source_id=n, reference={"id": n, "network": "power"})
              for n in sorted(set(
@@ -280,7 +281,7 @@ class ElectricalPhysicalContracts(unittest.TestCase):
     def test_audit_checks_endpoints_and_real_breakers(self):
         nodes, edges, switches, _ = grid()
         self.assertEqual(len(audit_topology(nodes, edges, switches,
-                                            strict=False)[1]), 8)
+                                            strict=False)[1]), 9)
         with self.assertRaises(ElectricalError):
             audit_topology(nodes, edges, switches, strict=True)
         edges[0].reference["from_node"] = "NODE-MAGIC"
