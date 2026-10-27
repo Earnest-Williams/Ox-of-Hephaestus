@@ -95,6 +95,29 @@ passed **both jobs: 8 pure and 7 installed Evennia tests**, at
 tested runtime `a2f6ee9e`. Its two-job evidence is limited to this
 access/worksite slice; larger G19 whole-ship closure remains open.
 
+## Attended freight machinery entry (new G19 slice)
+
+The original freight-only **13-machine worksite gap is now implemented**
+using **nine already-authorised ship freight passages**, rather than
+fabricating new crew corridors. `ship_freight_service.py` matches each
+original gate and machine room exactly. A qualified cargo officer or
+engineer at an actual upstream LOGI/WR station must secure an exclusive
+shipwide freight lockout and verify stopped rotors, sealed freight capture,
+idle cargo/ports and safe matched pressure. Only then may crew enter and
+return through the original Evennia exit under the signed service permit.
+The permit is durable; occupied workrooms and unfinished actual repair
+orders prevent release. The `freight_service` crew operation is receipted,
+and local `oxplantread freight_service` reports the accessible machinery.
+Machine repair also checks the permit every work tick.
+
+The **12 pure tests** passed at source revision `fa692fea` in
+[run #40580738273](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40580738273).
+The same run includes an installed test campaign for all nine original
+gates, motion lockout and a tool/spares repair in the real logistics trunk.
+The installed result is assessed separately; a pure pass does not assert
+successful installed traversal. Operating contract:
+[G19 freight service access](G19_FREIGHT_SERVICE_ACCESS.md).
+
 ## Remaining G19 closure
 
 1. Run the current-code access audit, installed door/EVA route tests,
