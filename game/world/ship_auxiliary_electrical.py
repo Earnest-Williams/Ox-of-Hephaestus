@@ -15,9 +15,43 @@ BROKEN = frozenset({"faulted", "failed", "severed", "jammed", "destroyed"})
 SOURCE_MODEL = "g19-electrical-aux/1"
 
 MOTORS = {
+    # Independently fused fire-main and thermal plant motors.
     "LT-PLANT": ("ROTARY-UTIL-A", "NODE-LP-ROTARY-UTIL-A"),
     "FIRE-PUMP-FWD": ("WATER-FWD", "NODE-LP-WATER-FWD"),
     "FIRE-PUMP-AFT": ("ENV-AFT", "NODE-LP-ENV-AFT"),
+    # Both independently maintainable bearing-lubrication skids at each
+    # drum station. The existing local room panel supplies the new fuse.
+    **{
+        f"BE-{n:02d}-LUBE-{side}":
+            (f"BE-{n:02d}-SVC", f"NODE-LP-BE-{n:02d}-SVC")
+        for n in range(1, 13) for side in "NS"
+    },
+    # Each fitted ECLSS/process module has its own local disconnect. The
+    # original HAB-06/08 ECLSS panels remain the upstream truth.
+    **{
+        f"{family}-{side}":
+            (f"HAB-{'06-ECLSS-A' if side == 'A' else '08-ECLSS-B'}",
+             f"NODE-HAB-{'06-ECLSS-A' if side == 'A' else '08-ECLSS-B'}-LP")
+        for family in ("ECLSS", "WATER-PROC", "WASTE-PROC") for side in "AB"
+    },
+    # HAB rotation and phase-matched passenger indexers are independent
+    # motors, and must not inherit the room panel's healthy indication.
+    "HAB-DRIVE-FORE": ("HUB-FIXED-A", "NODE-LP-HUB-FIXED-A"),
+    "HAB-DRIVE-AFT": ("HUB-FIXED-B", "NODE-LP-HUB-FIXED-B"),
+    "IX-A-DRIVE": ("HUB-FIXED-A", "NODE-LP-HUB-FIXED-A"),
+    "IX-B-DRIVE": ("HUB-FIXED-B", "NODE-LP-HUB-FIXED-B"),
+    # The drum service-gallery DB and the separate service-lock panel
+    # feed different machines. One trip cannot be substituted for another.
+    **{
+        f"DR-{n:02d}-RADIAL-FREIGHT-HANDLER":
+            (f"DR-{n:02d}-GALLERY", f"NODE-DR-{n:02d}-SVC-DB")
+        for n in range(1, 7)
+    },
+    **{
+        f"DR-{n:02d}-PERSONNEL-INDEXER":
+            (f"DR-{n:02d}-SERVICE-LOCK", f"NODE-LP-DR-{n:02d}-SERVICE-LOCK")
+        for n in range(1, 7)
+    },
 }
 
 # Explicitly fitted, short local battery-to-appliance harnesses. These are
