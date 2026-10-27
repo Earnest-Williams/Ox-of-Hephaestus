@@ -107,6 +107,11 @@ from world.ship_crew_medical import (
     CLINIC_ZONE, initial_medical, validate_medical, carry_medical_kit,
     begin_care, step_care,
 )
+from world.ship_hazardous_access import (
+    BayAccessError, LOCKS as BAY_SERVICE_LOCKS, CYCLE_S as BAY_SERVICE_CYCLE_S,
+    initial_bay_access, validate_bay_access, survey_bay,
+    step_bay_transits, finish_bay_transit,
+)
 from world.ship_casualty_transport import (
     RescueError, INTERIOR_CARRY_KINDS, initial_rescue,
     validate_rescue, begin_rescue, step_rescue, finish_rescue,
@@ -398,6 +403,8 @@ def _snapshot(item):
             result["medical"] = item.details["medical"]
         if item.details.get("rescue") is not None:
             result["rescue"] = item.details["rescue"]
+        if item.details.get("bay_access") is not None:
+            result["bay_access"] = item.details["bay_access"]
         if item.details.get("eva") is not None:
             system = item.details["eva"]
             result["eva"] = {
@@ -1526,6 +1533,77 @@ def commission_g19_rescue(*, operator_approved=False):
     clock.save(update_fields=["details", "revision"])
     _event(clock, "g19_manual_casualty_transport_commissioned", old)
     return {"commissioned": True}
+
+
+
+@transaction.atomic
+def commission_g19_flywheel_access(*, operator_approved=False):
+    """Commission exact original two service-airlock mechanisms, not gas cells."""
+    if not operator_approved:
+        raise PermissionError("Rated F1/F2 airlocks require operator authority")
+    clock = _clock(lock=True)
+    if clock.details.get("bay_access") is not None:
+        validate_bay_access(clock.details["bay_access"])
+        return {"commissioned": False}
+    if clock.details.get("eva") is None:
+        raise PhysicsError("Four finite EVA suits must be commissioned first")
+    from world.ship_world import find_ship_space
+    zones = _topology()[0]
+    for link, (corridor, bay, panel) in BAY_SERVICE_LOCKS.items():
+        door = state("access", link)
+        control = state("equipment", panel)
+        if (find_ship_space(corridor) is None or
+                find_ship_space(bay) is None or
+                zones.get(corridor) != "PZ-TRUNK-A" or
+                zones.get(bay) is not None or
+                control.space_id != bay or
+                (door.reference.get("from"), door.reference.get("to"),
+                 door.reference.get("kind"),
+                 door.reference.get("pressure_boundary")) != (
+                    corridor, bay, "service_airlock", True)):
+            raise PhysicsError("F1/F2 as-built pressure-sealed worksite mismatch")
+    before = _snapshot(clock)
+    d = dict(clock.details)
+    d["bay_access"] = initial_bay_access()
+    clock.details = d
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "commission_g19_flywheel_service_locks", before)
+    return {"commissioned": True, "fitted": len(BAY_SERVICE_LOCKS)}
+
+
+@transaction.atomic
+def survey_g19_flywheel_access(*, bay_id, operator_approved=False):
+    """Attest which existing unpressurised F1/F2 worksite may be entered suited."""
+    if not operator_approved:
+        raise PermissionError("F1/F2 airlock safety survey is operator-only")
+    if bay_id not in {entry[1] for entry in BAY_SERVICE_LOCKS.values()}:
+        raise PhysicsError("Only the two fitted F1/F2 worksite bays")
+    clock = _clock(lock=True)
+    ledger = clock.details.get("bay_access")
+    if ledger is None:
+        raise PhysicsError("Rated flywheel service airlocks not commissioned")
+    link = next(link for link, row in BAY_SERVICE_LOCKS.items()
+                if row[1] == bay_id)
+    door = state("access", link)
+    panel = state("equipment", BAY_SERVICE_LOCKS[link][2])
+    if (door.condition in _BROKEN or panel.condition in _BROKEN or
+            _topology()[0].get(bay_id) is not None):
+        raise PhysicsError("Failed original flywheel worksite safety survey")
+    try:
+        surveyed = survey_bay(ledger, bay_id)
+    except BayAccessError as exc:
+        raise PhysicsError(str(exc)) from exc
+    if surveyed == ledger:
+        return {"changed": False, "bay": bay_id}
+    before = _snapshot(clock)
+    d = dict(clock.details)
+    d["bay_access"] = surveyed
+    clock.details = d
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "g19_original_flywheel_suited_airlock_survey", before)
+    return {"changed": True, "bay": bay_id}
 
 
 @transaction.atomic
@@ -3744,6 +3822,76 @@ def tick_continuous_physics(*, now_game_time=None):
                     actor_dbref=job["lead"], game_time=last + seconds)
         except RescueError as exc:
             raise PhysicsError(str(exc)) from exc
+
+    # Both original F1/F2 pressure-rated service airlocks are enclosed
+    # transfer mechanisms. Their two seals remain mechanically closed in
+    # the normal access ledger while an issued-suit worker spends 180 s
+    # in the captured service cycle. No air is assigned to unknown bays.
+    bay_access = clock.details.get("bay_access")
+    if bay_access is not None:
+        validate_bay_access(bay_access)
+        from evennia.objects.models import ObjectDB
+        from world.ship_world import find_ship_space
+        ids = [int(ref[1:]) for ref in bay_access["jobs"]]
+        workers = {a.dbref: a for a in ObjectDB.objects.filter(id__in=ids)}
+        bay_doors = {a.source_id: a for a in access_rows}
+        ready = set()
+        for ref, job in bay_access["jobs"].items():
+            link = job["link"]
+            corridor, bay, panel_id = BAY_SERVICE_LOCKS[link]
+            door = bay_doors.get(link)
+            actor = workers.get(ref)
+            panel = equipment.get(panel_id)
+            _, suit = suit_of(eva, ref) if eva is not None else (None, None)
+            trunk_zone = zones.get(corridor)
+            gas = cells.get(trunk_zone)
+            if (actor is None or find_ship_space(job["from"]) !=
+                    getattr(actor, "location", None)
+                    or getattr(actor.db, "ox_terminal_dead", False)
+                    or door is None or door.condition in _BROKEN
+                    or door.setting != "closed"
+                    or panel is None or panel.condition in _BROKEN
+                    or panel.space_id != bay
+                    or bay not in bay_access["surveyed_bays"]
+                    or trunk_zone != "PZ-TRUNK-A" or gas is None
+                    or not _air_safe(state("pressure", trunk_zone))
+                    or gas["mass"] <= 0 or gas["burn"] > 0
+                    or gas["leak"] > 0 or gas["damage"] >= .2
+                    or gas["smoke"] > gas["mass"] * .00001
+                    or not 80000 <= gas["mass"] * R_SPECIFIC_AIR *
+                         gas["temperature"] / gas["volume"] <= 120000
+                    or suit is None or suit["integrity"] < .8
+                    or suit["exposure"]["condition"] in {
+                        "incapacitated", "critical", "dead"}
+                    or suit["exposure"]["suit_oxygen_kg"] <= 0):
+                continue
+            ready.add(link)
+        try:
+            bay_access, completed_bay = step_bay_transits(
+                bay_access, seconds, ready_links=ready)
+            for ref, job in completed_bay:
+                destination = find_ship_space(job["to"])
+                if destination is None or not workers[ref].move_to(
+                        destination, quiet=True):
+                    raise PhysicsError("Physical airlock occupant cannot be delivered")
+                for row in crew_rows:
+                    if row.source_id == ref:
+                        row.space_id = job["to"]
+                        row.revision += 1
+                        row.save(update_fields=["space_id", "revision"])
+                        break
+                bay_access = finish_bay_transit(
+                    bay_access, actor=ref, request_id=job["request_id"])
+                CanonicalShipEvent.objects.create(
+                    component_key="access:" + job["link"],
+                    operation="crew_flywheel_service_transfer_complete",
+                    before={"room": job["from"], "actor": ref},
+                    after={"room": job["to"],
+                           "cycle_seconds": BAY_SERVICE_CYCLE_S,
+                           "request_id": job["request_id"]},
+                    actor_dbref=ref, game_time=last + seconds)
+        except BayAccessError as exc:
+            raise PhysicsError(str(exc)) from exc
     pressure_changed = []
     for row in pressure_rows:
         c = cells[row.source_id]
@@ -4198,6 +4346,8 @@ def tick_continuous_physics(*, now_game_time=None):
         d["medical"] = medical
     if rescue is not None:
         d["rescue"] = rescue
+    if bay_access is not None:
+        d["bay_access"] = bay_access
     if major_damage is not None:
         d["major_damage"] = major_damage
     if water_state is not None:
@@ -4220,6 +4370,8 @@ def tick_continuous_physics(*, now_game_time=None):
                 key for key, fault in electrical["faults"].items()
                 if fault["latched"]),
         } if electrical is not None else None),
+        "bay_access_active_cycles": (len(bay_access["jobs"]) if bay_access is not None else None),
+        "bay_access_completed": (bay_access["completed"] if bay_access is not None else None),
         "rescue_active_transfers": (len(rescue["jobs"]) if rescue is not None else None),
         "rescue_completed": (rescue["completed"] if rescue is not None else None),
         "medical_active_cases": (len(medical["cases"]) if medical is not None else None),
@@ -4626,6 +4778,9 @@ def crew_physical_action(actor, request_id, action, target, value):
                 if not (action == "rescue" and target == pending_patient
                         and value == "cancel" and actor.dbref in {pending["lead"], pending["helper"]}):
                     raise PermissionError("Crew member committed to timed physical casualty transport")
+    bay_service = _clock().details.get("bay_access")
+    if bay_service is not None and actor.dbref in bay_service["jobs"]:
+        raise PermissionError("Worker occupies a sealed flywheel service airlock")
     if action in {"repair", "wasteport", "hull", "eva", "rescue"}:
         # A worker who has become incapacitated cannot command or advance
         # a physical repair or sealed waste movement. Deduplicated historic
@@ -6774,6 +6929,28 @@ def local_physics_readout(actor, target):
             "injury": own.details["injury"],
             "scope": "own_physically_measured_crew_health_only",
         }
+    if target == "bay_access":
+        ledger = _clock().details.get("bay_access")
+        if ledger is None:
+            raise PhysicsError("Flywheel service airlocks not commissioned")
+        validate_bay_access(ledger)
+        local = {}
+        for link, (corridor, bay, _panel) in BAY_SERVICE_LOCKS.items():
+            if room in {corridor, bay}:
+                local[link] = {
+                    "surveyed": bay in ledger["surveyed_bays"],
+                    "boundary": state("access", link).setting,
+                    "occupied_by_self": actor.dbref in ledger["jobs"] and
+                        ledger["jobs"][actor.dbref]["link"] == link,
+                    "own_remaining_s": (
+                        ledger["jobs"][actor.dbref]["remaining_s"]
+                        if actor.dbref in ledger["jobs"] and
+                        ledger["jobs"][actor.dbref]["link"] == link else None),
+                }
+        if not local:
+            raise PermissionError("Attend original F1/F2 service hatch")
+        return {"local_locks": local,
+                "scope": "own_surveyed_original_sealed_flywheel_airlock"}
     if target == "rescue":
         ledger = _clock().details.get("rescue")
         if ledger is None:
