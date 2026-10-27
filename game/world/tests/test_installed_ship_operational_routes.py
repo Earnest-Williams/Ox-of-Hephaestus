@@ -159,3 +159,50 @@ class InstalledContinuousCrewRoutes(EvenniaTestCase):
         self.assertEqual(
             _clock().details["personnel_transfers"]["completed"], 2)
         self.assertGreater(_clock().details["rotors"]["HAB"]["rpm"], .30)
+
+    def test_ordinary_ship_doors_are_crew_operated_at_the_real_local_hatch(self):
+        """Seven non-carrier installed door families traverse both directions."""
+        cases = (
+            ("ACC-TRUNK-A-BOW-DR-01", "pressure_door"),
+            ("ACC-GEN-M-ROOM", "service_door"),
+            ("ACC-HAB-01-CAB-01", "cabin_door"),
+            ("ACC-DR-01-SEC-01", "cargo_service_door"),
+            ("ACC-HAB-01-SG1-CUPBOARD", "service_panel"),
+            ("ACC-WR-SHOP-WELD", "fire_door"),
+            ("ACC-STORE-CRIT-SPARES-STORES-GALLERY", "store_door"),
+        )
+        for identifier, category in cases:
+            with self.subTest(door=identifier):
+                door = state("access", identifier)
+                self.assertEqual(door.reference["kind"], category)
+                start = find_ship_space(door.reference["from"])
+                end = find_ship_space(door.reference["to"])
+                self.engineer.move_to(start, quiet=True)  # next isolated test site
+                self.action("hatch", identifier, "open")
+                self.assertEqual(state("access", identifier).setting, "open")
+                self.assertEqual(
+                    self.transit(self.engineer, identifier,
+                                 "forward")["status"], "succeeded")
+                self.assertEqual(self.engineer.location, end)
+                self.assertEqual(
+                    self.transit(self.engineer, identifier,
+                                 "reverse")["status"], "succeeded")
+                self.assertEqual(self.engineer.location, start)
+                self.action("hatch", identifier, "closed")
+                self.assertEqual(state("access", identifier).setting, "closed")
+
+    def test_generic_hatch_controls_cannot_open_vacuum_or_freight_mechanisms(self):
+        """The expanded crew-door control cannot spoof dedicated mechanisms."""
+        from world.continuous_ship_physics import PhysicsError
+        for link in (
+            "ACC-F1-BAY", "ACC-DR-01-FREIGHT-CAPTURE",
+            "ACC-EVA-AFT-EXT", "ACC-DR-01-LOCK-ROT",
+        ):
+            with self.subTest(mechanism=link):
+                door = state("access", link)
+                self.engineer.move_to(
+                    find_ship_space(door.reference["from"]), quiet=True)
+                prior = door.setting
+                with self.assertRaises(PhysicsError):
+                    self.action("hatch", link, "open")
+                self.assertEqual(state("access", link).setting, prior)
