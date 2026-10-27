@@ -291,6 +291,14 @@ class InstalledElectricalTests(EvenniaTestCase):
         self.assertAlmostEqual(
             updated["water"]["source_surveys"][
                 "INV-DC-CONSUMABLES"]["HAB-04-REFUGE"], 4.0)
+        local = local_physics_readout(self.worker, pack)
+        self.assertTrue(local["media_surveyed"])
+        self.assertAlmostEqual(local["media_available_kg"], 4.008)
+        self.assertAlmostEqual(local["locally_surveyed_replacement_kg"], 4.0)
+        self.assertTrue(local["normal_fuse_open"])
+        self.assertTrue(local["local_dc_fuse_open"])
+        with self.assertRaises(PermissionError):
+            local_physics_readout(self.worker, "HAB-08-REFUGE-AIR")
         self.assertEqual(crew_physical_action(
             self.worker, "d" * 32, "service", pack, "refill:4"), receipt)
         self.assertAlmostEqual(
