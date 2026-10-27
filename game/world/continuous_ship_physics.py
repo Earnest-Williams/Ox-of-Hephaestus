@@ -94,6 +94,12 @@ from world.ship_auxiliary_electrical import (
     step_local_backup, motor_power, fire_pump_service_ready,
     allocate_lt_cooling,
 )
+from world.ship_equipment_services import (
+    SERVICE_LOADS, MANUAL_RESTART,
+    install_service_circuits, initial_service_operations,
+    validate_service_operations, rearm_service_machine,
+    step_service_operations, service_power,
+)
 from world.ship_refuge_life_support import (
     RefugeAirError, REFUGE_PACKS, initial_refuge_scrubbers,
     validate_refuge_scrubbers, survey_refuge_scrubber,
@@ -131,6 +137,9 @@ PLANTS = {
     # Individual fan motors are physical plants, not passive ductwork.
     **{f"HAB-{n:02d}-AHU": True for n in range(1, 9)},
     "SPINE-AIR-FWD": True, "SPINE-AIR-AFT": True,
+    # Cargo-climate and cultivation controllers are standing services.
+    # Welding and machine tools need a supervised local startup.
+    **{name: name not in MANUAL_RESTART for name in SERVICE_LOADS},
 }
 LOAD_PROFILES_MW = {"essential": 0.65, "protected": 0.75,
                     "normal": 1.35, "demanding": 2.60}
@@ -529,6 +538,7 @@ def commission_g19_electrical(*, operator_approved=False):
     item = _clock(lock=True)
     if item.details.get("electrical") is not None:
         install_auxiliary_circuits(CanonicalShipState)
+        install_service_circuits(CanonicalShipState)
         upgraded = migrate_v1_electrical(item.details["electrical"])
         local_old = item.details.get("local_backup")
         local_upgraded = migrate_local_backup(
@@ -536,6 +546,13 @@ def commission_g19_electrical(*, operator_approved=False):
         refuge_old = item.details.get("refuge_scrubbers")
         refuge_upgraded = (refuge_old if refuge_old is not None
                           else initial_refuge_scrubbers())
+        services_old = item.details.get("service_operations")
+        services_upgraded = (services_old if services_old is not None
+                             else initial_service_operations())
+        try:
+            validate_service_operations(services_upgraded)
+        except ElectricalError as exc:
+            raise PhysicsError(str(exc)) from exc
         try:
             validate_refuge_scrubbers(refuge_upgraded)
         except RefugeAirError as exc:
@@ -543,12 +560,14 @@ def commission_g19_electrical(*, operator_approved=False):
         fuel_needs_migration = "generator_cartridge_baseline_kg" not in item.details
         if (upgraded != item.details["electrical"]
                 or local_upgraded != local_old
-                or refuge_upgraded != refuge_old or fuel_needs_migration):
+                or refuge_upgraded != refuge_old
+                or services_upgraded != services_old or fuel_needs_migration):
             previous = _snapshot(item)
             details = dict(item.details)
             details["electrical"] = upgraded
             details["local_backup"] = local_upgraded
             details["refuge_scrubbers"] = refuge_upgraded
+            details["service_operations"] = services_upgraded
             if fuel_needs_migration:
                 stock = state("inventory", "INV-GEN-CART", lock=True)
                 if stock.quantity is None or not math.isfinite(stock.quantity) or stock.quantity < 0:
@@ -586,9 +605,11 @@ def commission_g19_electrical(*, operator_approved=False):
     before = _snapshot(item)
     d = dict(item.details)
     install_auxiliary_circuits(CanonicalShipState)
+    install_service_circuits(CanonicalShipState)
     d["electrical"] = initial_electrical()
     d["local_backup"] = initial_local_backup()
     d["refuge_scrubbers"] = initial_refuge_scrubbers()
+    d["service_operations"] = initial_service_operations()
     d["generator_cartridge_baseline_kg"] = cartridges.quantity * 1000.0
     d["generator_spent_cartridge_kg"] = 0.0
     item.details = d
@@ -2188,7 +2209,8 @@ def tick_continuous_physics(*, now_game_time=None):
     aux_edges = {x.source_id: x for x in edges
                  if x.reference.get("network") in {
                      "g19_motor", "g19_motor_protected",
-                     "g19_local_dc", "g19_local_charger"}}
+                     "g19_local_dc", "g19_local_charger",
+                     "g19_equipment_service"}}
     if electrical is not None:
         try:
             validate_electrical(electrical)
