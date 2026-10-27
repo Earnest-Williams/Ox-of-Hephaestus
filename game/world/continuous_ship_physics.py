@@ -1839,6 +1839,71 @@ def commission_g19_movement(*, operator_approved=False):
 
 
 @transaction.atomic
+def survey_g19_cargo_environment(
+        *, operator_approved=False, operation, drum=None, lot_id=None,
+        profile=None, temperature_k=None, target_k=None,
+        heat_capacity_kj_k=None, conductance_kw_k=None):
+    """Observe a fitted container climate or record a specific vulnerable lot.
+
+    The operator must explicitly instrument the cargo store and identify
+    existing commercial freight; no unlocated bulk shipment silently
+    becomes refrigerated, insured or damage-free.
+    """
+    if not operator_approved:
+        raise PermissionError("Physical cargo-climate survey requires world authority")
+    clock = _clock(lock=True)
+    d = dict(clock.details)
+    climate = d.get("cargo_environment")
+    manifest = d.get("cargo")
+    if climate is None or manifest is None:
+        raise PhysicsError("Cargo thermal and freight manifests require G19 commissioning")
+    if drum not in CARGO_DRUMS:
+        raise PhysicsError("Select an installed cargo drum for climate survey")
+    if operation == "drum":
+        for target in (drum + "-CARGO-HX", drum + "-CARGO-GAS",
+                       drum + "-LT-IF"):
+            device = state("equipment", target)
+            if device.condition in _BROKEN:
+                raise PhysicsError("Drum sensor survey lacks installed sound equipment")
+        try:
+            climate = survey_drum_environment(
+                climate, manifest, drum,
+                temperature_k=temperature_k, target_k=target_k,
+                heat_capacity_kj_k=heat_capacity_kj_k,
+                conductance_kw_k=conductance_kw_k)
+        except CargoClimateError as exc:
+            raise PhysicsError(str(exc)) from exc
+    elif operation == "lot":
+        lot = manifest["lots"].get(lot_id)
+        if not lot or lot["drum"] != drum:
+            raise PhysicsError("Temperature-sensitive survey must identify existing local cargo")
+        try:
+            climate = survey_sensitive_lot(
+                climate, manifest, lot_id, profile)
+        except CargoClimateError as exc:
+            raise PhysicsError(str(exc)) from exc
+    else:
+        raise PhysicsError("Cargo thermal survey requires drum or lot")
+    before = _snapshot(clock)
+    d["cargo_environment"] = climate
+    clock.details = d
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    event = _event(clock, "operator_cargo_environment_" + operation, before)
+    audit = dict(event.after)
+    audit["source_measurement"] = {
+        "drum": drum, "lot": lot_id, "profile": profile,
+        "temperature_k": temperature_k, "target_k": target_k,
+        "heat_capacity_kj_k": heat_capacity_kj_k,
+        "conductance_kw_k": conductance_kw_k,
+    }
+    event.after = audit
+    event.save(update_fields=["after"])
+    return {"surveyed": True, "operation": operation, "drum": drum,
+            "sensitive_lots": len(climate["lots"])}
+
+
+@transaction.atomic
 def survey_cargo_lot(*, operator_approved=False, operation, lot_id=None,
                      mass_kg=None, drum=None, azimuth_deg=None,
                      radius_m=None, kind="bulk", restrained=True,
