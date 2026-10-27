@@ -131,6 +131,18 @@ def _clearance(actor, exit_obj, dest):
     if (src_id, dst_id) != ends or door.condition in _BROKEN:
         raise CrewTransitError("Access link damaged or not in the approved topology")
     kind = str(door.reference.get("kind", "")).lower()
+    from world.ship_freight_service import GATES, QUALIFIED_ROLES
+    if link in GATES:
+        # Maintenance workers must actually secure the original freight
+        # opening at its upstream station; normal freight runs never imply
+        # permission to enter a moving industrial trunk.
+        if (actor.db.crew_role not in QUALIFIED_ROLES
+                and not actor.check_permstring("Developer")):
+            raise CrewTransitError("Freight machinery access requires a qualified worker")
+        from world.continuous_ship_physics import _freight_service_entry_ready
+        if not _freight_service_entry_ready(link):
+            raise CrewTransitError("Service hatch not secured or plant/air no longer safe")
+        return door
     indexed = (kind == "indexed_rotary_transfer"
                or link == "ACC-WR-IX-HUB" and kind == "indexer_hatch")
     if (indexed and door.setting != "closed"
