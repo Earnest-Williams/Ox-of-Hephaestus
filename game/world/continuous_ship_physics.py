@@ -5161,11 +5161,6 @@ def local_physics_readout(actor, target):
                 "flywheel_modules_registered": len(electrical["flywheels"]),
                 "tripped_breakers": sorted(
                     k for k, v in electrical["faults"].items() if v["latched"]),
-                "local_backup_registered": len(
-                    (_clock().details.get("local_backup") or {"units": {}})["units"]),
-                "local_backup_stored_kwh": sum(
-                    v["charge_kwh"] for v in
-                    (_clock().details.get("local_backup") or {"units": {}})["units"].values()),
                 "shore_connected": (electrical["shore"]["connected"]
                     if electrical["shore"] else False),
                 "scope": "physically_attended_engineering_power_board"}
