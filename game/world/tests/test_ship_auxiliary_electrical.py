@@ -9,6 +9,7 @@ from world.ship_auxiliary_electrical import (
     survey_local_backup, set_local_mode, step_local_backup, motor_power,
     validate_local_backup, migrate_local_backup, charger_ids,
     PROTECTED_FIRE_MOTORS, protected_fire_ids, PROTECTED_TRUNK_A,
+    fire_pump_service_ready, allocate_lt_cooling,
 )
 from world.ship_electrical_power import ElectricalError
 
@@ -146,6 +147,96 @@ class AuxiliaryPowerContracts(unittest.TestCase):
             self.assertTrue(motor_power(
                 name, nodes={panel}, equipment=equipment,
                 edges=e, switches=switches))
+
+    def test_fire_pump_selected_source_does_not_borrow_other_bus_capacity(self):
+        edges, switches, equipment = fitted()
+        for pump in PROTECTED_FIRE_MOTORS:
+            with self.subTest(pump=pump):
+                panel = MOTORS[pump][1]
+                _, primary_id, _ = auxiliary_ids(pump, motor=True)
+                alternate_id, alternate_breaker = protected_fire_ids(pump)
+                def serves(nodes, normal, protected):
+                    return fire_pump_service_ready(
+                        pump, nodes=nodes, equipment=equipment,
+                        edges=edges, switches=switches,
+                        normal_assured=normal, protected_assured=protected)
+                # A normal-fed pump remains useful if PWR-PROT is lost.
+                self.assertTrue(serves({panel}, True, False))
+                # PWR-PROT cannot rescue a browned-out *normal* selection.
+                self.assertFalse(serves({panel, "PWR-PROT"}, False, True))
+                self.assertFalse(serves({"PWR-PROT"}, True, True))
+                # Deliberate break-before-make physical source selection.
+                edges[primary_id].setting = "standby"
+                edges[alternate_id].setting = "available"
+                self.assertTrue(serves({"PWR-PROT"}, False, True))
+                self.assertFalse(serves({"PWR-PROT"}, True, False))
+                self.assertFalse(serves({panel}, True, True))
+                switches[alternate_breaker].setting = "open"
+                self.assertFalse(serves({"PWR-PROT"}, False, True))
+                switches[alternate_breaker].setting = "closed"
+                equipment[pump].condition = "failed"
+                self.assertFalse(serves({"PWR-PROT"}, False, True))
+                equipment[pump].condition = "serviceable"
+                edges[primary_id].setting = "available"
+                with self.assertRaises(ElectricalError):
+                    serves({panel, "PWR-PROT"}, True, True)
+                edges[alternate_id].setting = "standby"
+                self.assertTrue(serves({panel}, True, False))
+        with self.assertRaises(ElectricalError):
+            fire_pump_service_ready(
+                "LT-PLANT", nodes=set(), equipment=equipment,
+                edges=edges, switches=switches,
+                normal_assured=True, protected_assured=True)
+
+    def test_lt_cooling_shared_capacity_and_motor_trip_fail_closed(self):
+        for rads in range(5):
+            with self.subTest(radiators=rads):
+                budget = allocate_lt_cooling(
+                    seconds=10, drive_heat_kj=30000,
+                    active_radiators=rads, coolant_connected=True,
+                    plant_running=True, motor_ready=True,
+                    service_assured=True, drive_limit_kw=1800)
+                self.assertAlmostEqual(budget["capacity_kw"], 937.5 * rads)
+                self.assertAlmostEqual(
+                    budget["drive_kw"], min(1800., budget["capacity_kw"]))
+                self.assertAlmostEqual(
+                    budget["drive_kw"] + budget["environment_kw"],
+                    budget["capacity_kw"])
+                self.assertLessEqual(
+                    budget["drive_kw"] * 10, 30000)
+        # A generator running elsewhere cannot reject heat through a
+        # tripped local LT feeder, stopped plant or isolated coolant loop.
+        for broken in ("motor_ready", "plant_running", "coolant_connected",
+                       "service_assured"):
+            inputs = dict(
+                seconds=10, drive_heat_kj=30000,
+                active_radiators=4, coolant_connected=True,
+                plant_running=True, motor_ready=True,
+                service_assured=True, drive_limit_kw=1800)
+            inputs[broken] = False
+            result = allocate_lt_cooling(**inputs)
+            self.assertEqual(result["drive_kw"], 0)
+            self.assertEqual(result["environment_kw"], 0)
+        # Zero stored drive heat makes the entire live budget available
+        # to the ship; an empty thermal store cannot be overcooled.
+        empty = allocate_lt_cooling(
+            seconds=10, drive_heat_kj=0,
+            active_radiators=4, coolant_connected=True,
+            plant_running=True, motor_ready=True,
+            service_assured=True, drive_limit_kw=1800)
+        self.assertEqual(empty["drive_kw"], 0)
+        self.assertEqual(empty["environment_kw"], 3750)
+        for invalid in (
+            dict(seconds=11, drive_heat_kj=5, active_radiators=4),
+            dict(seconds=0, drive_heat_kj=5, active_radiators=4),
+            dict(seconds=10, drive_heat_kj=-1, active_radiators=4),
+            dict(seconds=10, drive_heat_kj=5, active_radiators=5),
+            dict(seconds=10, drive_heat_kj=float("nan"), active_radiators=4),
+        ):
+            with self.assertRaises(ElectricalError):
+                allocate_lt_cooling(
+                    **invalid, coolant_connected=True, plant_running=True,
+                    motor_ready=True, service_assured=True, drive_limit_kw=1800)
 
     def test_unrated_local_store_cannot_create_electricity(self):
         e, sw, units = fitted()
