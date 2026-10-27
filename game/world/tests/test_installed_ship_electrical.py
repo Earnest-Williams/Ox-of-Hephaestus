@@ -129,7 +129,7 @@ class InstalledElectricalTests(EvenniaTestCase):
         survey_cargo_lot(
             operator_approved=True, operation="declare",
             lot_id="COLDLOT", mass_kg=30000, drum="DR-01",
-            azimuth_deg=0, radius_m=10, kind="sled")
+            azimuth_deg=0, radius_m=10, kind="bulk")
         survey_g19_cargo_environment(
             operator_approved=True, operation="drum", drum="DR-01",
             temperature_k=290., target_k=273.,
