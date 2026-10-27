@@ -1,5 +1,6 @@
 """Pure G19 auxiliary electric fault, energy, and isolation regression."""
 import copy
+import random
 import unittest
 from types import SimpleNamespace as Row
 
@@ -322,6 +323,91 @@ class AuxiliaryPowerContracts(unittest.TestCase):
         e[feeder].condition = "severed"
         self.assertFalse(motor_power(name, nodes={panel},
                                      equipment=units, edges=e, switches=sw))
+
+    def test_all_seventy_two_motor_isolations_have_no_silent_crossfeed(self):
+        wires, switches, equipment = fitted()
+        parent_nodes = {panel for room, panel in MOTORS.values()}
+        self.assertEqual(len(MOTORS), 72)
+        for name in sorted(MOTORS):
+            self.assertTrue(motor_power(
+                name, nodes=parent_nodes, equipment=equipment,
+                edges=wires, switches=switches), name)
+        # A complete, deterministic single-fault sweep: an open local
+        # breaker, failed plant and cut conductor may only stop the actual
+        # selected device, never masquerade as a shipwide outage or a
+        # conducting protected crossfeed.
+        for name in sorted(MOTORS):
+            with self.subTest(failed_motor=name):
+                _, wire_id, breaker_id = auxiliary_ids(name, motor=True)
+                switches[breaker_id].setting = "open"
+                self.assertFalse(motor_power(
+                    name, nodes=parent_nodes, equipment=equipment,
+                    edges=wires, switches=switches))
+                others = [other for other in MOTORS if other != name]
+                self.assertTrue(all(motor_power(
+                    other, nodes=parent_nodes, equipment=equipment,
+                    edges=wires, switches=switches) for other in others))
+                switches[breaker_id].setting = "closed"
+                wires[wire_id].condition = "severed"
+                self.assertFalse(motor_power(
+                    name, nodes=parent_nodes, equipment=equipment,
+                    edges=wires, switches=switches))
+                wires[wire_id].condition = "serviceable"
+                equipment[name].condition = "failed"
+                self.assertFalse(motor_power(
+                    name, nodes=parent_nodes, equipment=equipment,
+                    edges=wires, switches=switches))
+                equipment[name].condition = "serviceable"
+                self.assertTrue(motor_power(
+                    name, nodes=parent_nodes, equipment=equipment,
+                    edges=wires, switches=switches))
+
+    def test_seeded_local_battery_fault_sequence_conserves_every_unit(self):
+        wires, switches, equipment = fitted()
+        rng = random.Random(19470)
+        ledger = initial_local_backup()
+        for name in sorted(LOCAL_LOADS):
+            ledger = survey_local_backup(
+                ledger, name, capacity_kwh=1.0, initial_kwh=0.25)
+        for tick in range(120):
+            chosen = rng.choice(sorted(LOCAL_LOADS))
+            mode = rng.choice(("standby", "reserve", "charge"))
+            ledger = set_local_mode(ledger, chosen, mode)
+            parent = LOCAL_LOADS[chosen][2]
+            charge_wire, charge_breaker = charger_ids(chosen)
+            _, out_wire, out_breaker = auxiliary_ids(chosen)
+            switches[charge_breaker].setting = (
+                "open" if tick % 7 == 0 else "closed")
+            switches[out_breaker].setting = (
+                "open" if tick % 11 == 0 else "closed")
+            # Surviving real producer panels are not automatically all
+            # connected; credits require the one selected locally.
+            producers = ({parent} if tick % 3 != 0 else set())
+            primary = ({parent} if tick % 2 == 0 else set())
+            supplied = rng.choice((0.0, 0.65, 1.35, 3.0))
+            main_demand = rng.choice((0.0, 0.65, 1.35))
+            previous = ledger["meter"]["charged_kwh"]
+            ledger = step_local_backup(
+                ledger, 10, nodes=primary, producer_nodes=producers,
+                producing_mw=supplied, other_requested_mw=main_demand,
+                equipment=equipment, edges=wires, switches=switches)
+            delta = ledger["meter"]["charged_kwh"] - previous
+            available_kwh = max(0.0, supplied - main_demand) * 10 / 3.6
+            self.assertGreaterEqual(delta, -1e-8)
+            self.assertLessEqual(delta, available_kwh + 1e-8)
+            self.assertAlmostEqual(
+                delta, ledger["last"]["grid_charge_requested_mw"]
+                * 10 / 3.6, places=7)
+            self.assertAlmostEqual(
+                sum(x["initial_kwh"] + x["charged_kwh"]
+                    - x["delivered_kwh"] - x["charge_kwh"]
+                    for x in ledger["units"].values()), 0.0, places=6)
+            validate_local_backup(ledger)
+            # The whole original 16-bank reference remains finite, even
+            # after arbitrarily interleaving discharge and recharge.
+            self.assertLessEqual(
+                sum(x["charge_kwh"] for x in ledger["units"].values()),
+                16.0 + 1e-7)
 
     def test_motor_feeder_trip_is_individual(self):
         e, sw, units = fitted()
