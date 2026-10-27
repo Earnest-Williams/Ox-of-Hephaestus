@@ -138,6 +138,32 @@ class ElectricalPhysicalContracts(unittest.TestCase):
             step_energy(before, dark, 10,
                         actual_requested_mw=0.01, external_charge_mw=0.01)
 
+    def test_local_and_common_storage_charge_reconcile_single_generation_budget(self):
+        _, edges, switches, equipment = grid()
+        ledger = survey_battery(initial_electrical(), "BAT-COMMON-PROT",
+                                capacity_kwh=100, charge_kwh=0,
+                                max_charge_mw=.2, max_discharge_mw=.4)
+        ledger["banks"]["BAT-COMMON-PROT"]["mode"] = "charge"
+        power = source_dispatch(equipment, edges, switches, "normal",
+                                ledger=ledger, dt_s=10, cartridge_kg=100)
+        local_charge_mw = .01
+        after = step_energy(
+            ledger, power, 10,
+            actual_requested_mw=power["requested_mw"] + local_charge_mw,
+            external_charge_mw=local_charge_mw)
+        self.assertAlmostEqual(after["meter"]["served_kwh"],
+                               1.35 * 10 / 3.6)
+        self.assertAlmostEqual(after["meter"]["battery_charge_kwh"],
+                               .2 * 10 / 3.6)
+        self.assertAlmostEqual(after["last"]["local_battery_recharged_kwh"],
+                               .01 * 10 / 3.6)
+        self.assertAlmostEqual(
+            after["meter"]["generation_kwh"],
+            after["meter"]["served_kwh"] +
+            after["meter"]["battery_charge_kwh"] +
+            after["last"]["local_battery_recharged_kwh"])
+        self.assertTrue(validate_electrical(after))
+
     def test_generator_cartridge_limit_covers_service_and_charging_together(self):
         _, edges, switches, equipment = grid()
         ledger = survey_battery(initial_electrical(), "BAT-COMMON-PROT",
