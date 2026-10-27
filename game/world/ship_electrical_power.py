@@ -278,8 +278,9 @@ def source_dispatch(equipment, edges, switches, profile, *, ledger=None,
         starts.append("NODE-SHORE-PWR")
     producer_nodes = connected_nodes(edges, switches, starts)
     op_capacity = 0.0
+    flywheel_capacity = 0.0
     prot_capacity = 0.0
-    op_sources, prot_sources, charge_feeders = [], [], []
+    op_sources, prot_sources, flywheel_sources, charge_feeders = [], [], [], []
     prot_nodes = set()
     if ledger is not None:
         for name, bank in sorted(ledger["banks"].items()):
@@ -315,11 +316,60 @@ def source_dispatch(equipment, edges, switches, profile, *, ledger=None,
                     prot_capacity += max_mw
                     prot_sources.append((name, max_mw))
                     prot_nodes |= candidate
+    # Sixty-four original F1/F2 flywheels have separately isolated modules
+    # and a bank bus with an independently selected A/B incoming conductor.
+    # An energy store is NOT a grid source until individually surveyed and
+    # connected through its true module feeder and bank infeed. In island
+    # mode these bidirectional storage modules may support their selected
+    # main board; unverified paralleling with live sources is prohibited.
+    if ledger is not None:
+        selected_infeeds = {}
+        for side in ("F1", "F2"):
+            incoming = []
+            for n in (1, 2):
+                route = routes.get(f"EDGE-{side}-BUS-IN-{n}")
+                if (route and _ref(route).get("kind") == "bank_infeed"
+                        and _ref(route).get("to_node") == f"NODE-{side}-BUS"
+                        and _live_edge(route, switches)):
+                    incoming.append(route)
+            if len(incoming) > 1:
+                raise ElectricalError("Two unsynchronised flywheel bus infeed contacts closed")
+            selected_infeeds[side] = incoming[0] if incoming else None
+        for name, module in sorted(ledger["flywheels"].items()):
+            side = name[:2]
+            incoming = selected_infeeds[side]
+            module_feeder = routes.get("EDGE-PWR-" + name)
+            fitted = equipment.get(name)
+            if (incoming is None or fitted is None
+                    or fitted.condition in {
+                        "faulted", "failed", "severed", "jammed", "destroyed"}
+                    or module_feeder is None
+                    or _ref(module_feeder).get("kind") != "module_feeder"
+                    or _ref(module_feeder).get("from_node") != f"NODE-{side}-BUS"
+                    or _ref(module_feeder).get("to_node") != "NODE-PWR-" + name
+                    or not _live_edge(module_feeder, switches)):
+                continue
+            selected_board = _ref(incoming)["from_node"]
+            if selected_board not in MAIN_BOARDS:
+                raise ElectricalError("Flywheel bank feeds a foreign ship bus")
+            if module["mode"] == "charge" and generator_mw > 0:
+                if selected_board in producer_nodes:
+                    charge_feeders.append(name)
+            elif (module["mode"] == "discharge"
+                  and module["charge_kwh"] > 0
+                  and generator_mw <= 0 and not op_sources):
+                rating = min(module["max_discharge_mw"],
+                             module["charge_kwh"] * 3600.0 / dt_s)
+                flywheel_capacity += rating
+                flywheel_sources.append((name, rating))
+                starts.append(selected_board)
     # Gross generators, an actual landed shore lead, and a directly fitted
     # operational battery are allowed main-bus sources; all share the 3.3 MW
     # rated ship dispatch envelope, not separate limitless budgets.
-    main_mw = min(SHIP_CAP_MW, generator_mw + op_capacity)
-    op_max_mw = max(0.0, main_mw - generator_mw)
+    main_mw = min(SHIP_CAP_MW,
+                  generator_mw + op_capacity + flywheel_capacity)
+    op_max_mw = min(op_capacity, max(0.0, main_mw - generator_mw))
+    flywheel_max_mw = max(0.0, main_mw - generator_mw - op_max_mw)
     main_nodes = connected_nodes(edges, switches, starts)
     demand = LOAD_MW[profile]
     protected_need = min(demand, LOAD_MW["protected"])
@@ -361,6 +411,8 @@ def source_dispatch(equipment, edges, switches, profile, *, ledger=None,
         "main_available_mw": main_mw,
         "producer_available_mw": generator_mw,
         "operational_battery_available_mw": op_max_mw,
+        "flywheel_available_mw": flywheel_max_mw,
+        "flywheel_sources": flywheel_sources,
         "battery_budget_mw": op_max_mw + prot_capacity,
         "battery_dispatched_mw": max(0.0, main_dispatch - gen_dispatch) + backed_mw,
         "protected_battery_dispatched_mw": backed_mw if live_consumer else 0.0,
@@ -372,7 +424,8 @@ def source_dispatch(equipment, edges, switches, profile, *, ledger=None,
         "protected_assured": has_protected and essential_assured,
         "has_live_load": live_consumer,
         "source_signature": sorted(sources) +
-            (["BAT-COMMON-OPS"] if op_sources else []) + [
+            (["BAT-COMMON-OPS"] if op_sources else []) +
+            [name for name, _ in flywheel_sources] + [
                 "MSBA:" + str("PWR-MSB-A" in main_nodes),
                 "MSBB:" + str("PWR-MSB-B" in main_nodes),
                 "PROT:" + str(has_protected),
@@ -396,6 +449,7 @@ def step_energy(ledger, dispatch, seconds, *, actual_requested_mw=None):
                     else actual_requested_mw)
     producing = number(dispatch["producer_available_mw"])
     ops_rating = number(dispatch["operational_battery_available_mw"])
+    flywheel_rating = number(dispatch["flywheel_available_mw"])
     main = number(dispatch["main_available_mw"])
     if main > SHIP_CAP_MW + 1e-9:
         raise ElectricalError("Electrical schedule exceeds ship main bus envelope")
@@ -404,15 +458,16 @@ def step_energy(ledger, dispatch, seconds, *, actual_requested_mw=None):
         number(dispatch["protected_battery_dispatched_mw"]), demand) if live else 0.0
     main_served = min(main, max(0.0, demand - protected)) if live else 0.0
     generated = min(producing, main_served)
-    ops_served = main_served - generated
-    if ops_served > ops_rating + 1e-8:
-        raise ElectricalError("Operational bank assigned beyond its rating")
-    def debit_store(rows, need):
+    ops_served = min(ops_rating, max(0.0, main_served - generated))
+    flywheel_served = max(0.0, main_served - generated - ops_served)
+    if flywheel_served > flywheel_rating + 1e-8:
+        raise ElectricalError("Flywheel module power has not been rated")
+    def debit_store(rows, need, source_key):
         remaining = need
         for name, maximum in rows:
             if remaining <= 1e-9:
                 break
-            bank = result["banks"][name]
+            bank = result[source_key][name]
             served = min(remaining, maximum, bank["charge_kwh"] * 3600.0 / dt) if dt else 0
             energy = served * dt / 3600.0
             bank["charge_kwh"] -= energy
@@ -421,9 +476,11 @@ def step_energy(ledger, dispatch, seconds, *, actual_requested_mw=None):
         if remaining > 1e-7:
             raise ElectricalError("Electrical stock discharged beyond measured energy")
     if dt > 0:
-        debit_store(dispatch["operational_battery_sources"], ops_served)
-        debit_store(dispatch["protected_battery_sources"], protected)
+        debit_store(dispatch["operational_battery_sources"], ops_served, "banks")
+        debit_store(dispatch["protected_battery_sources"], protected, "banks")
+        debit_store(dispatch["flywheel_sources"], flywheel_served, "flywheels")
     battery_out = (ops_served + protected) * dt / 3600.0
+    flywheel_out = flywheel_served * dt / 3600.0
     produced_kwh = generated * dt / 3600.0
     if dispatch["shore_active"]:
         result["shore"]["import_kwh"] += produced_kwh
@@ -431,12 +488,14 @@ def step_energy(ledger, dispatch, seconds, *, actual_requested_mw=None):
     else:
         result["meter"]["generation_kwh"] += produced_kwh
     result["meter"]["battery_discharge_kwh"] += battery_out
+    result["meter"]["flywheel_discharge_kwh"] += flywheel_out
     result["meter"]["served_kwh"] += main_served * dt / 3600 + protected * dt / 3600
     result["meter"]["unserved_kwh"] += max(
         0.0, demand - main_served - protected) * dt / 3600
     headroom = max(0.0, producing - generated)
     for name in sorted(dispatch["charge_feeders"]):
-        bank = result["banks"][name]
+        storage = "flywheels" if name in result["flywheels"] else "banks"
+        bank = result[storage][name]
         if bank["mode"] != "charge" or headroom <= 0:
             continue
         charge_rate = min(
@@ -448,7 +507,9 @@ def step_energy(ledger, dispatch, seconds, *, actual_requested_mw=None):
         energy = charge_rate * dt / 3600.0
         bank["charge_kwh"] += energy
         bank["charged_kwh"] += energy
-        result["meter"]["battery_charge_kwh"] += energy
+        result["meter"][
+            "flywheel_charge_kwh" if storage == "flywheels"
+            else "battery_charge_kwh"] += energy
         if dispatch["shore_active"]:
             result["shore"]["import_kwh"] += energy
             result["meter"]["shore_import_kwh"] += energy
@@ -463,6 +524,7 @@ def step_energy(ledger, dispatch, seconds, *, actual_requested_mw=None):
         "generator_delivered_mw": generated if not dispatch["shore_active"] else 0.0,
         "shore_delivered_mw": generated if dispatch["shore_active"] else 0.0,
         "operational_battery_delivered_mw": ops_served,
+        "flywheel_delivered_mw": flywheel_served,
         "protected_battery_delivered_mw": protected,
         "battery_dispatched_mw": ops_served + protected,
         "unserved_mw": max(0.0, demand - main_served - protected),
