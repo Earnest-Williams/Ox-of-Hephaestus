@@ -5,7 +5,9 @@ on:
     branches: [g19-complete-ship-systems]
     paths:
       - "game/world/ship_access_audit.py"
+      - "game/world/ship_worksite_audit.py"
       - "game/world/tests/test_ship_access_audit.py"
+      - "game/world/tests/test_ship_worksite_audit.py"
       - "game/world/tests/test_installed_ship_access_audit.py"
       - "game/world/tests/test_installed_ship_operational_routes.py"
       - "game/world/ship_crew_access.py"
@@ -32,9 +34,9 @@ jobs:
           python-version: "3.12"
       - name: Compile and audit all 517 authored bidirectional links
         run: |
-          python -m compileall -q game/world/ship_access_audit.py game/world/tests/test_ship_access_audit.py game/world/tests/test_installed_ship_access_audit.py game/world/tests/test_installed_ship_operational_routes.py
+          python -m compileall -q game/world/ship_access_audit.py game/world/ship_worksite_audit.py game/world/tests/test_ship_access_audit.py game/world/tests/test_ship_worksite_audit.py game/world/tests/test_installed_ship_access_audit.py game/world/tests/test_installed_ship_operational_routes.py
           cd game
-          python -m unittest world.tests.test_ship_access_audit -v
+          python -m unittest world.tests.test_ship_access_audit world.tests.test_ship_worksite_audit -v
 
   installed:
     runs-on: ubuntu-latest
