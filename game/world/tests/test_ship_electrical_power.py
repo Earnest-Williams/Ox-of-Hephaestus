@@ -109,7 +109,7 @@ class ElectricalPhysicalContracts(unittest.TestCase):
         equipment["GEN-M"] = eq(False)
         equipment["GEN-B"] = eq(False)
         initial = survey_battery(initial_electrical(), "BAT-COMMON-PROT",
-                                 capacity_kwh=1.0, charge_kwh=.02,
+                                 capacity_kwh=10.0, charge_kwh=5,
                                  max_charge_mw=.1, max_discharge_mw=.65)
         initial["banks"]["BAT-COMMON-PROT"]["mode"] = "discharge"
         original = copy.deepcopy(initial)
@@ -120,7 +120,7 @@ class ElectricalPhysicalContracts(unittest.TestCase):
         self.assertEqual(first["battery_dispatched_mw"], .65)
         after = step_energy(initial, first, 10)
         bank = after["banks"]["BAT-COMMON-PROT"]
-        self.assertAlmostEqual(bank["discharged_kwh"], .65 * 10 / 3600)
+        self.assertAlmostEqual(bank["discharged_kwh"], .65 * 10 / 3.6)
         self.assertAlmostEqual(bank["charge_kwh"] + bank["discharged_kwh"],
                                bank["initial_kwh"])
         self.assertEqual(initial, original)
@@ -138,11 +138,11 @@ class ElectricalPhysicalContracts(unittest.TestCase):
         self.assertIn("BAT-COMMON-PROT", full["charge_feeders"])
         after = step_energy(baseline, full, 10)
         bank = after["banks"]["BAT-COMMON-PROT"]
-        self.assertAlmostEqual(bank["charge_kwh"], .3 + .2 / 360)
+        self.assertAlmostEqual(bank["charge_kwh"], .3 + .2 * 10 / 3.6)
         self.assertAlmostEqual(after["meter"]["battery_charge_kwh"],
-                               .2 / 360)
+                               .2 * 10 / 3.6)
         self.assertAlmostEqual(after["meter"]["generation_kwh"],
-                               (1.35 + .2) / 360)
+                               (1.35 + .2) * 10 / 3.6)
         self.assertTrue(validate_electrical(after))
         self.assertEqual(baseline["banks"]["BAT-COMMON-PROT"]["charge_kwh"], .3)
 
@@ -203,7 +203,7 @@ class ElectricalPhysicalContracts(unittest.TestCase):
         switches["ISO-PWR-F1-FW-01"] = switch("ISO-PWR-F1-FW-01")
         equipment["F1-FW-01"] = eq()
         account = survey_flywheel(initial_electrical(), "F1-FW-01",
-                                  capacity_kwh=3906.25, charge_kwh=1,
+                                  capacity_kwh=3906.25, charge_kwh=10,
                                   max_charge_mw=.4, max_discharge_mw=.8)
         account["flywheels"]["F1-FW-01"]["mode"] = "discharge"
         equipment["GEN-M"] = eq(False)
@@ -216,8 +216,8 @@ class ElectricalPhysicalContracts(unittest.TestCase):
         self.assertEqual(backup["flywheel_available_mw"], .8)
         after = step_energy(account, backup, 10)
         self.assertAlmostEqual(after["flywheels"]["F1-FW-01"]["discharged_kwh"],
-                               .65 / 360)
-        self.assertAlmostEqual(after["meter"]["flywheel_discharge_kwh"], .65 / 360)
+                               .65 * 10 / 3.6)
+        self.assertAlmostEqual(after["meter"]["flywheel_discharge_kwh"], .65 * 10 / 3.6)
         self.assertEqual(after["meter"]["generation_kwh"], 0)
         self.assertTrue(validate_electrical(after))
         # A broken module feeder removes its energy source, not its custody.
@@ -253,9 +253,9 @@ class ElectricalPhysicalContracts(unittest.TestCase):
         self.assertIn("F2-FW-01", supply["charge_feeders"])
         after = step_energy(s, supply, 10)
         self.assertAlmostEqual(after["meter"]["flywheel_charge_kwh"],
-                               .2 / 360)
+                               .2 * 10 / 3.6)
         self.assertAlmostEqual(after["flywheels"]["F2-FW-01"]["charge_kwh"],
-                               .2 / 360)
+                               .2 * 10 / 3.6)
         self.assertEqual(s["flywheels"]["F2-FW-01"]["charge_kwh"], 0)
         switches["ISO-F2-BUS-IN-1"].setting = "open"
         blocked = source_dispatch(equipment, edges, switches, "essential",
@@ -280,7 +280,7 @@ class ElectricalPhysicalContracts(unittest.TestCase):
         equipment["GEN-M"] = eq(False)
         equipment["GEN-B"] = eq(False)
         ledger = survey_battery(initial_electrical(), "BAT-COMMON-OPS",
-                                capacity_kwh=.2, charge_kwh=.02,
+                                capacity_kwh=20, charge_kwh=10,
                                 max_charge_mw=.1, max_discharge_mw=.8)
         ledger["banks"]["BAT-COMMON-OPS"]["mode"] = "discharge"
         grid_state = source_dispatch(equipment, edges, switches, "essential",
@@ -293,10 +293,10 @@ class ElectricalPhysicalContracts(unittest.TestCase):
         result = step_energy(ledger, grid_state, 10)
         self.assertAlmostEqual(
             result["banks"]["BAT-COMMON-OPS"]["discharged_kwh"],
-            .65 / 360)
-        self.assertAlmostEqual(result["meter"]["battery_discharge_kwh"], .65 / 360)
+            .65 * 10 / 3.6)
+        self.assertAlmostEqual(result["meter"]["battery_discharge_kwh"], .65 * 10 / 3.6)
         self.assertEqual(result["meter"]["generation_kwh"], 0)
-        self.assertAlmostEqual(result["meter"]["served_kwh"], .65 / 360)
+        self.assertAlmostEqual(result["meter"]["served_kwh"], .65 * 10 / 3.6)
         self.assertTrue(validate_electrical(result))
 
     def test_unconnected_main_bus_does_not_forge_delivered_energy(self):
@@ -349,7 +349,7 @@ class ElectricalPhysicalContracts(unittest.TestCase):
         self.assertTrue(moored["shore_active"])
         self.assertEqual(moored["available_mw"], 1.2)
         updated = step_energy(s, moored, 10)
-        self.assertAlmostEqual(updated["shore"]["import_kwh"], .65 / 360)
+        self.assertAlmostEqual(updated["shore"]["import_kwh"], .65 * 10 / 3.6)
         self.assertEqual(updated["meter"]["generation_kwh"], 0)
 
     def test_breaker_protection_trips_once_and_requires_cleared_fault(self):
