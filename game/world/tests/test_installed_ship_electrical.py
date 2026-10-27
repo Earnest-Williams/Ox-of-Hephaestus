@@ -13,7 +13,8 @@ from world.ship_world import build_canonical_ship, find_ship_space
 from world.models import CanonicalShipEvent, CanonicalShipState, WorkReceipt
 from world.continuous_ship_physics import (
     PhysicsError, arm_continuous_physics, commission_g19_electrical,
-    survey_g19_electrical_source, configure_g19_electrical_fault,
+    survey_g19_electrical_source, survey_g19_electrical_worksite,
+    configure_g19_electrical_fault,
     crew_physical_action, tick_continuous_physics, local_physics_readout,
 )
 
@@ -81,6 +82,19 @@ class InstalledElectricalTests(EvenniaTestCase):
         configure_g19_electrical_fault(
             operator_approved=True, breaker_id="ISO-GEN-M",
             rating_mw=1.0, measured_mw=0)
+        # The installed generator is in an unpressurised space. The engineer
+        # cannot reset its switchgear without a separate positive site survey
+        # and individually verified protective equipment.
+        with self.assertRaises(PhysicsError):
+            crew_physical_action(
+                self.worker, "6" * 32, "power", "ISO-GEN-M", "reset")
+        surveyed = survey_g19_electrical_worksite(
+            operator_approved=True, room_id=opened.space_id)
+        self.assertTrue(surveyed["changed"])
+        with self.assertRaises(PhysicsError):
+            crew_physical_action(
+                self.worker, "5" * 32, "power", "ISO-GEN-M", "reset")
+        self.worker.db.ox_suit_verified = True
         result = crew_physical_action(
             self.worker, "7" * 32, "power", "ISO-GEN-M", "reset")
         self.assertEqual(result["status"], "succeeded")
@@ -98,7 +112,7 @@ class InstalledElectricalTests(EvenniaTestCase):
         first = tick_continuous_physics(now_game_time=1010)
         energy = first["electrical"]["meter"]
         self.assertFalse(tick_continuous_physics(now_game_time=1010)["advanced"])
-        self.assertEqual(state("meta", "continuous-physics").details["electrical"]["meter"],
+        self.assertEqual(CanonicalShipState.objects.get(pk="meta:continuous-physics").details["electrical"]["meter"],
                          energy)
         second = tick_continuous_physics(now_game_time=1020)
         self.assertGreater(second["electrical"]["meter"]["served_kwh"],
@@ -153,7 +167,7 @@ class InstalledElectricalTests(EvenniaTestCase):
         commission_g19_electrical(operator_approved=True)
         set_isolator("ISO-GEN-M", "closed", operator=True)
         def current():
-            clock = state("meta", "continuous-physics")
+            clock = CanonicalShipState.objects.get(pk="meta:continuous-physics")
             return _power(
                 {r.source_id: r for r in CanonicalShipState.objects.filter(
                     category="equipment")},
