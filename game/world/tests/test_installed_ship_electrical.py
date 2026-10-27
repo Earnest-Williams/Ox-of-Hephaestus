@@ -13,6 +13,7 @@ from world.ship_world import build_canonical_ship, find_ship_space
 from world.models import CanonicalShipEvent, CanonicalShipState, WorkReceipt
 from world.continuous_ship_physics import (
     PhysicsError, arm_continuous_physics, commission_g19_electrical,
+    commission_g19_water, survey_g19_water_material,
     survey_g19_electrical_source, survey_g19_electrical_worksite,
     configure_g19_electrical_fault, commission_commercial_port,
     commission_ftl_route, survey_g19_refuge_sorbent,
@@ -238,6 +239,69 @@ class InstalledElectricalTests(EvenniaTestCase):
         self.assertEqual(after, replay)
         self.assertEqual(crew_physical_action(
             self.worker, "a" * 32, "power", name, "reserve"), result)
+
+    def test_refuge_scrubber_media_replacement_debits_actual_local_stock(self):
+        commission_g19_electrical(operator_approved=True)
+        commission_g19_water(operator_approved=True)
+        pack = "HAB-04-REFUGE-AIR"
+        survey_g19_refuge_sorbent(
+            operator_approved=True, pack_id=pack,
+            remaining_capacity_kg=.008)
+        self.crew_at("HAB-04-REFUGE")
+        normal = "ISO-PWR-" + pack
+        local = "ISO-G19-LOCAL-HAB-04-REFUGE-BAT"
+        source = state("inventory", "INV-DC-CONSUMABLES")
+        start_stock = source.quantity
+        # An inaccessible/unsurveyed store cannot magically restore a
+        # component, even if the technician stands beside the appliance.
+        set_isolator(normal, "open", operator=True)
+        set_isolator(local, "open", operator=True)
+        with self.assertRaises(PhysicsError):
+            crew_physical_action(
+                self.worker, "a" * 32, "service", pack, "refill:4")
+        with self.assertRaises(PhysicsError):
+            survey_g19_water_material(
+                operator_approved=True, source="INV-DC-CONSUMABLES",
+                room_id="HAB-04-REFUGE", verified_kg=1600)
+        survey_g19_water_material(
+            operator_approved=True, source="INV-DC-CONSUMABLES",
+            room_id="HAB-04-REFUGE", verified_kg=8)
+        set_isolator(normal, "closed", operator=True)
+        with self.assertRaises(PhysicsError):
+            crew_physical_action(
+                self.worker, "b" * 32, "service", pack, "refill:4")
+        set_isolator(normal, "open", operator=True)
+        set_isolator(local, "closed", operator=True)
+        with self.assertRaises(PhysicsError):
+            crew_physical_action(
+                self.worker, "c" * 32, "service", pack, "refill:4")
+        set_isolator(local, "open", operator=True)
+        receipt = crew_physical_action(
+            self.worker, "d" * 32, "service", pack, "refill:4")
+        self.assertEqual(receipt["status"], "succeeded")
+        updated = CanonicalShipState.objects.get(
+            pk="meta:continuous-physics").details
+        bank = updated["refuge_scrubbers"]["units"][pack]
+        self.assertAlmostEqual(bank["capacity_kg"], 4.008)
+        self.assertAlmostEqual(
+            updated["refuge_media_service"]["meter"]["fresh_installed_kg"], 4.0)
+        self.assertAlmostEqual(state(
+            "inventory", "INV-DC-CONSUMABLES").quantity,
+            start_stock - 0.004)
+        self.assertAlmostEqual(
+            updated["water"]["source_surveys"][
+                "INV-DC-CONSUMABLES"]["HAB-04-REFUGE"], 4.0)
+        self.assertEqual(crew_physical_action(
+            self.worker, "d" * 32, "service", pack, "refill:4"), receipt)
+        self.assertAlmostEqual(
+            state("inventory", "INV-DC-CONSUMABLES").quantity,
+            start_stock - 0.004)
+        commission_g19_electrical(operator_approved=True)
+        recovered = CanonicalShipState.objects.get(
+            pk="meta:continuous-physics").details
+        self.assertAlmostEqual(
+            recovered["refuge_scrubbers"]["units"][pack]["capacity_kg"],
+            4.008)
 
     def test_refuge_battery_runs_finite_actual_co2_capture_with_no_replay(self):
         commission_g19_electrical(operator_approved=True)
