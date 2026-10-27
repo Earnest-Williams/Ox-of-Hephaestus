@@ -580,8 +580,14 @@ def commission_g19_electrical(*, operator_approved=False):
         services_upgraded = (services_old if services_old is not None
                              else initial_service_operations())
         wear_old = item.details.get("equipment_wear")
+        fitted_service_equipment = {
+            unit.source_id: unit for unit in
+            CanonicalShipState.objects.filter(
+                category="equipment", source_id__in=SERVICE_LOADS)
+        }
         wear_new = (wear_old if wear_old is not None
-                    else initial_equipment_wear(services_upgraded))
+                    else initial_equipment_wear(
+                        services_upgraded, fitted_service_equipment))
         try:
             validate_service_operations(services_upgraded)
             validate_equipment_wear(wear_new, services_upgraded)
@@ -654,7 +660,11 @@ def commission_g19_electrical(*, operator_approved=False):
     d["refuge_media_service"] = initial_refuge_media_service()
     d["cargo_environment"] = initial_cargo_environment()
     d["service_operations"] = initial_service_operations()
-    d["equipment_wear"] = initial_equipment_wear(d["service_operations"])
+    d["equipment_wear"] = initial_equipment_wear(
+        d["service_operations"], {
+            unit.source_id: unit for unit in
+            CanonicalShipState.objects.filter(
+                category="equipment", source_id__in=SERVICE_LOADS)})
     d["generator_cartridge_baseline_kg"] = cartridges.quantity * 1000.0
     d["generator_spent_cartridge_kg"] = 0.0
     item.details = d
