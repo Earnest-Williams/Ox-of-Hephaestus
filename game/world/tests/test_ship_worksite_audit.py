@@ -76,6 +76,13 @@ class WorksiteCoverageTests(unittest.TestCase):
         # accessible control station; keep this check strict.
         self.assertEqual(report["unplaced_equipment"], [])
         self.assertEqual(report["selected_route_uses_freight_hardware"], [])
+        from world.ship_freight_service import WORKSITES, GATES
+        self.assertEqual(set(report["attended_freight_service_equipment"]),
+                         set(WORKSITES))
+        self.assertEqual(set(report["attended_freight_service_gates"]), set(GATES))
+        self.assertEqual(report["no_personnel_route_candidate"], [])
+        self.assertEqual(
+            report["route_classes"]["attended_freight_service_only"], 13)
         self.assertEqual(report["site_pressure_inventory"], {
             "authored_pressure_cell": 602,
             "authored_vacuum": 103,
@@ -90,6 +97,8 @@ class WorksiteCoverageTests(unittest.TestCase):
                   "route_obligations": report["selected_route_obligations"],
                   "disconnected_equipment": report["disconnected_equipment"],
                   "no_personnel_route_count": len(report["no_personnel_route_candidate"]),
+                  "attended_freight_service_count": len(
+                      report["attended_freight_service_equipment"]),
                   "no_personnel_route_ids": report["no_personnel_route_candidate"],
                   "geometry_freight_shortcut_count": len(report["geometry_shortest_freight_shortcuts"]),
                   "freight_segment_count": len(report[
