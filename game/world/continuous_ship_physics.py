@@ -2912,7 +2912,11 @@ def tick_continuous_physics(*, now_game_time=None):
                     # online generators do not enlarge the ship bus rating.
                     producing_mw=min(power["producer_available_mw"],
                                      power["main_available_mw"]),
-                    other_requested_mw=power["requested_mw"])
+                    other_requested_mw=power["requested_mw"],
+                    # Conducting copper does not imply sufficient bus MW.
+                    # A physically connected but browned-out appliance must
+                    # be eligible to draw its finite local DC reserve.
+                    normal_assured=power["essential_assured"])
             except ElectricalError as exc:
                 raise PhysicsError(str(exc)) from exc
             local_charge_mw = local_backup["last"]["grid_charge_requested_mw"]
