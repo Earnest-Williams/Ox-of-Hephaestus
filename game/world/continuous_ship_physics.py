@@ -6376,6 +6376,29 @@ def local_physics_readout(actor, target):
             "active_transit": system["transits"].get(actor.dbref),
             "scope": "local_issued_suit_and_airlock_only",
         }
+    if target == "freight_service":
+        ledger = _clock().details.get("freight_service")
+        if ledger is None:
+            raise PhysicsError("Attended freight service is not commissioned")
+        validate_service_access(ledger)
+        local = {}
+        for gate, (control, site, kind, boundary, _rotor) in (
+                FREIGHT_SERVICE_GATES.items()):
+            if room in {control, site}:
+                local[gate] = {
+                    "control_room": control,
+                    "worksite_room": site,
+                    "physically_open": state("access", gate).setting == "open",
+                    "permit_active": gate in ledger["secured_links"],
+                    "entry_safe_now": _freight_service_entry_ready(gate),
+                    "equipment_here": sorted(
+                        name for name, (place, entry) in
+                        FREIGHT_SERVICE_WORKSITES.items() if entry == gate),
+                }
+        if not local:
+            raise PermissionError("No fitted freight service hatch at this position")
+        return {"gates_here": local,
+                "scope": "physical_local_service_hatch_only"}
     if target == "personnel":
         from world.ship_indexed_personnel import link_contract
         transfers = _clock().details.get("personnel_transfers")
