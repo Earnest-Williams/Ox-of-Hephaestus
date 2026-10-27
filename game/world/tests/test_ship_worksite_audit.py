@@ -76,11 +76,17 @@ class WorksiteCoverageTests(unittest.TestCase):
         # accessible control station; keep this check strict.
         self.assertEqual(report["unplaced_equipment"], [])
         self.assertEqual(report["selected_route_uses_freight_hardware"], [])
+        self.assertEqual(report["site_pressure_inventory"], {
+            "authored_pressure_cell": 602,
+            "authored_vacuum": 103,
+            "no_surveyed_pressure_cell": 103,
+        })
         print("G19 equipment worksite access classification:",
               json.dumps({
                   "status": report["status"],
                   "equipment": report["equipment"],
                   "route_classes": report["route_classes"],
+                  "site_pressure_inventory": report["site_pressure_inventory"],
                   "route_obligations": report["selected_route_obligations"],
                   "disconnected_equipment": report["disconnected_equipment"],
                   "no_personnel_route_count": len(report["no_personnel_route_candidate"]),
