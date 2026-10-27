@@ -120,3 +120,64 @@ def authored_route(model: ShipWorldModel, destination: str,
         steps.append((predecessor, link_id, current))
         current = predecessor
     return list(reversed(steps))
+
+
+# A candidate for a *personnel* itinerary is not an approved live passage.
+# Freight docking/freight-only conveyors and cargo portal mechanisms cannot
+# transport a person, even if they shorten the static geometry graph.
+# Weight special operations heavily so an ordinary interior route wins over
+# a nominally shorter EVA journey.
+_PERSONNEL_LINK_COST = {
+    "pressure_door": 1, "service_door": 1, "door": 1,
+    "cargo_service_door": 1, "cabin_door": 1,
+    "pressure_hatch": 1, "service_hatch": 1,
+    "store_door": 1, "fire_door": 1,
+    "service_corridor": 1, "internal_access": 1,
+    "service_panel": 20,
+    "indexed_rotary_transfer": 100, "indexer_hatch": 100,
+    "service_airlock": 1000,
+    "eva_rail": 1000, "airlock_outer_hatch": 1000,
+    "eva_work_platform_transfer": 1000,
+}
+
+
+def candidate_personnel_routes(model: ShipWorldModel, *,
+                               anchor="CMD-PRIMARY") -> dict:
+    """Return geometry-only, least-special-operation personnel route witnesses.
+
+    Excluded freight kinds are deliberate, not silently converted into
+    crew corridors. Rated doors, vacuum work, indexers and hatch positions
+    still need the real Evennia crew traversal preflight when used.
+    """
+    from heapq import heappop, heappush
+    audit_access_topology(model, anchor=anchor)
+    graph = {key: [] for key in model.spaces_by_id}
+    for link in model.access_links:
+        weight = _PERSONNEL_LINK_COST.get(link.kind)
+        if weight is None:
+            continue
+        graph[link.from_id].append((link.to_id, link.id, weight))
+        graph[link.to_id].append((link.from_id, link.id, weight))
+    distance = {anchor: (0, 0)}
+    parents = {anchor: None}
+    heap = [(0, 0, anchor)]
+    while heap:
+        cost, hops, current = heappop(heap)
+        if (cost, hops) != distance[current]:
+            continue
+        for neighbor, link_id, weight in sorted(graph[current]):
+            candidate = (cost + weight, hops + 1)
+            if candidate < distance.get(neighbor, (float("inf"), float("inf"))):
+                distance[neighbor] = candidate
+                parents[neighbor] = (current, link_id)
+                heappush(heap, (candidate[0], candidate[1], neighbor))
+    result = {}
+    for destination in parents:
+        steps = []
+        current = destination
+        while current != anchor:
+            source, link_id = parents[current]
+            steps.append((source, link_id, current))
+            current = source
+        result[destination] = list(reversed(steps))
+    return result
