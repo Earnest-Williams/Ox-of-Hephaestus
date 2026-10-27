@@ -55,6 +55,24 @@ class EquipmentWearContracts(unittest.TestCase):
         self.assertEqual(newer["units"]["SHOP-CNC-MILL"]["wear_s"], 10)
         self.assertTrue(validate_equipment_wear(newer, services))
 
+    def test_historic_repair_receipt_cannot_erase_newly_surveyed_wear(self):
+        units, wires, switches, panels = fixture("SHOP-GRINDER")
+        units["SHOP-GRINDER"].details["repair_completed_game_time"] = 500.0
+        services = initial_service_operations()
+        wear = initial_equipment_wear(services, units)
+        self.assertEqual(
+            wear["units"]["SHOP-GRINDER"]["last_repair_game_time"], 500.0)
+        limit = SERVICE_INTERVAL_S["SHOP-GRINDER"]
+        wear = survey_existing_wear(
+            wear, services, "SHOP-GRINDER",
+            equivalent_hours=(limit - 5) / 3600)
+        services = step(services, units, wires, switches, panels)
+        worn, changes = step_equipment_wear(wear, services, units)
+        self.assertEqual(changes, [("SHOP-GRINDER", "degraded")])
+        self.assertGreater(worn["units"]["SHOP-GRINDER"]["wear_s"], limit)
+        self.assertEqual(
+            worn["units"]["SHOP-GRINDER"]["last_repair_game_time"], 500.0)
+
     def test_surveyed_high_hour_cnc_degrades_then_faults_independently(self):
         units, wires, switches, panels = fixture(
             "SHOP-CNC-MILL", "GROW-1-CTRL")
