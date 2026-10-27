@@ -94,6 +94,21 @@ class InstalledElectricalTests(EvenniaTestCase):
         self.assertGreater(tick["electrical"]["meter"]["unserved_kwh"], 0)
         self.assertFalse(tick_continuous_physics(now_game_time=1010)["advanced"])
 
+    def test_damaged_main_switchboard_really_disconnects_downstream_branch(self):
+        commission_g19_electrical(operator_approved=True)
+        self.line_up_real_feeder(
+            "NODE-GEN-M", "NODE-HAB-03-FIRE-DETECT")
+        energised = tick_continuous_physics(now_game_time=1010)
+        self.assertTrue(energised["power_assured"])
+        set_component_condition("equipment", "MSB-A", "failed",
+                                operator=True)
+        damaged = tick_continuous_physics(now_game_time=1020)
+        self.assertNotIn("GEN-M", damaged["electrical"]["last"]["sources"])
+        self.assertFalse(damaged["power_assured"])
+        self.assertFalse(damaged["electrical"]["last"]["main_a"])
+        self.assertEqual(damaged["electrical"]["last"][
+                         "generator_delivered_mw"], 0)
+
     def test_real_breaker_overload_trips_and_requires_reset(self):
         commission_g19_electrical(operator_approved=True)
         breaker = state("isolator", "ISO-GEN-M")
