@@ -210,8 +210,11 @@ def rearm_service_machine(ledger, name):
     # Do not instantly run the machine. The real plant controller still
     # requires its own start delay before the next physical operating tick.
     updated["units"][name]["operating"] = False
-    updated["last"] = {"operating": [], "unserved": [],
-                       "restart_required": []}
+    # A local attended restart must not erase the most recent measured
+    # status of the other 25 real ship services.
+    for field in ("operating", "unserved", "restart_required"):
+        updated["last"][field] = [
+            unit for unit in updated["last"][field] if unit != name]
     validate_service_operations(updated)
     return updated
 
