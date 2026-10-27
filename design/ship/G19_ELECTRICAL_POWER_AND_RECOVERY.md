@@ -122,6 +122,12 @@ The local ledger v2 preserves `initial_kwh + charged_kwh − delivered_kwh = hel
 
 Local character readouts report **only an attended battery's measured charge, selected mode, actual fuse, charger fuse and current local condition**, not hidden charge at remote stations. The bridge engineering readout does not reveal private reserve stock in inaccessible lockers. The 16 local DC circuits do not perform general grid dispatch, nor does their energised status alone certify all related environmental or HAB recovery behaviour.
 
+### Machine-readable installation coverage check
+
+Run `python design/ship/check_g19_electrical_inventory.py` from the repository root. The pure audit reconciles all **808** selected installed equipment records with the untouched **438/450/466** original power graph, the **71 priority powered machines** in 16 equipment families, **16 independently charged local DC reserves**, and two alternate protected fire-pump feeds. The test checks terminal, conductor, breaker, parent panel, physical room, nameplate-bound local battery and source-route identities, and rejects collisions with original wiring. It is now part of the focused electrical CI job.
+
+The result **does not** pronounce all 808 equipment electrically commissioned. Passive hardware, structures, unpowered emergency tools, cargo climate equipment, crop-processing machinery and specialised tools remain explicitly identifiable in its outstanding-by-kind report. This prevents an undifferentiated "missing circuit" count from disguising the difference between passive apparatus and an operating machine that actually requires a supply. Equipment-level energy budgeting and further cargo/agricultural machinery effects remain open.
+
 ### Remaining verification and modelling boundaries
 
 `ox-g19-electrical.yml` gates pure electrical source/charge conservation and faults, installed character/circuit/replay coverage, G18 gas/fire/cooling regressions, and G19 water/cargo/movement compatibility. Installed outcomes must be evaluated against the **exact tested commit**, not a prior acceptance. If the draft fast CI scope gate requires deferral of expensive PR-triggered jobs, focused tests still execute on branch **push**; do not bypass the repository's accepted scope policy.
