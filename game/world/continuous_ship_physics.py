@@ -2628,8 +2628,22 @@ def tick_continuous_physics(*, now_game_time=None):
             if _on(equipment, f"HAB-{n:02d}-AHU")
             and motor_ready(f"HAB-{n:02d}-AHU")
         }
-        air_on = bool(air_source_nodes and (
-            powered_ahu_nodes or active_spine_air))
+        # A source cannot energise fans beyond a STOPPED local AHU merely
+        # because a distant distribution panel is still live. Exclude dead
+        # manifold motors only from the *forced mixing* traversal, not the
+        # physical atmosphere/pressure diffusion graph below.
+        stopped_ahu_nodes = all_ahu_nodes - powered_ahu_nodes
+        powered_air_edges = [
+            edge for edge in edges
+            if edge.reference["network"] == "atmosphere"
+            and not stopped_ahu_nodes.intersection((
+                edge.reference["from_node"], edge.reference["to_node"]))
+        ]
+        fan_nodes = (_reachable(
+            powered_air_edges, isolators, "atmosphere", air_source_nodes)
+                     if air_source_nodes else set())
+        air_on = bool(
+            fan_nodes.intersection(powered_ahu_nodes) or active_spine_air)
         # Process gas at the *installed* ECLSS intake zone. The capture
         # medium is finite and remains aboard, so removing CO2 from the
         # circulating gas cannot silently delete mass from the ship.
@@ -2647,8 +2661,8 @@ def tick_continuous_physics(*, now_game_time=None):
                 captured_co2 += removed
                 cells[zone]["temperature"] = cells[zone]["energy"] / (
                     cells[zone]["capacity"] + cells[zone]["mass"] * CP_GAS_KJ_KG_K)
-        fan_nodes = (_reachable(edges, isolators, "atmosphere", air_source_nodes)
-                     if air_on else set())
+        # Real atmospheric edges remain present for passive pressure flow;
+        # forced mixing uses the separate powered-air reachability above.
         # Open pressure hatches are a separate flow path; closing a hatch
         # does not close an independent duct, or vice versa.
         for _door_id, a_id, b_id in open_hatches:
