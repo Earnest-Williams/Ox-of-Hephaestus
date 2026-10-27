@@ -243,9 +243,11 @@ class InstalledElectricalTests(EvenniaTestCase):
         ]
         self.assertTrue(coolant_edges)
         for edge in coolant_edges:
-            for isolator in edge.reference["isolator_ids"]:
-                set_isolator(isolator, "closed",
-                             operator=True)
+            for isolator_id in edge.reference["isolator_ids"]:
+                kind = state("isolator", isolator_id).reference["kind"].lower()
+                position = ("open" if "valve" in kind or "damper" in kind
+                            else "closed")
+                set_isolator(isolator_id, position, operator=True)
         clock = CanonicalShipState.objects.get(pk="meta:continuous-physics")
         details = dict(clock.details)
         motion = dict(details["motion"])
