@@ -2796,7 +2796,11 @@ def tick_continuous_physics(*, now_game_time=None):
                     local_backup, dt, nodes=power["nodes"],
                     equipment=equipment, edges=aux_edges, switches=isolators,
                     producer_nodes=power["producer_nodes"],
-                    producing_mw=power["producer_available_mw"],
+                    # Charger headroom is limited by the *deliverable*
+                    # 3.3-MW main bus as well as live generation. Multiple
+                    # online generators do not enlarge the ship bus rating.
+                    producing_mw=min(power["producer_available_mw"],
+                                     power["main_available_mw"]),
                     other_requested_mw=power["requested_mw"])
             except ElectricalError as exc:
                 raise PhysicsError(str(exc)) from exc
