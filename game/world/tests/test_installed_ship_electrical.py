@@ -136,7 +136,7 @@ class InstalledElectricalTests(EvenniaTestCase):
         gas_before = pressure.quantity
         self.crew_at("HAB-04-REFUGE")
         receipt = crew_physical_action(
-            self.worker, "r" * 32, "power", battery, "reserve")
+            self.worker, "e" * 32, "power", battery, "reserve")
         self.assertEqual(receipt["status"], "succeeded")
         powered = tick_continuous_physics(now_game_time=1010)
         self.assertAlmostEqual(powered["refuge_co2_captured_kg"], .004)
@@ -151,7 +151,7 @@ class InstalledElectricalTests(EvenniaTestCase):
             clock.details["local_backup"]["last"][
                 "active_local_consumers"][battery], pack)
         self.assertEqual(crew_physical_action(
-            self.worker, "r" * 32, "power", battery, "reserve"), receipt)
+            self.worker, "e" * 32, "power", battery, "reserve"), receipt)
         self.assertFalse(tick_continuous_physics(
             now_game_time=1010)["advanced"])
         set_isolator(
@@ -190,7 +190,7 @@ class InstalledElectricalTests(EvenniaTestCase):
             capacity_kwh=1.0, initial_kwh=0.05)
         self.crew_at("HAB-08-REFUGE")
         crew_physical_action(
-            self.worker, "s" * 32, "power", battery, "reserve")
+            self.worker, "f" * 32, "power", battery, "reserve")
         pressure = state("pressure", "PZ-HAB-08")
         gas = dict(pressure.details)
         self.assertGreater(gas["physics_oxygen_kg"], 1)
