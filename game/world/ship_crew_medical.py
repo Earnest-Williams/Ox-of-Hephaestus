@@ -1,176 +1,81 @@
-"""Finite, located medical care for the installed HAB-04 clinic.
+"""G19 finite, site-bound medical stabilisation kernel.
 
-The original HAB-04-MED-PHARM and HAB-04-MED-TREAT are different real
-rooms. Attested pharmacy stock has to be physically carried to treatment.
-The installed clock owns patient presence, air, electricity and elapsed time.
+Pure transitions: installed-world adapter must prove patient/caregiver locations,
+HAB-04 equipment operability, breathable conditions, and elapsed authoritative
+world time before adopting a state. Not a global cure or voyage simulation.
 """
 from __future__ import annotations
-
 import copy
 import math
-import re
-
 from world.ship_crew_physiology import validate_crew_health
-
-TREATMENT_ROOM = "HAB-04-MED-TREAT"
-PHARMACY_ROOM = "HAB-04-MED-PHARM"
-TREATMENT_PANEL = "HAB-04-MED-TREAT-LP"
-TREATMENT_FEEDER = "ISO-HAB-04-MED-TREAT-LP"
-TREATMENT_POWER_NODE = "NODE-HAB-04-MED-TREAT-LP"
-CLINIC_ZONE = "PZ-HAB-04"
-MEDICAL_ROLES = frozenset({"medic", "medical_officer", "environment_tech"})
-
-MAX_DRESSINGS = 24
-MAX_FLUID_KG = 12.0
-DRESSING_PER_CASE = 1
-FLUID_PER_CASE_KG = 0.5
-MAX_CARRIED_CASES = 4
-MAX_CASES = 16
-MAX_STEP_S = 10.0
-STABILISE_S = 300.0
-RECOVERY_RATE_PER_S = 0.00001
-
 
 class MedicalError(ValueError):
     pass
 
+TREATMENT_ROOM = "HAB-04"
+MAX_STEP_S = 10.0
+MAX_CASES = 16
+INITIAL_DRESSINGS = 24
+INITIAL_FLUID_KG = 12.0
+DRESSING_PER_CASE = 1
+FLUID_PER_CASE_KG = 0.5
+STABILISE_S = 300.0
+RECOVERY_RATE_PER_S = 0.00001
 
-def _nonnegative(value, *, integer=False):
-    if (isinstance(value, bool) or
-            not isinstance(value, int if integer else (int, float)) or
-            not math.isfinite(value) or value < 0):
-        raise MedicalError("Medical stock or elapsed time is not finite")
-    return int(value) if integer else float(value)
+def initial_medical():
+    return {"dressings": INITIAL_DRESSINGS, "fluid_kg": INITIAL_FLUID_KG,
+            "used_dressings": 0, "used_fluid_kg": 0.0,
+            "cases": {}, "completed": 0}
 
-
-def _ref(value):
-    return isinstance(value, str) and re.fullmatch(r"#[0-9]+", value) is not None
-
-
-def initial_medical(*, dressings=0, fluid_kg=0.0):
-    """Operator-attested *existing* pharmacy stock, not new ship cargo.
-
-    Zero is the default. Commissioning must provide its actual local count,
-    capped by the current bounded treatment model; no replenishment is
-    implied by reload, crew movement or completion of care.
-    """
-    d = _nonnegative(dressings, integer=True)
-    f = _nonnegative(fluid_kg)
-    if d > MAX_DRESSINGS or f > MAX_FLUID_KG:
-        raise MedicalError("Pharmacy survey exceeds bounded fitted stock")
-    result = {
-        "surveyed_dressings": d, "surveyed_fluid_kg": f,
-        "pharmacy_dressings": d, "pharmacy_fluid_kg": f,
-        "dressings": 0, "fluid_kg": 0.0,
-        "carried": {}, "used_dressings": 0, "used_fluid_kg": 0.0,
-        "cases": {}, "completed": 0,
-    }
-    validate_medical(result)
-    return result
-
+def _quantity(x):
+    if isinstance(x, bool) or not isinstance(x, (int, float)) or not math.isfinite(x) or x < 0:
+        raise MedicalError("Invalid finite medical quantity")
+    return float(x)
 
 def validate_medical(m):
     if not isinstance(m, dict) or set(m) != {
-            "surveyed_dressings", "surveyed_fluid_kg",
-            "pharmacy_dressings", "pharmacy_fluid_kg",
-            "dressings", "fluid_kg", "carried",
-            "used_dressings", "used_fluid_kg", "cases", "completed"}:
-        raise MedicalError("Incomplete medical stock and care custody")
-    for key in ("surveyed_dressings", "pharmacy_dressings",
-                "dressings", "used_dressings", "completed"):
-        _nonnegative(m[key], integer=True)
-    for key in ("surveyed_fluid_kg", "pharmacy_fluid_kg",
-                "fluid_kg", "used_fluid_kg"):
-        _nonnegative(m[key])
-    if (m["surveyed_dressings"] > MAX_DRESSINGS or
-            m["surveyed_fluid_kg"] > MAX_FLUID_KG or
-            not isinstance(m["carried"], dict) or
-            len(m["carried"]) > 40):
-        raise MedicalError("Invalid surveyed medical capacity")
-    carried_d = 0
-    carried_f = 0.0
-    for actor, load in m["carried"].items():
-        if not _ref(actor) or not isinstance(load, dict) or set(load) != {
-                "dressings", "fluid_kg"}:
-            raise MedicalError("Unknown physical medical-supply custodian")
-        d = _nonnegative(load["dressings"], integer=True)
-        f = _nonnegative(load["fluid_kg"])
-        if d < 1 or d > MAX_CARRIED_CASES or not math.isclose(
-                f, d * FLUID_PER_CASE_KG, abs_tol=1e-8, rel_tol=0):
-            raise MedicalError("Inconsistent portable medical kit")
-        carried_d += d
-        carried_f += f
-    if (m["pharmacy_dressings"] + m["dressings"]
-            + m["used_dressings"] + carried_d != m["surveyed_dressings"] or
-            not math.isclose(
-                m["pharmacy_fluid_kg"] + m["fluid_kg"]
-                + m["used_fluid_kg"] + carried_f,
-                m["surveyed_fluid_kg"], abs_tol=1e-7, rel_tol=0)):
-        raise MedicalError("Medical supplies duplicated or lost")
+            "dressings", "fluid_kg", "used_dressings", "used_fluid_kg",
+            "cases", "completed"}:
+        raise MedicalError("Incomplete medical stores or custody")
+    if any(isinstance(m[k], bool) or not isinstance(m[k], int) or m[k] < 0
+           for k in ("dressings", "used_dressings", "completed")):
+        raise MedicalError("Invalid dressing count")
+    if m["dressings"] + m["used_dressings"] != INITIAL_DRESSINGS:
+        raise MedicalError("Medical dressings created or lost")
+    if abs(_quantity(m["fluid_kg"]) + _quantity(m["used_fluid_kg"])
+           - INITIAL_FLUID_KG) > 1e-7:
+        raise MedicalError("Medical fluid custody does not reconcile")
     if not isinstance(m["cases"], dict) or len(m["cases"]) > MAX_CASES:
-        raise MedicalError("Medical treatment caseload exceeds actual capacity")
-    busy = set()
+        raise MedicalError("Invalid active patient set")
     for patient, case in m["cases"].items():
-        if (not _ref(patient) or not isinstance(case, dict)
-                or set(case) != {"caregiver", "remaining_s"} or
-                not _ref(case["caregiver"]) or case["caregiver"] == patient
-                or case["caregiver"] in busy
-                or _nonnegative(case["remaining_s"]) > STABILISE_S):
-            raise MedicalError("Unstaffed or invalid individual treatment order")
-        busy.add(case["caregiver"])
+        if (not isinstance(patient, str) or not patient.startswith("#")
+                or not patient[1:].isdigit() or
+                set(case) != {"caregiver", "remaining_s"} or
+                not isinstance(case["caregiver"], str)
+                or not case["caregiver"].startswith("#")
+                or not case["caregiver"][1:].isdigit()
+                or case["caregiver"] == patient
+                or _quantity(case["remaining_s"]) > STABILISE_S):
+            raise MedicalError("Invalid physical medical work order")
     return True
-
-
-def carry_medical_kit(m, *, actor, verb, cases=1):
-    """One finite hand-carried kit per case: dressing plus 0.5 kg fluid.
-
-    The Evennia adapter must prove pickup at the original pharmacy and
-    delivery in the original treatment room; neither action teleports a kit.
-    """
-    validate_medical(m)
-    if not _ref(actor):
-        raise MedicalError("Medical kit has no individual carrier")
-    result = copy.deepcopy(m)
-    if verb == "pickup":
-        n = _nonnegative(cases, integer=True)
-        if not 1 <= n <= MAX_CARRIED_CASES:
-            raise MedicalError("Portable medical kit limited to four cases")
-        if actor in result["carried"]:
-            raise MedicalError("Deliver existing carried kit before another pickup")
-        if (result["pharmacy_dressings"] < n
-                or result["pharmacy_fluid_kg"] + 1e-8 < n * FLUID_PER_CASE_KG):
-            raise MedicalError("Pharmacy has insufficient surveyed dressings or fluid")
-        result["pharmacy_dressings"] -= n
-        result["pharmacy_fluid_kg"] -= n * FLUID_PER_CASE_KG
-        result["carried"][actor] = {
-            "dressings": n, "fluid_kg": n * FLUID_PER_CASE_KG}
-    elif verb == "deliver":
-        if actor not in result["carried"]:
-            raise MedicalError("No personally carried supplies to deliver")
-        load = result["carried"].pop(actor)
-        result["dressings"] += load["dressings"]
-        result["fluid_kg"] += load["fluid_kg"]
-    else:
-        raise MedicalError("Only pharmacy pickup or treatment delivery")
-    validate_medical(result)
-    return result
-
 
 def begin_care(m, *, patient, caregiver, health, patient_room,
                caregiver_room, equipment_ok, breathable):
     validate_medical(m)
     validate_crew_health(health)
-    if (health["condition"] in {"dead", "fit"} or patient == caregiver
-            or not _ref(patient) or not _ref(caregiver)
+    if (health["condition"] == "dead" or patient == caregiver
+            or not isinstance(patient, str) or not patient.startswith("#")
+            or not patient[1:].isdigit() or not isinstance(caregiver, str)
+            or not caregiver.startswith("#") or not caregiver[1:].isdigit()
             or patient_room != TREATMENT_ROOM or caregiver_room != TREATMENT_ROOM
             or not equipment_ok or not breathable):
-        raise MedicalError("Injured patient and caregiver must attend powered safe HAB-04 treatment")
-    if (patient in m["cases"] or any(
-            row["caregiver"] == caregiver for row in m["cases"].values())
-            or len(m["cases"]) >= MAX_CASES
+        raise MedicalError("Patient, staffed treatment room and safe equipment required")
+    if health["condition"] == "fit":
+        raise MedicalError("No indicated injury or disabling exposure")
+    if (patient in m["cases"] or len(m["cases"]) >= MAX_CASES
             or m["dressings"] < DRESSING_PER_CASE
             or m["fluid_kg"] < FLUID_PER_CASE_KG):
-        raise MedicalError("Care station occupied or finite treatment supplies missing")
+        raise MedicalError("Occupied care station or insufficient finite supplies")
     result = copy.deepcopy(m)
     result["dressings"] -= DRESSING_PER_CASE
     result["used_dressings"] += DRESSING_PER_CASE
@@ -181,18 +86,21 @@ def begin_care(m, *, patient, caregiver, health, patient_room,
     validate_medical(result)
     return result
 
-
 def step_care(m, health_rows, seconds, *, occupants, equipment_ok, breathable):
-    """A staffed five-minute course advances only in a safe local clinic."""
+    """Progress only proven co-located cases; never revive dead patients.
+
+    Existing physiological exposure ticks remain authoritative; treatment only
+    reduces lasting injury after the staffed stabilisation period.
+    """
     validate_medical(m)
-    dt = _nonnegative(seconds)
+    dt = _quantity(seconds)
     if dt > MAX_STEP_S:
-        raise MedicalError("Unbounded medical time advancement")
+        raise MedicalError("Unbounded medical time advance")
     result, health = copy.deepcopy(m), copy.deepcopy(health_rows)
     completed = []
-    for patient, case in sorted(tuple(result["cases"].items())):
+    for patient, case in sorted(result["cases"].items()):
         if patient not in health:
-            raise MedicalError("Patient lacks authoritative physiology")
+            raise MedicalError("Patient has no authoritative physiology record")
         validate_crew_health(health[patient])
         if health[patient]["condition"] == "dead":
             del result["cases"][patient]
@@ -204,13 +112,12 @@ def step_care(m, health_rows, seconds, *, occupants, equipment_ok, breathable):
         if case["remaining_s"] <= 1e-9:
             h = health[patient]
             h["injury"] = max(0.0, h["injury"] - RECOVERY_RATE_PER_S * STABILISE_S)
-            # Stabilisation does not erase measured oxygen debt or old trauma.
+            # No instant hypoxia reversal: ongoing exposure physics samples air.
             if h["injury"] >= 0.95 or h["hypoxia_s"] >= 600:
                 h["condition"] = "critical"
             elif h["injury"] >= 0.5 or h["hypoxia_s"] >= 180:
                 h["condition"] = "incapacitated"
-            elif (h["injury"] >= 0.15 or h["hypoxia_s"] >= 40
-                  or h["water_deficit_kg"] > 2):
+            elif h["injury"] >= 0.15 or h["hypoxia_s"] >= 40 or h["water_deficit_kg"] > 2:
                 h["condition"] = "impaired"
             else:
                 h["condition"] = "fit"

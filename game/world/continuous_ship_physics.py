@@ -101,6 +101,12 @@ from world.ship_crew_physiology import (
     CrewPhysiologyError, validate_crew_health, step_crew_in_space,
 )
 from world.ship_crew_exposure import initial_exposure
+from world.ship_crew_medical import (
+    MedicalError, MEDICAL_ROLES, TREATMENT_ROOM, PHARMACY_ROOM,
+    TREATMENT_PANEL, TREATMENT_FEEDER, TREATMENT_POWER_NODE,
+    CLINIC_ZONE, initial_medical, validate_medical, carry_medical_kit,
+    begin_care, step_care,
+)
 from world.ship_auxiliary_electrical import (
     LOCAL_LOADS, MOTORS, PROTECTED_FIRE_MOTORS, protected_fire_ids,
     install_auxiliary_circuits, initial_local_backup,
@@ -384,6 +390,8 @@ def _snapshot(item):
             result["major_damage"] = item.details["major_damage"]
         if item.details.get("freight_service") is not None:
             result["freight_service"] = item.details["freight_service"]
+        if item.details.get("medical") is not None:
+            result["medical"] = item.details["medical"]
         if item.details.get("eva") is not None:
             system = item.details["eva"]
             result["eva"] = {
@@ -1437,6 +1445,60 @@ def commission_g19_crew_physiology(*, actor_dbrefs, operator_approved=False):
         )
         newly += 1
     return {"registered": newly, "requested": len(actor_dbrefs)}
+
+
+
+@transaction.atomic
+def commission_g19_medical(*, operator_approved=False, dressings=0, fluid_kg=0.0):
+    """Verify existing HAB-04 rooms/plant; attest finite local first-aid stock once."""
+    if not operator_approved:
+        raise PermissionError("Only operator can attest existing pharmacy stock")
+    clock = _clock(lock=True)
+    if clock.details.get("medical") is not None:
+        validate_medical(clock.details["medical"])
+        return {"commissioned": False, "medical": clock.details["medical"]}
+    from world.ship_world import find_ship_space
+    zones = _topology()[0]
+    for room in (TREATMENT_ROOM, PHARMACY_ROOM):
+        if (find_ship_space(room) is None or zones.get(room) != CLINIC_ZONE):
+            raise PhysicsError("Original HAB-04 pharmacy/treatment bay not installed")
+    panel = state("equipment", TREATMENT_PANEL)
+    breaker = state("isolator", TREATMENT_FEEDER)
+    if (panel.space_id != TREATMENT_ROOM or
+            breaker.reference.get("network") != "power"):
+        raise PhysicsError("Original local medical power apparatus mismatched")
+    try:
+        medical = initial_medical(dressings=dressings, fluid_kg=fluid_kg)
+    except MedicalError as exc:
+        raise PhysicsError(str(exc)) from exc
+    before = _snapshot(clock)
+    details = dict(clock.details)
+    details["medical"] = medical
+    clock.details = details
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "g19_existing_clinic_medical_commissioned", before)
+    return {"commissioned": True, "medical": medical}
+
+
+def _medical_power_and_air(*, clock_details=None):
+    """Test live clinic air, original local breaker and energized feeder."""
+    cell = state("pressure", CLINIC_ZONE)
+    panel = state("equipment", TREATMENT_PANEL)
+    breaker = state("isolator", TREATMENT_FEEDER)
+    d = clock_details if clock_details is not None else _clock().details
+    if (panel.condition in _BROKEN or breaker.condition in _BROKEN
+            or breaker.setting != "closed"):
+        return False, False
+    equipment = {r.source_id: r for r in
+                 CanonicalShipState.objects.filter(category="equipment")}
+    isolators = {r.source_id: r for r in
+                 CanonicalShipState.objects.filter(category="isolator")}
+    power = _power(
+        equipment, list(CanonicalShipState.objects.filter(category="edge")),
+        isolators, d["load_profile"], ledger=d.get("electrical"),
+        moored=contacts_active(d.get("cargo", {})))
+    return bool(power["assured"] and TREATMENT_POWER_NODE in power["nodes"]), _air_safe(cell)
 
 
 @transaction.atomic
@@ -3496,6 +3558,66 @@ def tick_continuous_physics(*, now_game_time=None):
                     "condition", "details", "space_id", "revision"])
             if state_now["condition"] in {"incapacitated", "critical", "dead"}:
                 crew_incapacitated += 1
+
+    # Clinical work advances only against the same timed, physically present
+    # individuals and the original HAB-04 treatment feed/atmospheric cell.
+    medical = clock.details.get("medical")
+    if medical is not None:
+        validate_medical(medical)
+        from evennia.objects.models import ObjectDB
+        actors = {a.dbref: a for a in ObjectDB.objects.filter(
+            id__in=[int(row.source_id[1:]) for row in crew_rows])}
+        health = {row.source_id: dict(row.details) for row in crew_rows}
+        present = {
+            ref for ref, a in actors.items()
+            if (getattr(getattr(a, "location", None), "db", None) is not None
+                and getattr(a.location.db, "ox_space_id", None) == TREATMENT_ROOM
+                and not getattr(a.db, "ox_terminal_dead", False)
+                and ref in health)
+        }
+        # A caregiver's physiological state and current medical qualification
+        # are independently checked on every tick.
+        available = {
+            ref for ref in present if health[ref]["condition"] in {"fit", "impaired"}
+            and getattr(actors[ref].db, "crew_role", None) in MEDICAL_ROLES}
+        for patient, case in medical["cases"].items():
+            if case["caregiver"] not in available:
+                present.discard(case["caregiver"])
+        powered = bool(power["assured"] and
+                       TREATMENT_POWER_NODE in power["nodes"] and
+                       TREATMENT_FEEDER in isolators and
+                       isolators[TREATMENT_FEEDER].setting == "closed" and
+                       isolators[TREATMENT_FEEDER].condition not in _BROKEN and
+                       equipment[TREATMENT_PANEL].condition not in _BROKEN)
+        safe_air = bool(CLINIC_ZONE in cells and
+                        _air_safe(state("pressure", CLINIC_ZONE)) and
+                        cells[CLINIC_ZONE]["mass"] > 0 and
+                        cells[CLINIC_ZONE]["damage"] < .2 and
+                        cells[CLINIC_ZONE]["burn"] == 0 and
+                        cells[CLINIC_ZONE]["leak"] == 0)
+        last_completed = ()
+        for _medical_dt in range(int(math.ceil(seconds / STEP_SECONDS))):
+            dt = min(STEP_SECONDS, seconds - _medical_dt * STEP_SECONDS)
+            try:
+                medical, health, last_done = step_care(
+                    medical, health, dt, occupants=present,
+                    equipment_ok=powered, breathable=safe_air)
+            except MedicalError as exc:
+                raise PhysicsError(str(exc)) from exc
+            last_completed += last_done
+        for row in crew_rows:
+            if row.source_id in last_completed:
+                row.details = health[row.source_id]
+                row.condition = row.details["condition"]
+                row.revision += 1
+                row.save(update_fields=["details", "condition", "revision"])
+                CanonicalShipEvent.objects.create(
+                    component_key="crew_health:" + row.source_id,
+                    operation="crew_medical_stabilisation_complete",
+                    before={"course_seconds": 300},
+                    after={"condition": row.condition,
+                           "injury": row.details["injury"]},
+                    actor_dbref=row.source_id, game_time=last + seconds)
     pressure_changed = []
     for row in pressure_rows:
         c = cells[row.source_id]
@@ -3946,6 +4068,8 @@ def tick_continuous_physics(*, now_game_time=None):
         d["hab_sync"] = hab_sync
     if eva is not None:
         d["eva"] = eva
+    if medical is not None:
+        d["medical"] = medical
     if major_damage is not None:
         d["major_damage"] = major_damage
     if water_state is not None:
@@ -3968,6 +4092,8 @@ def tick_continuous_physics(*, now_game_time=None):
                 key for key, fault in electrical["faults"].items()
                 if fault["latched"]),
         } if electrical is not None else None),
+        "medical_active_cases": (len(medical["cases"]) if medical is not None else None),
+        "medical_completed": (medical["completed"] if medical is not None else None),
         "crew_exposure_registered": len(crew_rows),
         "crew_incapacitated_or_worse": crew_incapacitated,
         "crew_o2_used_this_tick_kg": round(crew_used_o2, 7),
@@ -4307,7 +4433,7 @@ def crew_physical_action(actor, request_id, action, target, value):
     """
     if not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
         raise PhysicsError("Expected one 32-character lowercase request UUID")
-    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service"}:
+    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical"}:
         raise PhysicsError("Unknown physical operation")
     if actor is None or getattr(actor.db, "ox_terminal_dead", False):
         raise PermissionError("A deceased or missing character cannot operate machinery")
@@ -4329,8 +4455,8 @@ def crew_physical_action(actor, request_id, action, target, value):
                     "isolator:" if action == "switch"
                     else "pressure:" if action == "mist"
                     else "access:" if action == "hatch"
-                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service"}
-                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service"} else target)
+                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical"}
+                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical"} else target)
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
@@ -5182,6 +5308,68 @@ def crew_physical_action(actor, request_id, action, target, value):
         item.details = d
         item.revision += 1
         item.save(update_fields=["details", "revision"])
+
+    elif action == "medical":
+        # Individual medical work order. The pharmacy and treatment rooms
+        # are physically distinct, so kit pickup/delivery requires movement.
+        clock = _clock(lock=True)
+        d = dict(clock.details)
+        medical = d.get("medical")
+        if medical is None:
+            raise PhysicsError("HAB-04 first aid has not been commissioned")
+        validate_medical(medical)
+        room = getattr(getattr(actor, "location", None), "db", None)
+        room_id = getattr(room, "ox_space_id", None)
+        if getattr(actor.db, "crew_role", None) not in MEDICAL_ROLES:
+            raise PermissionError("Only trained ship medical staff may treat casualties")
+        own = CanonicalShipState.objects.filter(
+            pk="crew_health:" + actor.dbref, source_model=MODEL).first()
+        if own and own.condition not in {"fit", "impaired"}:
+            raise PhysicsError("Disabled caregiver cannot attend patient")
+        before = _snapshot(clock)
+        try:
+            if target == "kit":
+                if value.startswith("pickup:"):
+                    if room_id != PHARMACY_ROOM:
+                        raise PermissionError("Pick up existing stock at the pharmacy")
+                    count = int(value.split(":", 1)[1])
+                    medical = carry_medical_kit(
+                        medical, actor=actor.dbref, verb="pickup", cases=count)
+                elif value == "deliver":
+                    if room_id != TREATMENT_ROOM:
+                        raise PermissionError("Deliver supplies inside HAB-04 treatment")
+                    medical = carry_medical_kit(
+                        medical, actor=actor.dbref, verb="deliver")
+                else:
+                    raise PhysicsError("Use kit pickup:<cases> or deliver")
+            elif target == "care":
+                if not re.fullmatch(r"#[0-9]+", value):
+                    raise PhysicsError("Care target is the patient's real dbref")
+                from evennia.objects.models import ObjectDB
+                patient = ObjectDB.objects.filter(id=int(value[1:])).first()
+                if patient is None or room_id != TREATMENT_ROOM or (
+                        getattr(getattr(patient, "location", None), "db", None)
+                        is None or patient.location.db.ox_space_id != TREATMENT_ROOM):
+                    raise PermissionError("Both people must attend original treatment room")
+                hp = CanonicalShipState.objects.filter(
+                    pk="crew_health:" + value, source_model=MODEL).first()
+                if hp is None:
+                    raise PhysicsError("Patient has no registered measured injury")
+                powered, breathable = _medical_power_and_air(clock_details=d)
+                medical = begin_care(
+                    medical, patient=value, caregiver=actor.dbref,
+                    health=hp.details, patient_room=TREATMENT_ROOM,
+                    caregiver_room=room_id, equipment_ok=powered,
+                    breathable=breathable)
+            else:
+                raise PhysicsError("Use physical medical kit or care")
+        except (MedicalError, ValueError) as exc:
+            raise PhysicsError(str(exc)) from exc
+        d["medical"] = medical
+        clock.details = d
+        clock.revision += 1
+        clock.save(update_fields=["details", "revision"])
+        item = clock
     elif action == "hull":
         # This is a real two-stage service order, not a pressure reset. Every
         # gram of repair stock was first issued at the original stores.
@@ -6346,6 +6534,24 @@ def local_physics_readout(actor, target):
             "injury": own.details["injury"],
             "scope": "own_physically_measured_crew_health_only",
         }
+    if target == "medical":
+        medical = _clock().details.get("medical")
+        if medical is None or room not in {TREATMENT_ROOM, PHARMACY_ROOM}:
+            raise PermissionError("Attend commissioned HAB-04 pharmacy or treatment")
+        validate_medical(medical)
+        return {"room": room, "clinic": TREATMENT_ROOM,
+                "pharmacy_dressings": medical["pharmacy_dressings"]
+                    if room == PHARMACY_ROOM else None,
+                "pharmacy_fluid_kg": medical["pharmacy_fluid_kg"]
+                    if room == PHARMACY_ROOM else None,
+                "treatment_dressings": medical["dressings"]
+                    if room == TREATMENT_ROOM else None,
+                "treatment_fluid_kg": medical["fluid_kg"]
+                    if room == TREATMENT_ROOM else None,
+                "personal_kit": medical["carried"].get(actor.dbref),
+                "active_cases": medical["cases"] if room == TREATMENT_ROOM else {},
+                "completed": medical["completed"],
+                "scope": "locally_attended_finite_HAB04_medical"}
     if target == "eva":
         system = _clock().details.get("eva")
         if system is None:
