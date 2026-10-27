@@ -217,17 +217,21 @@ def audit_topology(nodes, edges, switches, *, strict=True):
     return power_nodes, power_edges, power_switches
 
 
-def connected_nodes(edges, switches, starts):
+def connected_nodes(edges, switches, starts, *, blocked_nodes=()):
+    """Walk conducting installed edges without traversing failed bus hardware."""
+    blocked = set(blocked_nodes)
     graph = defaultdict(set)
     for edge in edges:
         spec = _ref(edge)
         if spec.get("network") != "power" or not _live_edge(edge, switches):
             continue
         a, b = spec["from_node"], spec["to_node"]
+        if a in blocked or b in blocked:
+            continue
         graph[a].add(b)
         if spec.get("kind") in ("bridge_feeder", "cross_tie"):
             graph[b].add(a)
-    reached = set(starts)
+    reached = set(starts) - blocked
     q = deque(sorted(reached))
     while q:
         for node in sorted(graph[q.popleft()]):
@@ -238,7 +242,7 @@ def connected_nodes(edges, switches, starts):
 
 
 def source_dispatch(equipment, edges, switches, profile, *, ledger=None,
-                    dt_s=10, moored=False):
+                    dt_s=10, moored=False, nodes=None):
     """Rate installed sources, genuine energised load paths and backup roles.
 
     The operational battery's *own* fitted feeder goes to MSB-B; it may
@@ -254,6 +258,21 @@ def source_dispatch(equipment, edges, switches, profile, *, ledger=None,
     if ledger is not None:
         validate_electrical(ledger)
     routes = {_id(e): e for e in edges if _ref(e).get("network") == "power"}
+    # The source model's real service-node owner is authoritative for bus
+    # destruction: failed panels, rotary interfaces or switchboards are
+    # nonconducting *even with every copper breaker physically closed*.
+    # The legacy pure-node fixtures may omit node metadata; the installed
+    # Evennia adapter supplies all 438 actual power-node owners.
+    blocked_nodes = set()
+    if nodes is not None:
+        for node in nodes:
+            ref = _ref(node)
+            if ref.get("network") != "power" or ref.get("owner_type") != "equipment":
+                continue
+            unit = equipment.get(ref.get("owner_id"))
+            if (unit is None or unit.condition in {
+                    "faulted", "failed", "severed", "jammed", "destroyed"}):
+                blocked_nodes.add(_id(node))
     sources = {}
     for name, rating in GENERATION_MW.items():
         eq = equipment.get(name)
@@ -261,7 +280,9 @@ def source_dispatch(equipment, edges, switches, profile, *, ledger=None,
         if (eq is not None and eq.condition not in {
                 "faulted", "failed", "severed", "jammed", "destroyed"}
                 and eq.details.get("physics_online") is True
-                and feeder is not None and _live_edge(feeder, switches)):
+                and feeder is not None and _live_edge(feeder, switches)
+                and "NODE-" + name not in blocked_nodes
+                and _ref(feeder)["to_node"] not in blocked_nodes):
             sources[name] = rating
     generator_mw = min(SHIP_CAP_MW, sum(sources.values()))
     starts = ["NODE-" + x for x in sources]
@@ -272,11 +293,15 @@ def source_dispatch(equipment, edges, switches, profile, *, ledger=None,
                         and equipment["SHORE-PWR"].condition not in {
                             "faulted", "failed", "severed", "jammed", "destroyed"}
                         and "EDGE-SHORE-PWR" in routes
-                        and _live_edge(routes["EDGE-SHORE-PWR"], switches))
+                        and _live_edge(routes["EDGE-SHORE-PWR"], switches)
+                       and "NODE-SHORE-PWR" not in blocked_nodes
+                       and _ref(routes["EDGE-SHORE-PWR"])[
+                           "to_node"] not in blocked_nodes)
     if shore_active:
         generator_mw = min(SHIP_CAP_MW, shore["rated_mw"])
         starts.append("NODE-SHORE-PWR")
-    producer_nodes = connected_nodes(edges, switches, starts)
+    producer_nodes = connected_nodes(
+        edges, switches, starts, blocked_nodes=blocked_nodes)
     op_capacity = 0.0
     flywheel_capacity = 0.0
     prot_capacity = 0.0
@@ -295,6 +320,9 @@ def source_dispatch(equipment, edges, switches, profile, *, ledger=None,
                                else "PWR-PROT")
             if actual_target != expected_target:
                 raise ElectricalError("Storage is wired to a different main/protected bus")
+            if ("NODE-" + name in blocked_nodes
+                    or expected_target in blocked_nodes):
+                continue
             if (bank["mode"] == "charge" and expected_target in producer_nodes
                     and generator_mw > 0):
                 # Fitted converter is bidirectional locally, but the general
@@ -309,7 +337,9 @@ def source_dispatch(equipment, edges, switches, profile, *, ledger=None,
                 op_sources.append((name, max_mw))
                 starts.append("NODE-" + name)
             else:
-                candidate = connected_nodes(edges, switches, ["NODE-" + name])
+                candidate = connected_nodes(
+                    edges, switches, ["NODE-" + name],
+                    blocked_nodes=blocked_nodes)
                 if set(MAIN_BOARDS) & candidate:
                     raise ElectricalError("Protected battery must never reverse-feed an MSB")
                 if "PWR-PROT" in candidate:
@@ -347,11 +377,15 @@ def source_dispatch(equipment, edges, switches, profile, *, ledger=None,
                     or _ref(module_feeder).get("kind") != "module_feeder"
                     or _ref(module_feeder).get("from_node") != f"NODE-{side}-BUS"
                     or _ref(module_feeder).get("to_node") != "NODE-PWR-" + name
-                    or not _live_edge(module_feeder, switches)):
+                    or not _live_edge(module_feeder, switches)
+                    or f"NODE-{side}-BUS" in blocked_nodes
+                    or "NODE-PWR-" + name in blocked_nodes):
                 continue
             selected_board = _ref(incoming)["from_node"]
             if selected_board not in MAIN_BOARDS:
                 raise ElectricalError("Flywheel bank feeds a foreign ship bus")
+            if selected_board in blocked_nodes:
+                continue
             if module["mode"] == "charge" and generator_mw > 0:
                 if selected_board in producer_nodes:
                     charge_feeders.append(name)
@@ -370,7 +404,8 @@ def source_dispatch(equipment, edges, switches, profile, *, ledger=None,
                   generator_mw + op_capacity + flywheel_capacity)
     op_max_mw = min(op_capacity, max(0.0, main_mw - generator_mw))
     flywheel_max_mw = max(0.0, main_mw - generator_mw - op_max_mw)
-    main_nodes = connected_nodes(edges, switches, starts)
+    main_nodes = connected_nodes(
+        edges, switches, starts, blocked_nodes=blocked_nodes)
     demand = LOAD_MW[profile]
     protected_need = min(demand, LOAD_MW["protected"])
     backed_mw = min(prot_capacity,
