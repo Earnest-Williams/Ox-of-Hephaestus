@@ -10,6 +10,13 @@ from collections import Counter, deque
 from world.ship_model import ShipWorldModel
 
 
+# Verified sealed physical void: an unoccupied, unpressurised trim-water
+# pocket within the WR-01 rotating assembly. Its controls/trim machinery
+# are at WR-ROTOR-MACHINERY; a crew-size connection would create an unsafe
+# route to a non-breathable tank space. No other isolated room is waived.
+_REVIEWED_UNENTERABLE_VOID = "WR-TRIM-TANK-BAY"
+
+
 class ShipAccessAuditError(ValueError):
     """The fitted ship has missing, contradictory or unreachable access."""
 
@@ -53,6 +60,15 @@ def audit_access_topology(model: ShipWorldModel, *, anchor="CMD-PRIMARY",
                 parents[neighbor] = (current, link_id)
                 queue.append(neighbor)
     unreached = sorted(set(rooms) - set(parents))
+    reviewed_voids = [
+        room_id for room_id in unreached
+        if room_id == _REVIEWED_UNENTERABLE_VOID
+        and rooms[room_id].kind == "tank_bay"
+        and rooms[room_id].frame == "work_rotor"
+        and rooms[room_id].metadata.get("habitability") == "unoccupied"
+        and rooms[room_id].metadata.get("pressure_zone") is None
+    ]
+    unexplained = sorted(set(unreached) - set(reviewed_voids))
     components = []
     unseen = set(rooms)
     while unseen:
@@ -76,6 +92,9 @@ def audit_access_topology(model: ShipWorldModel, *, anchor="CMD-PRIMARY",
         "installed_exit_directions_expected": len(ids) * 2,
         "reachable_from_command": len(parents),
         "unreachable_from_command": unreached,
+        "reviewed_sealed_noncrew_voids": reviewed_voids,
+        "unexplained_isolated_spaces": unexplained,
+        "potential_crew_spaces": len(rooms) - len(reviewed_voids),
         "component_sizes": [row["size"] for row in components],
         "component_examples": [row["example"] for row in components],
         "link_kinds": dict(sorted(kinds.items())),
@@ -83,10 +102,10 @@ def audit_access_topology(model: ShipWorldModel, *, anchor="CMD-PRIMARY",
         "rated_pressure_boundary_labels": pressure_boundaries,
         "equipment_sites_assessed": False,
     }
-    if unreached and require_connected:
+    if unexplained and require_connected:
         raise ShipAccessAuditError(
-            f"{len(unreached)} authored spaces have no physical route from "
-            f"{anchor}: {', '.join(unreached[:16])}")
+            f"{len(unexplained)} unclassified spaces have no physical route from "
+            f"{anchor}: {', '.join(unexplained[:16])}")
     return outcome
 
 
