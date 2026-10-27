@@ -1967,6 +1967,14 @@ def tick_continuous_physics(*, now_game_time=None):
     if contacts_active(cargo):
         if motion["command"] != "coast":
             raise PhysicsError("Main propulsion commanded while externally moored")
+    if electrical is not None and electrical["shore"] is not None:
+        import copy
+        electrical = copy.deepcopy(electrical)
+        if electrical["shore"]["connected"] and not contacts_active(cargo):
+            # A lost berth never remains an infinite invisible external source.
+            electrical["shore"]["connected"] = False
+            electrical["last"] = dict(electrical["last"])
+            electrical["last"]["shore_disconnect_reason"] = "physical_berth_lost"
     summary = {}
     duration = 0.0
 
@@ -2343,8 +2351,10 @@ def tick_continuous_physics(*, now_game_time=None):
             power["shortfall_mw"] = max(
                 0.0, power["requested_mw"] - power["available_mw"])
         # No unproven infinite battery/flywheel bridge or magic auto load shedding.
-        protected_power = power["essential_assured"] and (
-            "PWR-PROT" in power["nodes"])
+        protected_power = (power["protected_assured"]
+                           if electrical is not None else
+                           (power["essential_assured"]
+                            and "PWR-PROT" in power["nodes"]))
         powered = power["assured"] and bool(
             {"PWR-MSB-A", "PWR-MSB-B", "PWR-PROT"} & power["nodes"])
         active_air_trains = {
@@ -2422,14 +2432,16 @@ def tick_continuous_physics(*, now_game_time=None):
         cool_zones &= set(cells)
         total_cool_kw = (min(3750.0, 937.5 * sum(
             _on(equipment, "RAD-LT-" + str(i)) for i in range(1, 5)))
-            if powered and _on(equipment, "LT-PLANT") else 0.0)
+            if powered and _on(equipment, "LT-PLANT")
+            and (electrical is None or protected_power) else 0.0)
         # The propulsion thermal store and ordinary equipment share the
         # finite radiator budget: never reject the same heat twice.
         total_cool_kw = max(0.0, total_cool_kw - drive_cooling_kw)
         per_zone_kw = total_cool_kw / len(cool_zones) if cool_zones else 0.0
 
         fire_starts = [n for pump in ("FIRE-PUMP-FWD", "FIRE-PUMP-AFT")
-                       if powered and _on(equipment, pump)
+                       if (protected_power if electrical is not None else powered)
+                       and _on(equipment, pump)
                        for n in ["NODE-" + pump]]
         fire_nodes = _reachable(edges, isolators, "fire_main", fire_starts)
         # Waste heat is a physical output of operating machinery, not an
@@ -3402,6 +3414,10 @@ def crew_physical_action(actor, request_id, action, target, value):
             raise PhysicsError("Unsafe switch command")
         if value == "closed" and item.details.get("physics_power_trip_latched"):
             raise PhysicsError("Breaker is physically tripped; isolate fault and reset locally")
+        if value == "closed" and target.startswith("ISO-MSB-XTIE"):
+            tie = state("edge", "EDGE-MSB-XTIE")
+            if tie.setting == "available":
+                raise PhysicsError("Open cross-tie and obtain fresh synchronisation before restoring contacts")
         before = _snapshot(item)
         if item.setting != value:
             item.setting = value
@@ -3416,6 +3432,10 @@ def crew_physical_action(actor, request_id, action, target, value):
             raise PhysicsError("Failed plant cannot be started")
         before = _snapshot(item)
         on = value == "on"
+        if on and target in GENERATION_MW:
+            electr = _clock().details.get("electrical")
+            if electr and electr["shore"] and electr["shore"]["connected"]:
+                raise PhysicsError("Isolate the connected shore-power inlet before generator startup")
         d = dict(item.details)
         d["physics_commanded_on"] = on
         d["physics_online"] = False if not on else d.get("physics_online", False)
@@ -3477,13 +3497,15 @@ def crew_physical_action(actor, request_id, action, target, value):
                             "PWR-MSB-A", "PWR-MSB-B")):
                     raise PhysicsError("No live main bus to verify for synchronisation")
                 e["sync"] = {
-                    "expires_game_time": d["last_game_time"] + 60.0,
+                    "ready_game_time": d["last_game_time"] + 15.0,
+                    "expires_game_time": d["last_game_time"] + 90.0,
                     "source_signature": list(snapshot["source_signature"]),
                 }
             elif value == "close":
                 token = e["sync"]
                 snapshot = live_grid()
                 if (edge.setting == "available" or not token
+                        or d["last_game_time"] < token["ready_game_time"]
                         or d["last_game_time"] > token["expires_game_time"]
                         or token["source_signature"] != list(
                             snapshot["source_signature"])
@@ -3516,6 +3538,23 @@ def crew_physical_action(actor, request_id, action, target, value):
                     edge.setting = requested
                     edge.revision += 1
                     edge.save(update_fields=["setting", "revision"])
+        elif (re.fullmatch(r"EDGE-PWR-MSB-[AB]-PROT", target)
+              or re.fullmatch(r"EDGE-HAB-0[1-8]-PROT-[AB]", target)):
+            edge = at_switch(target)
+            if value not in {"enable", "isolate"}:
+                raise PhysicsError("Individual feeder requires enable|isolate")
+            other = target[:-1] + ("A" if target.endswith("B") else "B")
+            alternate = state("edge", other, lock=True)
+            if value == "enable":
+                if (alternate.setting == "available"
+                        or any(state("isolator", k).setting != "closed"
+                               for k in edge.reference["isolator_ids"])):
+                    raise PhysicsError("Break-before-make requires isolation of alternate source")
+                edge.setting = "available"
+            else:
+                edge.setting = "standby"
+            edge.revision += 1
+            edge.save(update_fields=["setting", "revision"])
         elif target in POWER_BANKS:
             bank_equipment = state("equipment", target, lock=True)
             _crew_at(actor, bank_equipment.space_id)
@@ -4755,6 +4794,28 @@ def local_physics_readout(actor, target):
     room = getattr(getattr(location, "db", None), "ox_space_id", None)
     if not room:
         raise PermissionError("Stand at an installed ship compartment")
+    if target.startswith("NODE-") or target in {"PWR-MSB-A", "PWR-MSB-B", "PWR-PROT"}:
+        node = CanonicalShipState.objects.filter(pk="node:" + target).first()
+        if node and node.reference.get("network") == "power":
+            owner = node.reference.get("owner_id")
+            owner_type = node.reference.get("owner_type")
+            local = (owner if owner_type == "space" else
+                     (state("equipment", owner).space_id if
+                      owner_type == "equipment" else None))
+            if local != room:
+                raise PermissionError("Stand beside this real electrical circuit")
+            clock = _clock()
+            equipment = {r.source_id: r for r in
+                         CanonicalShipState.objects.filter(category="equipment")}
+            edges = list(CanonicalShipState.objects.filter(category="edge"))
+            switches = {r.source_id: r for r in
+                        CanonicalShipState.objects.filter(category="isolator")}
+            grid = _power(equipment, edges, switches, clock.details["load_profile"],
+                          ledger=clock.details.get("electrical"),
+                          moored=contacts_active(clock.details.get("cargo", {})))
+            return {"id": target, "path_energised": target in grid["nodes"],
+                    "schedule_assured": grid["assured"] and target in grid["nodes"],
+                    "scope": "physically_local_actual_power_circuit"}
     if target == "power":
         electrical = _clock().details.get("electrical")
         if electrical is None:
