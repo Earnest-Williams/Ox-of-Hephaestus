@@ -87,7 +87,8 @@ from world.ship_crew_physiology import (
 )
 from world.ship_crew_exposure import initial_exposure
 from world.ship_auxiliary_electrical import (
-    LOCAL_LOADS, MOTORS, install_auxiliary_circuits, initial_local_backup,
+    LOCAL_LOADS, MOTORS, PROTECTED_FIRE_MOTORS, protected_fire_ids,
+    install_auxiliary_circuits, initial_local_backup,
     validate_local_backup, migrate_local_backup, survey_local_backup,
     set_local_mode,
     step_local_backup, motor_power,
@@ -767,7 +768,8 @@ def configure_g19_electrical_fault(*, operator_approved=False, breaker_id,
         raise PhysicsError("Electrical plant not commissioned")
     breaker = state("isolator", breaker_id, lock=True)
     if (breaker.reference.get("network")
-            not in {"power", "g19_motor", "g19_local_dc", "g19_local_charger"}
+            not in {"power", "g19_motor", "g19_motor_protected",
+                "g19_local_dc", "g19_local_charger"}
             or breaker.condition in _BROKEN):
         raise PhysicsError("No usable installed electrical breaker at this site")
     try:
@@ -3707,7 +3709,10 @@ def crew_physical_action(actor, request_id, action, target, value):
             shore = (_clock().details.get("electrical") or {}).get("shore")
             if shore and shore["connected"]:
                 raise PhysicsError("Cannot close generator feed against connected shore power")
-        if _clock().details.get("electrical") is not None and item.reference.get("network") == "power":
+        if (_clock().details.get("electrical") is not None
+                and item.reference.get("network") in {
+                    "power", "g19_motor", "g19_motor_protected",
+                    "g19_local_dc", "g19_local_charger"}):
             _electrical_crew_air_gate(
                 actor, item.space_id, _clock().details["electrical"])
         if value == "closed" and target.startswith("ISO-MSB-XTIE"):
@@ -3852,6 +3857,40 @@ def crew_physical_action(actor, request_id, action, target, value):
                 edge.setting = "standby"
             edge.revision += 1
             edge.save(update_fields=["setting", "revision"])
+        elif target in PROTECTED_FIRE_MOTORS:
+            if value not in {"select:normal", "select:protected"}:
+                raise PhysicsError("Fire pump requires select:normal|select:protected")
+            pump = state("equipment", target, lock=True)
+            _crew_at(actor, pump.space_id)
+            _electrical_crew_air_gate(actor, pump.space_id, e)
+            if pump.condition in _BROKEN:
+                raise PhysicsError("The actual fire pump has failed")
+            normal = state("edge", "EDGE-G19-MOTOR-" + target, lock=True)
+            protected_edge_id, _protected_iso = protected_fire_ids(target)
+            alternate = state("edge", protected_edge_id, lock=True)
+            if (normal.reference.get("network") != "g19_motor"
+                    or alternate.reference.get("network") != "g19_motor_protected"
+                    or alternate.reference.get("from_node") != "PWR-PROT"):
+                raise PhysicsError("The two independent fitted motor source paths disagree")
+            selected, released = ((normal, alternate) if value == "select:normal"
+                                  else (alternate, normal))
+            if selected.condition in _BROKEN:
+                raise PhysicsError("Target fire-pump feeder is physically damaged")
+            for isolator_id in selected.reference["isolator_ids"]:
+                contact = state("isolator", isolator_id, lock=True)
+                if (contact.condition in _BROKEN or contact.setting != "closed"
+                        or contact.details.get("physics_power_trip_latched")):
+                    raise PhysicsError("Cannot select an open, failed or tripped motor source")
+            # Persist a break-before-make transfer, without energising both
+            # independent sources even briefly.
+            if released.setting != "standby":
+                released.setting = "standby"
+                released.revision += 1
+                released.save(update_fields=["setting", "revision"])
+            if selected.setting != "available":
+                selected.setting = "available"
+                selected.revision += 1
+                selected.save(update_fields=["setting", "revision"])
         elif target in LOCAL_LOADS:
             battery = state("equipment", target, lock=True)
             _crew_at(actor, battery.space_id)
@@ -3892,7 +3931,8 @@ def crew_physical_action(actor, request_id, action, target, value):
         elif target.startswith("ISO-") and value == "reset":
             breaker = state("isolator", target, lock=True)
             if breaker.reference.get("network") not in {
-                    "power", "g19_motor", "g19_local_dc", "g19_local_charger"}:
+                    "power", "g19_motor", "g19_motor_protected",
+                    "g19_local_dc", "g19_local_charger"}:
                 raise PhysicsError("Not an installed power breaker")
             _crew_at(actor, breaker.space_id)
             if breaker.setting != "open" or breaker.condition in _BROKEN:
@@ -5183,6 +5223,10 @@ def local_physics_readout(actor, target):
                 target, nodes=bus["nodes"], equipment=equipment,
                 edges={x.source_id: x for x in edges}, switches=switches),
             "schedule_assured": bus["assured"],
+            "source_selection": (
+                ("protected" if state("edge", protected_fire_ids(target)[0]).setting
+                 == "available" else "normal")
+                if target in PROTECTED_FIRE_MOTORS else "single_source"),
             "scope": "attended_individual_motor_circuit",
         }
     if target == "power":
