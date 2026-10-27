@@ -352,11 +352,19 @@ class AuxiliaryPowerContracts(unittest.TestCase):
                 self.assertFalse(motor_power(
                     name, nodes=parent_nodes, equipment=equipment,
                     edges=wires, switches=switches))
+                self.assertTrue(all(motor_power(
+                    other, nodes=parent_nodes, equipment=equipment,
+                    edges=wires, switches=switches) for other in others),
+                    "severed local wire affected an unrelated motor: " + name)
                 wires[wire_id].condition = "serviceable"
                 equipment[name].condition = "failed"
                 self.assertFalse(motor_power(
                     name, nodes=parent_nodes, equipment=equipment,
                     edges=wires, switches=switches))
+                self.assertTrue(all(motor_power(
+                    other, nodes=parent_nodes, equipment=equipment,
+                    edges=wires, switches=switches) for other in others),
+                    "failed local motor affected an unrelated motor: " + name)
                 equipment[name].condition = "serviceable"
                 self.assertTrue(motor_power(
                     name, nodes=parent_nodes, equipment=equipment,
