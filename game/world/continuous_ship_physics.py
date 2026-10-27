@@ -86,6 +86,11 @@ from world.ship_crew_physiology import (
     CrewPhysiologyError, validate_crew_health, step_crew_in_space,
 )
 from world.ship_crew_exposure import initial_exposure
+from world.ship_auxiliary_electrical import (
+    LOCAL_LOADS, install_auxiliary_circuits, initial_local_backup,
+    validate_local_backup, survey_local_backup, set_local_mode,
+    step_local_backup, motor_power,
+)
 from world.ship_electrical_power import (
     ElectricalError, BATTERIES as POWER_BANKS,
     FLYWHEELS as POWER_FLYWHEELS,
@@ -346,6 +351,8 @@ def _snapshot(item):
                     "condition": value["exposure"]["condition"]}
                     for key, value in system["suits"].items()},
             }
+        if item.details.get("local_backup") is not None:
+            result["local_backup"] = item.details["local_backup"]
         if item.details.get("electrical") is not None:
             result["generator_cartridges"] = {
                 "baseline_kg": item.details.get("generator_cartridge_baseline_kg"),
@@ -509,12 +516,14 @@ def commission_g19_electrical(*, operator_approved=False):
     _require_installed()
     item = _clock(lock=True)
     if item.details.get("electrical") is not None:
+        install_auxiliary_circuits(CanonicalShipState)
         upgraded = migrate_v1_electrical(item.details["electrical"])
         fuel_needs_migration = "generator_cartridge_baseline_kg" not in item.details
         if upgraded != item.details["electrical"] or fuel_needs_migration:
             previous = _snapshot(item)
             details = dict(item.details)
             details["electrical"] = upgraded
+            details.setdefault("local_backup", initial_local_backup())
             if fuel_needs_migration:
                 stock = state("inventory", "INV-GEN-CART", lock=True)
                 if stock.quantity is None or not math.isfinite(stock.quantity) or stock.quantity < 0:
@@ -526,6 +535,15 @@ def commission_g19_electrical(*, operator_approved=False):
             item.save(update_fields=["details", "revision"])
             _event(item, "g19_electrical_nonresetting_v2_migration", previous)
             return {"commissioned": False, "migrated": True}
+        if "local_backup" not in item.details:
+            previous = _snapshot(item)
+            details = dict(item.details)
+            details["local_backup"] = initial_local_backup()
+            item.details = details
+            item.revision += 1
+            item.save(update_fields=["details", "revision"])
+            _event(item, "g19_local_backup_nonresetting_install", previous)
+            return {"commissioned": False, "local_backup_installed": True}
         return {"commissioned": False, "already_present": True}
     nodes = list(CanonicalShipState.objects.filter(category="node"))
     edges = list(CanonicalShipState.objects.filter(category="edge"))
@@ -542,7 +560,9 @@ def commission_g19_electrical(*, operator_approved=False):
         raise PhysicsError("Fitted generator-cartridge inventory is not verified")
     before = _snapshot(item)
     d = dict(item.details)
+    install_auxiliary_circuits(CanonicalShipState)
     d["electrical"] = initial_electrical()
+    d["local_backup"] = initial_local_backup()
     d["generator_cartridge_baseline_kg"] = cartridges.quantity * 1000.0
     d["generator_spent_cartridge_kg"] = 0.0
     item.details = d
@@ -2040,6 +2060,14 @@ def tick_continuous_physics(*, now_game_time=None):
             atmosphere_source_nodes.setdefault(
                 node.reference.get("owner_id"), []).append(node.source_id)
     electrical = clock.details.get("electrical")
+    local_backup = clock.details.get("local_backup")
+    if local_backup is not None:
+        try:
+            validate_local_backup(local_backup)
+        except ElectricalError as exc:
+            raise PhysicsError(str(exc)) from exc
+    aux_edges = {x.source_id: x for x in edges
+                 if x.reference.get("network") in {"g19_motor", "g19_local_dc"}}
     if electrical is not None:
         try:
             validate_electrical(electrical)
@@ -2577,10 +2605,13 @@ def tick_continuous_physics(*, now_game_time=None):
             edges, isolators, "lt_cooling", ["NODE-LT-PLANT"])
         cool_zones = {node_zones.get(n) for n in cooling_nodes}
         cool_zones &= set(cells)
+        motor_ready = (electrical is None or motor_power(
+            "LT-PLANT", nodes=power["nodes"], equipment=equipment,
+            edges=aux_edges, switches=isolators))
         total_cool_kw = (min(3750.0, 937.5 * sum(
             _on(equipment, "RAD-LT-" + str(i)) for i in range(1, 5)))
             if powered and _on(equipment, "LT-PLANT")
-            and (electrical is None or protected_power) else 0.0)
+            and motor_ready and (electrical is None or protected_power) else 0.0)
         # The propulsion thermal store and ordinary equipment share the
         # finite radiator budget: never reject the same heat twice.
         total_cool_kw = max(0.0, total_cool_kw - drive_cooling_kw)
@@ -2672,6 +2703,13 @@ def tick_continuous_physics(*, now_game_time=None):
                 cell["burn"] = 0.0
             # No automatic ignition without a finite, already ignited fuel load.
             # Smoke/heat and equipment damage can still spread via open ducts.
+        if local_backup is not None:
+            try:
+                local_backup = step_local_backup(
+                    local_backup, dt, nodes=power["nodes"],
+                    equipment=equipment, edges=aux_edges, switches=isolators)
+            except ElectricalError as exc:
+                raise PhysicsError(str(exc)) from exc
         if electrical is not None:
             try:
                 electrical = step_energy(
@@ -3255,6 +3293,8 @@ def tick_continuous_physics(*, now_game_time=None):
     d["water_suppression_kg"] += water
     d["co2_captured_kg"] = captured_co2
     d["motion"] = motion
+    if local_backup is not None:
+        d["local_backup"] = local_backup
     if electrical is not None:
         d["electrical"] = electrical
         d["generator_spent_cartridge_kg"] = cartridge_spent
@@ -3736,6 +3776,15 @@ def crew_physical_action(actor, request_id, action, target, value):
                 edge.setting = "standby"
             edge.revision += 1
             edge.save(update_fields=["setting", "revision"])
+        elif target in LOCAL_LOADS:
+            battery = state("equipment", target, lock=True)
+            _crew_at(actor, battery.space_id)
+            _electrical_crew_air_gate(actor, battery.space_id, e)
+            if battery.condition in _BROKEN:
+                raise PhysicsError("Local emergency battery has failed")
+            if value not in {"standby", "reserve"}:
+                raise PhysicsError("Local battery requires standby|reserve")
+            d["local_backup"] = set_local_mode(d["local_backup"], target, value)
         elif target in (*POWER_BANKS, *POWER_FLYWHEELS):
             bank_equipment = state("equipment", target, lock=True)
             _crew_at(actor, bank_equipment.space_id)
