@@ -4071,6 +4071,52 @@ def _hatch_open_preflight(hatch):
             raise PhysicsError("Opposite bridge pressure hatch must close first")
 
 
+# Door families with a true local crew-operable latch. Personnel carriers,
+# cargo port shutters, freight gates, vacuum airlocks and EVA mechanisms have
+# separate controls and are never unlocked through this ordinary-door path.
+CREW_LOCAL_DOOR_KINDS = frozenset({
+    "pressure_door", "service_door", "door", "cargo_service_door",
+    "service_panel", "cabin_door", "pressure_hatch", "service_hatch",
+    "store_door", "fire_door",
+})
+
+
+def _ordinary_crew_door_preflight(hatch):
+    """Verify a fitted ordinary local door without bypassing pressure or rotation."""
+    spec = hatch.reference
+    if spec.get("kind") not in CREW_LOCAL_DOOR_KINDS:
+        raise PhysicsError("This boundary needs its dedicated cargo/EVA controller")
+    from world.ship_world import find_ship_space
+    origin, destination = (
+        find_ship_space(spec.get("from")),
+        find_ship_space(spec.get("to")),
+    )
+    if origin is None or destination is None:
+        raise PhysicsError("No two installed rooms at this local door")
+    if origin.db.ox_frame != destination.db.ox_frame:
+        raise PhysicsError("Moving-frame doors require a rated indexer")
+    zones = _topology()[0]
+    a, b = zones.get(spec.get("from")), zones.get(spec.get("to"))
+    if (not isinstance(a, str) or not a.startswith("PZ-")
+            or not isinstance(b, str) or not b.startswith("PZ-")):
+        raise PhysicsError("Ordinary door cannot expose an unknown or vacuum space")
+    if a != b and spec.get("pressure_boundary") is not True:
+        raise PhysicsError("Unrated door cannot join separate pressure cells")
+    left = state("pressure", a, lock=True)
+    right = state("pressure", b, lock=True)
+    if not _air_safe(left) or not _air_safe(right):
+        raise PhysicsError("Unsafe gas, temperature or pressure at local door")
+    pressure_left = (left.quantity * R_SPECIFIC_AIR *
+                     left.details["temperature_k"] /
+                     left.details["gas_volume_m3"])
+    pressure_right = (right.quantity * R_SPECIFIC_AIR *
+                      right.details["temperature_k"] /
+                      right.details["gas_volume_m3"])
+    if (not math.isfinite(pressure_left) or not math.isfinite(pressure_right)
+            or abs(pressure_left - pressure_right) > 2000.0):
+        raise PhysicsError("Unsafe differential pressure at ordinary door")
+
+
 def _personnel_fixed_hatch_preflight(hatch):
     """Protect the six drum service locks and two independent HAB capsules."""
     source_id = hatch.source_id
@@ -5630,15 +5676,20 @@ def crew_physical_action(actor, request_id, action, target, value):
             re.fullmatch(r"ACC-DR-0[1-6]-LOCK-FIX", item.source_id) is not None
             or item.source_id in {"ACC-IX-A-FIX", "ACC-IX-B-FIX",
                                   "ACC-WR-FIXED-IX"})
-        if not ordinary_bridge and not fixed_indexer:
-            raise PhysicsError("Other cargo, EVA and machinery doors need their own interlocks")
+        ordinary_local = (
+            not ordinary_bridge and not fixed_indexer
+            and spec.get("kind") in CREW_LOCAL_DOOR_KINDS)
+        if not ordinary_bridge and not fixed_indexer and not ordinary_local:
+            raise PhysicsError("Cargo, EVA and machinery doors require dedicated interlocks")
         if item.condition in _BROKEN:
             raise PhysicsError("Damaged hatch cannot be safely actuated")
         if value == "open" and item.setting != "open":
             if ordinary_bridge:
                 _hatch_open_preflight(item)
-            else:
+            elif fixed_indexer:
                 _personnel_fixed_hatch_preflight(item)
+            else:
+                _ordinary_crew_door_preflight(item)
         before = _snapshot(item)
         if item.setting != value:
             item.setting = value
