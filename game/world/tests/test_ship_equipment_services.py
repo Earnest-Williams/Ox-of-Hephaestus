@@ -113,6 +113,8 @@ class FittedServiceContracts(unittest.TestCase):
         self.assertIn("SHOP-CNC-MILL", restored["last"]["restart_required"])
         self.assertNotIn("SHOP-CNC-MILL", restored["last"]["operating"])
         armed = rearm_service_machine(restored, "SHOP-CNC-MILL")
+        self.assertIn("DR-01-CARGO-GAS", armed["last"]["operating"])
+        self.assertIn("GROW-1-CTRL", armed["last"]["operating"])
         equipment["SHOP-CNC-MILL"].details["physics_online"] = False
         starting = step_service_operations(
             armed, 10, nodes=panels, equipment=equipment,
