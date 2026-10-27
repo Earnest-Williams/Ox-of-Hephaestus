@@ -101,6 +101,43 @@ class ElectricalPhysicalContracts(unittest.TestCase):
             updated["meter"]["served_kwh"] + updated["meter"]["battery_charge_kwh"])
         self.assertEqual(ledger["banks"]["BAT-COMMON-PROT"]["charge_kwh"], 20)
 
+    def test_local_charger_energy_is_metered_as_storage_not_ship_service(self):
+        _, edges, switches, equipment = grid()
+        before = initial_electrical()
+        power = source_dispatch(
+            equipment, edges, switches, "normal",
+            ledger=before, dt_s=10, cartridge_kg=100)
+        self.assertIn("PWR-MSB-A", power["producer_nodes"])
+        self.assertNotIn("NODE-BAT-COMMON-OPS", power["producer_nodes"])
+        requested = .01  # 10 kW at an individually fused in-room charger
+        updated = step_energy(
+            before, power, 10,
+            actual_requested_mw=power["requested_mw"] + requested,
+            external_charge_mw=requested)
+        delta = requested * 10 / 3.6
+        self.assertAlmostEqual(updated["last"]["local_battery_recharged_kwh"],
+                               delta)
+        self.assertAlmostEqual(updated["meter"]["served_kwh"], 1.35 * 10 / 3.6)
+        self.assertAlmostEqual(updated["meter"]["generation_kwh"],
+                               updated["meter"]["served_kwh"] + delta)
+        self.assertAlmostEqual(
+            updated["last"]["generator_cartridge_consumed_kg"],
+            updated["meter"]["generation_kwh"] / 1000.0 * 2.0)
+        self.assertTrue(validate_electrical(updated))
+        self.assertEqual(before["meter"]["generation_kwh"], 0)
+        with self.assertRaises(ElectricalError):
+            step_energy(before, power, 10, external_charge_mw=3.3)
+        # The local charger must not siphon energy from operational or
+        # protected batteries when the actual generator is not online.
+        equipment["GEN-M"] = eq(False)
+        equipment["GEN-B"] = eq(False)
+        dark = source_dispatch(
+            equipment, edges, switches, "essential",
+            ledger=before, dt_s=10, cartridge_kg=100)
+        with self.assertRaises(ElectricalError):
+            step_energy(before, dark, 10,
+                        actual_requested_mw=0.01, external_charge_mw=0.01)
+
     def test_generator_cartridge_limit_covers_service_and_charging_together(self):
         _, edges, switches, equipment = grid()
         ledger = survey_battery(initial_electrical(), "BAT-COMMON-PROT",
