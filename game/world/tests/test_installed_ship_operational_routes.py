@@ -206,3 +206,57 @@ class InstalledContinuousCrewRoutes(EvenniaTestCase):
                 with self.assertRaises(PhysicsError):
                     self.action("hatch", link, "open")
                 self.assertEqual(state("access", link).setting, prior)
+
+    def test_aft_eva_lock_round_trip_uses_real_suit_power_and_retained_gas(self):
+        """Aft lock independently supports issue, vacuum exit and safe return."""
+        from world.continuous_ship_physics import commission_g19_eva
+        commission_g19_eva(operator_approved=True)
+        set_isolator("ISO-DB-A-AFT", "closed", operator=True)
+        aboard = find_ship_space("TRUNK-B-AFT")
+        chamber = find_ship_space("EVA-AFT")
+        outside = find_ship_space("EXT-AFT")
+        original_gas = state("pressure", "PZ-AFT-EVA").quantity
+        self.engineer.move_to(find_ship_space("ENG-LOCKER"), quiet=True)
+        self.action("eva", "INV-DC-CONSUMABLES", "stage:0.75")
+        self.engineer.move_to(aboard, quiet=True)
+        self.action("eva", "EVA-AFT", "inner_open")
+        self.assertEqual(
+            self.transit(self.engineer, "ACC-EVA-AFT",
+                         "forward")["status"], "succeeded")
+        self.assertEqual(self.engineer.location, chamber)
+        self.action("eva", "EVA-AFT", "inner_close")
+        self.action("eva", "EVA-AFT", "checkout")
+        self.action("switch", "ISO-AIR-FIXED-EVA-AFT", "closed")
+        self.action("switch", "ISO-LP-EVA-AFT", "closed")
+        self.action("eva", "EVA-AFT", "pumpdown")
+        self.advance(90)
+        self.assertEqual(_clock().details["eva"]["locks"]["EVA-AFT"]["mode"],
+                         "vacuum")
+        self.action("eva", "EVA-AFT", "outer_open")
+        outward = self.transit(
+            self.engineer, "ACC-EVA-AFT-EXT", "forward")
+        self.assertEqual(outward["status"], "queued")
+        self.assertEqual(outward["travel_seconds"], 45)
+        self.advance(45)
+        self.assertEqual(self.engineer.location, outside)
+        self.assertEqual(
+            self.transit(self.engineer, "ACC-EVA-AFT-EXT",
+                         "reverse")["status"], "queued")
+        self.advance(45)
+        self.assertEqual(self.engineer.location, chamber)
+        self.action("eva", "EVA-AFT", "outer_close")
+        self.action("eva", "EVA-AFT", "repressurise")
+        self.advance(90)
+        self.assertEqual(_clock().details["eva"]["locks"]["EVA-AFT"]["mode"],
+                         "pressurised")
+        self.assertAlmostEqual(state("pressure", "PZ-AFT-EVA").quantity,
+                               original_gas, delta=.5)
+        self.action("eva", "EVA-AFT", "return")
+        self.action("eva", "EVA-AFT", "inner_open")
+        self.assertEqual(
+            self.transit(self.engineer, "ACC-EVA-AFT",
+                         "reverse")["status"], "succeeded")
+        self.assertEqual(self.engineer.location, aboard)
+        self.assertIsNone(
+            _clock().details["eva"]["suits"]["EVA-AFT-SUIT-1"]["holder"])
+        self.assertEqual(_clock().details["eva"]["completed_transits"], 2)
