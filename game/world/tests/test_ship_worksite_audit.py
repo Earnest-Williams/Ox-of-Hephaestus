@@ -75,6 +75,7 @@ class WorksiteCoverageTests(unittest.TestCase):
         # A missing room is a real installation defect, never an inferred
         # accessible control station; keep this check strict.
         self.assertEqual(report["unplaced_equipment"], [])
+        self.assertEqual(report["selected_route_uses_freight_hardware"], [])
         print("G19 equipment worksite access classification:",
               json.dumps({
                   "status": report["status"],
@@ -82,6 +83,9 @@ class WorksiteCoverageTests(unittest.TestCase):
                   "route_classes": report["route_classes"],
                   "route_obligations": report["selected_route_obligations"],
                   "disconnected_equipment": report["disconnected_equipment"],
+                  "no_personnel_route_count": len(report["no_personnel_route_candidate"]),
+                  "no_personnel_route_ids": report["no_personnel_route_candidate"],
+                  "geometry_freight_shortcut_count": len(report["geometry_shortest_freight_shortcuts"]),
                   "freight_segment_count": len(report[
                       "selected_route_uses_freight_hardware"]),
                   "exterior_equipment_count": report[
