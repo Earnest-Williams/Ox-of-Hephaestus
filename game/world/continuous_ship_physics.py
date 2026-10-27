@@ -854,7 +854,8 @@ def configure_g19_electrical_fault(*, operator_approved=False, breaker_id,
     breaker = state("isolator", breaker_id, lock=True)
     if (breaker.reference.get("network")
             not in {"power", "g19_motor", "g19_motor_protected",
-                "g19_local_dc", "g19_local_charger"}
+                "g19_local_dc", "g19_local_charger",
+                "g19_equipment_service"}
             or breaker.condition in _BROKEN):
         raise PhysicsError("No usable installed electrical breaker at this site")
     try:
@@ -2206,6 +2207,12 @@ def tick_continuous_physics(*, now_game_time=None):
     refuge_captured_before = (
         refuge_scrubbers["meter"]["captured_kg"]
         if refuge_scrubbers is not None else 0.0)
+    service_operations = clock.details.get("service_operations")
+    if service_operations is not None:
+        try:
+            validate_service_operations(service_operations)
+        except ElectricalError as exc:
+            raise PhysicsError(str(exc)) from exc
     aux_edges = {x.source_id: x for x in edges
                  if x.reference.get("network") in {
                      "g19_motor", "g19_motor_protected",
@@ -2336,6 +2343,14 @@ def tick_continuous_physics(*, now_game_time=None):
             return (electrical is None or motor_power(
                 name, nodes=power["nodes"], equipment=equipment,
                 edges=aux_edges, switches=isolators))
+        if service_operations is not None:
+            try:
+                service_operations = step_service_operations(
+                    service_operations, dt, nodes=power["nodes"],
+                    equipment=equipment, edges=aux_edges,
+                    switches=isolators, supply_assured=power["assured"])
+            except ElectricalError as exc:
+                raise PhysicsError(str(exc)) from exc
         if water_state is not None:
             hardware = _water_hardware(
                 water_state, equipment, edges, isolators,
@@ -3005,6 +3020,22 @@ def tick_continuous_physics(*, now_game_time=None):
             "shortfall_mw": round(power["shortfall_mw"], 4),
             "ventilation_powered": air_on,
             "cooling_kw": round(total_cool_kw, 3),
+            "active_cargo_environment_pairs": (
+                sum(all(f"{drum}-{kind}" in
+                        service_operations["last"]["operating"]
+                        for kind in ("CARGO-HX", "CARGO-GAS"))
+                    for drum in (f"DR-{n:02d}" for n in range(1, 7)))
+                if service_operations is not None else 0),
+            "active_cultivation_bays": (
+                sum(all(f"GROW-{n}-{kind}" in
+                        service_operations["last"]["operating"]
+                        for kind in ("CTRL", "NUTRIENT"))
+                    for n in (1, 2, 3))
+                if service_operations is not None else 0),
+            "active_workshop_machines": (
+                len(set(service_operations["last"]["operating"])
+                    & MANUAL_RESTART)
+                if service_operations is not None else 0),
             "refuge_co2_captured_kg": (
                 round(refuge_scrubbers["meter"]["captured_kg"]
                       - refuge_captured_before, 6)
@@ -3573,6 +3604,8 @@ def tick_continuous_physics(*, now_game_time=None):
         d["local_backup"] = local_backup
     if refuge_scrubbers is not None:
         d["refuge_scrubbers"] = refuge_scrubbers
+    if service_operations is not None:
+        d["service_operations"] = service_operations
     if electrical is not None:
         d["electrical"] = electrical
         d["generator_spent_cartridge_kg"] = cartridge_spent
@@ -3912,7 +3945,8 @@ def crew_physical_action(actor, request_id, action, target, value):
         if (_clock().details.get("electrical") is not None
                 and item.reference.get("network") in {
                     "power", "g19_motor", "g19_motor_protected",
-                    "g19_local_dc", "g19_local_charger"}):
+                    "g19_local_dc", "g19_local_charger",
+                    "g19_equipment_service"}):
             _electrical_crew_air_gate(
                 actor, item.space_id, _clock().details["electrical"])
         if value == "closed" and target.startswith("ISO-MSB-XTIE"):
@@ -4132,7 +4166,8 @@ def crew_physical_action(actor, request_id, action, target, value):
             breaker = state("isolator", target, lock=True)
             if breaker.reference.get("network") not in {
                     "power", "g19_motor", "g19_motor_protected",
-                    "g19_local_dc", "g19_local_charger"}:
+                    "g19_local_dc", "g19_local_charger",
+                    "g19_equipment_service"}:
                 raise PhysicsError("Not an installed power breaker")
             _crew_at(actor, breaker.space_id)
             if breaker.setting != "open" or breaker.condition in _BROKEN:
