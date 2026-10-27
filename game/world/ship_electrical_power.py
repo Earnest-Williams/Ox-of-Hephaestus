@@ -298,6 +298,10 @@ def source_dispatch(equipment, edges, switches, profile, *, ledger=None,
             generator_mw,
             remaining_kg * 3600.0 / (
                 GENERATOR_CARTRIDGE_KG_PER_MWH * dt_s))
+    # Dry, disconnected generator terminals are not live bus sources,
+    # irrespective of stale ON_LOAD command indications.
+    if generator_mw <= 1e-12:
+        sources = {}
     starts = ["NODE-" + x for x in sources]
     shore = ledger.get("shore") if ledger is not None else None
     shore_active = bool(shore and shore["connected"] and moored
