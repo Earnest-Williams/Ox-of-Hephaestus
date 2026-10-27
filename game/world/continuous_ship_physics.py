@@ -87,7 +87,7 @@ from world.ship_crew_physiology import (
 )
 from world.ship_crew_exposure import initial_exposure
 from world.ship_auxiliary_electrical import (
-    LOCAL_LOADS, install_auxiliary_circuits, initial_local_backup,
+    LOCAL_LOADS, MOTORS, install_auxiliary_circuits, initial_local_backup,
     validate_local_backup, survey_local_backup, set_local_mode,
     step_local_backup, motor_power,
 )
