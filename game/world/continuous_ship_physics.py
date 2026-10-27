@@ -830,7 +830,7 @@ def commission_g19_water(*, operator_approved=False):
             "protected_kg": stocks["reserve"] * 1000}
 
 
-def _water_hardware(water, equipment, edges, isolators, nodes, power):
+def _water_hardware(water, equipment, edges, isolators, nodes, power, *, motor_ready=None):
     """Actual running equipment and conducting wet networks, not diagram links."""
     def sound(name):
         row = equipment.get(name)
@@ -990,6 +990,9 @@ def _water_hardware(water, equipment, edges, isolators, nodes, power):
     process_ok = {
         side: (running and sound(f"WASTE-PROC-{side}")
                and sound(f"WATER-PROC-{side}")
+               and (motor_ready is None or (
+                   motor_ready(f"WASTE-PROC-{side}")
+                   and motor_ready(f"WATER-PROC-{side}")))
                and any(sound(f"ROT-POTABLE-WATER-{path}") for path in "AB")
                and connected("potable_water",
                              owned("potable_water", f"WATER-PROC-{side}"),
@@ -1017,8 +1020,9 @@ def _water_hardware(water, equipment, edges, isolators, nodes, power):
         edge = next((e for e in edges
                      if e.source_id == f"EDGE-BYP-{side}-H2"), None)
         if (oxygen_side is None and potable and process_ok[side]
-                and _on(equipment, f"ECLSS-{side}") and
-                outlet and outlet.condition not in _BROKEN and
+                and _on(equipment, f"ECLSS-{side}")
+                and (motor_ready is None or motor_ready(f"ECLSS-{side}"))
+                and outlet and outlet.condition not in _BROKEN and
                 field and field.condition not in _BROKEN
                 and edge and wet_edge_can_flow(edge)
                 and water["oxygen_outlet_verified"][side]):
@@ -2218,9 +2222,14 @@ def tick_continuous_physics(*, now_game_time=None):
                        moored=contacts_active(cargo), nodes=water_nodes,
                        cartridge_kg=(cartridge_stock.quantity * 1000.0
                                      if cartridge_stock is not None else None))
+        def motor_ready(name):
+            return (electrical is None or motor_power(
+                name, nodes=power["nodes"], equipment=equipment,
+                edges=aux_edges, switches=isolators))
         if water_state is not None:
             hardware = _water_hardware(
-                water_state, equipment, edges, isolators, water_nodes, power)
+                water_state, equipment, edges, isolators,
+                water_nodes, power, motor_ready=motor_ready)
             try:
                 water_state, balances, water_report = step_water(
                     water_state, dt,
@@ -2305,6 +2314,7 @@ def tick_continuous_physics(*, now_game_time=None):
             and equipment[name + "-FREIGHT-COLLAR"].condition not in _BROKEN
             and equipment.get(name + "-RADIAL-FREIGHT-HANDLER") is not None
             and equipment[name + "-RADIAL-FREIGHT-HANDLER"].condition not in _BROKEN
+            and motor_ready(name + "-RADIAL-FREIGHT-HANDLER")
             and rotors[name]["hardlock"] and rotors[name]["brake"]
             and rotors[name]["freight_collar"]
             and abs(rotors[name]["rpm"]) < 0.001
@@ -2350,6 +2360,7 @@ def tick_continuous_physics(*, now_game_time=None):
             if (free_mw + 1e-9 >= PORT_AUX_MW and power["assured"]
                     and access and access.condition not in _BROKEN
                     and access.setting == "closed" and sound_handler
+                    and motor_ready(drum + "-RADIAL-FREIGHT-HANDLER")
                     and rotor["hardlock"] and rotor["brake"]
                     and rotor["target_rpm"] == 0
                     and abs(rotor["rpm"]) <= 0.001
@@ -2386,6 +2397,7 @@ def tick_continuous_physics(*, now_game_time=None):
                     continue
                 if job["phase"] in {"hauling", "aborting", "returning"}:
                     if (power["assured"] and available + 1e-9 >= CARGO_TRANSFER_MW
+                            and motor_ready(job["portal_id"][:5] + "-RADIAL-FREIGHT-HANDLER")
                             and _waste_freight_ready(
                                 job, water_state, rotors=rotors,
                                 equipment=equipment, access=by_access,
@@ -2395,6 +2407,7 @@ def tick_continuous_physics(*, now_game_time=None):
                         available -= CARGO_TRANSFER_MW
                 elif job["phase"] == "offloading":
                     if (power["assured"] and available + 1e-9 >= WASTE_PORT_AUX_MW
+                            and motor_ready(job["portal_id"][:5] + "-RADIAL-FREIGHT-HANDLER")
                             and _waste_port_ready(
                                 job, rotors=rotors, equipment=equipment,
                                 access=by_access, cargo=cargo)):
@@ -2439,7 +2452,8 @@ def tick_continuous_physics(*, now_game_time=None):
         rotor_equipment = {
             "HAB": (
                 sound("HAB-BEARING-FORE") and sound("HAB-BEARING-AFT")
-                and any(sound(x) for x in ("HAB-DRIVE-FORE", "HAB-DRIVE-AFT"))
+                and any(sound(x) and motor_ready(x)
+                        for x in ("HAB-DRIVE-FORE", "HAB-DRIVE-AFT"))
             ),
             "WR-01": (
                 sound("WR-BEARING-A") and sound("WR-BEARING-B")
@@ -2447,8 +2461,10 @@ def tick_continuous_physics(*, now_game_time=None):
                 and any(sound(x) for x in ("WR-DRIVE-A", "WR-DRIVE-B"))
             ),
             **{
-                name: all(any(sound(f"BE-{bearing:02d}-LUBE-{mode}")
-                              for mode in ("N", "S"))
+                name: all(any(
+                    sound(f"BE-{bearing:02d}-LUBE-{mode}")
+                    and motor_ready(f"BE-{bearing:02d}-LUBE-{mode}")
+                    for mode in ("N", "S"))
                           for bearing in (2 * index - 1, 2 * index))
                 for index, name in enumerate(DRUMS, 1)
             },
@@ -2479,7 +2495,8 @@ def tick_continuous_physics(*, now_game_time=None):
                 station and all(
                     equipment.get(f"IX-{station}-{suffix}") is not None
                     and equipment[f"IX-{station}-{suffix}"].condition not in _BROKEN
-                    for suffix in ("DRIVE", "CARRIER", "FIXED-COLLAR", "ROT-COLLAR")))
+                    for suffix in ("DRIVE", "CARRIER", "FIXED-COLLAR", "ROT-COLLAR"))
+                and motor_ready(f"IX-{station}-DRIVE"))
             try:
                 hab_sync = step_hab_sync(
                     hab_sync, dt, hab_rpm=rotors["HAB"]["rpm"],
@@ -2567,6 +2584,7 @@ def tick_continuous_physics(*, now_game_time=None):
             (("ECLSS-A", "NODE-HAB-06-ECLSS-A-LP"),
              ("ECLSS-B", "NODE-HAB-08-ECLSS-B-LP"))
             if powered and _on(equipment, eclss) and node in power["nodes"]
+            and motor_ready(eclss)
         }
         # A powered processor cannot drive fans in another isolated duct
         # network. Motorised mixing requires a source on the same *currently
@@ -2635,13 +2653,11 @@ def tick_continuous_physics(*, now_game_time=None):
             edges, isolators, "lt_cooling", ["NODE-LT-PLANT"])
         cool_zones = {node_zones.get(n) for n in cooling_nodes}
         cool_zones &= set(cells)
-        motor_ready = (electrical is None or motor_power(
-            "LT-PLANT", nodes=power["nodes"], equipment=equipment,
-            edges=aux_edges, switches=isolators))
+        lt_motor_ready = motor_ready("LT-PLANT")
         total_cool_kw = (min(3750.0, 937.5 * sum(
             _on(equipment, "RAD-LT-" + str(i)) for i in range(1, 5)))
             if powered and _on(equipment, "LT-PLANT")
-            and motor_ready and (electrical is None or protected_power) else 0.0)
+            and lt_motor_ready and (electrical is None or protected_power) else 0.0)
         # The propulsion thermal store and ordinary equipment share the
         # finite radiator budget: never reject the same heat twice.
         total_cool_kw = max(0.0, total_cool_kw - drive_cooling_kw)
@@ -2649,7 +2665,7 @@ def tick_continuous_physics(*, now_game_time=None):
 
         fire_starts = [n for pump in ("FIRE-PUMP-FWD", "FIRE-PUMP-AFT")
                        if (protected_power if electrical is not None else powered)
-                       and _on(equipment, pump)
+                       and _on(equipment, pump) and motor_ready(pump)
                        for n in ["NODE-" + pump]]
         fire_nodes = _reachable(edges, isolators, "fire_main", fire_starts)
         # Waste heat is a physical output of operating machinery, not an
@@ -3267,7 +3283,9 @@ def tick_continuous_physics(*, now_game_time=None):
                     access=by_access, pressure=by_pressure, room_zones=zones,
                     pressure_safe=_air_safe,
                     powered=(power["assured"] and
-                             rotary_power_by_unit.get(rotor_name, False)),
+                             rotary_power_by_unit.get(rotor_name, False)
+                             and (rotor_name not in DRUMS or
+                                  motor_ready(rotor_name + "-PERSONNEL-INDEXER"))),
                     hab_sync=hab_sync):
                 ready_links.add(job["link"])
         try:
