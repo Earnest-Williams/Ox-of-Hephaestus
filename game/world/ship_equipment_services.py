@@ -109,6 +109,38 @@ def install_service_circuits(world_state):
             "separately_isolated_units": len(SERVICE_LOADS)}
 
 
+def enrol_service_plant_controls(world_state):
+    """Nonresetting equipment control migration for already-armed older ships.
+
+    An existing plant command, restart delay, trip, damage and service history
+    are never overwritten. Only previously absent controls are seeded from
+    the selected original automatic-service/manual-workshop roles.
+    """
+    changed = []
+    for name in sorted(SERVICE_LOADS):
+        unit = world_state.objects.select_for_update().get(
+            pk="equipment:" + name)
+        old = dict(unit.details)
+        details = dict(old)
+        if "physics_commanded_on" not in details:
+            details["physics_commanded_on"] = (
+                name in AUTO_SERVICE and unit.condition not in BROKEN)
+        if "physics_online" not in details:
+            details["physics_online"] = (
+                name in AUTO_SERVICE and unit.condition not in BROKEN
+                and details["physics_commanded_on"] is True)
+        if "physics_startup_s" not in details:
+            details["physics_startup_s"] = 0.0
+        if details != old:
+            unit.details = details
+            unit.revision += 1
+            changed.append(unit)
+    if changed:
+        world_state.objects.bulk_update(
+            changed, ["details", "revision"], batch_size=26)
+    return len(changed)
+
+
 def service_power(name, *, nodes, equipment, edges, switches):
     """A remote switchboard cannot override one local failed appliance feed."""
     room, panel = SERVICE_LOADS[name]
