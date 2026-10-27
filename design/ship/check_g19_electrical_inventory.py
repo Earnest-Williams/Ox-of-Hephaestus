@@ -1,7 +1,7 @@
 """Audit G19 priority machinery against the exact original v0.5 installation.
 
 Pure Python: no Evennia, database, world reset, inferred cables, or voyage.
-The intentionally scoped 16 live machinery classes are not a claim that
+The intentionally scoped 17 active powered equipment families are not a claim that
 every piece of passive or future-service equipment needs its own power node.
 """
 from __future__ import annotations
@@ -26,7 +26,7 @@ ACTIVE_FAMILIES = frozenset({
     "main_hab_drive", "indexer_drive", "cargo_handler",
     "indexed_drum_personnel_carrier", "rotor_drive", "linear_drive",
     "oxygen_generation_skid", "carbon_dioxide_recovery_skid",
-    "dehumidifier", "air_handler",
+    "dehumidifier", "air_handler", "ftl_field_system",
 })
 MAIN_COUNTS = (438, 450, 466)
 
@@ -48,7 +48,7 @@ def audit():
     if tuple(map(lambda key: len(original[key]), ("node", "edge", "isolator"))) != MAIN_COUNTS:
         raise AssertionError("Original source-to-load power graph has changed")
     machinery = {name for name, e in equipment.items() if e["kind"] in ACTIVE_FAMILIES}
-    if machinery != set(MOTORS) or len(machinery) != 71:
+    if machinery != set(MOTORS) or len(machinery) != 72:
         missing = sorted(machinery - set(MOTORS))
         invented = sorted(set(MOTORS) - machinery)
         raise AssertionError(
