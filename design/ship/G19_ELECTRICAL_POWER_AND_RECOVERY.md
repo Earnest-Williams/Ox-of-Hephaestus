@@ -264,6 +264,49 @@ These new operation records are **operating availability**, not automatic
 new food production, cargo atmosphere generation or fabricated spares.
 Process throughput will follow each family-specific inventory contract.
 
+### Refuge scrubber cartridge servicing from installed ship consumables
+
+Crew can now replenish scrubber capacity using the ship's existing
+`INV-DC-CONSUMABLES` life-safety stock, which is physically allocated
+between the central damage-control stores and **HAB-04/HAB-08-REFUGE**.
+The original source inventory has **8 t total**, including **1.5 t
+originally assigned at each refuge**; source surveys now enforce the
+original room allocations in addition to global remaining stock.
+
+A qualified worker must attend the existing healthy refuge pack, work
+in verified safe atmospheric conditions, and isolate **both** the original
+normal refuge-air branch and the G19 local DC battery-to-appliance fuse.
+The real local consumable inventory must first be independently
+operator-surveyed using `survey_g19_water_material`. The local command
+is `service HAB-04-REFUGE-AIR refill:<kg>` or
+`service HAB-08-REFUGE-AIR refill:<kg>`, with a maximum physically
+portable **4 kg** per operation.
+
+Pure `ship_refuge_media_service.py` moves the same surveyed amount
+from the shared source inventory into the actual existing pack.
+Unsurveyed module space is filled up to its nominal bounded capture
+capacity; once the fitted cartridge rack is fully loaded, only
+**already used** media may be swapped. Captured CO2 in a removed cassette
+transfers from active scrubbing credit to an explicit persistent
+retired-CO2 ledger. Up to **8 kg** of sealed used cartridge material
+may remain at each local refit site. Full local retained-spent capacity
+halts replacement pending proper waste handling. A cartridge swap
+never releases captured CO2 into breathable atmosphere, resets a battery
+or reconditions an unrepairable appliance.
+
+Inventory survey, original supply debit, installed pack state,
+retained spent material and crew request receipt change in **one
+authoritative transaction**. Replayed commands have no new effect; a
+refuge refill cannot bypass the normal existing source-site/material
+conservation tests. This is a fictional service retrofit based on
+the fitted packs and original existing consumables; individual cartridge
+chemistry is abstracted to the bounded respiratory-mass proxy.
+
+Pure regression:
+`world.tests.test_ship_refuge_media_service`. Installed Evennia
+regression: `test_refuge_scrubber_media_replacement_debits_actual_local_stock`.
+Both run through the electrical acceptance workflow.
+
 ### Remaining verification and modelling boundaries
 
 `ox-g19-electrical.yml` gates pure electrical source/charge conservation and faults, installed character/circuit/replay coverage, G18 gas/fire/cooling regressions, and G19 water/cargo/movement compatibility. Installed outcomes must be evaluated against the **exact tested commit**, not a prior acceptance. If the draft fast CI scope gate requires deferral of expensive PR-triggered jobs, focused tests still execute on branch **push**; do not bypass the repository's accepted scope policy.
