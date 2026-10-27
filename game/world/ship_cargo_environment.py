@@ -18,8 +18,10 @@ from world.ship_cargo_manifest import DRUMS
 
 MAX_STEP_S = 10.0
 COOLER_LIMIT_KW = 20.0
-MIN_T_K = 230.0
-MAX_T_K = 350.0
+MIN_T_K = 1.0
+MAX_T_K = 1000.0
+SURVEY_MIN_T_K = 230.0
+SURVEY_MAX_T_K = 350.0
 PROFILES = {
     "cold_chain": {"min_k": 260.0, "max_k": 283.15,
                    "loss_per_day_k": 0.025},
@@ -93,8 +95,7 @@ def validate_cargo_environment(ledger, manifest):
         _finite(row["unmeasured_s"])
         if row["last_temperature_k"] is not None:
             _finite(row["last_temperature_k"], MIN_T_K, MAX_T_K)
-    for key in ("radiator_rejected_kj",):
-        _finite(ledger["meter"][key])
+    _finite(ledger["meter"]["radiator_rejected_kj"])
     exchange = ledger["meter"]["gallery_exchange_kj"]
     if type(exchange) not in (int, float) or not math.isfinite(exchange):
         raise CargoClimateError("Cargo gallery thermal exchange is not finite")
@@ -116,7 +117,7 @@ def survey_drum_environment(ledger, manifest, drum, *, temperature_k,
     if drum not in DRUMS or ledger["drums"][drum] is not None:
         raise CargoClimateError("Drum cargo microclimate already surveyed or absent")
     measurement = {
-        "temperature_k": _finite(temperature_k, MIN_T_K, MAX_T_K),
+        "temperature_k": _finite(temperature_k, SURVEY_MIN_T_K, SURVEY_MAX_T_K),
         "target_k": _finite(target_k, 265.0, 315.0),
         "heat_capacity_kj_k": _finite(
             heat_capacity_kj_k, 100.0, 50_000_000.0),
