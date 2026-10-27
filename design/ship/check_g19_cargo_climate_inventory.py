@@ -40,7 +40,8 @@ def audit():
                         gallery, "NODE-" + drum + "-SVC-DB")):
                 raise AssertionError("False powered cargo environmental pair: " + drum)
         interface = drum + "-LT-IF"
-        if interface not in e or e[interface]["space_id"] != gallery:
+        if (interface not in e or
+                e[interface]["space_id"] != drum + "-SERVICE-LOCK"):
             raise AssertionError("Uninstalled cargo LT rotary exchanger: " + drum)
         terminal = nodes.get("NODE-" + interface)
         cooling = edges.get("EDGE-" + interface)
