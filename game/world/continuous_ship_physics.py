@@ -88,7 +88,8 @@ from world.ship_crew_physiology import (
 from world.ship_crew_exposure import initial_exposure
 from world.ship_auxiliary_electrical import (
     LOCAL_LOADS, MOTORS, install_auxiliary_circuits, initial_local_backup,
-    validate_local_backup, survey_local_backup, set_local_mode,
+    validate_local_backup, migrate_local_backup, survey_local_backup,
+    set_local_mode,
     step_local_backup, motor_power,
 )
 from world.ship_electrical_power import (
@@ -518,12 +519,16 @@ def commission_g19_electrical(*, operator_approved=False):
     if item.details.get("electrical") is not None:
         install_auxiliary_circuits(CanonicalShipState)
         upgraded = migrate_v1_electrical(item.details["electrical"])
+        local_old = item.details.get("local_backup")
+        local_upgraded = migrate_local_backup(
+            local_old if local_old is not None else initial_local_backup())
         fuel_needs_migration = "generator_cartridge_baseline_kg" not in item.details
-        if upgraded != item.details["electrical"] or fuel_needs_migration:
+        if (upgraded != item.details["electrical"]
+                or local_upgraded != local_old or fuel_needs_migration):
             previous = _snapshot(item)
             details = dict(item.details)
             details["electrical"] = upgraded
-            details.setdefault("local_backup", initial_local_backup())
+            details["local_backup"] = local_upgraded
             if fuel_needs_migration:
                 stock = state("inventory", "INV-GEN-CART", lock=True)
                 if stock.quantity is None or not math.isfinite(stock.quantity) or stock.quantity < 0:
@@ -656,7 +661,9 @@ def survey_g19_electrical_source(*, operator_approved=False, source,
             raise PhysicsError("Local emergency source is not healthy at its installed site")
         for pk in ("node:" + "NODE-G19-BAT-" + source,
                    "edge:" + "EDGE-G19-LOCAL-" + source,
-                   "isolator:" + "ISO-G19-LOCAL-" + source):
+                   "isolator:" + "ISO-G19-LOCAL-" + source,
+                   "edge:" + "EDGE-G19-CHARGE-" + source,
+                   "isolator:" + "ISO-G19-CHARGE-" + source):
             if not CanonicalShipState.objects.filter(pk=pk).exists():
                 raise PhysicsError("Local backup wiring not installed")
         try:
@@ -760,7 +767,7 @@ def configure_g19_electrical_fault(*, operator_approved=False, breaker_id,
         raise PhysicsError("Electrical plant not commissioned")
     breaker = state("isolator", breaker_id, lock=True)
     if (breaker.reference.get("network")
-            not in {"power", "g19_motor", "g19_local_dc"}
+            not in {"power", "g19_motor", "g19_local_dc", "g19_local_charger"}
             or breaker.condition in _BROKEN):
         raise PhysicsError("No usable installed electrical breaker at this site")
     try:
@@ -2101,7 +2108,8 @@ def tick_continuous_physics(*, now_game_time=None):
         except ElectricalError as exc:
             raise PhysicsError(str(exc)) from exc
     aux_edges = {x.source_id: x for x in edges
-                 if x.reference.get("network") in {"g19_motor", "g19_local_dc"}}
+                 if x.reference.get("network") in {
+                     "g19_motor", "g19_local_dc", "g19_local_charger"}}
     if electrical is not None:
         try:
             validate_electrical(electrical)
@@ -2749,18 +2757,38 @@ def tick_continuous_physics(*, now_game_time=None):
                 cell["burn"] = 0.0
             # No automatic ignition without a finite, already ignited fuel load.
             # Smoke/heat and equipment damage can still spread via open ducts.
+        local_charge_mw = 0.0
         if local_backup is not None:
+            prior_charge = local_backup["meter"]["charged_kwh"]
             try:
                 local_backup = step_local_backup(
                     local_backup, dt, nodes=power["nodes"],
-                    equipment=equipment, edges=aux_edges, switches=isolators)
+                    equipment=equipment, edges=aux_edges, switches=isolators,
+                    producer_nodes=power["producer_nodes"],
+                    producing_mw=power["producer_available_mw"],
+                    other_requested_mw=power["requested_mw"])
             except ElectricalError as exc:
                 raise PhysicsError(str(exc)) from exc
+            local_charge_mw = local_backup["last"]["grid_charge_requested_mw"]
+            if not math.isclose(
+                    local_backup["meter"]["charged_kwh"] - prior_charge,
+                    local_charge_mw * dt / 3.6,
+                    rel_tol=1e-10, abs_tol=1e-7):
+                raise PhysicsError("Local charger energy escaped the generator ledger")
+            if local_charge_mw > 0:
+                power["requested_mw"] += local_charge_mw
+                power["dispatched_mw"] += local_charge_mw
         if electrical is not None:
             try:
                 electrical = step_energy(
                     electrical, power, dt,
-                    actual_requested_mw=power["requested_mw"])
+                    actual_requested_mw=power["requested_mw"],
+                    external_charge_mw=local_charge_mw)
+                if not math.isclose(
+                        electrical["last"]["local_battery_recharged_kwh"],
+                        local_charge_mw * dt / 3.6,
+                        rel_tol=1e-10, abs_tol=1e-7):
+                    raise PhysicsError("Generator and local charger meters disagree")
             except ElectricalError as exc:
                 raise PhysicsError(str(exc)) from exc
             # Generator fuel conversion uses the original INV-GEN-CART stock
@@ -3830,8 +3858,8 @@ def crew_physical_action(actor, request_id, action, target, value):
             _electrical_crew_air_gate(actor, battery.space_id, e)
             if battery.condition in _BROKEN:
                 raise PhysicsError("Local emergency battery has failed")
-            if value not in {"standby", "reserve"}:
-                raise PhysicsError("Local battery requires standby|reserve")
+            if value not in {"standby", "reserve", "charge"}:
+                raise PhysicsError("Local battery requires standby|reserve|charge")
             d["local_backup"] = set_local_mode(d["local_backup"], target, value)
         elif target in (*POWER_BANKS, *POWER_FLYWHEELS):
             bank_equipment = state("equipment", target, lock=True)
@@ -3864,7 +3892,7 @@ def crew_physical_action(actor, request_id, action, target, value):
         elif target.startswith("ISO-") and value == "reset":
             breaker = state("isolator", target, lock=True)
             if breaker.reference.get("network") not in {
-                    "power", "g19_motor", "g19_local_dc"}:
+                    "power", "g19_motor", "g19_local_dc", "g19_local_charger"}:
                 raise PhysicsError("Not an installed power breaker")
             _crew_at(actor, breaker.space_id)
             if breaker.setting != "open" or breaker.condition in _BROKEN:
@@ -5119,6 +5147,7 @@ def local_physics_readout(actor, target):
         load = state("equipment", spec[1])
         edge = state("edge", "EDGE-G19-LOCAL-" + target)
         breaker = state("isolator", "ISO-G19-LOCAL-" + target)
+        charger = state("isolator", "ISO-G19-CHARGE-" + target)
         account = ledger["units"].get(target)
         return {
             "id": target, "rated": account is not None,
@@ -5128,7 +5157,9 @@ def local_physics_readout(actor, target):
             "battery_sound": battery.condition not in _BROKEN,
             "appliance_sound": load.condition not in _BROKEN,
             "fuse_closed": breaker.setting == "closed",
+            "charger_fuse_closed": charger.setting == "closed",
             "wire_sound": edge.condition not in _BROKEN,
+            "charged_kwh": account["charged_kwh"] if account else None,
             "last_tick_battery_active": bool(
                 ledger["last"].get("active_local_consumers", {}).get(target)),
             "scope": "attended_individual_local_dc_circuit",
