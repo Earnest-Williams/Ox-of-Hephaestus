@@ -141,9 +141,15 @@ class InstalledElectricalTests(EvenniaTestCase):
         self.assertTrue(first["power_assured"])
         set_isolator("ISO-G19-MOTOR-ECLSS-A", "open", operator=True)
         second = tick_continuous_physics(now_game_time=1020)
-        self.assertFalse(second["ventilation_powered"])
         self.assertTrue(second["power_assured"])
         self.assertGreater(second["available_mw"], 0)
+        # The opposite train may remain energised through its independent
+        # protected route. Disconnect both motor branches before claiming a
+        # whole-ship ventilation outage.
+        set_isolator("ISO-G19-MOTOR-ECLSS-B", "open", operator=True)
+        third = tick_continuous_physics(now_game_time=1030)
+        self.assertFalse(third["ventilation_powered"])
+        self.assertTrue(third["power_assured"])
         self.crew_at("HAB-06-ECLSS-A")
         local = local_physics_readout(self.worker, "ECLSS-A")
         self.assertFalse(local["feeder_conducting"])
