@@ -231,6 +231,63 @@ class InstalledElectricalTests(EvenniaTestCase):
         self.assertEqual(still.details["local_backup"]["last"][
             "grid_charge_requested_mw"], 0)
 
+    def test_normal_fire_pump_actual_mist_stops_on_local_motor_fuse(self):
+        from world.continuous_ship_physics import _reachable
+        commission_g19_electrical(operator_approved=True)
+        # The forward pump has a real B-side supply. A single 0.65 MW
+        # generator can meet the essential operating schedule without
+        # implying that the independent protected transfer is selected.
+        self.line_up_real_feeder("NODE-GEN-B", "NODE-LP-WATER-FWD")
+        clock = CanonicalShipState.objects.get(pk="meta:continuous-physics")
+        data = dict(clock.details)
+        data["load_profile"] = "essential"
+        clock.details = data
+        clock.save(update_fields=["details"])
+        # Exclude the other independently breakered pump throughout this
+        # test so it cannot conceal a failed forward motor.
+        set_isolator("ISO-G19-MOTOR-FIRE-PUMP-AFT", "open", operator=True)
+        fire_edges = [
+            edge for edge in CanonicalShipState.objects.filter(category="edge")
+            if edge.reference.get("network") == "fire_main"
+        ]
+        self.assertTrue(fire_edges)
+        for edge in fire_edges:
+            for identifier in edge.reference["isolator_ids"]:
+                kind = state("isolator", identifier).reference["kind"].lower()
+                selected = ("open" if "valve" in kind or "damper" in kind
+                            else "closed")
+                set_isolator(identifier, selected, operator=True)
+        switches = {x.source_id: x for x in
+                    CanonicalShipState.objects.filter(category="isolator")}
+        reachable = _reachable(
+            fire_edges, switches, "fire_main", ["NODE-FIRE-PUMP-FWD"])
+        mist_nodes = sorted(
+            n for n in reachable
+            if n.startswith("NODE-HAB-") and n.endswith("-FIRE-MIST"))
+        self.assertTrue(mist_nodes, "No authored fire-main route to HAB mist")
+        zone = "PZ-" + mist_nodes[0][5:-10]
+        from world.continuous_ship_physics import configure_scenario_casualty
+        configure_scenario_casualty(
+            zone, fire_fuel_kg=5.0, fire_burn_kg_s=0.1, operator=True)
+        cell = state("pressure", zone)
+        cell.details = dict(cell.details, physics_mist_kg_s=0.5)
+        cell.save(update_fields=["details"])
+        before = state("inventory", "INV-WATER-NORMAL").quantity
+        live = tick_continuous_physics(now_game_time=1010)
+        after = state("inventory", "INV-WATER-NORMAL").quantity
+        self.assertTrue(live["power_assured"])
+        self.assertLess(after, before)
+        set_isolator("ISO-G19-MOTOR-FIRE-PUMP-FWD", "open", operator=True)
+        isolated = tick_continuous_physics(now_game_time=1020)
+        self.assertTrue(isolated["power_assured"])
+        self.assertAlmostEqual(
+            state("inventory", "INV-WATER-NORMAL").quantity, after)
+        set_isolator("ISO-G19-MOTOR-FIRE-PUMP-FWD", "closed", operator=True)
+        restored = tick_continuous_physics(now_game_time=1030)
+        self.assertTrue(restored["power_assured"])
+        self.assertLess(
+            state("inventory", "INV-WATER-NORMAL").quantity, after)
+
     def test_lt_motor_fuse_controls_real_propulsion_heat_sink_and_room_cooling(self):
         commission_g19_electrical(operator_approved=True)
         self.line_up_real_feeder("NODE-GEN-M", "NODE-LP-ROTARY-UTIL-A")
