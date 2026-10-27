@@ -2111,7 +2111,8 @@ def tick_continuous_physics(*, now_game_time=None):
             raise PhysicsError(str(exc)) from exc
     aux_edges = {x.source_id: x for x in edges
                  if x.reference.get("network") in {
-                     "g19_motor", "g19_local_dc", "g19_local_charger"}}
+                     "g19_motor", "g19_motor_protected",
+                     "g19_local_dc", "g19_local_charger"}}
     if electrical is not None:
         try:
             validate_electrical(electrical)
