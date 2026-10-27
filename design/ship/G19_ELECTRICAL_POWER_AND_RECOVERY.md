@@ -219,6 +219,51 @@ network; the original refuge's adjacent-room duct coverage, consumable
 replacement, full crew habitability and whole-ship acceptance remain open.
 The new revision is **unverified until its code-head CI evidence passes**.
 
+### Twenty-six original cultivation, cargo-environment and workshop machines
+
+A second, segregated `g19_equipment_service` retrofit adds **78 persistent
+objects** (26 terminals, 26 fitted cables and 26 individually operable local
+breakers) using **the actual existing power distribution boards** and
+original equipment rooms. No original main-network node/edge/contact is
+renamed or replaced. The independently audited original machines are:
+
+| Family | Equipment / actual parent panel | Count |
+|---|---|---:|
+| Cultivation | Three controller/nutrient skid pairs in HAB-02, HAB-06 and HAB-08 growing rooms, each on its own co-located GROW-LP | 6 |
+| Cargo environment | Six thermal skids and six atmosphere packs, paired on DR-01..06 service-gallery distribution | 12 |
+| Engineering workshop | Six individual machine tools on SHOP-MECH and two welding cells on SHOP-WELD | 8 |
+| **Total** | **26 individual fused circuits** | **26** |
+
+A new `service_operations` ledger retains cumulative per-unit powered
+runtime, unmet service time, current operation and safety restart latches
+across normal ticks, replay, breaks and re-commissioning. It advances from
+authentic generator/shore/storage dispatch, the true upstream parent panel,
+the local cable and breaker, the equipment's condition and its own
+locally commanded plant operating state. This produces measured per-tick
+counts of working cargo thermal/atmosphere **pairs**, paired cultivation
+skids and working shop machines; one local failure cannot be credited as
+operation from a distant healthy panel.
+
+The eight high-energy **mill/weld/machine tools have no automatic restart**
+after a service-power casualty. A qualified engineer must be beside the
+original tool, restore its real source, issue a fresh local `plant <id> on`
+command and complete the bounded startup time. Cargo environment and
+cultivation controls retain their normal auto-recovery behaviour after
+ordinary power restoration unless physically damaged. Each new feeder is
+compatible with the existing local overcurrent trip/reset system, without
+inventing an individual watt rating: the ship's common load schedule
+still caps total dispatched energy.
+
+New pure regression sweeps every one of the 26 breakers, cables and machine
+conditions, verifies mutually independent service, simulates brownouts
+and guarded restart, and checks uptime/shortfall continuity. Installed
+tests exercise full-source commissioning, a stopped/rearmed CNC mill and
+independent cargo/grow service interruptions. The executable original
+inventory audit is `design/ship/check_g19_service_equipment_inventory.py`.
+These new operation records are **operating availability**, not automatic
+new food production, cargo atmosphere generation or fabricated spares.
+Process throughput will follow each family-specific inventory contract.
+
 ### Remaining verification and modelling boundaries
 
 `ox-g19-electrical.yml` gates pure electrical source/charge conservation and faults, installed character/circuit/replay coverage, G18 gas/fire/cooling regressions, and G19 water/cargo/movement compatibility. Installed outcomes must be evaluated against the **exact tested commit**, not a prior acceptance. If the draft fast CI scope gate requires deferral of expensive PR-triggered jobs, focused tests still execute on branch **push**; do not bypass the repository's accepted scope policy.
