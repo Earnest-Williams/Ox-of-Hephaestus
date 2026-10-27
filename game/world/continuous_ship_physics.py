@@ -643,6 +643,31 @@ def survey_g19_electrical_source(*, operator_approved=False, source,
         raise PhysicsError("Commission electrical network before rating sources")
     import copy
     e = copy.deepcopy(d["electrical"])
+    if source in LOCAL_LOADS:
+        if rated_mw is not None or max_charge_mw is not None or max_discharge_mw is not None:
+            raise PhysicsError("Local DC store requires independently measured capacity and charge")
+        battery = state("equipment", source, lock=True)
+        room, consumer, panel, _, _ = LOCAL_LOADS[source]
+        if battery.space_id != room or battery.condition in _BROKEN:
+            raise PhysicsError("Local emergency source is not healthy at its installed site")
+        for pk in ("node:" + "NODE-G19-BAT-" + source,
+                   "edge:" + "EDGE-G19-LOCAL-" + source,
+                   "isolator:" + "ISO-G19-LOCAL-" + source):
+            if not CanonicalShipState.objects.filter(pk=pk).exists():
+                raise PhysicsError("Local backup wiring not installed")
+        try:
+            backup = survey_local_backup(
+                d["local_backup"], source, capacity_kwh=capacity_kwh,
+                initial_kwh=initial_kwh)
+        except ElectricalError as exc:
+            raise PhysicsError(str(exc)) from exc
+        before = _snapshot(item)
+        d["local_backup"] = backup
+        item.details = d
+        item.revision += 1
+        item.save(update_fields=["details", "revision"])
+        _event(item, "g19_local_battery_source_survey", before)
+        return {"source": source, "rated": True, "local_only": True}
     if source not in (*POWER_BANKS, *POWER_FLYWHEELS, "SHORE-PWR"):
         raise PhysicsError("Unknown installed electrical source")
     # Every commissioned store has its own real equipment and power port.
