@@ -132,6 +132,46 @@ Run `python design/ship/check_g19_electrical_inventory.py` from the repository r
 
 The result **does not** pronounce all 808 equipment electrically commissioned. Passive hardware, structures, unpowered emergency tools, cargo climate equipment, crop-processing machinery and specialised tools remain explicitly identifiable in its outstanding-by-kind report. This prevents an undifferentiated "missing circuit" count from disguising the difference between passive apparatus and an operating machine that actually requires a supply. Equipment-level energy budgeting and further cargo/agricultural machinery effects remain open.
 
+### Coupled fire-main and low-temperature heat rejection — pending focused CI
+
+A post-fault-sweep integration review found two real operating inconsistencies,
+corrected on the same G19 branch:
+
+- **Fire-main source selection:** an installed fire-pump motor may draw
+  through its verified normal feeder with a sound main operating schedule,
+  even when the protected bus is unavailable. On manually selecting the
+  protected alternate, the original normal room feed is no longer credited:
+  the protected source must independently provide sufficient energy through
+  its dedicated, closed, serviceable breaker. A powered protected bus cannot
+  excuse a normal-source brownout or a failed pump, and the two source
+  contacts cannot be paralleled. This is enforced in the authoritative fire
+  suppression tick, where finite water is expended only when the fitted
+  fire-main path actually conducts.
+- **Shared LT cooling:** propulsion formerly could reduce its stored heat
+  while bypassing the newly installed LT motor fuse; its independent
+  1.8-MW-equivalent heat-rejection allowance also could exceed the
+  surviving radiator capacity. The tick now shares **one** capacity limit
+  (four 937.5-kW equivalent radiator units, 3,750 kW maximum). Drive heat
+  is rejected first, subject to both stored heat and an 1,800-kW ceiling;
+  the remainder alone cools the pressure-zone thermal network. Lost LT
+  feeder, coolant path, machinery state, radiator units or live service
+  inhibits that corresponding capacity. These are fictional game-calibrated
+  thermal rates, not a new thermal plant.
+
+Focused pure tests cover every selected fire-pump supply, fault and transfer
+isolation, all zero-to-four-radiator allocations, invalid integration inputs,
+the finite 72-motor isolation sweep and seeded 16-bank charge conservation.
+Additional **installed Evennia** regressions use original room panels,
+real fire-main valves, actual finite suppression-water custody, an LT fuse
+casualty, thermal storage persistence, and safe restoration without falsely
+declaring a full-ship blackout.
+
+**Status:** these are committed implementation changes following the
+previously verified electrical base. They are *not* accepted by borrowing
+evidence from the earlier 77-test or 25-test runs. Require the new focused
+branch-push CI plus installed and compatibility results on the same runtime
+revision. Neither the full-ship acceptance nor 40-crew voyage has been run.
+
 ### Remaining verification and modelling boundaries
 
 `ox-g19-electrical.yml` gates pure electrical source/charge conservation and faults, installed character/circuit/replay coverage, G18 gas/fire/cooling regressions, and G19 water/cargo/movement compatibility. Installed outcomes must be evaluated against the **exact tested commit**, not a prior acceptance. If the draft fast CI scope gate requires deferral of expensive PR-triggered jobs, focused tests still execute on branch **push**; do not bypass the repository's accepted scope policy.
