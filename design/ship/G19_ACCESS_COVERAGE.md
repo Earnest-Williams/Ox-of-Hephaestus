@@ -87,12 +87,13 @@ and fixed HAB dock → moving phase-matched HAB → 300-second carriage →
 return through the same rated interfaces. Every passage is a real exit,
 with work receipts and no mid-route operator teleport.
 
-Follow-on candidate tests add locally operated ordinary doors, blocked
-unclassified cargo/generator access and an independent aft EVA-lock
-round trip with actual finite suit, pressure recovery and electrical
-feeder. Their current-code validation belongs to the latest branch-push
-access workflow; earlier passing runs are **not** proof of these later
-revisions.
+Follow-on installed tests verify locally operated ordinary doors,
+blocked unsurveyed cargo/generator access, and an independent aft EVA-lock
+round trip with finite suit, pressure recovery and its actual electrical
+feeder. [Run #40556713652](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40556713652)
+passed **both jobs: 8 pure and 7 installed Evennia tests**, at
+tested runtime `a2f6ee9e`. Its two-job evidence is limited to this
+access/worksite slice; larger G19 whole-ship closure remains open.
 
 ## Remaining G19 closure
 

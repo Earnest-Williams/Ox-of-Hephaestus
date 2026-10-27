@@ -2,6 +2,22 @@
 
 **Status: implementation in progress; NOT ready for acceptance or merge.**
 
+## Verified access/worksite continuation (27 October 2026)
+
+At tested runtime `a2f6ee9e`,
+[run #40556713652](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40556713652)
+passed **8 pure and 7 installed Evennia tests** across both jobs. This
+covers all 421 original spaces, 517 links / 1,034 directional installed
+exits, seven local ordinary-door families, physically timed drum and
+moving-HAB return routes, independent aft EVA airlock recovery, and
+808 mapped equipment worksite records. Exactly one unpressurised,
+unoccupied `WR-TRIM-TANK-BAY` void has no personnel entry; all other
+geometric rooms are connected. Machinery-site gas classification records
+602 in authored pressure cells, 103 in vacuum, and 103 with unsurveyed
+atmosphere; 13 freight-only hardware sites require distinct service access.
+See `G19_ACCESS_COVERAGE.md`. This is bounded access acceptance,
+not permission to merge or run the excluded 40-person voyage.
+
 ## Decision
 
 G19 is one integration branch and one pull request for completing the ship's
