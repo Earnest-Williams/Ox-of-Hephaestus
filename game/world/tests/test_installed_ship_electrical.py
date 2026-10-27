@@ -136,7 +136,7 @@ class InstalledElectricalTests(EvenniaTestCase):
             azimuth_deg=0, radius_m=5, kind="sled")
         survey_g19_cargo_environment(
             operator_approved=True, operation="drum", drum="DR-03",
-            temperature_k=294., target_k=275.,
+            temperature_k=284., target_k=275.,
             heat_capacity_kj_k=1000., conductance_kw_k=1.)
         survey_g19_cargo_environment(
             operator_approved=True, operation="lot", drum="DR-03",
@@ -154,7 +154,7 @@ class InstalledElectricalTests(EvenniaTestCase):
         self.crew_at("DR-03-GALLERY")
         panel = local_physics_readout(self.worker, "DR-03-CARGO-HX")
         self.assertTrue(panel["sampled"])
-        self.assertLess(panel["temperature_k"], 294)
+        self.assertLess(panel["temperature_k"], 284)
         quality = panel["sensitive_lots"]["VACCINES"]["quality"]
         self.assertLess(quality, 1)
         set_isolator("ISO-DR-03-LT-IF", "closed", operator=True)
