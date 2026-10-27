@@ -440,6 +440,31 @@ def motor_power(name, *, nodes, equipment, edges, switches):
     )
 
 
+
+def fire_pump_service_ready(name, *, nodes, equipment, edges, switches,
+                            normal_assured, protected_assured):
+    """Require electrical capacity from the fire pump's *selected* feeder.
+
+    A live protected bus cannot make a normally selected B-side pump run
+    through a browned-out normal panel. Conversely, an available normal
+    pump may operate without the protected bus, and the independently
+    breakered protected transfer can operate without a live normal panel.
+    motor_power also enforces source exclusivity and real local contacts.
+    """
+    if name not in PROTECTED_FIRE_MOTORS:
+        raise ElectricalError("No fitted dual-source fire pump")
+    if not motor_power(name, nodes=nodes, equipment=equipment,
+                       edges=edges, switches=switches):
+        return False
+    normal_edge = edges[auxiliary_ids(name, motor=True)[1]]
+    if normal_edge.setting == "available":
+        return bool(normal_assured)
+    alternate = edges[protected_fire_ids(name)[0]]
+    if alternate.setting == "available":
+        return bool(protected_assured)
+    return False
+
+
 def step_local_backup(ledger, seconds, *, nodes, equipment, edges, switches,
                       producer_nodes=(), producing_mw=0.0, other_requested_mw=0.0):
     """Advance isolated DC reserves and separately fused grid recharging.
