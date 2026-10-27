@@ -254,10 +254,12 @@ def validate_local_backup(ledger):
 
 def migrate_local_backup(existing):
     """Retain every v1 unit's actual charge and recorded discharges."""
+    if not isinstance(existing, dict):
+        raise ElectricalError("Unknown historical local emergency ledger")
     if existing.get("version") == 2:
         validate_local_backup(existing)
         return copy.deepcopy(existing)
-    if not isinstance(existing, dict) or existing.get("version") != 1:
+    if existing.get("version") != 1:
         raise ElectricalError("Unknown historical local emergency ledger")
     if (set(existing) != {"version", "units", "meter", "last"}
             or not isinstance(existing["units"], dict)
