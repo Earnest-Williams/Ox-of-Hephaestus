@@ -172,6 +172,66 @@ class ElectricalPhysicalContracts(unittest.TestCase):
         self.assertEqual(power["available_mw"], .65)
         self.assertLessEqual(power["battery_dispatched_mw"], .1)
 
+    def test_operational_common_battery_supplies_only_its_main_board(self):
+        _, edges, switches, equipment = grid()
+        equipment["GEN-M"] = eq(False)
+        equipment["GEN-B"] = eq(False)
+        ledger = survey_battery(initial_electrical(), "BAT-COMMON-OPS",
+                                capacity_kwh=.2, charge_kwh=.02,
+                                max_charge_mw=.1, max_discharge_mw=.8)
+        ledger["banks"]["BAT-COMMON-OPS"]["mode"] = "discharge"
+        grid_state = source_dispatch(equipment, edges, switches, "essential",
+                                     ledger=ledger, dt_s=10)
+        self.assertTrue(grid_state["assured"])
+        self.assertIn("PWR-MSB-B", grid_state["nodes"])
+        self.assertNotIn("PWR-MSB-A", grid_state["nodes"])
+        self.assertEqual(grid_state["main_available_mw"], .8)
+        self.assertEqual(grid_state["protected_battery_dispatched_mw"], 0)
+        result = step_energy(ledger, grid_state, 10)
+        self.assertAlmostEqual(
+            result["banks"]["BAT-COMMON-OPS"]["discharged_kwh"],
+            .65 / 360)
+        self.assertAlmostEqual(result["meter"]["battery_discharge_kwh"], .65 / 360)
+        self.assertEqual(result["meter"]["generation_kwh"], 0)
+        self.assertAlmostEqual(result["meter"]["served_kwh"], .65 / 360)
+        self.assertTrue(validate_electrical(result))
+
+    def test_unconnected_main_bus_does_not_forge_delivered_energy(self):
+        _, edges, switches, equipment = grid()
+        # The initially cold fitted ship has very many open load breakers.
+        # A live generator and main switchboard by themselves are not loads.
+        branch = edge("EDGE-TEST-LOAD", "PWR-MSB-A", "NODE-ACTUAL-LOAD",
+                      kind="equipment_branch")
+        edges.append(branch)
+        switches["ISO-TEST-LOAD"] = switch("ISO-TEST-LOAD", "open")
+        supply = source_dispatch(equipment, edges, switches, "normal",
+                                 ledger=initial_electrical())
+        self.assertFalse(supply["assured"])
+        self.assertFalse(supply["has_live_load"])
+        meter = step_energy(initial_electrical(), supply, 10)
+        self.assertEqual(meter["meter"]["served_kwh"], 0)
+        self.assertGreater(meter["meter"]["unserved_kwh"], 0)
+        switches["ISO-TEST-LOAD"].setting = "closed"
+        fed = source_dispatch(equipment, edges, switches, "normal",
+                              ledger=initial_electrical())
+        self.assertTrue(fed["has_live_load"])
+        self.assertTrue(fed["assured"])
+        credited = step_energy(initial_electrical(), fed, 10)
+        self.assertGreater(credited["meter"]["served_kwh"], 0)
+
+    def test_operational_backup_cannot_add_above_ship_dispatch_envelope(self):
+        _, edges, switches, equipment = grid()
+        backup = survey_battery(initial_electrical(), "BAT-COMMON-OPS",
+                                capacity_kwh=20, charge_kwh=20,
+                                max_charge_mw=1, max_discharge_mw=3)
+        backup["banks"]["BAT-COMMON-OPS"]["mode"] = "discharge"
+        fed = source_dispatch(equipment, edges, switches, "demanding",
+                              ledger=backup)
+        self.assertEqual(fed["available_mw"], 3.3)
+        self.assertEqual(fed["operational_battery_available_mw"], 0)
+        after = step_energy(backup, fed, 10)
+        self.assertEqual(after["meter"]["battery_discharge_kwh"], 0)
+
     def test_shore_needs_real_mooring_source_and_no_parallel_generator(self):
         _, edges, switches, equipment = grid()
         s = initial_electrical()
