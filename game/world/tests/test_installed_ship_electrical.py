@@ -111,7 +111,7 @@ class InstalledElectricalTests(EvenniaTestCase):
 
     def test_motor_trip_is_local_not_a_shipwide_blackout(self):
         commission_g19_electrical(operator_approved=True)
-        self.line_up_real_feeder("NODE-GEN-M", "NODE-LP-WATER-FWD")
+        self.line_up_real_feeder("NODE-GEN-B", "NODE-LP-WATER-FWD")
         from world.ship_auxiliary_electrical import motor_power
         from world.continuous_ship_physics import _power
         def ready():
