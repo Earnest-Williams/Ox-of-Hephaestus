@@ -91,7 +91,7 @@ from world.ship_auxiliary_electrical import (
     install_auxiliary_circuits, initial_local_backup,
     validate_local_backup, migrate_local_backup, survey_local_backup,
     set_local_mode,
-    step_local_backup, motor_power,
+    step_local_backup, motor_power, fire_pump_service_ready,
 )
 from world.ship_electrical_power import (
     ElectricalError, BATTERIES as POWER_BANKS,
@@ -2568,12 +2568,26 @@ def tick_continuous_physics(*, now_game_time=None):
         drive_cooling_kw = 0.0
         connected_lt = _reachable(
             edges, isolators, "lt_cooling", ["NODE-LT-PLANT"])
-        cooling = (
-            len(connected_lt) > 1 and _on(equipment, "LT-PLANT")
-            and any(_on(equipment, f"RAD-LT-{n}") for n in range(1, 5))
-            and power["assured"])
-        if cooling:
-            drive_cooling_kw = min(DRIVE_COOLING_KW, heat / dt)
+        # One physical LT radiator budget serves both propulsion and rooms.
+        # A powered ship bus or running plant flag is not an alternative to
+        # the LT motor's real fuse, feeder and connected coolant circuit.
+        # The G18 legacy path retains its original protected-service gate.
+        lt_service_assured = (
+            power["assured"] and
+            (electrical is not None or
+             (power["essential_assured"] and "PWR-PROT" in power["nodes"]))
+        )
+        lt_radiators = sum(_on(equipment, f"RAD-LT-{n}")
+                           for n in range(1, 5))
+        lt_cooling_capacity_kw = (
+            min(3750.0, 937.5 * lt_radiators)
+            if (len(connected_lt) > 1 and _on(equipment, "LT-PLANT")
+                and motor_ready("LT-PLANT") and lt_service_assured)
+            else 0.0
+        )
+        if lt_cooling_capacity_kw:
+            drive_cooling_kw = min(
+                DRIVE_COOLING_KW, lt_cooling_capacity_kw, heat / dt)
             heat = max(0.0, heat - drive_cooling_kw * dt)
         if heat >= DRIVE_THERMAL_BUFFER_KJ:
             heat = DRIVE_THERMAL_BUFFER_KJ
@@ -2712,24 +2726,24 @@ def tick_continuous_physics(*, now_game_time=None):
                                              donor["mass"] * 0.10))
 
         # Existing LT coolant route plus finite live radiator wings.
-        cooling_nodes = _reachable(
-            edges, isolators, "lt_cooling", ["NODE-LT-PLANT"])
+        cooling_nodes = connected_lt
         cool_zones = {node_zones.get(n) for n in cooling_nodes}
         cool_zones &= set(cells)
-        lt_motor_ready = motor_ready("LT-PLANT")
-        total_cool_kw = (min(3750.0, 937.5 * sum(
-            _on(equipment, "RAD-LT-" + str(i)) for i in range(1, 5)))
-            if powered and _on(equipment, "LT-PLANT")
-            and lt_motor_ready and (electrical is None or protected_power) else 0.0)
-        # The propulsion thermal store and ordinary equipment share the
-        # finite radiator budget: never reject the same heat twice.
-        total_cool_kw = max(0.0, total_cool_kw - drive_cooling_kw)
+        # Propulsion rejection was already debited from this *same*
+        # motor-and-radiator-limited capacity earlier in this tick.
+        total_cool_kw = max(0.0, lt_cooling_capacity_kw - drive_cooling_kw)
         per_zone_kw = total_cool_kw / len(cool_zones) if cool_zones else 0.0
 
-        fire_starts = [n for pump in ("FIRE-PUMP-FWD", "FIRE-PUMP-AFT")
-                       if (protected_power if electrical is not None else powered)
-                       and _on(equipment, pump) and motor_ready(pump)
-                       for n in ["NODE-" + pump]]
+        fire_starts = [
+            "NODE-" + pump for pump in PROTECTED_FIRE_MOTORS
+            if _on(equipment, pump) and (
+                fire_pump_service_ready(
+                    pump, nodes=power["nodes"], equipment=equipment,
+                    edges=aux_edges, switches=isolators,
+                    normal_assured=powered,
+                    protected_assured=protected_power)
+                if electrical is not None else powered)
+        ]
         fire_nodes = _reachable(edges, isolators, "fire_main", fire_starts)
         # Waste heat is a physical output of operating machinery, not an
         # operator-injected scenario fault. It persists through a cooling
