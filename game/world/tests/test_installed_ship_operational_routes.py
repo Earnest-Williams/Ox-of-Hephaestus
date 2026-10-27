@@ -164,9 +164,9 @@ class InstalledContinuousCrewRoutes(EvenniaTestCase):
         """Seven non-carrier installed door families traverse both directions."""
         cases = (
             ("ACC-TRUNK-A-BOW-DR-01", "pressure_door"),
-            ("ACC-GEN-M-ROOM", "service_door"),
+            ("ACC-HAB-01-SERVICE", "service_door"),
             ("ACC-HAB-01-CAB-01", "cabin_door"),
-            ("ACC-DR-01-SEC-01", "cargo_service_door"),
+            ("ACC-DR-01-HUB-GALLERY", "door"),
             ("ACC-HAB-01-SG1-CUPBOARD", "service_panel"),
             ("ACC-WR-SHOP-WELD", "fire_door"),
             ("ACC-STORE-CRIT-SPARES-STORES-GALLERY", "store_door"),
@@ -178,6 +178,8 @@ class InstalledContinuousCrewRoutes(EvenniaTestCase):
                 start = find_ship_space(door.reference["from"])
                 end = find_ship_space(door.reference["to"])
                 self.engineer.move_to(start, quiet=True)  # next isolated test site
+                if door.setting == "open":
+                    self.action("hatch", identifier, "closed")
                 self.action("hatch", identifier, "open")
                 self.assertEqual(state("access", identifier).setting, "open")
                 self.assertEqual(
@@ -197,6 +199,7 @@ class InstalledContinuousCrewRoutes(EvenniaTestCase):
         for link in (
             "ACC-F1-BAY", "ACC-DR-01-FREIGHT-CAPTURE",
             "ACC-EVA-AFT-EXT", "ACC-DR-01-LOCK-ROT",
+            "ACC-GEN-M-ROOM", "ACC-DR-01-SEC-01",
         ):
             with self.subTest(mechanism=link):
                 door = state("access", link)
