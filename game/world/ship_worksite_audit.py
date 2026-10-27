@@ -10,6 +10,7 @@ from collections import Counter
 from world.ship_access_audit import (audit_access_topology, authored_route,
                                      candidate_personnel_routes)
 from world.ship_model import ShipWorldModel
+from world.ship_freight_service import GATES as FREIGHT_SERVICE_GATES, WORKSITES
 
 
 class WorksiteAuditError(ValueError):
@@ -46,6 +47,7 @@ def audit_equipment_worksites(model: ShipWorldModel, equipment: list[dict],
     paths = candidate_personnel_routes(model, anchor=anchor)
     no_candidate = []
     freight_shortcuts = []
+    fitted_freight_service = []
 
     for number, item in enumerate(equipment):
         if not isinstance(item, dict):
@@ -80,8 +82,17 @@ def audit_equipment_worksites(model: ShipWorldModel, equipment: list[dict],
         if room_id.startswith("EXT-"):
             exterior_items.append(ident)
         if room_id not in paths:
-            no_candidate.append(ident)
-            route_classes["no_personnel_route_candidate"] += 1
+            # Nine already fitted industrial openings have an attended
+            # *maintenance* permit, not ordinary crew corridor status.
+            service = WORKSITES.get(ident)
+            if (service is not None and service[0] == room_id
+                    and service[1] in FREIGHT_SERVICE_GATES
+                    and FREIGHT_SERVICE_GATES[service[1]][0] in paths):
+                fitted_freight_service.append(ident)
+                route_classes["attended_freight_service_only"] += 1
+            else:
+                no_candidate.append(ident)
+                route_classes["no_personnel_route_candidate"] += 1
             continue
         route = paths[room_id]
         shortest = authored_route(model, room_id, anchor=anchor)
@@ -145,6 +156,10 @@ def audit_equipment_worksites(model: ShipWorldModel, equipment: list[dict],
         "unplaced_equipment": sorted(unplaced),
         "disconnected_equipment": sorted(disconnected_items),
         "no_personnel_route_candidate": sorted(no_candidate),
+        "attended_freight_service_equipment": sorted(fitted_freight_service),
+        "attended_freight_service_gates": sorted({
+            WORKSITES[name][1] for name in fitted_freight_service
+        }),
         "geometry_shortest_freight_shortcuts": sorted(freight_shortcuts),
         "selected_route_uses_freight_hardware": sorted(freight_passages),
         "exterior_equipment_ids": sorted(exterior_items),
