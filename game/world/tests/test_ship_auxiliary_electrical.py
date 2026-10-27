@@ -71,10 +71,28 @@ class AuxiliaryPowerContracts(unittest.TestCase):
             initial_local_backup(), name,
             capacity_kwh=20, initial_kwh=12), name, "reserve")
         result = step_local_backup(
-            ledger, 10, nodes={LOCAL_LOADS[name][2]}, equipment=units,
+            ledger, 10, nodes={"NODE-PWR-HAB-04-REFUGE-AIR"}, equipment=units,
             edges=e, switches=sw)
         self.assertEqual(result["meter"]["delivered_kwh"], 0)
         self.assertEqual(result["units"][name]["charge_kwh"], 12)
+
+    def test_refuge_bypasses_failed_primary_appliance_branch_not_entire_panel(self):
+        e, sw, units = fitted()
+        name = "HAB-04-REFUGE-BAT"
+        ledger = set_local_mode(survey_local_backup(
+            initial_local_backup(), name,
+            capacity_kwh=20, initial_kwh=10), name, "reserve")
+        parent = LOCAL_LOADS[name][2]
+        self.assertNotEqual(parent, "NODE-PWR-HAB-04-REFUGE-AIR")
+        battery = step_local_backup(
+            ledger, 10, nodes={parent}, equipment=units,
+            edges=e, switches=sw)
+        self.assertGreater(battery["meter"]["delivered_kwh"], 0)
+        self.assertIn(name, battery["last"]["active_local_consumers"])
+        normal = step_local_backup(
+            ledger, 10, nodes={parent, "NODE-PWR-HAB-04-REFUGE-AIR"},
+            equipment=units, edges=e, switches=sw)
+        self.assertEqual(normal["meter"]["delivered_kwh"], 0)
 
     def test_fuse_open_and_load_fault_refuse_backup(self):
         e, sw, units = fitted()
