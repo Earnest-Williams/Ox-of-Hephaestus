@@ -5636,6 +5636,57 @@ def crew_physical_action(actor, request_id, action, target, value):
             item.details = d
             item.revision += 1
             item.save(update_fields=["details", "revision"])
+        elif (target in SERVICE_LOADS and
+              target.endswith("-CARGO-HX")):
+            if not isinstance(value, str) or not value.startswith("target:"):
+                raise PhysicsError("Cargo heat exchanger requires target:<kelvin>")
+            item = state("equipment", target, lock=True)
+            _crew_at(actor, item.space_id)
+            if item.condition in _BROKEN:
+                raise PhysicsError("Local cargo temperature controller is damaged")
+            zone = _topology()[1].get(target)
+            if zone not in {"PZ-" + drum + "-SVC" for drum in CARGO_DRUMS}:
+                raise PhysicsError("Cargo climate control has no verified gallery")
+            if not _air_safe(state("pressure", zone, lock=True)):
+                raise PhysicsError("Cargo gallery air or thermal conditions unsafe")
+            clock = _clock(lock=True)
+            details = dict(clock.details)
+            climate = details.get("cargo_environment")
+            if climate is None:
+                raise PhysicsError("Cargo thermal observation has not been commissioned")
+            equipments = {row.source_id: row for row in
+                          CanonicalShipState.objects.filter(category="equipment")}
+            wires = list(CanonicalShipState.objects.filter(category="edge"))
+            contacts = {row.source_id: row for row in
+                        CanonicalShipState.objects.filter(category="isolator")}
+            grid = _power(
+                equipments, wires, contacts, details["load_profile"],
+                ledger=details.get("electrical"),
+                moored=contacts_active(details["cargo"]))
+            if not (grid["assured"] and service_power(
+                    target, nodes=grid["nodes"], equipment=equipments,
+                    edges={row.source_id: row for row in wires},
+                    switches=contacts)):
+                raise PhysicsError("Cargo control setpoint requires a live local feeder")
+            try:
+                requested_k = float(value.partition(":")[2])
+                next_climate = set_cargo_target(
+                    climate, details["cargo"], target[:5], requested_k)
+            except (ValueError, TypeError, CargoClimateError) as exc:
+                raise PhysicsError("Invalid surveyed cargo temperature setpoint") from exc
+            before_clock = _snapshot(clock)
+            details["cargo_environment"] = next_climate
+            clock.details = details
+            clock.revision += 1
+            clock.save(update_fields=["details", "revision"])
+            _event(clock, "crew_cargo_temperature_setpoint",
+                   before_clock, actor=actor)
+            before = _snapshot(item)
+            unit_details = dict(item.details)
+            unit_details["last_attended_setpoint_k"] = requested_k
+            item.details = unit_details
+            item.revision += 1
+            item.save(update_fields=["details", "revision"])
         else:
             if target not in PLANTS or value != "reset":
                 raise PhysicsError("Only original local thermal protection can be reset")
@@ -5803,6 +5854,37 @@ def local_physics_readout(actor, target):
             "last_tick_battery_active": bool(
                 ledger["last"].get("active_local_consumers", {}).get(target)),
             "scope": "attended_individual_local_dc_circuit",
+        }
+    if (target in SERVICE_LOADS
+            and target.endswith("-CARGO-HX")):
+        room_id, _ = SERVICE_LOADS[target]
+        if room != room_id:
+            raise PermissionError("Read the actual cargo heat-exchanger panel locally")
+        clock = _clock()
+        climate = clock.details.get("cargo_environment")
+        if climate is None:
+            raise PhysicsError("Cargo climate has not been commissioned")
+        validate_cargo_environment(climate, clock.details["cargo"])
+        drum = target[:5]
+        observed = climate["drums"][drum]
+        return {
+            "id": target, "drum": drum,
+            "sampled": observed is not None,
+            "temperature_k": observed["temperature_k"] if observed else None,
+            "target_temperature_k": observed["target_k"] if observed else None,
+            "heat_capacity_kj_k": (
+                observed["heat_capacity_kj_k"] if observed else None),
+            "cooling_kw": (
+                climate["last"]["cooling_kw"]
+                if drum in climate["last"]["cooled_drums"] else 0.0),
+            "sensitive_lots": {
+                key: {"quality": lot["quality"],
+                      "excursion_s": lot["excursion_s"],
+                      "last_temperature_k": lot["last_temperature_k"]}
+                for key, lot in climate["lots"].items()
+                if clock.details["cargo"]["lots"][key]["drum"] == drum
+            },
+            "scope": "attended_real_cargo_environment_controller",
         }
     if target in SERVICE_LOADS:
         spec = SERVICE_LOADS[target]
