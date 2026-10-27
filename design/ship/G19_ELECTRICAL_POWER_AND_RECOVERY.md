@@ -1,0 +1,43 @@
+# G19 — installed electrical plant, distribution, protection and recovery
+
+**Implementation:** G19 draft PR #138, unmerged. This is the electrical subsystem's operating contract for the canonical Evennia ship, not a second electrical simulator or a construction-ready switchgear qualification. The 40-crew voyage is expressly excluded from this development round.
+
+## Fitted network and commissioning
+
+The installed v0.5 ship contains **438 power nodes, 450 power edges and 466 actual breaker/isolation points**, plus the separate thermal, gas and fire-main networks. `commission_g19_electrical(operator_approved=True)` audits the **authoritative installed** rows, checks every power edge endpoint and fitted breaker, and creates one persistent ledger on the existing `meta:continuous-physics` clock. An existing ledger is never reset. No new nodes, remote shortcuts or simulated extra generator are created.
+
+The real installed power source gates remain `GEN-M`, `GEN-A` and `GEN-B`, with selected deliverable schedules of 3.0, 0.65 and 0.65 MW. Total output is capped at **3.3 MW**, including the combined 3.3 MW envelope rather than summing nameplate to claim 4.3 MW. The scheduled base loads are essential 0.65, protected 0.75, normal 1.35, and demanding 2.60 MW. All are **selected fictional game-engineering parameters**. Actual generation must be commanded online, physically healthy, and connected through its installed source edge and breaker. A tripped generator or open feeder reduces capacity. The source-reachability graph is directed except real `bridge_feeder` and `cross_tie` connections. Protected loads cannot reverse-feed the main switchboards.
+
+**No automatic load shed.** When GEN-M fails during a normal 1.35 MW schedule, its remaining single 0.65 MW auxiliary cannot supply the normal schedule. Crew must explicitly select a smaller verified schedule, restore generation, or bring rated external service online. ECLSS and EVA station power still require a verified local conducting node. Protected service additionally requires its actual protected distribution node; the presence of an online generator alone is not sufficient to power every panel.
+
+## Switchgear, bus tie and protected transfers
+
+Local authorised engineers use the existing `oxplant <32hex-id> power <target> <value>` receipted interface. Ordinary breakers remain crew-reachable only at the real switch's authored room. Installed-source selection is a separate operation from `plant GEN-X on` and from generator thermal-trip reset.
+
+- `power EDGE-MSB-XTIE sync` begins a **15-game-second**, site-attended main bus synchronisation witness. A source/bus signature is captured and expires after 90 game seconds. `power EDGE-MSB-XTIE close` then requires matching live source/bus conditions and healthy closed real tie isolators; `open` releases the tie and invalidates the witness. A dead bus, changed source state, elapsed witness, failed breaker or physically tripped contact cannot be bypassed with a paperwork flag. The manual `switch` command cannot secretly restore contacts beneath a closed tie.
+- `power PWR-PROT select:A|select:B` selects the central protected feeder. `power HAB-03-PROT select:A|select:B` does the analogous HAB protected-feed selector for a real HAB arc. The twin real edges switch **break-before-make**.
+- When the two real feeder switches require separate local attendance, `power <existing-EDGE-PWR-MSB-A-PROT|EDGE-HAB-03-PROT-A|...> isolate|enable` provides individual local staged transfer; the opposite feeder must already be disengaged before enable. No remote magic closure across two separated local stations is assumed.
+- `oxplantread power` exposes the currently persisted generation, battery, shore and trip meters at physically installed engineering boards. Local node readout is permitted only beside its actual installed equipment or distribution position. It reports current route energisation and selected schedule support, not unvisited private damage.
+
+## Actual fault consequences
+
+An operator may record a **measured circuit overcurrent** with `configure_g19_electrical_fault(operator_approved=True, breaker_id=..., rating_mw=..., measured_mw=...)`. The normal ship clock accumulates real elapsed time and, after 10 seconds of continuing overload, **physically opens the installed breaker**, records a persistent protective latch, and immediately removes the branch from the reachable power graph. Fault observations can change, but changing the observed fault does **not** clear a latched contact. Qualified crew must attend its safe real room and issue a receipted `power ISO-... reset` once the fault is gone. The switch remains open: ordinary `switch ... closed` is a separate, independently authorised action. Repeated/replayed receipts cannot close the same switch twice or fabricate energy.
+
+Generator local thermal protection, start-up delays and equipment damage still use the established G18 machinery and share its clock. Power trips can stop actual ECLSS processing, cooling, pumps, rotary operations, port handling, EVA pumpdown, propulsion auxiliaries and habitation services; physically open gas ducts do not automatically close when electric fans fail.
+
+## Battery, shore and conservation
+
+The original vessel has two authored battery source identities (`BAT-COMMON-OPS` and `BAT-COMMON-PROT`) and shore power (`SHORE-PWR`). **Their operating ratings and state of charge are not inferred from the mere existence of equipment**, and they begin with **zero credited dispatch**, not an invented infinite UPS. A world operator can separately measure each real source and its installed node/feeder using `survey_g19_electrical_source` with finite capacity/initial energy and independent charge/discharge power ratings, or shore MW rating. The source cannot be surveyed twice to magically recharge a bank.
+
+- A commissioned battery can be placed in `standby`, `charge` or `discharge` at its actual equipment station. Finite protected-bus discharge is constrained simultaneously by the fitted cable path, the maximum recorded kW, elapsed time and measured remaining kWh. A battery path that would backfeed a main bus is rejected. Batteries do **not** subsidise general cargo motors, main propulsion or main-board loading.
+- Charging is credited **only** from spare real generator/shore MW with a conducting source-to-bank route. State of charge plus cumulative discharge must equal surveyed initial charge plus cumulatively metered recharge. No infinite regeneration; no rated circuit means no credited energy.
+- A physically surveyed shore connector may be connected by a local operator only while a commissioned commercial berth is actually moored, the real shore line is selected and ship generators are isolated. Generator restart is blocked while shore remains physically connected. Losing the mooring stops shore dispatch and clears the connection rather than inventing an external port.
+- The world clock records generated kWh, metered shore imports, battery charge/discharge, load delivered and load not served. A repeated tick changes none of them. All stores and receipts survive the existing database restart without an invented energy reset.
+
+## Power-system constraints and remaining integration gate
+
+The installed graph supports the particular HAB-03 cabin 07 refit: the fan-coil's real SG2 branch is **not** the cabin's labelled panel branch. A true panel status must come from its own source path; no central scheduler can silently substitute generic panel wiring.
+
+The design reference has **no individually authored electrical motor feeder** for the two fire pumps or LT plant. Until those motor endpoints have separate installed path identities, electrical commissioning requires the existing real equipment condition and protected-power evidence, *not* an invented hidden cable. Per-circuit current/voltage transients and breaker short-circuit fault currents are abstracted into bounded measured overcurrent and protective trip logic. This is appropriate to the fictional game but cannot claim full construction-grade switchgear physics.
+
+**Acceptance required before declaring this G19 electrical gate fully closed:** pass the pure electrical graph/energy/protection tests, installed 438/450/466 topology and actual character/receipt tests, original G18 thermal/fire/atmosphere/locally operated switch regressions, installed water/cargo/movement compatibility, battery and shore surveys using the fitted hardware when available, and simultaneous restoration fault scenarios. Use `.github/workflows/ox-g19-electrical.yml`. Do **not** interpret a passing pure suite as completion of the installed power system, and do not merge PR #138 before all G19 gates close.
