@@ -77,7 +77,7 @@ class InstalledElectricalTests(EvenniaTestCase):
         for key, spec in expected.items():
             row = CanonicalShipState.objects.get(pk=key)
             self.assertEqual(row.reference, spec["reference"])
-        self.assertEqual(len(expected), 3 * len(MOTORS) + 6 * len(LOCAL_LOADS))
+        self.assertEqual(len(expected), 3 * len(MOTORS) + 6 * len(LOCAL_LOADS) + 4)
         self.assertFalse(commission_g19_electrical(
             operator_approved=True)["commissioned"])
         self.assertEqual(CanonicalShipState.objects.filter(
@@ -131,6 +131,56 @@ class InstalledElectricalTests(EvenniaTestCase):
         self.assertTrue(ready())
         set_isolator("ISO-G19-MOTOR-FIRE-PUMP-FWD", "open", operator=True)
         self.assertFalse(ready())
+
+    def test_protected_fire_pump_transfer_is_not_a_hidden_main_bus_tie(self):
+        from world.continuous_ship_physics import _power
+        commission_g19_electrical(operator_approved=True)
+        self.line_up_real_feeder(
+            "NODE-GEN-M", "NODE-HAB-03-FIRE-DETECT")
+        def power_status():
+            clock = CanonicalShipState.objects.get(pk="meta:continuous-physics")
+            equipment = {row.source_id: row for row in CanonicalShipState.objects.filter(
+                category="equipment")}
+            edges = list(CanonicalShipState.objects.filter(category="edge"))
+            switches = {row.source_id: row for row in CanonicalShipState.objects.filter(
+                category="isolator")}
+            return _power(equipment, edges, switches, clock.details["load_profile"],
+                          ledger=clock.details["electrical"])
+        before = power_status()
+        self.assertIn("PWR-PROT", before["nodes"])
+        self.assertNotIn("NODE-LP-WATER-FWD", before["nodes"])
+        self.crew_at("WATER-FWD")
+        self.assertEqual(crew_physical_action(
+            self.worker, "b" * 32, "power", "FIRE-PUMP-FWD",
+            "select:protected")["status"], "succeeded")
+        local = local_physics_readout(self.worker, "FIRE-PUMP-FWD")
+        self.assertEqual(local["source_selection"], "protected")
+        self.assertTrue(local["feeder_conducting"])
+        self.assertFalse(local["upstream_panel_energised"])
+        self.assertEqual(state("edge", "EDGE-G19-MOTOR-FIRE-PUMP-FWD").setting,
+                         "standby")
+        self.assertEqual(state("edge", "EDGE-G19-PROT-FIRE-PUMP-FWD").setting,
+                         "available")
+        self.assertNotIn("PWR-MSB-B", power_status()["main_nodes"])
+        # A local protected breaker opening makes only the alternate motor
+        # inoperable; it does not alter source-generator output or MSB-A.
+        set_isolator("ISO-G19-PROT-FIRE-PUMP-FWD", "open", operator=True)
+        self.assertFalse(local_physics_readout(
+            self.worker, "FIRE-PUMP-FWD")["feeder_conducting"])
+        with self.assertRaises(PhysicsError):
+            crew_physical_action(
+                self.worker, "c" * 32, "power", "FIRE-PUMP-FWD",
+                "select:protected")
+        set_isolator("ISO-G19-PROT-FIRE-PUMP-FWD", "closed", operator=True)
+        self.assertTrue(local_physics_readout(
+            self.worker, "FIRE-PUMP-FWD")["feeder_conducting"])
+        self.assertEqual(crew_physical_action(
+            self.worker, "d" * 32, "power", "FIRE-PUMP-FWD",
+            "select:normal")["status"], "succeeded")
+        self.assertEqual(local_physics_readout(
+            self.worker, "FIRE-PUMP-FWD")["source_selection"], "normal")
+        self.assertFalse(local_physics_readout(
+            self.worker, "FIRE-PUMP-FWD")["feeder_conducting"])
 
     def test_local_charger_uses_generator_cartridges_and_never_replays(self):
         commission_g19_electrical(operator_approved=True)
