@@ -231,6 +231,44 @@ class InstalledElectricalTests(EvenniaTestCase):
         self.assertEqual(still.details["local_backup"]["last"][
             "grid_charge_requested_mw"], 0)
 
+    def test_lt_motor_fuse_controls_real_propulsion_heat_sink_and_room_cooling(self):
+        commission_g19_electrical(operator_approved=True)
+        self.line_up_real_feeder("NODE-GEN-M", "NODE-LP-ROTARY-UTIL-A")
+        self.line_up_real_feeder("NODE-GEN-M", "NODE-HAB-03-FIRE-DETECT")
+        # These are original physical coolant valves, not invented
+        # thermal connections. Establish a conducting plant outlet.
+        coolant_edges = [
+            edge for edge in CanonicalShipState.objects.filter(category="edge")
+            if edge.reference.get("network") == "lt_cooling"
+        ]
+        self.assertTrue(coolant_edges)
+        for edge in coolant_edges:
+            for isolator in edge.reference["isolator_ids"]:
+                set_isolator(isolator, "closed",
+                             operator=True)
+        clock = CanonicalShipState.objects.get(pk="meta:continuous-physics")
+        details = dict(clock.details)
+        motion = dict(details["motion"])
+        motion["drive_heat_kj"] = 100000.0
+        details["motion"] = motion
+        clock.details = details
+        clock.save(update_fields=["details"])
+        first = tick_continuous_physics(now_game_time=1010)
+        self.assertTrue(first["power_assured"])
+        self.assertLess(first["drive_heat_kj"], 100000.0)
+        self.assertGreater(first["cooling_kw"], 0.0)
+        fuse = "ISO-G19-MOTOR-LT-PLANT"
+        set_isolator(fuse, "open", operator=True)
+        stopped = tick_continuous_physics(now_game_time=1020)
+        self.assertTrue(stopped["power_assured"])
+        self.assertEqual(stopped["cooling_kw"], 0.0)
+        self.assertAlmostEqual(
+            stopped["drive_heat_kj"], first["drive_heat_kj"], places=4)
+        set_isolator(fuse, "closed", operator=True)
+        restored = tick_continuous_physics(now_game_time=1030)
+        self.assertGreater(restored["cooling_kw"], 0.0)
+        self.assertLess(restored["drive_heat_kj"], stopped["drive_heat_kj"])
+
     def test_one_hab_air_handler_trip_stops_forced_flow_without_isolating_ducts(self):
         commission_g19_electrical(operator_approved=True)
         # B ECLSS and its local HAB-08 air handler share genuine A-board
