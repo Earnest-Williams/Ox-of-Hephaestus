@@ -110,12 +110,15 @@ orders prevent release. The `freight_service` crew operation is receipted,
 and local `oxplantread freight_service` reports the accessible machinery.
 Machine repair also checks the permit every work tick.
 
-The **12 pure tests** passed at source revision `fa692fea` in
-[run #40580738273](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40580738273).
-The same run includes an installed test campaign for all nine original
-gates, motion lockout and a tool/spares repair in the real logistics trunk.
-The installed result is assessed separately; a pure pass does not assert
-successful installed traversal. Operating contract:
+[CI run #40580738273](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40580738273)
+passed **12/12 pure and 11/11 installed Evennia tests, 23/23 total**
+at tested runtime `fa692fea`. The installed campaign physically
+crosses and returns from all nine service gates, holds machinery locked
+out while crew and unfinished jobs remain in the space, rejects unsafe
+bypasses, and performs a 0.5-kg finite-spares repair of a genuine
+`LOGI-SLED-01` inside the logistics trunk. The former 13-case
+freight-only equipment access gap is **accepted at subsystem level**.
+Vacuum/unsurveyed workspaces and exterior hazards remain separate scopes. Operating contract:
 [G19 freight service access](G19_FREIGHT_SERVICE_ACCESS.md).
 
 ## Remaining G19 closure

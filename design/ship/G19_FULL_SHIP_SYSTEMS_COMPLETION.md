@@ -12,9 +12,14 @@ exclusive durable lockout, occupied-room release refusal, signed work
 receipts, and live repair-tick gating. Original 421-space / 517-passage
 geometry and 808 equipment identities remain unchanged.
 [Operating service contract](G19_FREIGHT_SERVICE_ACCESS.md).
-Pure source/inventory/state-machine acceptance: **12 tests passed**
-in [run #40580738273](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40580738273).
-Installed test completion remains a separate release condition.
+**Accepted at subsystem level, 27 October 2026**:
+[run #40580738273](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40580738273)
+passed **12 pure and 11 installed Evennia tests (23/23 in two jobs)**
+at tested runtime `fa692fea`. This verifies all nine actual service
+gate entry/return operations, personnel lockout, stalled freight during
+maintenance, damaged hardware refusal, retained globally receipted
+state, and one genuine finite-spares machinery repair. The remaining
+G19 full-ship integration and unsurveyed/vacuum worksite gates remain open.
 
 ## Verified access/worksite continuation (27 October 2026)
 

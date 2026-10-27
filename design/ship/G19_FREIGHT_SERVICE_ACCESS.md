@@ -1,5 +1,17 @@
 # G19 — attended freight-machinery service access
 
+**Subsystem acceptance verified, 27 October 2026.**
+[CI run #40580738273](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40580738273)
+passed **12/12 pure and 11/11 installed Evennia tests (23/23, two jobs)**.
+Tested implementation commit: `fa692fea5e1996f8b662f9681e3dfad0e972620e`.
+All nine original freight service entries were physically traversed in
+both directions by real crew; occupied-room closure, motion lockout,
+damaged capture, invalid entry, durable receipts and one complete timed
+0.5-kg spare-part repair of `LOGI-SLED-01` were exercised.
+This closes **the 13 freight-only equipment-access gap** at subsystem
+level, not all exterior, vacuum, or unassigned-atmosphere access.
+
+
 **Implementation:** `game/world/ship_freight_service.py`,
 `game/world/continuous_ship_physics.py`,
 `game/world/ship_crew_access.py`. This is a **live crew movement
