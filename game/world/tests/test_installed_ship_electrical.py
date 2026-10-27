@@ -94,6 +94,41 @@ class InstalledElectricalTests(EvenniaTestCase):
         self.assertGreater(tick["electrical"]["meter"]["unserved_kwh"], 0)
         self.assertFalse(tick_continuous_physics(now_game_time=1010)["advanced"])
 
+    def test_generator_draws_finite_authored_cartridge_stock_without_losing_ship_mass(self):
+        commission_g19_electrical(operator_approved=True)
+        self.line_up_real_feeder(
+            "NODE-GEN-M", "NODE-HAB-03-FIRE-DETECT")
+        before_stock = state("inventory", "INV-GEN-CART").quantity * 1000.0
+        tick = tick_continuous_physics(now_game_time=1010)
+        e = tick["electrical"]
+        used = e["last"]["generator_cartridge_consumed_kg"]
+        self.assertGreater(used, 0)
+        self.assertAlmostEqual(used, 1.35 * 10 / 3600 * 2.0, places=6)
+        physical_remaining = state(
+            "inventory", "INV-GEN-CART").quantity * 1000.0
+        self.assertAlmostEqual(physical_remaining, before_stock - used)
+        self.assertAlmostEqual(
+            physical_remaining + e["spent_cartridge_housings_kg"],
+            before_stock)
+        ship_mass = tick["ship_current_mass_kg"]
+        self.assertFalse(tick_continuous_physics(
+            now_game_time=1010)["advanced"])
+        again = tick_continuous_physics(now_game_time=1020)
+        self.assertAlmostEqual(again["ship_current_mass_kg"], ship_mass)
+        self.assertGreater(again["electrical"][
+            "spent_cartridge_housings_kg"], e["spent_cartridge_housings_kg"])
+
+    def test_generator_cartridge_magazine_tamper_fails_before_any_energy_tick(self):
+        commission_g19_electrical(operator_approved=True)
+        stock = state("inventory", "INV-GEN-CART")
+        stock.quantity += 1
+        stock.save(update_fields=["quantity"])
+        with self.assertRaises(PhysicsError):
+            tick_continuous_physics(now_game_time=1010)
+        self.assertEqual(
+            CanonicalShipState.objects.get(
+                pk="meta:continuous-physics").details["last_game_time"], 1000)
+
     def test_damaged_main_switchboard_really_disconnects_downstream_branch(self):
         commission_g19_electrical(operator_approved=True)
         self.line_up_real_feeder(
