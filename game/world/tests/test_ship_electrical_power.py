@@ -124,6 +124,41 @@ class ElectricalPhysicalContracts(unittest.TestCase):
         self.assertEqual(initial, original)
         self.assertTrue(validate_electrical(after))
 
+    def test_charging_uses_only_fitted_live_feeder_and_real_surplus(self):
+        _, edges, switches, equipment = grid()
+        baseline = survey_battery(initial_electrical(), "BAT-COMMON-PROT",
+                                  capacity_kwh=1.0, charge_kwh=.3,
+                                  max_charge_mw=.2, max_discharge_mw=.4)
+        baseline["banks"]["BAT-COMMON-PROT"]["mode"] = "charge"
+        # Two active generators and a real protected supply provide surplus.
+        full = source_dispatch(equipment, edges, switches, "normal",
+                               ledger=baseline, dt_s=10)
+        self.assertIn("BAT-COMMON-PROT", full["charge_feeders"])
+        after = step_energy(baseline, full, 10)
+        bank = after["banks"]["BAT-COMMON-PROT"]
+        self.assertAlmostEqual(bank["charge_kwh"], .3 + .2 / 360)
+        self.assertAlmostEqual(after["meter"]["battery_charge_kwh"],
+                               .2 / 360)
+        self.assertAlmostEqual(after["meter"]["generation_kwh"],
+                               (1.35 + .2) / 360)
+        self.assertTrue(validate_electrical(after))
+        self.assertEqual(baseline["banks"]["BAT-COMMON-PROT"]["charge_kwh"], .3)
+
+        switches["ISO-BAT-COMMON-PROT"].setting = "open"
+        isolated = source_dispatch(equipment, edges, switches, "normal",
+                                   ledger=baseline, dt_s=10)
+        self.assertEqual(isolated["charge_feeders"], [])
+        uncharged = step_energy(baseline, isolated, 10)
+        self.assertAlmostEqual(uncharged["banks"]["BAT-COMMON-PROT"]["charge_kwh"],
+                               .3)
+        switches["ISO-BAT-COMMON-PROT"].setting = "closed"
+        # A live but wholly utilised 0.65 MW auxiliary has no spare power.
+        equipment["GEN-M"] = eq(False)
+        maxed = source_dispatch(equipment, edges, switches, "essential",
+                                ledger=baseline, dt_s=10)
+        no_surplus = step_energy(baseline, maxed, 10)
+        self.assertAlmostEqual(no_surplus["meter"]["battery_charge_kwh"], 0)
+
     def test_battery_does_not_supply_normal_cargo_or_drives(self):
         _, edges, switches, equipment = grid()
         equipment["GEN-M"] = eq(False)
