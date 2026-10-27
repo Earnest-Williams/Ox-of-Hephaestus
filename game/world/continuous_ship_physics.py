@@ -347,6 +347,10 @@ def _snapshot(item):
                     for key, value in system["suits"].items()},
             }
         if item.details.get("electrical") is not None:
+            result["generator_cartridges"] = {
+                "baseline_kg": item.details.get("generator_cartridge_baseline_kg"),
+                "spent_housings_kg": item.details.get("generator_spent_cartridge_kg"),
+            }
             power = item.details["electrical"]
             result["electrical"] = {
                 "worksite_surveys": power["worksite_surveys"],
@@ -506,10 +510,17 @@ def commission_g19_electrical(*, operator_approved=False):
     item = _clock(lock=True)
     if item.details.get("electrical") is not None:
         upgraded = migrate_v1_electrical(item.details["electrical"])
-        if upgraded != item.details["electrical"]:
+        fuel_needs_migration = "generator_cartridge_baseline_kg" not in item.details
+        if upgraded != item.details["electrical"] or fuel_needs_migration:
             previous = _snapshot(item)
             details = dict(item.details)
             details["electrical"] = upgraded
+            if fuel_needs_migration:
+                stock = state("inventory", "INV-GEN-CART", lock=True)
+                if stock.quantity is None or not math.isfinite(stock.quantity) or stock.quantity < 0:
+                    raise PhysicsError("Existing generator cartridges are not surveyed")
+                details["generator_cartridge_baseline_kg"] = stock.quantity * 1000.0
+                details["generator_spent_cartridge_kg"] = 0.0
             item.details = details
             item.revision += 1
             item.save(update_fields=["details", "revision"])
@@ -525,9 +536,15 @@ def commission_g19_electrical(*, operator_approved=False):
             nodes, edges, switches, strict=True)
     except ElectricalError as exc:
         raise PhysicsError(str(exc)) from exc
+    cartridges = state("inventory", "INV-GEN-CART", lock=True)
+    if (cartridges.quantity is None or not math.isfinite(cartridges.quantity)
+            or cartridges.quantity < 0):
+        raise PhysicsError("Fitted generator-cartridge inventory is not verified")
     before = _snapshot(item)
     d = dict(item.details)
     d["electrical"] = initial_electrical()
+    d["generator_cartridge_baseline_kg"] = cartridges.quantity * 1000.0
+    d["generator_spent_cartridge_kg"] = 0.0
     item.details = d
     item.revision += 1
     item.save(update_fields=["details", "revision"])
@@ -1845,14 +1862,18 @@ def _on(equipment, identifier):
 
 
 def _power(equipment, edges, isolators, profile, *,
-           ledger=None, dt_s=STEP_SECONDS, moored=False, nodes=None):
+           ledger=None, dt_s=STEP_SECONDS, moored=False, nodes=None,
+           cartridge_kg=None):
     if ledger is not None:
         try:
             installed_nodes = (nodes if nodes is not None else
                 list(CanonicalShipState.objects.filter(category="node")))
+            remaining = (cartridge_kg if cartridge_kg is not None else
+                state("inventory", "INV-GEN-CART").quantity * 1000.0)
             return source_dispatch(
                 equipment, edges, isolators, profile, ledger=ledger,
-                dt_s=dt_s, moored=moored, nodes=installed_nodes)
+                dt_s=dt_s, moored=moored, nodes=installed_nodes,
+                cartridge_kg=remaining)
         except ElectricalError as exc:
             raise PhysicsError(str(exc)) from exc
     feeder = {e.source_id: e for e in edges if e.reference["network"] == "power"}
@@ -1971,6 +1992,20 @@ def tick_continuous_physics(*, now_game_time=None):
         "hazardous": state("inventory", "INV-HAZARDOUS-RESIDUE", lock=True),
     }
     water_stock_before = {k: _snapshot(v) for k, v in water_stocks.items()}
+    cartridge_stock = (
+        state("inventory", "INV-GEN-CART", lock=True)
+        if clock.details.get("electrical") is not None else None)
+    cartridge_before = _snapshot(cartridge_stock) if cartridge_stock else None
+    cartridge_spent = float(clock.details.get(
+        "generator_spent_cartridge_kg", 0.0))
+    cartridge_baseline = clock.details.get("generator_cartridge_baseline_kg")
+    if cartridge_stock is not None and (
+            cartridge_baseline is None or
+            not math.isfinite(cartridge_spent) or cartridge_spent < 0
+            or not math.isclose(
+                cartridge_stock.quantity * 1000.0 + cartridge_spent,
+                cartridge_baseline, abs_tol=1e-4, rel_tol=1e-11)):
+        raise PhysicsError("Generator cartridge magazine plus spent custody do not reconcile")
     isolators = {x.source_id: x for x in
                  CanonicalShipState.objects.select_for_update()
                  .filter(category="isolator")}
@@ -2119,7 +2154,9 @@ def tick_continuous_physics(*, now_game_time=None):
                 _event(switch, "electrical_overcurrent_trip", before_trip)
         power = _power(equipment, edges, isolators, clock.details["load_profile"],
                        ledger=electrical, dt_s=dt,
-                       moored=contacts_active(cargo), nodes=water_nodes)
+                       moored=contacts_active(cargo), nodes=water_nodes,
+                       cartridge_kg=(cartridge_stock.quantity * 1000.0
+                                     if cartridge_stock is not None else None))
         if water_state is not None:
             hardware = _water_hardware(
                 water_state, equipment, edges, isolators, water_nodes, power)
@@ -2639,6 +2676,18 @@ def tick_continuous_physics(*, now_game_time=None):
                     actual_requested_mw=power["requested_mw"])
             except ElectricalError as exc:
                 raise PhysicsError(str(exc)) from exc
+            # Generator fuel conversion uses the original INV-GEN-CART stock
+            # and retains spent housings aboard; no ship mass is erased.
+            used = electrical["last"]["generator_cartridge_consumed_kg"]
+            available = cartridge_stock.quantity * 1000.0
+            if used > available + 1e-7:
+                raise PhysicsError("Generator dispatched more than actual cartridges permit")
+            cartridge_stock.quantity = max(0.0, available - used) / 1000.0
+            cartridge_spent += used
+            if not math.isclose(
+                    cartridge_stock.quantity * 1000.0 + cartridge_spent,
+                    cartridge_baseline, abs_tol=1e-4, rel_tol=1e-11):
+                raise PhysicsError("Generator source fuel custody escaped its ledger")
         summary = {
             "available_mw": round(power["available_mw"], 4),
             "requested_mw": power["requested_mw"],
@@ -2868,6 +2917,13 @@ def tick_continuous_physics(*, now_game_time=None):
         CanonicalShipState.objects.bulk_update(
             [e for e in equipment_rows if e.key in changed_equipment],
             ["details", "condition", "revision"], batch_size=100)
+    if cartridge_stock is not None and not math.isclose(
+            cartridge_stock.quantity, cartridge_before["quantity"],
+            abs_tol=1e-13, rel_tol=0):
+        cartridge_stock.revision += 1
+        cartridge_stock.save(update_fields=["quantity", "revision"])
+        _event(cartridge_stock, "g19_generator_cartridge_conversion",
+               cartridge_before)
     for key, stock in water_stocks.items():
         before_stock = water_stock_before[key]
         if not math.isclose(stock.quantity, before_stock["quantity"],
@@ -3198,6 +3254,7 @@ def tick_continuous_physics(*, now_game_time=None):
     d["motion"] = motion
     if electrical is not None:
         d["electrical"] = electrical
+        d["generator_spent_cartridge_kg"] = cartridge_spent
     if repairs is not None:
         d["repairs"] = repairs
     if hull is not None:
@@ -3223,6 +3280,9 @@ def tick_continuous_physics(*, now_game_time=None):
             "flywheel_modules": len(electrical["flywheels"]),
             "flywheel_held_kwh": sum(
                 x["charge_kwh"] for x in electrical["flywheels"].values()),
+            "generator_cartridges_remaining_kg": (
+                cartridge_stock.quantity * 1000.0),
+            "spent_cartridge_housings_kg": cartridge_spent,
             "tripped_breakers": sorted(
                 key for key, fault in electrical["faults"].items()
                 if fault["latched"]),
@@ -4957,6 +5017,10 @@ def local_physics_readout(actor, target):
                     for k, v in electrical["banks"].items()},
                 "flywheel_charge_kwh": sum(
                     v["charge_kwh"] for v in electrical["flywheels"].values()),
+                "cartridge_remaining_kg": state(
+                    "inventory", "INV-GEN-CART").quantity * 1000.0,
+                "spent_cartridge_housings_kg": _clock().details.get(
+                    "generator_spent_cartridge_kg", 0.0),
                 "flywheel_modules_registered": len(electrical["flywheels"]),
                 "tripped_breakers": sorted(
                     k for k, v in electrical["faults"].items() if v["latched"]),
