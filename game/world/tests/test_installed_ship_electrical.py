@@ -71,6 +71,104 @@ class InstalledElectricalTests(EvenniaTestCase):
                     set_isolator(isolator_id, "closed", operator=True)
             position = a if position == b else b
 
+    def test_second_stage_equipment_feeders_installed_from_authentic_rooms(self):
+        from world.ship_equipment_services import (
+            SERVICE_LOADS, service_specs, service_ids)
+        commission_g19_electrical(operator_approved=True)
+        self.assertEqual(len(SERVICE_LOADS), 26)
+        specs = service_specs()
+        self.assertEqual(len(specs), 78)
+        for key, authored in specs.items():
+            row = CanonicalShipState.objects.get(pk=key)
+            self.assertEqual(row.reference, authored["reference"])
+            self.assertEqual(row.space_id, authored["space_id"])
+        self.assertFalse(commission_g19_electrical(
+            operator_approved=True)["commissioned"])
+        self.assertEqual(CanonicalShipState.objects.filter(
+            source_model="g19-operating-equipment/1").count(), len(specs))
+        self.assertEqual(
+            state("isolator", service_ids("SHOP-CNC-MILL")[2]).setting,
+            "closed")
+
+    def test_machine_shop_power_loss_latches_attended_restart_and_history(self):
+        from world.ship_equipment_services import service_ids
+        commission_g19_electrical(operator_approved=True)
+        self.line_up_real_feeder("NODE-GEN-M", "NODE-LP-SHOP-MECH")
+        self.line_up_real_feeder("NODE-GEN-M", "NODE-HAB-03-FIRE-DETECT")
+        self.crew_at("SHOP-MECH")
+        machine = "SHOP-CNC-MILL"
+        self.assertFalse(local_physics_readout(
+            self.worker, machine)["operating"])
+        start = crew_physical_action(
+            self.worker, "1" * 32, "plant", machine, "on")
+        self.assertEqual(start["status"], "succeeded")
+        first = tick_continuous_physics(now_game_time=1010)
+        self.assertEqual(first["active_workshop_machines"], 1)
+        self.assertTrue(local_physics_readout(
+            self.worker, machine)["operating"])
+        breaker = service_ids(machine)[2]
+        set_isolator(breaker, "open", operator=True)
+        interrupted = tick_continuous_physics(now_game_time=1020)
+        self.assertEqual(interrupted["active_workshop_machines"], 0)
+        self.assertTrue(local_physics_readout(
+            self.worker, machine)["restart_required"])
+        set_isolator(breaker, "closed", operator=True)
+        restored_power = tick_continuous_physics(now_game_time=1030)
+        self.assertEqual(restored_power["active_workshop_machines"], 0)
+        self.assertTrue(local_physics_readout(
+            self.worker, machine)["feeder_conducting"])
+        receipt = crew_physical_action(
+            self.worker, "2" * 32, "plant", machine, "on")
+        self.assertEqual(receipt["status"], "succeeded")
+        restart = tick_continuous_physics(now_game_time=1040)
+        self.assertEqual(restart["active_workshop_machines"], 1)
+        machine_state = local_physics_readout(self.worker, machine)
+        self.assertEqual(machine_state["runtime_s"], 20)
+        self.assertEqual(machine_state["outage_s"], 20)
+        self.assertFalse(machine_state["restart_required"])
+        self.assertEqual(crew_physical_action(
+            self.worker, "2" * 32, "plant", machine, "on"), receipt)
+        self.assertFalse(tick_continuous_physics(
+            now_game_time=1040)["advanced"])
+        self.assertFalse(commission_g19_electrical(
+            operator_approved=True)["commissioned"])
+        retained = local_physics_readout(self.worker, machine)
+        self.assertEqual(retained["runtime_s"], 20)
+        self.assertEqual(retained["outage_s"], 20)
+
+    def test_cargo_and_cultivation_branches_stop_one_service_not_ship_power(self):
+        from world.ship_equipment_services import SERVICE_LOADS, service_ids
+        commission_g19_electrical(operator_approved=True)
+        self.line_up_real_feeder("NODE-GEN-M", "NODE-HAB-08-GROW-LP")
+        self.line_up_real_feeder("NODE-GEN-M", "NODE-DR-03-SVC-DB")
+        self.line_up_real_feeder("NODE-GEN-M", "NODE-HAB-03-FIRE-DETECT")
+        live = tick_continuous_physics(now_game_time=1010)
+        self.assertTrue(live["power_assured"])
+        self.assertEqual(live["active_cultivation_bays"], 1)
+        self.assertEqual(live["active_cargo_environment_pairs"], 1)
+        grow_breaker = service_ids("GROW-3-NUTRIENT")[2]
+        set_isolator(grow_breaker, "open", operator=True)
+        crop_out = tick_continuous_physics(now_game_time=1020)
+        self.assertEqual(crop_out["active_cultivation_bays"], 0)
+        self.assertEqual(crop_out["active_cargo_environment_pairs"], 1)
+        self.assertTrue(crop_out["power_assured"])
+        self.crew_at(SERVICE_LOADS["GROW-3-CTRL"][0])
+        self.assertTrue(local_physics_readout(
+            self.worker, "GROW-3-CTRL")["operating"])
+        with self.assertRaises(PermissionError):
+            local_physics_readout(self.worker, "DR-03-CARGO-HX")
+        set_isolator(grow_breaker, "closed", operator=True)
+        cargo_breaker = service_ids("DR-03-CARGO-GAS")[2]
+        set_isolator(cargo_breaker, "open", operator=True)
+        cargo_out = tick_continuous_physics(now_game_time=1030)
+        self.assertEqual(cargo_out["active_cultivation_bays"], 1)
+        self.assertEqual(cargo_out["active_cargo_environment_pairs"], 0)
+        self.assertTrue(cargo_out["power_assured"])
+        set_isolator(cargo_breaker, "closed", operator=True)
+        restart = tick_continuous_physics(now_game_time=1040)
+        self.assertEqual(restart["active_cultivation_bays"], 1)
+        self.assertEqual(restart["active_cargo_environment_pairs"], 1)
+
     def test_auxiliary_harnesses_installed_once_and_individually_fused(self):
         commission_g19_electrical(operator_approved=True)
         from world.ship_auxiliary_electrical import _specs, LOCAL_LOADS, MOTORS
