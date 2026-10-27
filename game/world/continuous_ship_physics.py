@@ -2405,6 +2405,12 @@ def tick_continuous_physics(*, now_game_time=None):
         validate_cargo(cargo, motion["cargo_mass_kg"])
     except CargoError as exc:
         raise PhysicsError(str(exc)) from exc
+    cargo_climate = clock.details.get("cargo_environment")
+    if cargo_climate is not None:
+        try:
+            validate_cargo_environment(cargo_climate, cargo)
+        except CargoClimateError as exc:
+            raise PhysicsError(str(exc)) from exc
     if set(rotors) != set(ROTORS):
         raise PhysicsError("Rotary machinery not commissioned")
     # Port jobs must not be allowed to change inertial mass during a
@@ -2956,13 +2962,56 @@ def tick_continuous_physics(*, now_game_time=None):
                 _parcel(donor, receiver, min(0.12 * dt * abs(pa - pb) / 101325.0,
                                              donor["mass"] * 0.10))
 
+        # Real cargo skids reject heat only through their own original
+        # rotary LT interface into the same radiator capacity used by
+        # propulsion and habitation. Commercial cooling remains secondary
+        # to occupied-space heat removal.
+        cargo_cooling_kw = 0.0
+        if cargo_climate is not None:
+            gallery_ambient = {
+                drum: cells["PZ-" + drum + "-SVC"]["temperature"]
+                for drum in CARGO_DRUMS
+                if "PZ-" + drum + "-SVC" in cells
+            }
+            cargo_coolant_nodes = {
+                "NODE-" + drum + "-LT-IF" for drum in CARGO_DRUMS
+                if ("NODE-" + drum + "-LT-IF" in connected_lt
+                    and equipment.get(drum + "-LT-IF") is not None
+                    and equipment[drum + "-LT-IF"].condition not in _BROKEN)
+            }
+            try:
+                cargo_climate, gallery_exchange, cargo_cooling_kw = (
+                    step_cargo_environment(
+                        cargo_climate, cargo, dt,
+                        ambient_by_drum=gallery_ambient,
+                        operating_machines=(
+                            service_operations["last"]["operating"]
+                            if service_operations is not None else ()),
+                        connected_lt_nodes=cargo_coolant_nodes,
+                        cooling_budget_kw=min(
+                            6.0 * 20.0, lt_budget["environment_kw"] * 0.10)))
+            except CargoClimateError as exc:
+                raise PhysicsError(str(exc)) from exc
+            for drum, heat_kj in gallery_exchange.items():
+                zone = "PZ-" + drum + "-SVC"
+                gallery = cells[zone]
+                gallery["energy"] -= heat_kj
+                if gallery["energy"] <= 0:
+                    raise PhysicsError("Cargo heat transfer emptied gallery sensible energy")
+                gallery["temperature"] = gallery["energy"] / (
+                    gallery["capacity"] +
+                    gallery["mass"] * CP_GAS_KJ_KG_K)
+            if cargo_cooling_kw > lt_budget["environment_kw"] + 1e-7:
+                raise PhysicsError("Cargo cooling exceeded available LT radiator budget")
+
         # Existing LT coolant route plus finite live radiator wings.
         cooling_nodes = connected_lt
         cool_zones = {node_zones.get(n) for n in cooling_nodes}
         cool_zones &= set(cells)
         # Propulsion rejection was already debited from this *same*
         # motor-and-radiator-limited capacity earlier in this tick.
-        total_cool_kw = lt_budget["environment_kw"]
+        total_cool_kw = max(
+            0.0, lt_budget["environment_kw"] - cargo_cooling_kw)
         per_zone_kw = total_cool_kw / len(cool_zones) if cool_zones else 0.0
 
         fire_starts = [
@@ -3141,6 +3190,13 @@ def tick_continuous_physics(*, now_game_time=None):
             "shortfall_mw": round(power["shortfall_mw"], 4),
             "ventilation_powered": air_on,
             "cooling_kw": round(total_cool_kw, 3),
+            "cargo_cooling_kw": round(cargo_cooling_kw, 3),
+            "cargo_conditioned_drums": (
+                len(cargo_climate["last"]["cooled_drums"])
+                if cargo_climate is not None else 0),
+            "cargo_sensitive_lots_exposed": (
+                len(cargo_climate["last"]["exposed_lots"])
+                if cargo_climate is not None else 0),
             "active_cargo_environment_pairs": (
                 sum(all(f"{drum}-{kind}" in
                         service_operations["last"]["operating"]
@@ -3730,6 +3786,9 @@ def tick_continuous_physics(*, now_game_time=None):
         d["refuge_media_service"] = refuge_media
     if service_operations is not None:
         d["service_operations"] = service_operations
+    if cargo_climate is not None:
+        validate_cargo_environment(cargo_climate, cargo)
+        d["cargo_environment"] = cargo_climate
     if electrical is not None:
         d["electrical"] = electrical
         d["generator_spent_cartridge_kg"] = cartridge_spent
