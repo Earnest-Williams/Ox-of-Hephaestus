@@ -107,6 +107,10 @@ from world.ship_crew_medical import (
     CLINIC_ZONE, initial_medical, validate_medical, carry_medical_kit,
     begin_care, step_care,
 )
+from world.ship_casualty_transport import (
+    RescueError, INTERIOR_CARRY_KINDS, initial_rescue,
+    validate_rescue, begin_rescue, step_rescue, finish_rescue,
+)
 from world.ship_auxiliary_electrical import (
     LOCAL_LOADS, MOTORS, PROTECTED_FIRE_MOTORS, protected_fire_ids,
     install_auxiliary_circuits, initial_local_backup,
@@ -392,6 +396,8 @@ def _snapshot(item):
             result["freight_service"] = item.details["freight_service"]
         if item.details.get("medical") is not None:
             result["medical"] = item.details["medical"]
+        if item.details.get("rescue") is not None:
+            result["rescue"] = item.details["rescue"]
         if item.details.get("eva") is not None:
             system = item.details["eva"]
             result["eva"] = {
@@ -1499,6 +1505,27 @@ def _medical_power_and_air(*, clock_details=None):
         isolators, d["load_profile"], ledger=d.get("electrical"),
         moored=contacts_active(d.get("cargo", {})))
     return bool(power["assured"] and TREATMENT_POWER_NODE in power["nodes"]), _air_safe(cell)
+
+
+@transaction.atomic
+def commission_g19_rescue(*, operator_approved=False):
+    """Activate two-carrier casualty transport through existing physical doors."""
+    if not operator_approved:
+        raise PermissionError("Only operator can commission shipboard rescue")
+    clock = _clock(lock=True)
+    if clock.details.get("medical") is None:
+        raise PhysicsError("Commission the fitted HAB-04 clinic first")
+    if clock.details.get("rescue") is not None:
+        validate_rescue(clock.details["rescue"])
+        return {"commissioned": False}
+    old = _snapshot(clock)
+    details = dict(clock.details)
+    details["rescue"] = initial_rescue()
+    clock.details = details
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "g19_manual_casualty_transport_commissioned", old)
+    return {"commissioned": True}
 
 
 @transaction.atomic
@@ -3618,6 +3645,105 @@ def tick_continuous_physics(*, now_game_time=None):
                     after={"condition": row.condition,
                            "injury": row.details["injury"]},
                     actor_dbref=row.source_id, game_time=last + seconds)
+
+    # Manual casualty transport is not an ordinary self-walking exit. Two
+    # registered able carriers physically accompany an immobile patient
+    # through a currently rated, open, same-frame interior hatch.
+    rescue = clock.details.get("rescue")
+    if rescue is not None:
+        validate_rescue(rescue)
+        from evennia.objects.models import ObjectDB
+        from world.ship_world import find_ship_space
+        involved = {ref for patient, j in rescue["jobs"].items()
+                    for ref in (patient, j["lead"], j["helper"])}
+        actor_ids = [int(ref[1:]) for ref in involved]
+        actors = {a.dbref: a for a in ObjectDB.objects.filter(id__in=actor_ids)}
+        health = {r.source_id: r for r in crew_rows}
+        doors = {a.source_id: a for a in access_rows}
+        ready = set()
+        for patient, job in rescue["jobs"].items():
+            trio = (patient, job["lead"], job["helper"])
+            if any(ref not in actors or ref not in health for ref in trio):
+                continue
+            if any(getattr(actors[ref].db, "ox_terminal_dead", False)
+                   or getattr(actors[ref], "location", None) !=
+                   find_ship_space(job["origin"]) for ref in trio):
+                continue
+            if any(health[ref].condition not in {"fit", "impaired"}
+                   for ref in (job["lead"], job["helper"])):
+                continue
+            if health[patient].condition not in {
+                    "impaired", "incapacitated", "critical"}:
+                continue
+            if (getattr(actors[job["lead"]].db, "crew_role", None) not in
+                    MEDICAL_ROLES | {"chief_engineer", "watch_engineer"}
+                    or not getattr(actors[job["helper"]].db, "crew_role", None)):
+                continue
+            if (eva is not None and any(ref in eva["transits"] for ref in trio)
+                    or personnel_transfers is not None and any(
+                        j["actor"] in trio
+                        for j in personnel_transfers["jobs"].values())):
+                continue
+            door = doors.get(job["link"])
+            if (door is None or door.condition in _BROKEN
+                    or door.setting != "open"
+                    or door.reference.get("kind") not in INTERIOR_CARRY_KINDS):
+                continue
+            origin, dest = (
+                (door.reference.get("from"), door.reference.get("to"))
+                if job["direction"] == "forward" else
+                (door.reference.get("to"), door.reference.get("from")))
+            if (origin != job["origin"] or dest != job["destination"]):
+                continue
+            a, b = find_ship_space(origin), find_ship_space(dest)
+            if (a is None or b is None or a.db.ox_frame != b.db.ox_frame):
+                continue
+            zones_at = (zones.get(origin), zones.get(dest))
+            if not all(zone in cells and _air_safe(state("pressure", zone))
+                       for zone in zones_at):
+                continue
+            # Freshly integrated gas/thermal state overrides a stale healthy
+            # room reading. A burning, leaking, smoked or empty compartment
+            # cannot advance the two-carrier movement this tick.
+            if any(cells[z]["mass"] <= 0 or cells[z]["burn"] > 0
+                   or cells[z]["leak"] > 0 or cells[z]["damage"] >= .2
+                   or cells[z]["smoke"] > cells[z]["mass"] * .00001
+                   or cells[z]["co2"] > cells[z]["mass"] * .005
+                   or not 278.15 <= cells[z]["temperature"] <= 313.15
+                   or not 80000 <= (
+                       cells[z]["mass"] * R_SPECIFIC_AIR *
+                       cells[z]["temperature"] / cells[z]["volume"]) <= 120000
+                   for z in zones_at):
+                continue
+            ready.add(patient)
+        try:
+            rescue, transfers_done = step_rescue(
+                rescue, seconds, ready_patients=ready)
+            for patient, job in transfers_done:
+                destination = find_ship_space(job["destination"])
+                if destination is None:
+                    raise PhysicsError("Rescue destination no longer installed")
+                for ref in (patient, job["lead"], job["helper"]):
+                    if not actors[ref].move_to(destination, quiet=True):
+                        raise PhysicsError("Physical casualty carriage movement vetoed")
+                    if ref in health:
+                        row = health[ref]
+                        row.space_id = job["destination"]
+                        row.revision += 1
+                        row.save(update_fields=["space_id", "revision"])
+                rescue = finish_rescue(
+                    rescue, patient=patient, request_id=job["request_id"])
+                CanonicalShipEvent.objects.create(
+                    component_key="access:" + job["link"],
+                    operation="crew_casualty_transport_complete",
+                    before={"room": job["origin"], "patient": patient},
+                    after={"room": job["destination"],
+                           "carriers": [job["lead"], job["helper"]],
+                           "seconds": job["total_s"],
+                           "request_id": job["request_id"]},
+                    actor_dbref=job["lead"], game_time=last + seconds)
+        except RescueError as exc:
+            raise PhysicsError(str(exc)) from exc
     pressure_changed = []
     for row in pressure_rows:
         c = cells[row.source_id]
@@ -4070,6 +4196,8 @@ def tick_continuous_physics(*, now_game_time=None):
         d["eva"] = eva
     if medical is not None:
         d["medical"] = medical
+    if rescue is not None:
+        d["rescue"] = rescue
     if major_damage is not None:
         d["major_damage"] = major_damage
     if water_state is not None:
@@ -4092,6 +4220,8 @@ def tick_continuous_physics(*, now_game_time=None):
                 key for key, fault in electrical["faults"].items()
                 if fault["latched"]),
         } if electrical is not None else None),
+        "rescue_active_transfers": (len(rescue["jobs"]) if rescue is not None else None),
+        "rescue_completed": (rescue["completed"] if rescue is not None else None),
         "medical_active_cases": (len(medical["cases"]) if medical is not None else None),
         "medical_completed": (medical["completed"] if medical is not None else None),
         "crew_exposure_registered": len(crew_rows),
@@ -4433,7 +4563,7 @@ def crew_physical_action(actor, request_id, action, target, value):
     """
     if not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
         raise PhysicsError("Expected one 32-character lowercase request UUID")
-    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical"}:
+    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue"}:
         raise PhysicsError("Unknown physical operation")
     if actor is None or getattr(actor.db, "ox_terminal_dead", False):
         raise PermissionError("A deceased or missing character cannot operate machinery")
@@ -4455,8 +4585,8 @@ def crew_physical_action(actor, request_id, action, target, value):
                     "isolator:" if action == "switch"
                     else "pressure:" if action == "mist"
                     else "access:" if action == "hatch"
-                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical"}
-                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical"} else target)
+                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue"}
+                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue"} else target)
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
@@ -4488,7 +4618,15 @@ def crew_physical_action(actor, request_id, action, target, value):
             job["actor"] == actor.dbref
             for job in transfers["jobs"].values()):
         raise PermissionError("Character is committed to a moving personnel carriage")
-    if action in {"repair", "wasteport", "hull", "eva"}:
+    rescue_busy = _clock().details.get("rescue")
+    if rescue_busy is not None:
+        validate_rescue(rescue_busy)
+        for pending_patient, pending in rescue_busy["jobs"].items():
+            if actor.dbref in {pending_patient, pending["lead"], pending["helper"]}:
+                if not (action == "rescue" and target == pending_patient
+                        and value == "cancel" and actor.dbref == pending["lead"]):
+                    raise PermissionError("Crew member committed to timed physical casualty transport")
+    if action in {"repair", "wasteport", "hull", "eva", "rescue"}:
         # A worker who has become incapacitated cannot command or advance
         # a physical repair or sealed waste movement. Deduplicated historic
         # receipts above remain replayable without issuing a second action.
@@ -5309,6 +5447,105 @@ def crew_physical_action(actor, request_id, action, target, value):
         item.revision += 1
         item.save(update_fields=["details", "revision"])
 
+
+    elif action == "rescue":
+        # The only assisted casualty movement is a two-person physically
+        # occupied, timed *existing* interior passage. Neither carrier nor
+        # patient may move themselves elsewhere until the job completes.
+        clock = _clock(lock=True)
+        d = dict(clock.details)
+        rescue = d.get("rescue")
+        if rescue is None:
+            raise PhysicsError("Attended casualty transport not commissioned")
+        validate_rescue(rescue)
+        if not re.fullmatch(r"#[0-9]+", target):
+            raise PhysicsError("Rescue target must be a real patient dbref")
+        before = _snapshot(clock)
+        try:
+            if value == "cancel":
+                job = rescue["jobs"].get(target)
+                if job is None or job["lead"] != actor.dbref:
+                    raise PermissionError("Only the assigned local rescuer may cancel")
+                origin = getattr(getattr(actor.location, "db", None), "ox_space_id", None)
+                if origin != job["origin"]:
+                    raise PermissionError("Cancel from actual rescue origin")
+                rescue = finish_rescue(
+                    rescue, patient=target, request_id=job["request_id"],
+                    cancelled=True)
+            else:
+                parts = value.split(":")
+                if len(parts) != 3:
+                    raise PhysicsError("Rescue needs <helper-dbref>:<link-id>:<direction>")
+                helper_ref, link, direction = parts
+                from evennia.objects.models import ObjectDB
+                from world.ship_world import find_world_entity, find_ship_space
+                from world.ship_crew_access import _clearance
+                if not re.fullmatch(r"#[0-9]+", helper_ref):
+                    raise PhysicsError("Two identifiable carriers required")
+                helper = ObjectDB.objects.filter(id=int(helper_ref[1:])).first()
+                patient = ObjectDB.objects.filter(id=int(target[1:])).first()
+                exit_obj = find_world_entity(f"access:{link}:{direction}")
+                if (helper is None or patient is None or exit_obj is None
+                        or link not in {a.source_id for a in
+                                        CanonicalShipState.objects.filter(category="access")}):
+                    raise PhysicsError("Unknown crew member or fitted local passage")
+                dest = exit_obj.destination
+                origin = exit_obj.location
+                if (actor.location != origin or helper.location != origin
+                        or patient.location != origin
+                        or origin is None or dest is None):
+                    raise PermissionError("Both carriers and patient must share the actual departure room")
+                if (getattr(actor.db, "crew_role", None) not in
+                        MEDICAL_ROLES | {"chief_engineer", "watch_engineer"}
+                        or not getattr(helper.db, "crew_role", None)):
+                    raise PermissionError("Qualified rescue leader and enrolled helper required")
+                if len({actor.dbref, helper_ref, target}) != 3:
+                    raise PhysicsError("Two distinct carers cannot carry themselves")
+                hp = {
+                    ref: CanonicalShipState.objects.filter(
+                        pk="crew_health:" + ref, source_model=MODEL).first()
+                    for ref in (actor.dbref, helper_ref, target)}
+                if (any(row is None for row in hp.values())
+                        or hp[target].condition not in {
+                            "impaired", "incapacitated", "critical"}
+                        or any(hp[r].condition not in {"fit", "impaired"}
+                               for r in (actor.dbref, helper_ref))
+                        or any(getattr(a.db, "ox_terminal_dead", False)
+                               for a in (actor, helper, patient))):
+                    raise PhysicsError("Living measured patient and two capable enrolled carriers required")
+                # The installed normal exit preflight tests BOTH independent
+                # people and its actual pressure, damage, frame and opening.
+                _clearance(actor, exit_obj, dest)
+                _clearance(helper, exit_obj, dest)
+                door = state("access", link)
+                if door.reference.get("kind") not in INTERIOR_CARRY_KINDS:
+                    raise PhysicsError("Only an existing ordinary interior door permits manual carry")
+                if origin.db.ox_frame != dest.db.ox_frame:
+                    raise PhysicsError("Manual carry cannot cross a moving frame")
+                zones = _topology()[0]
+                if not all(isinstance(zones.get(space.db.ox_space_id), str)
+                           and zones[space.db.ox_space_id].startswith("PZ-")
+                           for space in (origin, dest)):
+                    raise PhysicsError("Unrated vacuum or unknown atmosphere cannot support manual carry")
+                travel = door.reference.get("traverse_time_s")
+                if (isinstance(travel, bool) or
+                        not isinstance(travel, (int, float)) or
+                        not math.isfinite(travel) or not 0 < travel <= 80):
+                    raise PhysicsError("Unrated casualty handling width or transfer time")
+                duration = max(30.0, float(travel) * 3.0)
+                rescue = begin_rescue(
+                    rescue, patient=target, lead=actor.dbref,
+                    helper=helper_ref, link=link, direction=direction,
+                    origin=origin.db.ox_space_id,
+                    destination=dest.db.ox_space_id, seconds=duration,
+                    request_id=request_id)
+        except RescueError as exc:
+            raise PhysicsError(str(exc)) from exc
+        d["rescue"] = rescue
+        clock.details = d
+        clock.revision += 1
+        clock.save(update_fields=["details", "revision"])
+        item = clock
     elif action == "medical":
         # Individual medical work order. The pharmacy and treatment rooms
         # are physically distinct, so kit pickup/delivery requires movement.
@@ -6534,6 +6771,18 @@ def local_physics_readout(actor, target):
             "injury": own.details["injury"],
             "scope": "own_physically_measured_crew_health_only",
         }
+    if target == "rescue":
+        ledger = _clock().details.get("rescue")
+        if ledger is None:
+            raise PhysicsError("Casualty transport not commissioned")
+        validate_rescue(ledger)
+        local = {}
+        for patient, job in ledger["jobs"].items():
+            if room in {job["origin"], job["destination"]} and (
+                    actor.dbref in {patient, job["lead"], job["helper"]}):
+                local[patient] = job
+        return {"local_orders": local, "active_here": len(local),
+                "scope": "only_own_local_timed_casualty_transport"}
     if target == "medical":
         medical = _clock().details.get("medical")
         if medical is None or room not in {TREATMENT_ROOM, PHARMACY_ROOM}:
