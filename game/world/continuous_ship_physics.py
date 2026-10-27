@@ -1850,6 +1850,42 @@ def commission_g19_movement(*, operator_approved=False):
 
 
 @transaction.atomic
+def survey_g19_equipment_wear(*, operator_approved=False, unit_id,
+                              equivalent_hours):
+    """Attest inherited fatigue on one original machine without repairs.
+
+    This one-time survey establishes *pre-existing* remaining maintenance
+    life. It never changes physical condition or fabricates a spare part.
+    """
+    if not operator_approved:
+        raise PermissionError("Existing-machine wear survey is operator-only")
+    if unit_id not in SERVICE_LOADS:
+        raise PhysicsError("No fitted service machine at this identifier")
+    clock = _clock(lock=True)
+    d = dict(clock.details)
+    services = d.get("service_operations")
+    wear = d.get("equipment_wear")
+    if services is None or wear is None:
+        raise PhysicsError("G19 equipment operation and maintenance not commissioned")
+    installed = state("equipment", unit_id)
+    if installed.space_id != SERVICE_LOADS[unit_id][0]:
+        raise PhysicsError("Historical wear survey has no original worksite")
+    try:
+        new_wear = survey_existing_wear(
+            wear, services, unit_id, equivalent_hours=equivalent_hours)
+    except ElectricalError as exc:
+        raise PhysicsError(str(exc)) from exc
+    before = _snapshot(clock)
+    d["equipment_wear"] = new_wear
+    clock.details = d
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "operator_observed_inherited_machine_wear", before)
+    return {"unit": unit_id, "equivalent_hours": equivalent_hours,
+            "surveyed": True}
+
+
+@transaction.atomic
 def survey_g19_cargo_environment(
         *, operator_approved=False, operation, drum=None, lot_id=None,
         profile=None, temperature_k=None, target_k=None,
@@ -5954,6 +5990,8 @@ def local_physics_readout(actor, target):
             target, nodes=power["nodes"], equipment=units,
             edges={x.source_id: x for x in edges}, switches=contacts)
         account = running["units"][target]
+        wear = clock.details.get("equipment_wear")
+        current_wear = (wear["units"][target] if wear is not None else None)
         return {
             "id": target, "upstream_panel_energised": spec[1] in power["nodes"],
             "feeder_conducting": supply, "schedule_assured": power["assured"],
@@ -5961,6 +5999,12 @@ def local_physics_readout(actor, target):
             "outage_s": account["outage_s"],
             "restart_required": account["restart_latched"],
             "local_breaker": service_ids(target)[2],
+            "maintenance_stage": (
+                current_wear["stage"] if current_wear else None),
+            "wear_hours_since_service": (
+                current_wear["wear_s"] / 3600.0 if current_wear else None),
+            "historical_wear_surveyed": (
+                current_wear["surveyed"] if current_wear else None),
             "scope": "attended_secondary_equipment_circuit",
         }
     if target in MOTORS:
