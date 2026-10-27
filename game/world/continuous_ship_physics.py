@@ -86,6 +86,12 @@ from world.ship_crew_physiology import (
     CrewPhysiologyError, validate_crew_health, step_crew_in_space,
 )
 from world.ship_crew_exposure import initial_exposure
+from world.ship_electrical_power import (
+    ElectricalError, BATTERIES as POWER_BANKS,
+    initial_electrical, validate_electrical, audit_topology,
+    source_dispatch, survey_battery, register_fault, reset_protection,
+    step_protection, step_energy,
+)
 from world.ship_eva_operations import (
     EVAError, LOCKS as EVA_LOCKS, SUIT_O2_KG, MAX_GAS_BUFFER_KG,
     initial_eva, validate_eva, lock_contract, suit_of, checkout_suit,
@@ -339,6 +345,13 @@ def _snapshot(item):
                     "condition": value["exposure"]["condition"]}
                     for key, value in system["suits"].items()},
             }
+        if item.details.get("electrical") is not None:
+            power = item.details["electrical"]
+            result["electrical"] = {
+                "meter": power["meter"], "last": power["last"],
+                "banks": power["banks"], "shore": power["shore"],
+                "faults": power["faults"], "sync": power["sync"],
+            }
         result["motion"] = item.details.get("motion")
         result["rotors"] = item.details.get("rotors")
         cargo = item.details.get("cargo")
@@ -468,6 +481,129 @@ def arm_continuous_physics(*, operator_approved=False, now_game_time=None):
     )
     return {"armed": True, "last_game_time": started, "cells": 133}
 
+
+
+
+@transaction.atomic
+def commission_g19_electrical(*, operator_approved=False):
+    """Install an independent electrical ledger on the existing ship clock.
+
+    Do not default batteries to full or assume a shore station exists. Every
+    node, breaker and feeder remains the original installed Evennia object.
+    """
+    if not operator_approved:
+        raise PermissionError("Only the world operator may commission electrical plant")
+    _require_installed()
+    item = _clock(lock=True)
+    if item.details.get("electrical") is not None:
+        validate_electrical(item.details["electrical"])
+        return {"commissioned": False, "already_present": True}
+    nodes = list(CanonicalShipState.objects.filter(category="node"))
+    edges = list(CanonicalShipState.objects.filter(category="edge"))
+    switches = {row.source_id: row for row in
+                CanonicalShipState.objects.filter(category="isolator")}
+    try:
+        node_map, edge_map, switch_map = audit_topology(
+            nodes, edges, switches, strict=True)
+    except ElectricalError as exc:
+        raise PhysicsError(str(exc)) from exc
+    before = _snapshot(item)
+    d = dict(item.details)
+    d["electrical"] = initial_electrical()
+    item.details = d
+    item.revision += 1
+    item.save(update_fields=["details", "revision"])
+    _event(item, "g19_electrical_commissioned", before)
+    return {"commissioned": True, "nodes": len(node_map),
+            "feeders": len(edge_map), "breakers": len(switch_map),
+            "rated_battery_kwh": 0.0, "shore_connected": False}
+
+
+@transaction.atomic
+def survey_g19_electrical_source(*, operator_approved=False, source,
+                                 capacity_kwh=None, initial_kwh=None,
+                                 max_charge_mw=None, max_discharge_mw=None,
+                                 rated_mw=None):
+    """Explicit operator measurement; only an installed source may be rated."""
+    if not operator_approved:
+        raise PermissionError("Operator attestation of physical source required")
+    _require_installed()
+    item = _clock(lock=True)
+    d = dict(item.details)
+    if "electrical" not in d:
+        raise PhysicsError("Commission electrical network before rating sources")
+    import copy
+    e = copy.deepcopy(d["electrical"])
+    if source not in (*POWER_BANKS, "SHORE-PWR"):
+        raise PhysicsError("Unknown installed electrical source")
+    # No generic inventory or anonymous electrical source can become a battery.
+    equipment = state("equipment", source, lock=True)
+    feeder = state("edge", "EDGE-" + source, lock=True)
+    node = state("node", "NODE-" + source, lock=True)
+    if (equipment.condition in _BROKEN or feeder.condition in _BROKEN
+            or node.reference.get("network") != "power"
+            or feeder.reference.get("network") != "power"):
+        raise PhysicsError("Source, feeder or power terminal unverified")
+    try:
+        if source in POWER_BANKS:
+            if rated_mw is not None:
+                raise ElectricalError("Battery needs independently rated energy and current")
+            e = survey_battery(
+                e, source, capacity_kwh=capacity_kwh,
+                charge_kwh=initial_kwh, max_charge_mw=max_charge_mw,
+                max_discharge_mw=max_discharge_mw)
+        else:
+            validate_electrical(e)
+            if e["shore"] is not None:
+                raise ElectricalError("Shore source has already been rated")
+            mw = float(rated_mw)
+            if not math.isfinite(mw) or not 0 < mw <= 3.3:
+                raise ElectricalError("Unproven or excessive shore supply")
+            e["shore"] = {"rated_mw": mw, "connected": False,
+                          "import_kwh": 0.0}
+            validate_electrical(e)
+    except (TypeError, ValueError, ElectricalError) as exc:
+        raise PhysicsError(str(exc)) from exc
+    before = _snapshot(item)
+    d["electrical"] = e
+    item.details = d
+    item.revision += 1
+    item.save(update_fields=["details", "revision"])
+    _event(item, "g19_electrical_source_survey", before)
+    return {"source": source, "rated": True, "operator_verified": True}
+
+
+@transaction.atomic
+def configure_g19_electrical_fault(*, operator_approved=False, breaker_id,
+                                   rating_mw, measured_mw):
+    """A real breaker/circuit gets an explicit overcurrent witness.
+
+    Trip and persistent opening then happen in normal ship-time physics.
+    Altering a scenario fault is operator-only, never crew magic repair.
+    """
+    if not operator_approved:
+        raise PermissionError("Operator fault observation required")
+    item = _clock(lock=True)
+    d = dict(item.details)
+    if "electrical" not in d:
+        raise PhysicsError("Electrical plant not commissioned")
+    breaker = state("isolator", breaker_id, lock=True)
+    if (breaker.reference.get("network") != "power"
+            or breaker.condition in _BROKEN):
+        raise PhysicsError("No usable installed electrical breaker at this site")
+    try:
+        e = register_fault(d["electrical"], breaker_id,
+                           rating_mw=rating_mw, observed_mw=measured_mw)
+    except ElectricalError as exc:
+        raise PhysicsError(str(exc)) from exc
+    before = _snapshot(item)
+    d["electrical"] = e
+    item.details = d
+    item.revision += 1
+    item.save(update_fields=["details", "revision"])
+    _event(item, "g19_electrical_fault_observed", before)
+    return {"breaker": breaker_id, "measured_mw": measured_mw,
+            "rating_mw": rating_mw}
 
 
 @transaction.atomic
@@ -1603,7 +1739,15 @@ def _on(equipment, identifier):
                 and item.details.get("physics_online") is True)
 
 
-def _power(equipment, edges, isolators, profile):
+def _power(equipment, edges, isolators, profile, *,
+           ledger=None, dt_s=STEP_SECONDS, moored=False):
+    if ledger is not None:
+        try:
+            return source_dispatch(
+                equipment, edges, isolators, profile, ledger=ledger,
+                dt_s=dt_s, moored=moored)
+        except ElectricalError as exc:
+            raise PhysicsError(str(exc)) from exc
     feeder = {e.source_id: e for e in edges if e.reference["network"] == "power"}
     active = {}
     for gen in GENERATION_MW:
@@ -1721,7 +1865,8 @@ def tick_continuous_physics(*, now_game_time=None):
     }
     water_stock_before = {k: _snapshot(v) for k, v in water_stocks.items()}
     isolators = {x.source_id: x for x in
-                 CanonicalShipState.objects.filter(category="isolator")}
+                 CanonicalShipState.objects.select_for_update()
+                 .filter(category="isolator")}
     edges = list(CanonicalShipState.objects.filter(category="edge"))
     access_rows = list(CanonicalShipState.objects.filter(category="access"))
     equipment = {x.source_id: x for x in equipment_rows}
@@ -1749,6 +1894,13 @@ def tick_continuous_physics(*, now_game_time=None):
                 and node.reference.get("owner_type") == "equipment"):
             atmosphere_source_nodes.setdefault(
                 node.reference.get("owner_id"), []).append(node.source_id)
+    electrical = clock.details.get("electrical")
+    if electrical is not None:
+        try:
+            validate_electrical(electrical)
+            audit_topology(water_nodes, edges, isolators, strict=True)
+        except ElectricalError as exc:
+            raise PhysicsError(str(exc)) from exc
     # Only real physically open, rated links between *known* gas cells may
     # exchange mass. Unknown cargo atmosphere is never invented as vacuum.
     open_hatches = []
@@ -1834,7 +1986,25 @@ def tick_continuous_physics(*, now_game_time=None):
                 item.revision += 1
                 changed_equipment.add(item.key)
 
-        power = _power(equipment, edges, isolators, clock.details["load_profile"])
+        if electrical is not None:
+            try:
+                electrical, tripped = step_protection(electrical, isolators, dt)
+            except ElectricalError as exc:
+                raise PhysicsError(str(exc)) from exc
+            for breaker_id in tripped:
+                switch = isolators[breaker_id]
+                before_trip = _snapshot(switch)
+                spec = dict(switch.details)
+                spec["physics_power_trip_latched"] = True
+                spec["physics_power_trip_reason"] = "measured_overcurrent"
+                switch.details = spec
+                switch.setting = "open"
+                switch.revision += 1
+                switch.save(update_fields=["details", "setting", "revision"])
+                _event(switch, "electrical_overcurrent_trip", before_trip)
+        power = _power(equipment, edges, isolators, clock.details["load_profile"],
+                       ledger=electrical, dt_s=dt,
+                       moored=contacts_active(cargo))
         if water_state is not None:
             hardware = _water_hardware(
                 water_state, equipment, edges, isolators, water_nodes, power)
@@ -2343,6 +2513,13 @@ def tick_continuous_physics(*, now_game_time=None):
                 cell["burn"] = 0.0
             # No automatic ignition without a finite, already ignited fuel load.
             # Smoke/heat and equipment damage can still spread via open ducts.
+        if electrical is not None:
+            try:
+                electrical = step_energy(
+                    electrical, power, dt,
+                    actual_requested_mw=power["requested_mw"])
+            except ElectricalError as exc:
+                raise PhysicsError(str(exc)) from exc
         summary = {
             "available_mw": round(power["available_mw"], 4),
             "requested_mw": power["requested_mw"],
@@ -2900,6 +3077,8 @@ def tick_continuous_physics(*, now_game_time=None):
     d["water_suppression_kg"] += water
     d["co2_captured_kg"] = captured_co2
     d["motion"] = motion
+    if electrical is not None:
+        d["electrical"] = electrical
     if repairs is not None:
         d["repairs"] = repairs
     if hull is not None:
@@ -2919,6 +3098,13 @@ def tick_continuous_physics(*, now_game_time=None):
     d["cargo"] = cargo
     d["summary"] = {
         **summary,
+        "electrical": ({
+            "last": electrical["last"],
+            "meter": electrical["meter"],
+            "tripped_breakers": sorted(
+                key for key, fault in electrical["faults"].items()
+                if fault["latched"]),
+        } if electrical is not None else None),
         "crew_exposure_registered": len(crew_rows),
         "crew_incapacitated_or_worse": crew_incapacitated,
         "crew_o2_used_this_tick_kg": round(crew_used_o2, 7),
@@ -3155,7 +3341,7 @@ def crew_physical_action(actor, request_id, action, target, value):
     """
     if not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
         raise PhysicsError("Expected one 32-character lowercase request UUID")
-    if action not in {"switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage"}:
+    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage"}:
         raise PhysicsError("Unknown physical operation")
     if actor is None or getattr(actor.db, "ox_terminal_dead", False):
         raise PermissionError("A deceased or missing character cannot operate machinery")
@@ -3177,8 +3363,8 @@ def crew_physical_action(actor, request_id, action, target, value):
                     "isolator:" if action == "switch"
                     else "pressure:" if action == "mist"
                     else "access:" if action == "hatch"
-                    else "" if action in {"schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage"}
-                    else "equipment:") + (CLOCK_KEY if action in {"schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage"} else target)
+                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage"}
+                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage"} else target)
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
@@ -3214,6 +3400,8 @@ def crew_physical_action(actor, request_id, action, target, value):
             raise PermissionError("No local manual operation is installed")
         if value not in {"open", "closed"} or item.condition in _BROKEN:
             raise PhysicsError("Unsafe switch command")
+        if value == "closed" and item.details.get("physics_power_trip_latched"):
+            raise PhysicsError("Breaker is physically tripped; isolate fault and reset locally")
         before = _snapshot(item)
         if item.setting != value:
             item.setting = value
@@ -3237,6 +3425,152 @@ def crew_physical_action(actor, request_id, action, target, value):
             item.details = d
             item.revision += 1
             item.save(update_fields=["details", "revision"])
+
+    elif action == "power":
+        import copy
+        from world.ship_electrical_power import connected_nodes
+        item = _clock(lock=True)
+        before = _snapshot(item)
+        d = dict(item.details)
+        if "electrical" not in d:
+            raise PhysicsError("G19 installed electrical power not commissioned")
+        e = copy.deepcopy(d["electrical"])
+        nodes = {r.source_id: r for r in
+                 CanonicalShipState.objects.filter(category="node",
+                                                  reference__network="power")}
+        available_equipment = {r.source_id: r for r in
+                               CanonicalShipState.objects.filter(category="equipment")}
+        network_edges = list(CanonicalShipState.objects.filter(category="edge"))
+        network_switches = {r.source_id: r for r in
+                            CanonicalShipState.objects.filter(category="isolator")}
+        def live_grid():
+            return _power(available_equipment, network_edges, network_switches,
+                          d["load_profile"], ledger=e,
+                          moored=contacts_active(d["cargo"]))
+        def at_switch(edge_id):
+            edge = state("edge", edge_id, lock=True)
+            if edge.reference.get("network") != "power" or edge.condition in _BROKEN:
+                raise PhysicsError("Selected power conductor damaged or absent")
+            controls = [state("isolator", x, lock=True)
+                        for x in edge.reference["isolator_ids"]]
+            if not controls or any(
+                    c.condition in _BROKEN or
+                    c.details.get("physics_power_trip_latched")
+                    for c in controls):
+                raise PhysicsError("Transfer requires safe installed switchgear")
+            room = getattr(getattr(actor, "location", None).db,
+                           "ox_space_id", None) if getattr(actor, "location", None) else None
+            if room not in {c.space_id for c in controls}:
+                raise PermissionError("Physically attend the actual feeder switchgear")
+            _crew_at(actor, room)
+            if not _air_safe(state("pressure", _topology()[0][room])):
+                raise PhysicsError("Exposed electrical switch room unsafe")
+            return edge
+        if target == "EDGE-MSB-XTIE":
+            edge = at_switch(target)
+            if value == "sync":
+                if edge.setting == "available":
+                    raise PhysicsError("Cross-tie already conducting")
+                snapshot = live_grid()
+                if not snapshot["active_generators"] or not any(
+                        board in snapshot["main_nodes"] for board in (
+                            "PWR-MSB-A", "PWR-MSB-B")):
+                    raise PhysicsError("No live main bus to verify for synchronisation")
+                e["sync"] = {
+                    "expires_game_time": d["last_game_time"] + 60.0,
+                    "source_signature": list(snapshot["source_signature"]),
+                }
+            elif value == "close":
+                token = e["sync"]
+                snapshot = live_grid()
+                if (edge.setting == "available" or not token
+                        or d["last_game_time"] > token["expires_game_time"]
+                        or token["source_signature"] != list(
+                            snapshot["source_signature"])
+                        or any(network_switches[k].setting != "closed"
+                               for k in edge.reference["isolator_ids"])):
+                    raise PhysicsError("Cross-tie has no valid live synchronisation and healthy contacts")
+                edge.setting = "available"
+                edge.revision += 1
+                edge.save(update_fields=["setting", "revision"])
+                e["sync"] = None
+            elif value == "open":
+                edge.setting = "standby"
+                edge.revision += 1
+                edge.save(update_fields=["setting", "revision"])
+                e["sync"] = None
+            else:
+                raise PhysicsError("Tie requires sync|close|open")
+        elif target == "PWR-PROT" or re.fullmatch(r"HAB-0[1-8]-PROT", target):
+            if value not in {"select:A", "select:B"}:
+                raise PhysicsError("Protected source requires select:A or select:B")
+            code = "EDGE-PWR-MSB-{}-PROT" if target == "PWR-PROT" else (
+                "EDGE-" + target + "-{}")
+            circuits = {side: at_switch(code.format(side)) for side in "AB"}
+            # Break-before-make; both edges belong to the same real bus
+            # selection. A dead alternative cannot reverse-feed a main bus.
+            side = value[-1]
+            for source, edge in circuits.items():
+                requested = "available" if side == source else "standby"
+                if edge.setting != requested:
+                    edge.setting = requested
+                    edge.revision += 1
+                    edge.save(update_fields=["setting", "revision"])
+        elif target in POWER_BANKS:
+            bank_equipment = state("equipment", target, lock=True)
+            _crew_at(actor, bank_equipment.space_id)
+            if bank_equipment.condition in _BROKEN or target not in e["banks"]:
+                raise PhysicsError("Unrated or damaged real battery")
+            if value not in {"standby", "charge", "discharge"}:
+                raise PhysicsError("Battery mode must be standby|charge|discharge")
+            e["banks"][target]["mode"] = value
+        elif target == "SHORE-PWR":
+            supply = state("equipment", target, lock=True)
+            _crew_at(actor, supply.space_id)
+            if supply.condition in _BROKEN or not e["shore"]:
+                raise PhysicsError("No surveyed external shore supply")
+            if value == "connect":
+                if not contacts_active(d["cargo"]):
+                    raise PhysicsError("No physical commercial mooring")
+                if live_grid()["active_generators"]:
+                    raise PhysicsError("Isolate fitted generation before nonparallel shore connection")
+                feeder = at_switch("EDGE-SHORE-PWR")
+                if feeder.setting != "available":
+                    raise PhysicsError("Shore source line is not physically selected")
+                e["shore"]["connected"] = True
+            elif value == "disconnect":
+                e["shore"]["connected"] = False
+            else:
+                raise PhysicsError("Shore connection must be connect|disconnect")
+        elif target.startswith("ISO-") and value == "reset":
+            breaker = state("isolator", target, lock=True)
+            if breaker.reference.get("network") != "power":
+                raise PhysicsError("Not an installed power breaker")
+            _crew_at(actor, breaker.space_id)
+            if breaker.setting != "open" or breaker.condition in _BROKEN:
+                raise PhysicsError("Protection reset requires isolated sound breaker")
+            zone = _topology()[0].get(breaker.space_id)
+            if not zone or not _air_safe(state("pressure", zone)):
+                raise PhysicsError("Unsafe physical switchgear repair station")
+            try:
+                e = reset_protection(e, target)
+            except ElectricalError as exc:
+                raise PhysicsError(str(exc)) from exc
+            bd = dict(breaker.details)
+            bd.pop("physics_power_trip_latched", None)
+            bd.pop("physics_power_trip_reason", None)
+            breaker.details = bd
+            breaker.revision += 1
+            breaker.save(update_fields=["details", "revision"])
+        else:
+            raise PhysicsError("No installed local power operation for target")
+        e["last"] = dict(e["last"])
+        e["last"]["last_manual_control"] = {"target": target, "value": value}
+        validate_electrical(e)
+        d["electrical"] = e
+        item.details = d
+        item.revision += 1
+        item.save(update_fields=["details", "revision"])
     elif action in {"water", "waste"}:
         import copy
         def wet_crew_at(room):
@@ -4421,6 +4755,26 @@ def local_physics_readout(actor, target):
     room = getattr(getattr(location, "db", None), "ox_space_id", None)
     if not room:
         raise PermissionError("Stand at an installed ship compartment")
+    if target == "power":
+        electrical = _clock().details.get("electrical")
+        if electrical is None:
+            raise PhysicsError("G19 electrical metering not commissioned")
+        accessible = {"ENG-CONTROL", "PROP-CTRL"}
+        accessible |= {state("equipment", g).space_id for g in GENERATION_MW}
+        if room not in accessible:
+            raise PermissionError("Physical engineering power board required")
+        return {"last_dispatch": electrical["last"],
+                "meters_kwh": electrical["meter"],
+                "rated_banks": {k: {
+                    "charge_kwh": v["charge_kwh"],
+                    "capacity_kwh": v["capacity_kwh"],
+                    "mode": v["mode"]}
+                    for k, v in electrical["banks"].items()},
+                "tripped_breakers": sorted(
+                    k for k, v in electrical["faults"].items() if v["latched"]),
+                "shore_connected": (electrical["shore"]["connected"]
+                    if electrical["shore"] else False),
+                "scope": "physically_attended_engineering_power_board"}
     if target == "damage":
         major = _clock().details.get("major_damage")
         if major is None:
