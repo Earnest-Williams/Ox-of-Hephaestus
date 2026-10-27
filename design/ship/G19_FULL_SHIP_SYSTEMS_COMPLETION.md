@@ -2,6 +2,20 @@
 
 **Status: implementation in progress; NOT ready for acceptance or merge.**
 
+## Attended service access into existing freight enclosures
+
+The **13 previously freight-only machines** now have dedicated attended
+service entry using **nine original, bidirectional, stationary freight
+hatches**. The implementation introduces strict location, crew role,
+air-pressure, rotor, cargo/waste/port and moving-worksite interlocks, an
+exclusive durable lockout, occupied-room release refusal, signed work
+receipts, and live repair-tick gating. Original 421-space / 517-passage
+geometry and 808 equipment identities remain unchanged.
+[Operating service contract](G19_FREIGHT_SERVICE_ACCESS.md).
+Pure source/inventory/state-machine acceptance: **12 tests passed**
+in [run #40580738273](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40580738273).
+Installed test completion remains a separate release condition.
+
 ## Verified access/worksite continuation (27 October 2026)
 
 At tested runtime `a2f6ee9e`,
