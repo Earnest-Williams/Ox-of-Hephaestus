@@ -497,7 +497,8 @@ def allocate_lt_cooling(*, seconds, drive_heat_kj, active_radiators,
 
 
 def step_local_backup(ledger, seconds, *, nodes, equipment, edges, switches,
-                      producer_nodes=(), producing_mw=0.0, other_requested_mw=0.0):
+                      producer_nodes=(), producing_mw=0.0, other_requested_mw=0.0,
+                      normal_assured=True):
     """Advance isolated DC reserves and separately fused grid recharging.
 
     Local batteries cannot backfeed the grid. Only a verified generator/shore
@@ -510,6 +511,8 @@ def step_local_backup(ledger, seconds, *, nodes, equipment, edges, switches,
             raise ElectricalError("Nonphysical local battery integration")
     if seconds > 10:
         raise ElectricalError("Local battery integration must be bounded")
+    if type(normal_assured) is not bool:
+        raise ElectricalError("Unverified normal appliance power budget")
     result = copy.deepcopy(ledger)
     active, blocked, recharging = {}, {}, {}
     headroom_mw = max(0.0, producing_mw - other_requested_mw)
@@ -553,7 +556,7 @@ def step_local_backup(ledger, seconds, *, nodes, equipment, edges, switches,
         # endpoint; an energised room panel is insufficient proof of power.
         normal_endpoint = ("NODE-PWR-" + consumer
                            if name.endswith("-REFUGE-BAT") else parent)
-        if normal_endpoint in nodes:
+        if normal_endpoint in nodes and normal_assured:
             continue
         terminal, edge_id, iso = auxiliary_ids(name)
         wire = edges.get(edge_id)
