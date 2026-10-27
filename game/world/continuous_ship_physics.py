@@ -118,6 +118,7 @@ GENERATOR_NODES = {k: "NODE-" + k for k in GENERATION_MW}
 PLANTS = {
     **{k: v for k, v in (("GEN-M", True), ("GEN-A", False), ("GEN-B", True))},
     "ECLSS-A": True, "ECLSS-B": True, "LT-PLANT": True,
+    "ECLSS-A-O2-GEN": True, "ECLSS-B-O2-GEN": True,
     "RAD-LT-1": True, "RAD-LT-2": True,
     "RAD-LT-3": True, "RAD-LT-4": True,
     "FIRE-PUMP-FWD": True, "FIRE-PUMP-AFT": True,
@@ -1036,6 +1037,7 @@ def _water_hardware(water, equipment, edges, isolators, nodes, power, *, motor_r
                 and (motor_ready is None or motor_ready(f"ECLSS-{side}"))
                 and outlet and outlet.condition not in _BROKEN and
                 field and field.condition not in _BROKEN
+                and _on(equipment, f"ECLSS-{side}-O2-GEN")
                 and (motor_ready is None
                      or motor_ready(f"ECLSS-{side}-O2-GEN"))
                 and edge and wet_edge_can_flow(edge)
