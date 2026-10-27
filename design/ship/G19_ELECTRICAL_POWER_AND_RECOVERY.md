@@ -2,6 +2,12 @@
 
 **Implementation:** G19 draft PR #138, unmerged. This is the electrical subsystem's operating contract for the canonical Evennia ship, not a second electrical simulator or a construction-ready switchgear qualification. The 40-crew voyage is expressly excluded from this development round.
 
+## Acceptance evidence (27 October 2026)
+
+**Bounded G19 electrical subsystem accepted, not full G19 or merge approval.** [CI run #40435001116](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40435001116) passed **77/77 in four jobs** against actual runtime `c586378e897fe284418456331e860ead50211596`: 22 pure energy/network/conservation tests, 16 installed Evennia electrical operation tests, 14 existing G18 gas/fire/thermal regression tests, and 25 G19 installed water/cargo/movement compatibility tests. See [archived acceptance record](G19_ELECTRICAL_ACCEPTANCE_2026-10-27.json). Subsequent documentation-only commits are **not** new tested runtime revisions.
+
+The required bounded electrical installation, physical source paths, conductor/isolator state, finite energy, cartridge fuel, local control receipts, protective trips, recovery and existing-ship subsystem compatibility have passed. The remaining exceptions below refer to explicit as-installed hardware wiring gaps and the intentionally unperformed long-duration/40-crew integrated ship acceptance. No 40-crew voyage was run.
+
 ## Fitted network and commissioning
 
 The installed v0.5 ship contains **438 power nodes, 450 power edges and 466 actual breaker/isolation points**, plus the separate thermal, gas and fire-main networks. `commission_g19_electrical(operator_approved=True)` audits the **authoritative installed** rows, checks every power edge endpoint and fitted breaker, and creates one persistent ledger on the existing `meta:continuous-physics` clock. An existing ledger is never reset. No new nodes, remote shortcuts or simulated extra generator are created.
