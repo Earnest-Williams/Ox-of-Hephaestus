@@ -88,9 +88,10 @@ from world.ship_crew_physiology import (
 from world.ship_crew_exposure import initial_exposure
 from world.ship_electrical_power import (
     ElectricalError, BATTERIES as POWER_BANKS,
-    initial_electrical, validate_electrical, audit_topology,
-    source_dispatch, survey_battery, register_fault, reset_protection,
-    step_protection, step_energy,
+    FLYWHEELS as POWER_FLYWHEELS,
+    initial_electrical, validate_electrical, migrate_v1_electrical,
+    audit_topology, source_dispatch, survey_battery, survey_flywheel,
+    register_fault, reset_protection, step_protection, step_energy,
 )
 from world.ship_eva_operations import (
     EVAError, LOCKS as EVA_LOCKS, SUIT_O2_KG, MAX_GAS_BUFFER_KG,
@@ -350,7 +351,14 @@ def _snapshot(item):
             result["electrical"] = {
                 "worksite_surveys": power["worksite_surveys"],
                 "meter": power["meter"], "last": power["last"],
-                "banks": power["banks"], "shore": power["shore"],
+                "banks": power["banks"],
+                "flywheels": {
+                    "commissioned_modules": len(power["flywheels"]),
+                    "rated_capacity_kwh": sum(
+                        x["capacity_kwh"] for x in power["flywheels"].values()),
+                    "stored_kwh": sum(
+                        x["charge_kwh"] for x in power["flywheels"].values())},
+                "shore": power["shore"],
                 "faults": power["faults"], "sync": power["sync"],
             }
         result["motion"] = item.details.get("motion")
@@ -497,7 +505,16 @@ def commission_g19_electrical(*, operator_approved=False):
     _require_installed()
     item = _clock(lock=True)
     if item.details.get("electrical") is not None:
-        validate_electrical(item.details["electrical"])
+        upgraded = migrate_v1_electrical(item.details["electrical"])
+        if upgraded != item.details["electrical"]:
+            previous = _snapshot(item)
+            details = dict(item.details)
+            details["electrical"] = upgraded
+            item.details = details
+            item.revision += 1
+            item.save(update_fields=["details", "revision"])
+            _event(item, "g19_electrical_nonresetting_v2_migration", previous)
+            return {"commissioned": False, "migrated": True}
         return {"commissioned": False, "already_present": True}
     nodes = list(CanonicalShipState.objects.filter(category="node"))
     edges = list(CanonicalShipState.objects.filter(category="edge"))
@@ -530,14 +547,18 @@ def survey_g19_electrical_worksite(*, operator_approved=False, room_id=None):
     """
     if not operator_approved:
         raise PermissionError("Physical electrical worksite survey is operator-only")
-    if room_id not in {"GEN-M-ROOM", "GEN-A-ROOM", "GEN-B-ROOM"}:
-        raise PhysicsError("Only actual generator machinery spaces may be surveyed")
+    if room_id not in {"GEN-M-ROOM", "GEN-A-ROOM", "GEN-B-ROOM",
+                        "F1-BAY", "F2-BAY"}:
+        raise PhysicsError("Only real generator or flywheel machinery bays may be surveyed")
     from world.ship_world import find_ship_space
     if (find_ship_space(room_id) is None
             or _topology()[0].get(room_id) not in {None, "VACUUM"}):
-        raise PhysicsError("Generator bay is not the fitted unpressurised worksite")
-    if state("equipment", room_id.removesuffix("-ROOM")).space_id != room_id:
-        raise PhysicsError("Generator worksite and real installed plant disagree")
+        raise PhysicsError("Power bay is not the fitted unpressurised worksite")
+    if room_id.endswith("-ROOM"):
+        if state("equipment", room_id.removesuffix("-ROOM")).space_id != room_id:
+            raise PhysicsError("Generator worksite and real installed plant disagree")
+    elif state("equipment", room_id.replace("-BAY", "-BUS")).space_id != room_id:
+        raise PhysicsError("Flywheel bank and local power room disagree")
     import copy
     item = _clock(lock=True)
     details = dict(item.details)
@@ -585,12 +606,15 @@ def survey_g19_electrical_source(*, operator_approved=False, source,
         raise PhysicsError("Commission electrical network before rating sources")
     import copy
     e = copy.deepcopy(d["electrical"])
-    if source not in (*POWER_BANKS, "SHORE-PWR"):
+    if source not in (*POWER_BANKS, *POWER_FLYWHEELS, "SHORE-PWR"):
         raise PhysicsError("Unknown installed electrical source")
-    # No generic inventory or anonymous electrical source can become a battery.
+    # Every commissioned store has its own real equipment and power port.
     equipment = state("equipment", source, lock=True)
-    feeder = state("edge", "EDGE-" + source, lock=True)
-    node = state("node", "NODE-" + source, lock=True)
+    source_is_flywheel = source in POWER_FLYWHEELS
+    feeder_id = ("EDGE-PWR-" if source_is_flywheel else "EDGE-") + source
+    node_id = ("NODE-PWR-" if source_is_flywheel else "NODE-") + source
+    feeder = state("edge", feeder_id, lock=True)
+    node = state("node", node_id, lock=True)
     if (equipment.condition in _BROKEN or feeder.condition in _BROKEN
             or node.reference.get("network") != "power"
             or feeder.reference.get("network") != "power"):
@@ -613,6 +637,23 @@ def survey_g19_electrical_source(*, operator_approved=False, source,
                     or capacity_kwh > nominal_mwh * 1000.0 + 1e-7):
                 raise ElectricalError("Battery survey exceeds fitted finite nameplate energy")
             e = survey_battery(
+                e, source, capacity_kwh=capacity_kwh,
+                charge_kwh=initial_kwh, max_charge_mw=max_charge_mw,
+                max_discharge_mw=max_discharge_mw)
+        elif source_is_flywheel:
+            if rated_mw is not None:
+                raise ElectricalError("Fitted flywheel needs a measured energy and converter rating")
+            nominal_mwh = equipment.reference.get("attributes", {}).get(
+                "deliverable_MWh_nominal")
+            if (not isinstance(nominal_mwh, (int, float))
+                    or isinstance(nominal_mwh, bool)
+                    or not math.isfinite(nominal_mwh)
+                    or not isinstance(capacity_kwh, (int, float))
+                    or isinstance(capacity_kwh, bool)
+                    or not math.isfinite(capacity_kwh)
+                    or capacity_kwh > nominal_mwh * 1000.0 + 1e-7):
+                raise ElectricalError("Flywheel measurement exceeds fitted nameplate")
+            e = survey_flywheel(
                 e, source, capacity_kwh=capacity_kwh,
                 charge_kwh=initial_kwh, max_charge_mw=max_charge_mw,
                 max_discharge_mw=max_discharge_mw)
@@ -3177,6 +3218,9 @@ def tick_continuous_physics(*, now_game_time=None):
         "electrical": ({
             "last": electrical["last"],
             "meter": electrical["meter"],
+            "flywheel_modules": len(electrical["flywheels"]),
+            "flywheel_held_kwh": sum(
+                x["charge_kwh"] for x in electrical["flywheels"].values()),
             "tripped_breakers": sorted(
                 key for key, fault in electrical["faults"].items()
                 if fault["latched"]),
@@ -3623,14 +3667,16 @@ def crew_physical_action(actor, request_id, action, target, value):
                 edge.setting = "standby"
             edge.revision += 1
             edge.save(update_fields=["setting", "revision"])
-        elif target in POWER_BANKS:
+        elif target in (*POWER_BANKS, *POWER_FLYWHEELS):
             bank_equipment = state("equipment", target, lock=True)
             _crew_at(actor, bank_equipment.space_id)
-            if bank_equipment.condition in _BROKEN or target not in e["banks"]:
-                raise PhysicsError("Unrated or damaged real battery")
+            _electrical_crew_air_gate(actor, bank_equipment.space_id, e)
+            family = "flywheels" if target in POWER_FLYWHEELS else "banks"
+            if bank_equipment.condition in _BROKEN or target not in e[family]:
+                raise PhysicsError("Unrated, isolated or damaged fitted energy store")
             if value not in {"standby", "charge", "discharge"}:
-                raise PhysicsError("Battery mode must be standby|charge|discharge")
-            e["banks"][target]["mode"] = value
+                raise PhysicsError("Energy store requires standby|charge|discharge")
+            e[family][target]["mode"] = value
         elif target == "SHORE-PWR":
             supply = state("equipment", target, lock=True)
             _crew_at(actor, supply.space_id)
@@ -4886,7 +4932,8 @@ def local_physics_readout(actor, target):
         electrical = _clock().details.get("electrical")
         if electrical is None:
             raise PhysicsError("G19 electrical metering not commissioned")
-        accessible = {"ENG-CONTROL", "PROP-CTRL"}
+        accessible = {"ENG-CONTROL", "PROP-CTRL", "PWR-AFT",
+                      "F1-BAY", "F2-BAY"}
         accessible |= {state("equipment", g).space_id for g in GENERATION_MW}
         if room not in accessible:
             raise PermissionError("Physical engineering power board required")
@@ -4897,6 +4944,9 @@ def local_physics_readout(actor, target):
                     "capacity_kwh": v["capacity_kwh"],
                     "mode": v["mode"]}
                     for k, v in electrical["banks"].items()},
+                "flywheel_charge_kwh": sum(
+                    v["charge_kwh"] for v in electrical["flywheels"].values()),
+                "flywheel_modules_registered": len(electrical["flywheels"]),
                 "tripped_breakers": sorted(
                     k for k, v in electrical["faults"].items() if v["latched"]),
                 "shore_connected": (electrical["shore"]["connected"]
