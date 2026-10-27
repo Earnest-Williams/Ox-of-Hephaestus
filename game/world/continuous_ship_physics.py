@@ -96,7 +96,8 @@ from world.ship_auxiliary_electrical import (
 )
 from world.ship_equipment_services import (
     SERVICE_LOADS, MANUAL_RESTART,
-    install_service_circuits, initial_service_operations,
+    install_service_circuits, enrol_service_plant_controls,
+    initial_service_operations,
     validate_service_operations, rearm_service_machine,
     step_service_operations, service_power, service_ids,
 )
@@ -539,6 +540,7 @@ def commission_g19_electrical(*, operator_approved=False):
     if item.details.get("electrical") is not None:
         install_auxiliary_circuits(CanonicalShipState)
         install_service_circuits(CanonicalShipState)
+        newly_enrolled = enrol_service_plant_controls(CanonicalShipState)
         upgraded = migrate_v1_electrical(item.details["electrical"])
         local_old = item.details.get("local_backup")
         local_upgraded = migrate_local_backup(
@@ -561,7 +563,8 @@ def commission_g19_electrical(*, operator_approved=False):
         if (upgraded != item.details["electrical"]
                 or local_upgraded != local_old
                 or refuge_upgraded != refuge_old
-                or services_upgraded != services_old or fuel_needs_migration):
+                or services_upgraded != services_old or fuel_needs_migration
+                or newly_enrolled):
             previous = _snapshot(item)
             details = dict(item.details)
             details["electrical"] = upgraded
@@ -606,6 +609,7 @@ def commission_g19_electrical(*, operator_approved=False):
     d = dict(item.details)
     install_auxiliary_circuits(CanonicalShipState)
     install_service_circuits(CanonicalShipState)
+    enrol_service_plant_controls(CanonicalShipState)
     d["electrical"] = initial_electrical()
     d["local_backup"] = initial_local_backup()
     d["refuge_scrubbers"] = initial_refuge_scrubbers()
