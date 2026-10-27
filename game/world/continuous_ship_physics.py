@@ -3448,16 +3448,12 @@ def crew_physical_action(actor, request_id, action, target, value):
 
     elif action == "power":
         import copy
-        from world.ship_electrical_power import connected_nodes
         item = _clock(lock=True)
         before = _snapshot(item)
         d = dict(item.details)
         if "electrical" not in d:
             raise PhysicsError("G19 installed electrical power not commissioned")
         e = copy.deepcopy(d["electrical"])
-        nodes = {r.source_id: r for r in
-                 CanonicalShipState.objects.filter(category="node",
-                                                  reference__network="power")}
         available_equipment = {r.source_id: r for r in
                                CanonicalShipState.objects.filter(category="equipment")}
         network_edges = list(CanonicalShipState.objects.filter(category="edge"))
@@ -3543,7 +3539,11 @@ def crew_physical_action(actor, request_id, action, target, value):
             edge = at_switch(target)
             if value not in {"enable", "isolate"}:
                 raise PhysicsError("Individual feeder requires enable|isolate")
-            other = target[:-1] + ("A" if target.endswith("B") else "B")
+            other = (target.replace("MSB-A-PROT", "MSB-B-PROT")
+                     if target.endswith("MSB-A-PROT") else
+                     target.replace("MSB-B-PROT", "MSB-A-PROT")
+                     if target.endswith("MSB-B-PROT") else
+                     target[:-1] + ("A" if target.endswith("B") else "B"))
             alternate = state("edge", other, lock=True)
             if value == "enable":
                 if (alternate.setting == "available"
