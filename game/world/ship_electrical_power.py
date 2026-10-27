@@ -314,6 +314,12 @@ def source_dispatch(equipment, edges, switches, profile, *, ledger=None,
                        and "NODE-SHORE-PWR" not in blocked_nodes
                        and _ref(routes["EDGE-SHORE-PWR"])[
                            "to_node"] not in blocked_nodes)
+    # A forced source contact must never silently switch off the shore meter
+    # and credit a generator while an energised external lead remains aboard.
+    if (shore and shore["connected"] and moored and sources
+            and "EDGE-SHORE-PWR" in routes
+            and _live_edge(routes["EDGE-SHORE-PWR"], switches)):
+        raise ElectricalError("Unsynchronised shore and ship generation cannot be paralleled")
     if shore_active:
         generator_mw = min(SHIP_CAP_MW, shore["rated_mw"])
         starts.append("NODE-SHORE-PWR")

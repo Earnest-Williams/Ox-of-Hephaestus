@@ -82,3 +82,12 @@ The actual installed `INV-GEN-CART` magazine contains **125 tonnes** at the sele
 Generator cartridges now pay for **all actual metered production**, including kWh delivered into a physically connected battery or flywheel charger. A generator is not allowed to recharge the ship's storage for free while debit accounting sees only ordinary ship service. The power ledger checks each bounded tick independently: generator output, shore imports and finite-storage discharge must equal delivered ship-load energy plus the energy newly stored in batteries/flywheels. This permits retention of historical v1 meter values without rewriting prior receipts.
 
 The fitted 125-tonne generator cartridge magazine remains authoritative; spent cartridges retain the corresponding mass aboard. Pure and installed tests now include charging from real generation, fuel-limited replenishment, metered energy balance, and replay-safe inventory custody. These revisions follow the previously accepted four-job baseline at `c586378e` and require their own CI pass before the updated electrical runtime can be accepted.
+
+
+## Fitted shore connector and commercial berth safety
+
+At an actually moored berth, a separately rated `SHORE-PWR` connector must conduct through its original `EDGE-SHORE-PWR` and `ISO-SHORE-PWR` before imported electricity can energise MSB-B. The external source is not a ship generator: charging and delivered load are separately metered as imports, and do not consume generator cartridges. The **local dockside crew command** receives an idempotent work receipt.
+
+Shore supply and any physically live ship generator feed are **not authorised to parallel without synchronisation hardware**. An attempted manual closure of a generator source breaker while shore remains connected is rejected, and the authoritative dispatch kernel independently rejects any forced simultaneous source state. A commercial berth cannot be released while the ship's external power cable remains connected: the operator must first use the physical dockside disconnect. The enclosed G19 installed tests explicitly exercise docking, source selection, real B-board service load, protected generator switchgear, disconnect, and undocking.
+
+This remains a game-world engineering interlock, not a certified electrical-transfer switch or arc-flash calculation. The design provides no arbitrarily invented shore connector or remote cable.

@@ -396,6 +396,22 @@ class ElectricalPhysicalContracts(unittest.TestCase):
         after = step_energy(backup, fed, 10)
         self.assertEqual(after["meter"]["battery_discharge_kwh"], 0)
 
+    def test_forced_live_shore_generator_parallel_is_not_silently_accepted(self):
+        _, edges, switches, equipment = grid()
+        ledger = initial_electrical()
+        ledger["shore"] = {
+            "rated_mw": 2.0, "connected": True, "import_kwh": 0.0}
+        with self.assertRaisesRegex(ElectricalError, "parallel"):
+            source_dispatch(equipment, edges, switches, "essential",
+                            ledger=ledger, moored=True)
+        # No physical berth means there is no live external power, even
+        # when a historical connection flag remains until the world tick.
+        underway = source_dispatch(equipment, edges, switches, "essential",
+                                   ledger=ledger, moored=False)
+        self.assertFalse(underway["shore_active"])
+        self.assertEqual(underway["meter"] if "meter" in underway
+                         else underway["active_generators"], ("GEN-B", "GEN-M"))
+
     def test_shore_needs_real_mooring_source_and_no_parallel_generator(self):
         _, edges, switches, equipment = grid()
         s = initial_electrical()

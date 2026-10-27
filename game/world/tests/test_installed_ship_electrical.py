@@ -14,7 +14,7 @@ from world.models import CanonicalShipEvent, CanonicalShipState, WorkReceipt
 from world.continuous_ship_physics import (
     PhysicsError, arm_continuous_physics, commission_g19_electrical,
     survey_g19_electrical_source, survey_g19_electrical_worksite,
-    configure_g19_electrical_fault,
+    configure_g19_electrical_fault, commission_commercial_port,
     crew_physical_action, tick_continuous_physics, local_physics_readout,
 )
 
@@ -145,6 +145,49 @@ class InstalledElectricalTests(EvenniaTestCase):
         self.assertAlmostEqual(
             tick["electrical"]["spent_cartridge_housings_kg"], consumed)
         self.assertFalse(tick_continuous_physics(now_game_time=1010)["advanced"])
+
+    def test_actual_mooring_shore_power_import_interlocks_and_safe_undock(self):
+        commission_g19_electrical(operator_approved=True)
+        survey_g19_electrical_source(
+            operator_approved=True, source="SHORE-PWR", rated_mw=2.0)
+        self.line_up_real_feeder(
+            "PWR-MSB-B", "NODE-PWR-HAB-03-CAB-07-FANCOIL")
+        set_isolator("ISO-SHORE-PWR", "closed", operator=True)
+        commission_commercial_port(
+            operator_approved=True, operation="dock",
+            portal_id="DR-01-P1", berth_id="POWER-TEST-BERTH")
+        self.crew_at("DOCK-FWD")
+        connected = crew_physical_action(
+            self.worker, "9" * 31 + "a", "power", "SHORE-PWR", "connect")
+        self.assertEqual(connected["status"], "succeeded")
+        self.assertEqual(crew_physical_action(
+            self.worker, "9" * 31 + "a",
+            "power", "SHORE-PWR", "connect"), connected)
+        before_fuel = state("inventory", "INV-GEN-CART").quantity
+        tick = tick_continuous_physics(now_game_time=1010)
+        meter = tick["electrical"]["meter"]
+        self.assertAlmostEqual(meter["shore_import_kwh"], 1.35 * 10 / 3.6)
+        self.assertAlmostEqual(meter["generation_kwh"], 0)
+        self.assertEqual(state("inventory", "INV-GEN-CART").quantity, before_fuel)
+        with self.assertRaises(PhysicsError):
+            commission_commercial_port(
+                operator_approved=True, operation="undock",
+                portal_id="DR-01-P1", berth_id="POWER-TEST-BERTH")
+        survey_g19_electrical_worksite(
+            operator_approved=True, room_id="GEN-M-ROOM")
+        self.worker.db.ox_suit_verified = True
+        self.crew_at("GEN-M-ROOM")
+        with self.assertRaisesRegex(PhysicsError, "shore power"):
+            crew_physical_action(self.worker, "9" * 31 + "b",
+                                 "switch", "ISO-GEN-M", "closed")
+        self.crew_at("DOCK-FWD")
+        disconnected = crew_physical_action(
+            self.worker, "9" * 31 + "c", "power", "SHORE-PWR", "disconnect")
+        self.assertEqual(disconnected["status"], "succeeded")
+        released = commission_commercial_port(
+            operator_approved=True, operation="undock",
+            portal_id="DR-01-P1", berth_id="POWER-TEST-BERTH")
+        self.assertEqual(released["docked"], [])
 
     def test_generator_cartridge_magazine_tamper_fails_before_any_energy_tick(self):
         commission_g19_electrical(operator_approved=True)

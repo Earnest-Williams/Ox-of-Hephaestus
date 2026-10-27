@@ -1725,6 +1725,9 @@ def commission_commercial_port(*, operator_approved=False, operation,
     before = _snapshot(clock)
     d = dict(clock.details)
     motion = d["motion"]
+    if (operation == "undock" and (d.get("electrical") or {}).get("shore")
+            and d["electrical"]["shore"]["connected"]):
+        raise PhysicsError("Disconnect and isolate the live shore lead before undocking")
     active_waste = [job for job in d.get("water", {}).get(
         "waste_offload", {}).get("jobs", {}).values()
         if job["portal_id"][:5] == portal_id[:5]]
@@ -3584,6 +3587,10 @@ def crew_physical_action(actor, request_id, action, target, value):
             raise PhysicsError("Unsafe switch command")
         if value == "closed" and item.details.get("physics_power_trip_latched"):
             raise PhysicsError("Breaker is physically tripped; isolate fault and reset locally")
+        if value == "closed" and target in {"ISO-GEN-M", "ISO-GEN-A", "ISO-GEN-B"}:
+            shore = (_clock().details.get("electrical") or {}).get("shore")
+            if shore and shore["connected"]:
+                raise PhysicsError("Cannot close generator feed against connected shore power")
         if _clock().details.get("electrical") is not None and item.reference.get("network") == "power":
             _electrical_crew_air_gate(
                 actor, item.space_id, _clock().details["electrical"])
