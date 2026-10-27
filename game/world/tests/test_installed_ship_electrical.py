@@ -70,6 +70,68 @@ class InstalledElectricalTests(EvenniaTestCase):
                     set_isolator(isolator_id, "closed", operator=True)
             position = a if position == b else b
 
+    def test_auxiliary_harnesses_installed_once_and_individually_fused(self):
+        commission_g19_electrical(operator_approved=True)
+        from world.ship_auxiliary_electrical import _specs, LOCAL_LOADS, MOTORS
+        expected = _specs()
+        for key, spec in expected.items():
+            row = CanonicalShipState.objects.get(pk=key)
+            self.assertEqual(row.reference, spec["reference"])
+        self.assertEqual(len(expected), 3 * len(MOTORS) + 4 * len(LOCAL_LOADS))
+        self.assertFalse(commission_g19_electrical(
+            operator_approved=True)["commissioned"])
+        self.assertEqual(CanonicalShipState.objects.filter(
+            source_model="g19-electrical-aux/1").count(), len(expected))
+
+    def test_refuge_backup_finite_island_and_replay(self):
+        commission_g19_electrical(operator_approved=True)
+        name = "HAB-04-REFUGE-BAT"
+        survey_g19_electrical_source(
+            operator_approved=True, source=name,
+            capacity_kwh=1.0, initial_kwh=.06)
+        self.crew_at("HAB-04-REFUGE")
+        result = crew_physical_action(
+            self.worker, "a" * 32, "power", name, "reserve")
+        self.assertEqual(result["status"], "succeeded")
+        before = CanonicalShipState.objects.get(
+            pk="meta:continuous-physics").details["local_backup"]
+        self.assertEqual(before["meter"]["delivered_kwh"], 0)
+        tick_continuous_physics(now_game_time=1010)
+        after = CanonicalShipState.objects.get(
+            pk="meta:continuous-physics").details["local_backup"]
+        self.assertAlmostEqual(after["meter"]["delivered_kwh"], 10 / 360)
+        self.assertAlmostEqual(after["units"][name]["charge_kwh"], .06 - 10 / 360)
+        self.assertFalse(tick_continuous_physics(
+            now_game_time=1010)["advanced"])
+        replay = CanonicalShipState.objects.get(
+            pk="meta:continuous-physics").details["local_backup"]
+        self.assertEqual(after, replay)
+        self.assertEqual(crew_physical_action(
+            self.worker, "a" * 32, "power", name, "reserve"), result)
+
+    def test_motor_trip_is_local_not_a_shipwide_blackout(self):
+        commission_g19_electrical(operator_approved=True)
+        self.line_up_real_feeder("NODE-GEN-M", "NODE-LP-WATER-FWD")
+        from world.ship_auxiliary_electrical import motor_power
+        from world.continuous_ship_physics import _power
+        def ready():
+            clock = CanonicalShipState.objects.get(pk="meta:continuous-physics")
+            equipment = {row.source_id: row for row in CanonicalShipState.objects.filter(
+                category="equipment")}
+            edges = {row.source_id: row for row in CanonicalShipState.objects.filter(
+                category="edge")}
+            switches = {row.source_id: row for row in CanonicalShipState.objects.filter(
+                category="isolator")}
+            bus = _power(equipment, list(edges.values()), switches,
+                         clock.details["load_profile"],
+                         ledger=clock.details["electrical"])
+            return motor_power("FIRE-PUMP-FWD", nodes=bus["nodes"],
+                               equipment=equipment, edges=edges,
+                               switches=switches)
+        self.assertTrue(ready())
+        set_isolator("ISO-G19-MOTOR-FIRE-PUMP-FWD", "open", operator=True)
+        self.assertFalse(ready())
+
     def test_full_authored_graph_and_nonresetting_commission(self):
         result = commission_g19_electrical(operator_approved=True)
         self.assertEqual((result["nodes"], result["feeders"], result["breakers"]),
