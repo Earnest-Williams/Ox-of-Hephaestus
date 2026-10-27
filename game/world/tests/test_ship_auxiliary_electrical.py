@@ -36,7 +36,7 @@ class AuxiliaryPowerContracts(unittest.TestCase):
         ids = _specs()
         self.assertEqual(len(ids), 3 * len(MOTORS) + 6 * len(LOCAL_LOADS) + 2 * len(PROTECTED_FIRE_MOTORS))
         self.assertEqual(len(LOCAL_LOADS), 16)
-        self.assertEqual(len(MOTORS), 71)
+        self.assertEqual(len(MOTORS), 72)
         self.assertEqual(len(set(ids)), len(ids))
         self.assertTrue(all(x["source_model"] == "g19-electrical-aux/1"
                             for x in ids.values()))
@@ -304,6 +304,24 @@ class AuxiliaryPowerContracts(unittest.TestCase):
         bad["units"][name]["charge_kwh"] += 10
         with self.assertRaises(ElectricalError):
             migrate_local_backup(bad)
+
+    def test_translation_control_has_real_b_side_feeder_and_local_trip(self):
+        e, sw, units = fitted()
+        name = "FTL-TRANSLATION-FIELD"
+        self.assertEqual(MOTORS[name], ("FTL-SVC", "NODE-LP-FTL-SVC"))
+        panel = MOTORS[name][1]
+        self.assertFalse(motor_power(name, nodes={"PWR-MSB-A"},
+                                     equipment=units, edges=e, switches=sw))
+        self.assertTrue(motor_power(name, nodes={panel},
+                                    equipment=units, edges=e, switches=sw))
+        _, feeder, breaker = auxiliary_ids(name, motor=True)
+        sw[breaker].setting = "open"
+        self.assertFalse(motor_power(name, nodes={panel},
+                                     equipment=units, edges=e, switches=sw))
+        sw[breaker].setting = "closed"
+        e[feeder].condition = "severed"
+        self.assertFalse(motor_power(name, nodes={panel},
+                                     equipment=units, edges=e, switches=sw))
 
     def test_motor_feeder_trip_is_individual(self):
         e, sw, units = fitted()
