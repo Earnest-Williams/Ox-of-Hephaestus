@@ -172,6 +172,53 @@ evidence from the earlier 77-test or 25-test runs. Require the new focused
 branch-push CI plus installed and compatibility results on the same runtime
 revision. Neither the full-ship acceptance nor 40-crew voyage has been run.
 
+### Independent HAB refuge sorbent and local DC failover — pending CI
+
+The original **HAB-04-REFUGE-AIR** and **HAB-08-REFUGE-AIR** packs are
+explicitly installed life-support equipment, each with a normal powered
+appliance branch and a nearby independently charged local emergency battery.
+G19 previously consumed reserve electricity without providing any atmospheric
+service. The new bounded `ship_refuge_life_support.py` operation makes the
+causal link explicit:
+
+- An operator must attest **remaining CO2 scrubber capacity** in the
+  existing original pack, no more than the derived nominal envelope of
+  40 occupants for 72 hours at the crew physiology model's 10 mg/s
+  per-person oxygen/CO2 mass proxy (**103.68 kg per fitted pack**).
+  **Zero surveyed medium means zero credit**, and re-commissioning does not
+  replenish a used filter.
+- A working package may scrub only its **actual local pressure cell**, when
+  powered through the original `NODE-PWR-HAB-xx-REFUGE-AIR` normal branch
+  or the **fully supplied, locally fused, finite reserve battery**. Merely
+  having a healthy ship bus, an unmeasured battery, or another pack's
+  electricity is insufficient. Each package is limited to a 40-person
+  respiratory-mass-proxy capture rate; failed hardware and a depressurised
+  room refuse operation.
+- Each increment of CO2 removed from the original air inventory is retained
+  as an **explicit onboard finite captured mass**, with per-tick aggregate
+  conservation. Temperature and gas energy are updated with the same
+  existing coarse atmosphere model. The package **does not generate
+  oxygen, repressurise hulls, remove smoke, make unventilated surrounding
+  rooms safe, or give an unlimited 72-hour guarantee**.
+- Both battery draw and independent scrubber medium are consumed
+  idempotently by the authoritative ship physics clock. The pack has no
+  automatic cartridge change or after-the-fact reset. Existing crew
+  physiology measures the changed gas state in the **actual refuge zone**.
+
+The dedicated pure tests exercise unsurveyed/failed/unpowered/refuge-at-
+vacuum conditions, finite capture capacity, exact gas + captured-mass
+conservation, and nonresetting surveys. The installed-world tests reproduce
+an original-source blackout with active emergency DC, fuse isolation,
+refuge gas transformation, sorbent exhaustion, replay and commissioning
+without reset. The focused electrical CI workflow now includes the new
+kernel and pure/installed checks.
+
+**Boundary:** this is one bounded refuge-atmosphere service at each actual
+source location, not a full 40-person enclosed living-area recirculation
+network; the original refuge's adjacent-room duct coverage, consumable
+replacement, full crew habitability and whole-ship acceptance remain open.
+The new revision is **unverified until its code-head CI evidence passes**.
+
 ### Remaining verification and modelling boundaries
 
 `ox-g19-electrical.yml` gates pure electrical source/charge conservation and faults, installed character/circuit/replay coverage, G18 gas/fire/cooling regressions, and G19 water/cargo/movement compatibility. Installed outcomes must be evaluated against the **exact tested commit**, not a prior acceptance. If the draft fast CI scope gate requires deferral of expensive PR-triggered jobs, focused tests still execute on branch **push**; do not bypass the repository's accepted scope policy.
