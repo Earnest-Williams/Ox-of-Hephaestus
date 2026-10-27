@@ -36,7 +36,7 @@ class AuxiliaryPowerContracts(unittest.TestCase):
         ids = _specs()
         self.assertEqual(len(ids), 3 * len(MOTORS) + 6 * len(LOCAL_LOADS) + 2 * len(PROTECTED_FIRE_MOTORS))
         self.assertEqual(len(LOCAL_LOADS), 16)
-        self.assertEqual(len(MOTORS), 49)
+        self.assertEqual(len(MOTORS), 71)
         self.assertEqual(len(set(ids)), len(ids))
         self.assertTrue(all(x["source_model"] == "g19-electrical-aux/1"
                             for x in ids.values()))
@@ -56,7 +56,14 @@ class AuxiliaryPowerContracts(unittest.TestCase):
         self.assertEqual(families["bearing_lube"], 24)
         self.assertEqual(families["drum_indexer"], 6)
         self.assertEqual(families["freight_handler"], 6)
-        self.assertEqual(families["eclss"], 2)
+        self.assertEqual(families["eclss"], 6)
+        self.assertTrue({"WR-DRIVE-A", "WR-DRIVE-B",
+                         "WR-EXTEND-SHOP", "WR-EXTEND-STORES"} <= set(MOTORS))
+        self.assertEqual(sum(name.endswith("-AHU") for name in MOTORS), 8)
+        self.assertEqual(sum(name.startswith("DEHUM-") for name in MOTORS), 4)
+        self.assertEqual(sum(name.startswith("SPINE-AIR-") for name in MOTORS), 2)
+        self.assertTrue({"ECLSS-A-O2-GEN", "ECLSS-B-O2-GEN",
+                         "ECLSS-A-CO2-REGEN", "ECLSS-B-CO2-REGEN"} <= set(MOTORS))
         self.assertEqual(families["water"], 2)
         self.assertEqual(families["waste"], 2)
         for name, (_, panel) in MOTORS.items():
@@ -72,6 +79,36 @@ class AuxiliaryPowerContracts(unittest.TestCase):
         self.assertTrue(motor_power(
             "BE-01-LUBE-S", nodes={panel},
             equipment=equipment, edges=e, switches=sw))
+
+    def test_workshop_and_air_handlers_have_independent_real_panel_contacts(self):
+        edges, switches, equipment = fitted()
+        self.assertTrue(motor_power(
+            "WR-DRIVE-A", nodes={"NODE-WR-PWR-IF"},
+            equipment=equipment, edges=edges, switches=switches))
+        self.assertTrue(motor_power(
+            "WR-DRIVE-B", nodes={"NODE-WR-PWR-IF"},
+            equipment=equipment, edges=edges, switches=switches))
+        _, _, switch = auxiliary_ids("WR-DRIVE-A", motor=True)
+        switches[switch].setting = "open"
+        self.assertFalse(motor_power(
+            "WR-DRIVE-A", nodes={"NODE-WR-PWR-IF"},
+            equipment=equipment, edges=edges, switches=switches))
+        self.assertTrue(motor_power(
+            "WR-DRIVE-B", nodes={"NODE-WR-PWR-IF"},
+            equipment=equipment, edges=edges, switches=switches))
+        for name in ("HAB-06-AHU", "HAB-08-AHU",
+                     "ECLSS-A-O2-GEN", "ECLSS-B-CO2-REGEN"):
+            panel = MOTORS[name][1]
+            self.assertTrue(motor_power(
+                name, nodes={panel}, equipment=equipment,
+                edges=edges, switches=switches))
+            self.assertFalse(motor_power(
+                name, nodes=set(), equipment=equipment,
+                edges=edges, switches=switches))
+        self.assertEqual(MOTORS["HAB-06-AHU"][1], "NODE-HAB-06-PDB-B")
+        self.assertEqual(MOTORS["HAB-08-AHU"][1], "NODE-HAB-08-PDB-A")
+        self.assertEqual(MOTORS["ECLSS-A-O2-GEN"][1],
+                         "NODE-HAB-06-ECLSS-A-LP")
 
     def test_protected_fire_trunk_runs_without_b_main_and_never_parallels(self):
         e, switches, equipment = fitted()
