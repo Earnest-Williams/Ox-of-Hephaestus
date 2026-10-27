@@ -17,7 +17,7 @@ def freight():
     declared = declare_cargo_lot(
         original, lot_id="MEDICINE", mass_kg=20000,
         drum="DR-03", azimuth_deg=0, radius_m=5,
-        kind="sled", restrained=True)
+        kind="bulk", restrained=True)
     return declared
 
 
