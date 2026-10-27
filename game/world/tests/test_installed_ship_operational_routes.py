@@ -110,7 +110,7 @@ class InstalledContinuousCrewRoutes(EvenniaTestCase):
                 operation="crew_indexed_transfer_complete").count(), 2)
         self.assertFalse(_clock().details["personnel_transfers"]["jobs"])
         self.assertEqual(WorkReceipt.objects.filter(
-            operation="traverse", target="ship_physics").count(), 8)
+            operation="traverse", target="ship_physics").count(), 6)
 
     def test_rotating_hab_capsule_is_boarded_and_returned_through_fixed_hatch(self):
         """Actual fixed hatch, synchronised moving ring, and return chain."""
