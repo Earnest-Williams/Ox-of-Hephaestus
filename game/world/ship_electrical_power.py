@@ -89,7 +89,8 @@ def validate_electrical(s):
             raise ElectricalError("Invalid shore switching state")
     if (not isinstance(s["worksite_surveys"], dict)
             or any(room not in {"GEN-M-ROOM", "GEN-A-ROOM", "GEN-B-ROOM",
-                                "F1-BAY", "F2-BAY"}
+                                "F1-BAY", "F2-BAY",
+                                *(f"BE-{n:02d}-SVC" for n in range(1, 13))}
                    or category != "suited_service"
                    for room, category in s["worksite_surveys"].items())):
         raise ElectricalError("Unverified or invented hazardous electrical worksite")
