@@ -465,6 +465,37 @@ def fire_pump_service_ready(name, *, nodes, equipment, edges, switches,
     return False
 
 
+
+def allocate_lt_cooling(*, seconds, drive_heat_kj, active_radiators,
+                        coolant_connected, plant_running, motor_ready,
+                        service_assured, drive_limit_kw):
+    """Allocate *one* finite low-temperature rejection budget per tick.
+
+    The drive's thermal buffer is cooled first; only unused capacity may
+    cool ship pressure cells. A healthy radiator, a powered room, or a
+    running software plant flag alone cannot provide heat rejection.
+    """
+    for value in (seconds, drive_heat_kj, drive_limit_kw):
+        if (type(value) not in (int, float) or not math.isfinite(value)
+                or value < 0):
+            raise ElectricalError("Nonphysical LT heat-rejection budget")
+    if seconds <= 0 or seconds > 10:
+        raise ElectricalError("Unbounded LT cooling integration")
+    if type(active_radiators) is not int or not 0 <= active_radiators <= 4:
+        raise ElectricalError("Unverified LT radiator complement")
+    capacity_kw = (
+        937.5 * active_radiators
+        if (coolant_connected and plant_running and motor_ready
+            and service_assured) else 0.0
+    )
+    drive_kw = min(capacity_kw, drive_limit_kw, drive_heat_kj / seconds)
+    return {
+        "capacity_kw": capacity_kw,
+        "drive_kw": drive_kw,
+        "environment_kw": capacity_kw - drive_kw,
+    }
+
+
 def step_local_backup(ledger, seconds, *, nodes, equipment, edges, switches,
                       producer_nodes=(), producing_mw=0.0, other_requested_mw=0.0):
     """Advance isolated DC reserves and separately fused grid recharging.
