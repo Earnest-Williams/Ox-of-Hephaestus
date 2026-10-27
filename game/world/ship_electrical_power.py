@@ -225,12 +225,12 @@ def source_dispatch(equipment, edges, switches, profile, *, ledger=None,
     reached = connected_nodes(edges, switches, starts)
     battery_nodes = set()
     qualified = []
+    charge_feeders = []
     if ledger is not None:
         for name, bank in sorted(ledger["banks"].items()):
             feeder = routes.get("EDGE-" + name)
             eq = equipment.get(name)
-            if (bank["mode"] != "discharge" or bank["charge_kwh"] <= 0
-                    or eq is None or eq.condition in {
+            if (eq is None or eq.condition in {
                         "faulted", "failed", "severed", "jammed", "destroyed"}
                     or feeder is None or not _live_edge(feeder, switches)):
                 continue
@@ -238,6 +238,14 @@ def source_dispatch(equipment, edges, switches, profile, *, ledger=None,
             if set(MAIN_BOARDS) & reachable:
                 raise ElectricalError("Unrated battery reverse-backfeed reaches a main board")
             if "PWR-PROT" not in reachable:
+                continue
+            if (bank["mode"] == "charge" and "PWR-PROT" in reached
+                    and main_mw > 0):
+                # Surveyed bidirectional battery converter connects to the
+                # existing fitted protected feeder. Only this source-local
+                # energy exchange is reversible; it cannot backfeed MSBs.
+                charge_feeders.append(name)
+            if bank["mode"] != "discharge" or bank["charge_kwh"] <= 0:
                 continue
             battery_nodes |= reachable
             max_mw = min(bank["max_discharge_mw"], bank["charge_kwh"] * 3600 / dt_s)
@@ -265,6 +273,7 @@ def source_dispatch(equipment, edges, switches, profile, *, ledger=None,
         "battery_budget_mw": battery_budget,
         "battery_dispatched_mw": backed_mw,
         "battery_sources": qualified,
+        "charge_feeders": charge_feeders,
         "shore_active": shore_active,
         "protected_assured": has_protected and essential_assured,
         "source_signature": sorted(sources) + [
@@ -319,8 +328,11 @@ def step_energy(ledger, dispatch, seconds, *, actual_requested_mw=None):
                       max(0.0, bank["capacity_kwh"] - bank["charge_kwh"]) * 3600 / dt)
         if maximum <= 0:
             continue
-        # The caller supplies direct live generator nodes in main_nodes.
-        if "NODE-" + name not in dispatch["main_nodes"]:
+        # A surveyed two-way converter can charge only through its fitted
+        # *closed* battery feeder and an independently live protected bus.
+        # This is a battery-local conversion path, not generic reverse
+        # traversal of source-only electricity feeders.
+        if name not in dispatch["charge_feeders"]:
             continue
         amount = maximum * dt / 3600
         bank["charge_kwh"] += amount
