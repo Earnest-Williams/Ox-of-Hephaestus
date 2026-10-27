@@ -13,6 +13,10 @@ from world.ship_indexed_personnel import (
     IndexedTransferError, begin_personnel_transfer,
     indexed_mechanism_ready, link_contract,
 )
+from world.ship_hazardous_access import (
+    LOCKS as BAY_LOCKS, CYCLE_S as BAY_CYCLE_S, BayAccessError,
+    validate_bay_access, begin_bay_transit,
+)
 from world.ship_eva_operations import (
     EVAError, LOCKS as EVA_LOCKS, lock_contract, suit_of,
     begin_eva_transit, human_exterior_site_safe,
@@ -41,6 +45,9 @@ def _health_gate(actor):
             actor.dbref in {patient, job["lead"], job["helper"]}
             for patient, job in rescue["jobs"].items()):
         raise CrewTransitError("Crew member committed to casualty transport")
+    bay_access = ship_clock.details.get("bay_access")
+    if bay_access is not None and actor.dbref in bay_access["jobs"]:
+        raise CrewTransitError("Worker already occupies a sealed bay airlock")
     eva = ship_clock.details.get("eva")
     if eva is not None:
         _, suit = suit_of(eva, actor.dbref)
@@ -151,6 +158,52 @@ def _clearance(actor, exit_obj, dest):
         from world.continuous_ship_physics import _freight_service_entry_ready
         if not _freight_service_entry_ready(link):
             raise CrewTransitError("Service hatch not secured or plant/air no longer safe")
+        return door
+
+    if kind == "service_airlock":
+        # The two existing F1/F2 assemblies are pressure-sealed, time-bound
+        # suit ports. Unknown flywheel-bay gas is NOT ordinary hatch air.
+        if link not in BAY_LOCKS or door.setting != "closed":
+            raise CrewTransitError("No available rated sealed flywheel service lock")
+        from world.continuous_ship_physics import _clock
+        from world.ship_crew_exposure import OXYGEN_KG_S
+        from world.ship_hazardous_access import validate_bay_access
+        corridor, bay, panel_id = BAY_LOCKS[link]
+        if {src_id, dst_id} != {corridor, bay} or (
+                actor.location.db.ox_frame != dest.db.ox_frame or
+                actor.location.db.ox_frame != "fixed"
+                or door.reference.get("pressure_boundary") is not True):
+            raise CrewTransitError("Flywheel bay service lock has wrong fitted geometry")
+        clock = _clock()
+        bay_access = clock.details.get("bay_access")
+        if bay_access is None:
+            raise CrewTransitError("Sealed F1/F2 service access not commissioned")
+        validate_bay_access(bay_access)
+        if bay not in bay_access["surveyed_bays"]:
+            raise CrewTransitError("Unsurveyd F1/F2 service access is closed")
+        from world.full_ship_operations import MODEL
+        if not CanonicalShipState.objects.filter(
+                pk="crew_health:" + actor.dbref, source_model=MODEL).exists():
+            raise CrewTransitError("Real suited worker must be physiologically enrolled")
+        eva = clock.details.get("eva")
+        if eva is None:
+            raise CrewTransitError("Fitted EVA suit plant not commissioned")
+        _, suit = suit_of(eva, actor.dbref)
+        if (not suit or suit["integrity"] < .8
+                or suit["exposure"]["condition"] in {
+                    "incapacitated", "critical", "dead"}
+                or suit["exposure"]["suit_oxygen_kg"] <
+                   OXYGEN_KG_S * (BAY_CYCLE_S + 60)):
+            raise CrewTransitError("No physically issued suit with remaining F1/F2 cycle oxygen")
+        panel = state("equipment", panel_id)
+        if panel.space_id != bay or panel.condition in _BROKEN:
+            raise CrewTransitError("Actual flywheel local service panel is damaged")
+        from world.continuous_ship_physics import _topology, _air_safe
+        zone = _topology()[0].get(corridor)
+        if zone is None or _topology()[0].get(bay) is not None:
+            raise CrewTransitError("Survey is not of the original unpressurised bay")
+        if not _air_safe(state("pressure", zone)):
+            raise CrewTransitError("Breathing-safe trunk required before sealed cycle")
         return door
     indexed = (kind == "indexed_rotary_transfer"
                or link == "ACC-WR-IX-HUB" and kind == "indexer_hatch")
@@ -290,6 +343,38 @@ def traverse_canonical_exit(actor, exit_obj, dest, *, request_id=None):
         return dict(previous.outcome)
     door = _clearance(actor, exit_obj, dest)
     origin = actor.location.db.ox_space_id
+
+    if link in BAY_LOCKS and door.reference.get("kind") == "service_airlock":
+        from world.continuous_ship_physics import _snapshot, _event
+        clock = _clock(lock=True)
+        try:
+            bay_access = begin_bay_transit(
+                clock.details["bay_access"], actor=actor.dbref,
+                link=link, direction=exit_obj.db.ox_access_direction,
+                source=origin, destination=dest.db.ox_space_id,
+                request_id=request_id)
+        except BayAccessError as exc:
+            raise CrewTransitError(str(exc)) from exc
+        before = _snapshot(clock)
+        details = dict(clock.details)
+        details["bay_access"] = bay_access
+        clock.details = details
+        clock.revision += 1
+        clock.save(update_fields=["details", "revision"])
+        event = _event(clock, "crew_flywheel_sealed_service_queued",
+                       before, actor=actor, request_id=request_id)
+        outcome = {
+            "request_id": request_id, "actor_dbref": actor.dbref,
+            "operation": "traverse", "target": link, "status": "queued",
+            "source_event_id": str(event.sequence),
+            "destination": dest.db.ox_space_id,
+            "travel_seconds": BAY_CYCLE_S,
+        }
+        WorkReceipt.objects.create(
+            request_id=request_id, actor_dbref=actor.dbref,
+            target="ship_physics", operation="traverse", arguments=args,
+            outcome=outcome, game_time=float(clock.details["last_game_time"]))
+        return outcome
     if (door.reference.get("kind") == "indexed_rotary_transfer"
             or link == "ACC-WR-IX-HUB"):
         from world.continuous_ship_physics import _snapshot, _event
