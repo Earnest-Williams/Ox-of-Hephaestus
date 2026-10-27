@@ -39,6 +39,9 @@ class InstalledElectricalTests(EvenniaTestCase):
                          (438, 450, 466))
         self.assertEqual(result["rated_battery_kwh"], 0)
         self.assertFalse(commission_g19_electrical(operator_approved=True)["commissioned"])
+        # A main-generator feeder must be physically selected; the authored
+        # cold condition is never promoted to a closed contact by commissioning.
+        set_isolator("ISO-GEN-M", "closed", operator=True)
         tick = tick_continuous_physics(now_game_time=1010)
         self.assertIn("electrical", tick)
         self.assertGreater(tick["electrical"]["meter"]["served_kwh"], 0)
@@ -112,6 +115,59 @@ class InstalledElectricalTests(EvenniaTestCase):
                 operator_approved=True, source="BAT-UNAUTHORISED",
                 capacity_kwh=3, initial_kwh=2,
                 max_charge_mw=.3, max_discharge_mw=.3)
+
+    def test_power_readout_is_local_and_does_not_oracle_other_rooms(self):
+        commission_g19_electrical(operator_approved=True)
+        self.crew_at(state("equipment", "GEN-M").space_id)
+        board = local_physics_readout(self.worker, "power")
+        self.assertIn("meters_kwh", board)
+        local_node = local_physics_readout(self.worker, "NODE-GEN-M")
+        self.assertEqual(local_node["scope"],
+                         "physically_local_actual_power_circuit")
+        with self.assertRaises(PermissionError):
+            local_physics_readout(self.worker, "NODE-HAB-03-CAB-07-LP")
+
+    def test_tie_requires_elapsed_synchronisation_and_live_source(self):
+        commission_g19_electrical(operator_approved=True)
+        set_isolator("ISO-GEN-M", "closed", operator=True)
+        tie = state("edge", "EDGE-MSB-XTIE")
+        self.assertEqual(tie.reference["network"], "power")
+        self.assertEqual(tie.setting, "standby")
+        for name in tie.reference["isolator_ids"]:
+            set_isolator(name, "closed", operator=True)
+        self.crew_at(state("isolator", tie.reference["isolator_ids"][0]).space_id)
+        issued = crew_physical_action(
+            self.worker, "1" * 32, "power", "EDGE-MSB-XTIE", "sync")
+        self.assertEqual(issued["status"], "succeeded")
+        with self.assertRaises(PhysicsError):
+            crew_physical_action(
+                self.worker, "2" * 32, "power", "EDGE-MSB-XTIE", "close")
+        tick_continuous_physics(now_game_time=1015)
+        result = crew_physical_action(
+            self.worker, "3" * 32, "power", "EDGE-MSB-XTIE", "close")
+        self.assertEqual(result["status"], "succeeded")
+        self.assertEqual(state("edge", "EDGE-MSB-XTIE").setting, "available")
+
+    def test_cabin_refit_panel_is_not_the_fan_coil_source(self):
+        from world.continuous_ship_physics import _power
+        commission_g19_electrical(operator_approved=True)
+        set_isolator("ISO-GEN-M", "closed", operator=True)
+        def current():
+            clock = state("meta", "continuous-physics")
+            return _power(
+                {r.source_id: r for r in CanonicalShipState.objects.filter(
+                    category="equipment")},
+                list(CanonicalShipState.objects.filter(category="edge")),
+                {r.source_id: r for r in CanonicalShipState.objects.filter(
+                    category="isolator")}, clock.details["load_profile"],
+                ledger=clock.details["electrical"])
+        prior = current()
+        self.assertIn("NODE-HAB-03-CAB-07-LP", prior["nodes"])
+        self.assertIn("NODE-PWR-HAB-03-CAB-07-FANCOIL", prior["nodes"])
+        set_isolator("ISO-HAB-03-CAB-07-LP", "open", operator=True)
+        after = current()
+        self.assertNotIn("NODE-HAB-03-CAB-07-LP", after["nodes"])
+        self.assertIn("NODE-PWR-HAB-03-CAB-07-FANCOIL", after["nodes"])
 
     def test_generator_trips_do_not_destroy_real_refit_buses(self):
         commission_g19_electrical(operator_approved=True)
