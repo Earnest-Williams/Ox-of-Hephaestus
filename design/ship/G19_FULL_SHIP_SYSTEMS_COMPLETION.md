@@ -103,6 +103,36 @@ static JSON entries, an isolated demonstration or operator-injected outcomes.
 Keep the existing G18 mechanisms where valid and extend them; do not create
 a parallel simulator.
 
+### Equipment-family continuation — 26 powered cargo, cultivation and workshop services
+
+G19 now fits an additional **26 individually isolatable secondary equipment
+feeds** to the actual co-located v0.5 room panels: six crop growing control/
+nutrient machines, twelve drum-cargo thermal/gas packs, and eight workshop
+tools/welding cells. The 78 added terminal/conductor/breaker objects are
+segregated from the original 438/450/466 power network and the earlier
+72 separately fused priority-motor circuits.
+
+The original machine state is registered into an authoritative, persisted
+per-unit duty ledger with real generator/shore/storage availability,
+local isolation, cumulative operating/unserved time, and operator-visible
+working cargo-environment and cultivation *pairs*. The machine shop's
+high-energy tools retain a **manual restart latch** following interrupted
+power: authorised engineers restore the actual feeder and explicitly restart
+the affected machine at its physical location. Pre-existing control and
+damage history is preserved when an older armed ship is upgraded.
+
+Coverage audits and tests: `design/ship/check_g19_service_equipment_inventory.py`,
+`game/world/tests/test_ship_equipment_services.py` and the real-world
+installed electrical test class. The electrical four-job workflow covers
+the new code and previous G18/G19 compatibility; complete same-head
+acceptance is the next closure gate. This establishes powered machinery
+availability rather than inferring fabrication output, crop yield or cargo
+climate changes without actual materials, process state and operating
+contracts.
+
+Full implementation and per-room circuit mapping are in
+[G19 electrical power and recovery](G19_ELECTRICAL_POWER_AND_RECOVERY.md).
+
 ## Completion criteria
 
 1. All installed equipment families and resource networks are inventoried.
