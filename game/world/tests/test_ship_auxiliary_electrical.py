@@ -35,10 +35,42 @@ class AuxiliaryPowerContracts(unittest.TestCase):
         ids = _specs()
         self.assertEqual(len(ids), 3 * len(MOTORS) + 4 * len(LOCAL_LOADS))
         self.assertEqual(len(LOCAL_LOADS), 16)
-        self.assertEqual(len(MOTORS), 3)
+        self.assertEqual(len(MOTORS), 49)
         self.assertEqual(len(set(ids)), len(ids))
         self.assertTrue(all(x["source_model"] == "g19-electrical-aux/1"
                             for x in ids.values()))
+
+    def test_critical_motor_families_are_fused_individually(self):
+        e, sw, equipment = fitted()
+        from collections import Counter
+        families = Counter(
+            "bearing_lube" if "-LUBE-" in name else
+            "drum_indexer" if "-PERSONNEL-INDEXER" in name else
+            "freight_handler" if "-RADIAL-FREIGHT-HANDLER" in name else
+            "eclss" if name.startswith("ECLSS-") else
+            "water" if name.startswith("WATER-PROC-") else
+            "waste" if name.startswith("WASTE-PROC-") else
+            "other"
+            for name in MOTORS)
+        self.assertEqual(families["bearing_lube"], 24)
+        self.assertEqual(families["drum_indexer"], 6)
+        self.assertEqual(families["freight_handler"], 6)
+        self.assertEqual(families["eclss"], 2)
+        self.assertEqual(families["water"], 2)
+        self.assertEqual(families["waste"], 2)
+        for name, (_, panel) in MOTORS.items():
+            self.assertTrue(motor_power(
+                name, nodes={panel}, equipment=equipment, edges=e, switches=sw),
+                name)
+        name = "BE-01-LUBE-N"
+        _, _, breaker = auxiliary_ids(name, motor=True)
+        sw[breaker].setting = "open"
+        panel = MOTORS[name][1]
+        self.assertFalse(motor_power(
+            name, nodes={panel}, equipment=equipment, edges=e, switches=sw))
+        self.assertTrue(motor_power(
+            "BE-01-LUBE-S", nodes={panel},
+            equipment=equipment, edges=e, switches=sw))
 
     def test_unrated_local_store_cannot_create_electricity(self):
         e, sw, units = fitted()
