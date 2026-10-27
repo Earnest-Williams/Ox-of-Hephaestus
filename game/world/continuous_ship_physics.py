@@ -92,6 +92,7 @@ from world.ship_auxiliary_electrical import (
     validate_local_backup, migrate_local_backup, survey_local_backup,
     set_local_mode,
     step_local_backup, motor_power, fire_pump_service_ready,
+    allocate_lt_cooling,
 )
 from world.ship_electrical_power import (
     ElectricalError, BATTERIES as POWER_BANKS,
@@ -2579,16 +2580,19 @@ def tick_continuous_physics(*, now_game_time=None):
         )
         lt_radiators = sum(_on(equipment, f"RAD-LT-{n}")
                            for n in range(1, 5))
-        lt_cooling_capacity_kw = (
-            min(3750.0, 937.5 * lt_radiators)
-            if (len(connected_lt) > 1 and _on(equipment, "LT-PLANT")
-                and motor_ready("LT-PLANT") and lt_service_assured)
-            else 0.0
-        )
-        if lt_cooling_capacity_kw:
-            drive_cooling_kw = min(
-                DRIVE_COOLING_KW, lt_cooling_capacity_kw, heat / dt)
-            heat = max(0.0, heat - drive_cooling_kw * dt)
+        try:
+            lt_budget = allocate_lt_cooling(
+                seconds=dt, drive_heat_kj=heat,
+                active_radiators=lt_radiators,
+                coolant_connected=len(connected_lt) > 1,
+                plant_running=_on(equipment, "LT-PLANT"),
+                motor_ready=motor_ready("LT-PLANT"),
+                service_assured=lt_service_assured,
+                drive_limit_kw=DRIVE_COOLING_KW)
+        except ElectricalError as exc:
+            raise PhysicsError(str(exc)) from exc
+        drive_cooling_kw = lt_budget["drive_kw"]
+        heat = max(0.0, heat - drive_cooling_kw * dt)
         if heat >= DRIVE_THERMAL_BUFFER_KJ:
             heat = DRIVE_THERMAL_BUFFER_KJ
             motion["drive_condition"] = "thermal_trip"
@@ -2731,7 +2735,7 @@ def tick_continuous_physics(*, now_game_time=None):
         cool_zones &= set(cells)
         # Propulsion rejection was already debited from this *same*
         # motor-and-radiator-limited capacity earlier in this tick.
-        total_cool_kw = max(0.0, lt_cooling_capacity_kw - drive_cooling_kw)
+        total_cool_kw = lt_budget["environment_kw"]
         per_zone_kw = total_cool_kw / len(cool_zones) if cool_zones else 0.0
 
         fire_starts = [
