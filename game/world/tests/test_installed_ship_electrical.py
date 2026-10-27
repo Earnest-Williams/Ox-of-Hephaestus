@@ -132,6 +132,89 @@ class InstalledElectricalTests(EvenniaTestCase):
         set_isolator("ISO-G19-MOTOR-FIRE-PUMP-FWD", "open", operator=True)
         self.assertFalse(ready())
 
+    def test_motor_overcurrent_trip_is_local_and_resets_only_after_clearance(self):
+        commission_g19_electrical(operator_approved=True)
+        name = "LT-PLANT"
+        breaker_id = "ISO-G19-MOTOR-" + name
+        self.line_up_real_feeder("NODE-GEN-M", "NODE-LP-ROTARY-UTIL-A")
+        self.assertEqual(state("isolator", breaker_id).setting, "closed")
+        configure_g19_electrical_fault(
+            operator_approved=True, breaker_id=breaker_id,
+            rating_mw=.01, measured_mw=.05)
+        tick_continuous_physics(now_game_time=1010)
+        self.assertEqual(state("isolator", breaker_id).setting, "open")
+        self.assertTrue(state("isolator", breaker_id).details[
+            "physics_power_trip_latched"])
+        self.crew_at("ROTARY-UTIL-A")
+        with self.assertRaises(PhysicsError):
+            crew_physical_action(self.worker, "1" * 32, "power",
+                                 breaker_id, "reset")
+        configure_g19_electrical_fault(
+            operator_approved=True, breaker_id=breaker_id,
+            rating_mw=.01, measured_mw=0)
+        self.assertEqual(crew_physical_action(
+            self.worker, "2" * 32, "power", breaker_id, "reset")[
+            "status"], "succeeded")
+        self.assertEqual(state("isolator", breaker_id).setting, "open")
+        self.assertEqual(crew_physical_action(
+            self.worker, "3" * 32, "switch", breaker_id, "closed")[
+            "status"], "succeeded")
+        self.assertEqual(state("isolator", breaker_id).setting, "closed")
+        local = local_physics_readout(self.worker, name)
+        self.assertTrue(local["feeder_conducting"])
+        self.assertTrue(local["upstream_panel_energised"])
+
+    def test_local_refuge_fuse_trip_stops_finite_backup(self):
+        commission_g19_electrical(operator_approved=True)
+        name = "HAB-04-REFUGE-BAT"
+        breaker = "ISO-G19-LOCAL-" + name
+        survey_g19_electrical_source(
+            operator_approved=True, source=name,
+            capacity_kwh=.2, initial_kwh=.1)
+        self.crew_at("HAB-04-REFUGE")
+        with self.assertRaises(PermissionError):
+            self.crew_at("HAB-04-REFUGE") or local_physics_readout(
+                self.worker, "HAB-08-REFUGE-BAT")
+        crew_physical_action(self.worker, "4" * 32, "power", name, "reserve")
+        configure_g19_electrical_fault(
+            operator_approved=True, breaker_id=breaker,
+            rating_mw=.001, measured_mw=.01)
+        tick_continuous_physics(now_game_time=1010)
+        local = local_physics_readout(self.worker, name)
+        self.assertFalse(local["fuse_closed"])
+        self.assertFalse(local["last_tick_battery_active"])
+        self.assertAlmostEqual(local["charge_kwh"], .1)
+        configure_g19_electrical_fault(
+            operator_approved=True, breaker_id=breaker,
+            rating_mw=.001, measured_mw=0)
+        crew_physical_action(self.worker, "5" * 32, "power", breaker, "reset")
+        crew_physical_action(self.worker, "6" * 32, "switch", breaker, "closed")
+        tick_continuous_physics(now_game_time=1020)
+        local = local_physics_readout(self.worker, name)
+        self.assertTrue(local["last_tick_battery_active"])
+        self.assertLess(local["charge_kwh"], .1)
+
+    def test_suited_bearing_battery_requires_real_survey(self):
+        from world.continuous_ship_physics import survey_g19_electrical_worksite
+        commission_g19_electrical(operator_approved=True)
+        name = "BE-01-BAT"
+        survey_g19_electrical_source(
+            operator_approved=True, source=name,
+            capacity_kwh=1.0, initial_kwh=.5)
+        self.crew_at("BE-01-SVC")
+        with self.assertRaises(PhysicsError):
+            crew_physical_action(self.worker, "7" * 32, "power", name, "reserve")
+        survey_g19_electrical_worksite(
+            operator_approved=True, room_id="BE-01-SVC")
+        with self.assertRaises(PhysicsError):
+            crew_physical_action(self.worker, "8" * 32, "power", name, "reserve")
+        self.worker.db.ox_suit_verified = True
+        self.assertEqual(crew_physical_action(
+            self.worker, "9" * 32, "power", name, "reserve")["status"],
+            "succeeded")
+        self.assertEqual(local_physics_readout(
+            self.worker, name)["mode"], "reserve")
+
     def test_full_authored_graph_and_nonresetting_commission(self):
         result = commission_g19_electrical(operator_approved=True)
         self.assertEqual((result["nodes"], result["feeders"], result["breakers"]),
