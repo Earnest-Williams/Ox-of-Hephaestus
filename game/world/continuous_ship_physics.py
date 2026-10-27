@@ -1845,12 +1845,14 @@ def _on(equipment, identifier):
 
 
 def _power(equipment, edges, isolators, profile, *,
-           ledger=None, dt_s=STEP_SECONDS, moored=False):
+           ledger=None, dt_s=STEP_SECONDS, moored=False, nodes=None):
     if ledger is not None:
         try:
+            installed_nodes = (nodes if nodes is not None else
+                list(CanonicalShipState.objects.filter(category="node")))
             return source_dispatch(
                 equipment, edges, isolators, profile, ledger=ledger,
-                dt_s=dt_s, moored=moored)
+                dt_s=dt_s, moored=moored, nodes=installed_nodes)
         except ElectricalError as exc:
             raise PhysicsError(str(exc)) from exc
     feeder = {e.source_id: e for e in edges if e.reference["network"] == "power"}
@@ -2117,7 +2119,7 @@ def tick_continuous_physics(*, now_game_time=None):
                 _event(switch, "electrical_overcurrent_trip", before_trip)
         power = _power(equipment, edges, isolators, clock.details["load_profile"],
                        ledger=electrical, dt_s=dt,
-                       moored=contacts_active(cargo))
+                       moored=contacts_active(cargo), nodes=water_nodes)
         if water_state is not None:
             hardware = _water_hardware(
                 water_state, equipment, edges, isolators, water_nodes, power)
