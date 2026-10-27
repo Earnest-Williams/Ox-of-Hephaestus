@@ -32,7 +32,16 @@ def _health_gate(actor):
     if health and health.condition in {"incapacitated", "critical", "dead"}:
         raise CrewTransitError("Crew member is physically unable to travel")
     from world.continuous_ship_physics import _clock
-    eva = _clock().details.get("eva")
+    ship_clock = _clock()
+    # The casualty and two carriers occupy a timed, physical doorway.
+    # No parallel self-walking, freight/EVA or indexed route may silently
+    # remove a person before the manual-carry order finishes.
+    rescue = ship_clock.details.get("rescue")
+    if rescue is not None and any(
+            actor.dbref in {patient, job["lead"], job["helper"]}
+            for patient, job in rescue["jobs"].items()):
+        raise CrewTransitError("Crew member committed to casualty transport")
+    eva = ship_clock.details.get("eva")
     if eva is not None:
         _, suit = suit_of(eva, actor.dbref)
         if suit and suit["exposure"]["condition"] in {
