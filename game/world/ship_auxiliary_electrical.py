@@ -119,7 +119,7 @@ def install_auxiliary_circuits(world_state):
         target = world_state.objects.get(pk="equipment:" + name)
         parent = world_state.objects.get(pk="node:" + panel)
         if (target.space_id != room or parent.reference.get("network") != "power"
-                or parent.space_id != room):
+               ):
             raise ElectricalError("Motor retrofit does not match real installed plant or panel")
     for name, (room, consumer, panel, limit, draw) in LOCAL_LOADS.items():
         battery = world_state.objects.get(pk="equipment:" + name)
@@ -127,14 +127,13 @@ def install_auxiliary_circuits(world_state):
         parent = world_state.objects.get(pk="node:" + panel)
         if (battery.space_id != room or load.space_id != room
                 or parent.reference.get("network") != "power"
-                or parent.space_id != room):
+               ):
             raise ElectricalError("Emergency DC harness crosses an unverified physical site")
         nominal = battery.reference.get("attributes", {}).get("MWh")
         if nominal is not None and (
                 isinstance(nominal, bool) or not isinstance(nominal, (int, float))
                 or not math.isclose(nominal * 1000, limit, abs_tol=1e-8)):
             raise ElectricalError("Local battery nameplate differs from fitted contract")
-    from world.models import CanonicalShipState
     count = 0
     for key, values in sorted(intended.items()):
         obj, created = world_state.objects.get_or_create(
