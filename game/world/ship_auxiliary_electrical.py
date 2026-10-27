@@ -86,6 +86,10 @@ MOTORS = {
     },
     "SPINE-AIR-FWD": ("ENV-FWD", "NODE-LP-ENV-FWD"),
     "SPINE-AIR-AFT": ("ENV-AFT", "NODE-LP-ENV-AFT"),
+    # The translation field's separate shipboard control/auxiliary supply
+    # comes from its fitted B-side local panel. No claim that this modest
+    # feeder provides the fictional field's full drive energy.
+    "FTL-TRANSLATION-FIELD": ("FTL-SVC", "NODE-LP-FTL-SVC"),
 }
 
 # Explicitly fitted, short local battery-to-appliance harnesses. These are
