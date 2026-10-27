@@ -585,8 +585,9 @@ def survey_g19_electrical_worksite(*, operator_approved=False, room_id=None):
     if not operator_approved:
         raise PermissionError("Physical electrical worksite survey is operator-only")
     if room_id not in {"GEN-M-ROOM", "GEN-A-ROOM", "GEN-B-ROOM",
-                        "F1-BAY", "F2-BAY"}:
-        raise PhysicsError("Only real generator or flywheel machinery bays may be surveyed")
+                        "F1-BAY", "F2-BAY",
+                        *(f"BE-{n:02d}-SVC" for n in range(1, 13))}:
+        raise PhysicsError("Only fitted unpressurised electrical service bays may be surveyed")
     from world.ship_world import find_ship_space
     if (find_ship_space(room_id) is None
             or _topology()[0].get(room_id) not in {None, "VACUUM"}):
@@ -594,6 +595,9 @@ def survey_g19_electrical_worksite(*, operator_approved=False, room_id=None):
     if room_id.endswith("-ROOM"):
         if state("equipment", room_id.removesuffix("-ROOM")).space_id != room_id:
             raise PhysicsError("Generator worksite and real installed plant disagree")
+    elif re.fullmatch(r"BE-(0[1-9]|1[0-2])-SVC", room_id):
+        if state("equipment", room_id.replace("-SVC", "-BAT")).space_id != room_id:
+            raise PhysicsError("Local rescue battery is not fitted in this bearing station")
     elif state("equipment", room_id.replace("-BAY", "-BUS")).space_id != room_id:
         raise PhysicsError("Flywheel bank and local power room disagree")
     import copy
