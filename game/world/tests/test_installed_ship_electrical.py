@@ -18,6 +18,7 @@ from world.continuous_ship_physics import (
     configure_g19_electrical_fault, commission_commercial_port,
     commission_ftl_route, survey_g19_refuge_sorbent,
     survey_cargo_lot, survey_g19_cargo_environment,
+    survey_g19_equipment_wear,
     crew_physical_action, tick_continuous_physics, local_physics_readout,
 )
 
@@ -72,6 +73,60 @@ class InstalledElectricalTests(EvenniaTestCase):
                 if state("isolator", isolator_id).setting != "closed":
                     set_isolator(isolator_id, "closed", operator=True)
             position = a if position == b else b
+
+    def test_inherited_cnc_wear_causes_actual_degradation_and_local_fault(self):
+        from world.ship_equipment_wear import (
+            SERVICE_INTERVAL_S, FAILURE_MULTIPLIER)
+        name = "SHOP-CNC-MILL"
+        commission_g19_electrical(operator_approved=True)
+        self.line_up_real_feeder("NODE-GEN-M", "NODE-LP-SHOP-MECH")
+        self.line_up_real_feeder("NODE-GEN-M", "NODE-HAB-03-FIRE-DETECT")
+        interval = SERVICE_INTERVAL_S[name]
+        survey_g19_equipment_wear(
+            operator_approved=True, unit_id=name,
+            equivalent_hours=(interval - 5) / 3600)
+        with self.assertRaises(PhysicsError):
+            survey_g19_equipment_wear(
+                operator_approved=True, unit_id=name, equivalent_hours=1)
+        self.crew_at("SHOP-MECH")
+        crew_physical_action(
+            self.worker, "4" * 32, "plant", name, "on")
+        first = tick_continuous_physics(now_game_time=1010)
+        self.assertTrue(first["power_assured"])
+        self.assertGreaterEqual(
+            first["secondary_machines_maintenance_due"], 1)
+        self.assertEqual(state("equipment", name).condition, "degraded")
+        gauge = local_physics_readout(self.worker, name)
+        self.assertEqual(gauge["maintenance_stage"], "degraded")
+        self.assertGreater(gauge["wear_hours_since_service"],
+                           interval / 3600)
+        # Use an explicitly scenario-injected near-failure worn component
+        # to exercise its installed physical consequence within one tick.
+        clock = CanonicalShipState.objects.get(
+            pk="meta:continuous-physics")
+        values = dict(clock.details)
+        wear = dict(values["equipment_wear"])
+        wear["units"] = dict(wear["units"])
+        unit = dict(wear["units"][name])
+        unit["wear_s"] = interval * FAILURE_MULTIPLIER - 5
+        wear["units"][name] = unit
+        values["equipment_wear"] = wear
+        clock.details = values
+        clock.save(update_fields=["details"])
+        fault = tick_continuous_physics(now_game_time=1020)
+        self.assertGreaterEqual(
+            fault["secondary_machines_wear_faulted"], 1)
+        self.assertEqual(state("equipment", name).condition, "faulted")
+        gauge = local_physics_readout(self.worker, name)
+        self.assertEqual(gauge["maintenance_stage"], "faulted")
+        with self.assertRaises(PhysicsError):
+            crew_physical_action(
+                self.worker, "5" * 32, "plant", name, "on")
+        commission_g19_electrical(operator_approved=True)
+        self.assertEqual(
+            CanonicalShipState.objects.get(
+                pk="meta:continuous-physics").details[
+                    "equipment_wear"]["units"][name]["stage"], "faulted")
 
     def test_surveyed_cargo_hold_rejects_finite_heat_through_real_lt_valve(self):
         commission_g19_electrical(operator_approved=True)
