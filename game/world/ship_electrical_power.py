@@ -187,10 +187,12 @@ def connected_nodes(edges, switches, starts):
 
 def source_dispatch(equipment, edges, switches, profile, *, ledger=None,
                     dt_s=10, moored=False):
-    """One bounded dispatch snapshot; optional finite shore and protected reserve.
+    """Rate installed sources, genuine energised load paths and backup roles.
 
-    Batteries supply only actually reached protected loads, never the ordinary
-    propulsion, refrigeration and freight budgets. No automatic load shed.
+    The operational battery's *own* fitted feeder goes to MSB-B; it may
+    support ordinary main-board loads when measured. The separate protected
+    battery goes only to PWR-PROT, with no reverse traversal to any main
+    switchboard. An unrated store contributes exactly zero megawatts.
     """
     if profile not in LOAD_MW:
         raise ElectricalError("Unknown authorised ship load schedule")
@@ -209,23 +211,24 @@ def source_dispatch(equipment, edges, switches, profile, *, ledger=None,
                 and eq.details.get("physics_online") is True
                 and feeder is not None and _live_edge(feeder, switches)):
             sources[name] = rating
-    main_mw = min(SHIP_CAP_MW, sum(sources.values()))
+    generator_mw = min(SHIP_CAP_MW, sum(sources.values()))
     starts = ["NODE-" + x for x in sources]
     shore = ledger.get("shore") if ledger is not None else None
     shore_active = bool(shore and shore["connected"] and moored
-                       and not sources
-                       and equipment.get("SHORE-PWR") is not None
-                       and equipment["SHORE-PWR"].condition not in {
-                           "faulted", "failed", "severed", "jammed", "destroyed"}
-                       and "EDGE-SHORE-PWR" in routes
-                       and _live_edge(routes["EDGE-SHORE-PWR"], switches))
+                        and not sources
+                        and equipment.get("SHORE-PWR") is not None
+                        and equipment["SHORE-PWR"].condition not in {
+                            "faulted", "failed", "severed", "jammed", "destroyed"}
+                        and "EDGE-SHORE-PWR" in routes
+                        and _live_edge(routes["EDGE-SHORE-PWR"], switches))
     if shore_active:
-        main_mw = min(SHIP_CAP_MW, shore["rated_mw"])
+        generator_mw = min(SHIP_CAP_MW, shore["rated_mw"])
         starts.append("NODE-SHORE-PWR")
-    reached = connected_nodes(edges, switches, starts)
-    battery_nodes = set()
-    qualified = []
-    charge_feeders = []
+    producer_nodes = connected_nodes(edges, switches, starts)
+    op_capacity = 0.0
+    prot_capacity = 0.0
+    op_sources, prot_sources, charge_feeders = [], [], []
+    prot_nodes = set()
     if ledger is not None:
         for name, bank in sorted(ledger["banks"].items()):
             feeder = routes.get("EDGE-" + name)
@@ -234,58 +237,104 @@ def source_dispatch(equipment, edges, switches, profile, *, ledger=None,
                         "faulted", "failed", "severed", "jammed", "destroyed"}
                     or feeder is None or not _live_edge(feeder, switches)):
                 continue
-            reachable = connected_nodes(edges, switches, ["NODE-" + name])
-            if set(MAIN_BOARDS) & reachable:
-                raise ElectricalError("Unrated battery reverse-backfeed reaches a main board")
-            if "PWR-PROT" not in reachable:
-                continue
-            if (bank["mode"] == "charge" and "PWR-PROT" in reached
-                    and main_mw > 0):
-                # Surveyed bidirectional battery converter connects to the
-                # existing fitted protected feeder. Only this source-local
-                # energy exchange is reversible; it cannot backfeed MSBs.
+            actual_target = _ref(feeder)["to_node"]
+            expected_target = ("PWR-MSB-B" if name == "BAT-COMMON-OPS"
+                               else "PWR-PROT")
+            if actual_target != expected_target:
+                raise ElectricalError("Storage is wired to a different main/protected bus")
+            if (bank["mode"] == "charge" and expected_target in producer_nodes
+                    and generator_mw > 0):
+                # Fitted converter is bidirectional locally, but the general
+                # graph's directed protected feeds remain unchanged.
                 charge_feeders.append(name)
             if bank["mode"] != "discharge" or bank["charge_kwh"] <= 0:
                 continue
-            battery_nodes |= reachable
-            max_mw = min(bank["max_discharge_mw"], bank["charge_kwh"] * 3600 / dt_s)
-            qualified.append((name, max_mw))
+            max_mw = min(bank["max_discharge_mw"],
+                         bank["charge_kwh"] * 3600.0 / dt_s)
+            if expected_target == "PWR-MSB-B":
+                op_capacity += max_mw
+                op_sources.append((name, max_mw))
+                starts.append("NODE-" + name)
+            else:
+                candidate = connected_nodes(edges, switches, ["NODE-" + name])
+                if set(MAIN_BOARDS) & candidate:
+                    raise ElectricalError("Protected battery must never reverse-feed an MSB")
+                if "PWR-PROT" in candidate:
+                    prot_capacity += max_mw
+                    prot_sources.append((name, max_mw))
+                    prot_nodes |= candidate
+    # Gross generators, an actual landed shore lead, and a directly fitted
+    # operational battery are allowed main-bus sources; all share the 3.3 MW
+    # rated ship dispatch envelope, not separate limitless budgets.
+    main_mw = min(SHIP_CAP_MW, generator_mw + op_capacity)
+    op_max_mw = max(0.0, main_mw - generator_mw)
+    main_nodes = connected_nodes(edges, switches, starts)
     demand = LOAD_MW[profile]
-    essential_need = min(demand, LOAD_MW["protected"])
-    battery_budget = sum(rate for _, rate in qualified)
-    backed_mw = min(battery_budget, max(0.0, essential_need - main_mw))
+    protected_need = min(demand, LOAD_MW["protected"])
+    backed_mw = min(prot_capacity,
+                    max(0.0, protected_need - main_mw))
     requested_main_mw = max(0.0, demand - backed_mw)
-    has_protected = "PWR-PROT" in reached or ("PWR-PROT" in battery_nodes
-                                            and backed_mw > 0)
-    essential_assured = (main_mw + backed_mw + 1e-9 >= LOAD_MW["essential"])
-    assured = (main_mw + backed_mw + 1e-9 >= demand
-               and (backed_mw == 0 or profile in {"essential", "protected"}))
+    has_protected = ("PWR-PROT" in main_nodes
+                     or ("PWR-PROT" in prot_nodes and backed_mw > 0))
+    # The authored reference does not allocate MW per individual device;
+    # the selected load schedule therefore remains a grouped budget. But
+    # commissioning a bare main bus with every downstream breaker OPEN
+    # is not evidence that a single watt has reached an actual consumer.
+    load_kinds = {"room_feeder", "equipment_branch", "protected_branch",
+                  "protected_load", "sector_service", "drum_feeder"}
+    actual_consumers = main_nodes | (prot_nodes if backed_mw else set())
+    fitted_loads_exist = any(_ref(edge).get("kind") in load_kinds
+                             for edge in edges if _ref(edge).get("network") == "power")
+    live_consumer = (not fitted_loads_exist or any(
+        _ref(edge).get("kind") in load_kinds
+        and _ref(edge)["to_node"] in actual_consumers
+        and _live_edge(edge, switches)
+        for edge in edges if _ref(edge).get("network") == "power"))
+    essential_assured = (live_consumer and
+                         main_mw + backed_mw + 1e-9 >= LOAD_MW["essential"])
+    assured = (live_consumer and main_mw + backed_mw + 1e-9 >= demand
+               and (backed_mw <= 1e-9 or profile in {"essential", "protected"}))
+    main_dispatch = min(main_mw, requested_main_mw) if live_consumer else 0.0
+    gen_dispatch = min(generator_mw, main_dispatch)
     return {
         "available_mw": main_mw, "requested_mw": demand,
-        "dispatched_mw": min(main_mw, requested_main_mw),
-        "generation_fraction": min(1.0, requested_main_mw / main_mw) if main_mw else 0.0,
-        "shortfall_mw": max(0.0, demand - main_mw - backed_mw),
+        "dispatched_mw": main_dispatch,
+        "generation_fraction": gen_dispatch / generator_mw if generator_mw else 0.0,
+        "shortfall_mw": max(0.0, demand -
+                            (main_mw + backed_mw if live_consumer else 0.0)),
         "assured": assured, "essential_assured": essential_assured,
         "active_generators": tuple(sorted(sources)),
-        "nodes": reached | (battery_nodes if backed_mw else set()),
-        "main_nodes": reached,
+        "nodes": main_nodes | (prot_nodes if backed_mw else set()),
+        "main_nodes": main_nodes,
         "main_available_mw": main_mw,
-        "battery_budget_mw": battery_budget,
-        "battery_dispatched_mw": backed_mw,
-        "battery_sources": qualified,
+        "producer_available_mw": generator_mw,
+        "operational_battery_available_mw": op_max_mw,
+        "battery_budget_mw": op_max_mw + prot_capacity,
+        "battery_dispatched_mw": max(0.0, main_dispatch - gen_dispatch) + backed_mw,
+        "protected_battery_dispatched_mw": backed_mw if live_consumer else 0.0,
+        "operational_battery_sources": op_sources,
+        "protected_battery_sources": prot_sources,
+        "battery_sources": op_sources + prot_sources,
         "charge_feeders": charge_feeders,
         "shore_active": shore_active,
         "protected_assured": has_protected and essential_assured,
-        "source_signature": sorted(sources) + [
-            "MSBA:" + str("PWR-MSB-A" in reached),
-            "MSBB:" + str("PWR-MSB-B" in reached),
-            "PROT:" + str("PWR-PROT" in reached),
-        ],
+        "has_live_load": live_consumer,
+        "source_signature": sorted(sources) +
+            (["BAT-COMMON-OPS"] if op_sources else []) + [
+                "MSBA:" + str("PWR-MSB-A" in main_nodes),
+                "MSBB:" + str("PWR-MSB-B" in main_nodes),
+                "PROT:" + str(has_protected),
+            ],
     }
 
 
 def step_energy(ledger, dispatch, seconds, *, actual_requested_mw=None):
-    """Meter one authoritative tick, without consuming an imagined fuel store."""
+    """Meter live supply under authoritative bounded ship time.
+
+    Source-specific credits reconcile with finite storage debits. General
+    main-board demand is never paid by the protected-only bank. Charging
+    uses only surplus generation or shore import, not another battery.
+    """
     validate_electrical(ledger)
     dt = number(seconds)
     if dt > 60:
@@ -293,68 +342,83 @@ def step_energy(ledger, dispatch, seconds, *, actual_requested_mw=None):
     result = copy.deepcopy(ledger)
     demand = number(dispatch["requested_mw"] if actual_requested_mw is None
                     else actual_requested_mw)
+    producing = number(dispatch["producer_available_mw"])
+    ops_rating = number(dispatch["operational_battery_available_mw"])
     main = number(dispatch["main_available_mw"])
-    borrowed = number(dispatch["battery_dispatched_mw"])
-    consumed = 0.0
-    for name, maximum in dispatch["battery_sources"]:
-        if borrowed <= 1e-9:
-            break
-        bank = result["banks"][name]
-        portion = min(borrowed, maximum, bank["charge_kwh"] * 3600 / dt) if dt else 0.0
-        amount = portion * dt / 3600
-        bank["charge_kwh"] -= amount
-        bank["discharged_kwh"] += amount
-        borrowed -= portion
-        consumed += amount
-    if borrowed > 1e-7:
-        raise ElectricalError("Battery dispatch exceeded stored energy")
-    main_served = min(main, max(0.0, demand - consumed * 3600 / dt)) if dt else 0.0
-    result["meter"]["generation_kwh"] += (
-        0 if dispatch["shore_active"] else main_served * dt / 3600)
+    if main > SHIP_CAP_MW + 1e-9:
+        raise ElectricalError("Electrical schedule exceeds ship main bus envelope")
+    live = dispatch["has_live_load"]
+    protected = min(
+        number(dispatch["protected_battery_dispatched_mw"]), demand) if live else 0.0
+    main_served = min(main, max(0.0, demand - protected)) if live else 0.0
+    generated = min(producing, main_served)
+    ops_served = main_served - generated
+    if ops_served > ops_rating + 1e-8:
+        raise ElectricalError("Operational bank assigned beyond its rating")
+    def debit_store(rows, need):
+        remaining = need
+        for name, maximum in rows:
+            if remaining <= 1e-9:
+                break
+            bank = result["banks"][name]
+            served = min(remaining, maximum, bank["charge_kwh"] * 3600.0 / dt) if dt else 0
+            energy = served * dt / 3600.0
+            bank["charge_kwh"] -= energy
+            bank["discharged_kwh"] += energy
+            remaining -= served
+        if remaining > 1e-7:
+            raise ElectricalError("Electrical stock discharged beyond measured energy")
+    if dt > 0:
+        debit_store(dispatch["operational_battery_sources"], ops_served)
+        debit_store(dispatch["protected_battery_sources"], protected)
+    battery_out = (ops_served + protected) * dt / 3600.0
+    produced_kwh = generated * dt / 3600.0
     if dispatch["shore_active"]:
-        result["shore"]["import_kwh"] += main_served * dt / 3600
-        result["meter"]["shore_import_kwh"] += main_served * dt / 3600
-    result["meter"]["battery_discharge_kwh"] += consumed
-    result["meter"]["served_kwh"] += main_served * dt / 3600 + consumed
+        result["shore"]["import_kwh"] += produced_kwh
+        result["meter"]["shore_import_kwh"] += produced_kwh
+    else:
+        result["meter"]["generation_kwh"] += produced_kwh
+    result["meter"]["battery_discharge_kwh"] += battery_out
+    result["meter"]["served_kwh"] += main_served * dt / 3600 + protected * dt / 3600
     result["meter"]["unserved_kwh"] += max(
-        0.0, demand * dt / 3600 - main_served * dt / 3600 - consumed)
-    # Charging must use real electrical generation headroom and a conducting
-    # path back to the physical battery input; charging is not free energy.
-    headroom = max(0.0, main - main_served)
-    for name, bank in sorted(result["banks"].items()):
+        0.0, demand - main_served - protected) * dt / 3600
+    headroom = max(0.0, producing - generated)
+    for name in sorted(dispatch["charge_feeders"]):
+        bank = result["banks"][name]
         if bank["mode"] != "charge" or headroom <= 0:
             continue
-        maximum = min(bank["max_charge_mw"], headroom,
-                      max(0.0, bank["capacity_kwh"] - bank["charge_kwh"]) * 3600 / dt)
-        if maximum <= 0:
+        charge_rate = min(
+            bank["max_charge_mw"], headroom,
+            max(0.0, bank["capacity_kwh"] - bank["charge_kwh"]) * 3600 / dt
+            if dt else 0.0)
+        if charge_rate <= 0:
             continue
-        # A surveyed two-way converter can charge only through its fitted
-        # *closed* battery feeder and an independently live protected bus.
-        # This is a battery-local conversion path, not generic reverse
-        # traversal of source-only electricity feeders.
-        if name not in dispatch["charge_feeders"]:
-            continue
-        amount = maximum * dt / 3600
-        bank["charge_kwh"] += amount
-        bank["charged_kwh"] += amount
-        result["meter"]["battery_charge_kwh"] += amount
+        energy = charge_rate * dt / 3600.0
+        bank["charge_kwh"] += energy
+        bank["charged_kwh"] += energy
+        result["meter"]["battery_charge_kwh"] += energy
         if dispatch["shore_active"]:
-            result["shore"]["import_kwh"] += amount
-            result["meter"]["shore_import_kwh"] += amount
+            result["shore"]["import_kwh"] += energy
+            result["meter"]["shore_import_kwh"] += energy
         else:
-            result["meter"]["generation_kwh"] += amount
-        headroom -= maximum
+            result["meter"]["generation_kwh"] += energy
+        headroom -= charge_rate
     result["last"] = {
         "sources": list(dispatch["active_generators"]),
         "shore": dispatch["shore_active"],
         "main_available_mw": main,
         "requested_mw": demand,
-        "battery_dispatched_mw": dispatch["battery_dispatched_mw"],
-        "unserved_mw": max(0.0, demand - main - dispatch["battery_dispatched_mw"]),
+        "generator_delivered_mw": generated if not dispatch["shore_active"] else 0.0,
+        "shore_delivered_mw": generated if dispatch["shore_active"] else 0.0,
+        "operational_battery_delivered_mw": ops_served,
+        "protected_battery_delivered_mw": protected,
+        "battery_dispatched_mw": ops_served + protected,
+        "unserved_mw": max(0.0, demand - main_served - protected),
         "protected_power": dispatch["protected_assured"],
         "main_a": "PWR-MSB-A" in dispatch["main_nodes"],
         "main_b": "PWR-MSB-B" in dispatch["main_nodes"],
         "nodes_energised": len(dispatch["nodes"]),
+        "live_consumer_circuit": live,
     }
     validate_electrical(result)
     return result
