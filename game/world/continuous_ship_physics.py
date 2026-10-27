@@ -100,6 +100,10 @@ from world.ship_auxiliary_electrical import (
     step_local_backup, motor_power, fire_pump_service_ready,
     allocate_lt_cooling,
 )
+from world.ship_equipment_wear import (
+    initial_equipment_wear, validate_equipment_wear,
+    survey_existing_wear, step_equipment_wear,
+)
 from world.ship_equipment_services import (
     SERVICE_LOADS, MANUAL_RESTART,
     install_service_circuits, enrol_service_plant_controls,
@@ -575,8 +579,12 @@ def commission_g19_electrical(*, operator_approved=False):
         services_old = item.details.get("service_operations")
         services_upgraded = (services_old if services_old is not None
                              else initial_service_operations())
+        wear_old = item.details.get("equipment_wear")
+        wear_new = (wear_old if wear_old is not None
+                    else initial_equipment_wear(services_upgraded))
         try:
             validate_service_operations(services_upgraded)
+            validate_equipment_wear(wear_new, services_upgraded)
         except ElectricalError as exc:
             raise PhysicsError(str(exc)) from exc
         try:
@@ -589,7 +597,8 @@ def commission_g19_electrical(*, operator_approved=False):
                 or refuge_upgraded != refuge_old
                 or media_upgraded != media_old
                 or cargo_climate_new != cargo_climate_old
-                or services_upgraded != services_old or fuel_needs_migration
+                or services_upgraded != services_old
+                or wear_new != wear_old or fuel_needs_migration
                 or newly_enrolled):
             previous = _snapshot(item)
             details = dict(item.details)
@@ -599,6 +608,7 @@ def commission_g19_electrical(*, operator_approved=False):
             details["refuge_media_service"] = media_upgraded
             details["cargo_environment"] = cargo_climate_new
             details["service_operations"] = services_upgraded
+            details["equipment_wear"] = wear_new
             if fuel_needs_migration:
                 stock = state("inventory", "INV-GEN-CART", lock=True)
                 if stock.quantity is None or not math.isfinite(stock.quantity) or stock.quantity < 0:
@@ -644,6 +654,7 @@ def commission_g19_electrical(*, operator_approved=False):
     d["refuge_media_service"] = initial_refuge_media_service()
     d["cargo_environment"] = initial_cargo_environment()
     d["service_operations"] = initial_service_operations()
+    d["equipment_wear"] = initial_equipment_wear(d["service_operations"])
     d["generator_cartridge_baseline_kg"] = cartridges.quantity * 1000.0
     d["generator_spent_cartridge_kg"] = 0.0
     item.details = d
@@ -2333,6 +2344,14 @@ def tick_continuous_physics(*, now_game_time=None):
             validate_service_operations(service_operations)
         except ElectricalError as exc:
             raise PhysicsError(str(exc)) from exc
+    equipment_wear = clock.details.get("equipment_wear")
+    if equipment_wear is not None:
+        if service_operations is None:
+            raise PhysicsError("Maintenance wear lacks real individual runtime meters")
+        try:
+            validate_equipment_wear(equipment_wear, service_operations)
+        except ElectricalError as exc:
+            raise PhysicsError(str(exc)) from exc
     aux_edges = {x.source_id: x for x in edges
                  if x.reference.get("network") in {
                      "g19_motor", "g19_motor_protected",
@@ -2476,6 +2495,26 @@ def tick_continuous_physics(*, now_game_time=None):
                     service_operations, dt, nodes=power["nodes"],
                     equipment=equipment, edges=aux_edges,
                     switches=isolators, supply_assured=power["assured"])
+                if equipment_wear is not None:
+                    equipment_wear, wear_events = step_equipment_wear(
+                        equipment_wear, service_operations, equipment)
+                    for affected, condition in wear_events:
+                        machine = equipment[affected]
+                        prior = _snapshot(machine)
+                        machine.condition = condition
+                        details = dict(machine.details)
+                        details["physics_wear_stage"] = condition
+                        if condition == "faulted":
+                            # Real maintenance repair, rather than merely
+                            # restoring a feeder, is required to restart.
+                            details["physics_online"] = False
+                            details["physics_commanded_on"] = False
+                            details["physics_startup_s"] = 0.0
+                        machine.details = details
+                        machine.revision += 1
+                        changed_equipment.add(machine.key)
+                        _event(machine, "g19_secondary_machine_wear_trip",
+                               prior)
             except ElectricalError as exc:
                 raise PhysicsError(str(exc)) from exc
         if water_state is not None:
@@ -3213,6 +3252,12 @@ def tick_continuous_physics(*, now_game_time=None):
                 len(set(service_operations["last"]["operating"])
                     & MANUAL_RESTART)
                 if service_operations is not None else 0),
+            "secondary_machines_maintenance_due": (
+                len(equipment_wear["last"]["maintenance_due"])
+                if equipment_wear is not None else 0),
+            "secondary_machines_wear_faulted": (
+                len(equipment_wear["last"]["faulted"])
+                if equipment_wear is not None else 0),
             "refuge_co2_captured_kg": (
                 round(refuge_scrubbers["meter"]["captured_kg"]
                       - refuge_captured_before, 6)
@@ -3789,6 +3834,8 @@ def tick_continuous_physics(*, now_game_time=None):
     if cargo_climate is not None:
         validate_cargo_environment(cargo_climate, cargo)
         d["cargo_environment"] = cargo_climate
+    if equipment_wear is not None:
+        d["equipment_wear"] = equipment_wear
     if electrical is not None:
         d["electrical"] = electrical
         d["generator_spent_cartridge_kg"] = cartridge_spent
