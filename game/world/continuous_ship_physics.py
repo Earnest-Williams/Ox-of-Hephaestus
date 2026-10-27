@@ -121,6 +121,9 @@ PLANTS = {
     "RAD-LT-1": True, "RAD-LT-2": True,
     "RAD-LT-3": True, "RAD-LT-4": True,
     "FIRE-PUMP-FWD": True, "FIRE-PUMP-AFT": True,
+    # Individual fan motors are physical plants, not passive ductwork.
+    **{f"HAB-{n:02d}-AHU": True for n in range(1, 9)},
+    "SPINE-AIR-FWD": True, "SPINE-AIR-AFT": True,
 }
 LOAD_PROFILES_MW = {"essential": 0.65, "protected": 0.75,
                     "normal": 1.35, "demanding": 2.60}
@@ -1033,6 +1036,8 @@ def _water_hardware(water, equipment, edges, isolators, nodes, power, *, motor_r
                 and (motor_ready is None or motor_ready(f"ECLSS-{side}"))
                 and outlet and outlet.condition not in _BROKEN and
                 field and field.condition not in _BROKEN
+                and (motor_ready is None
+                     or motor_ready(f"ECLSS-{side}-O2-GEN"))
                 and edge and wet_edge_can_flow(edge)
                 and water["oxygen_outlet_verified"][side]):
             oxygen_side = side
@@ -2469,7 +2474,8 @@ def tick_continuous_physics(*, now_game_time=None):
             "WR-01": (
                 sound("WR-BEARING-A") and sound("WR-BEARING-B")
                 and sound("WR-01")
-                and any(sound(x) for x in ("WR-DRIVE-A", "WR-DRIVE-B"))
+                and any(sound(x) and motor_ready(x)
+                        for x in ("WR-DRIVE-A", "WR-DRIVE-B"))
             ),
             **{
                 name: all(any(
@@ -2487,7 +2493,8 @@ def tick_continuous_physics(*, now_game_time=None):
             ) for name in ROTORS
         }
         extension_ok = (
-            sound("WR-EXTEND-SHOP") and sound("WR-EXTEND-STORES"))
+            sound("WR-EXTEND-SHOP") and motor_ready("WR-EXTEND-SHOP")
+            and sound("WR-EXTEND-STORES") and motor_ready("WR-EXTEND-STORES"))
         # Only individually surveyed placements can set a drum's cargo
         # imbalance. Unknown bulk mass is not silently made symmetrical.
         for drum in CARGO_DRUMS:
@@ -2600,11 +2607,27 @@ def tick_continuous_physics(*, now_game_time=None):
         # A powered processor cannot drive fans in another isolated duct
         # network. Motorised mixing requires a source on the same *currently
         # conducting* atmosphere graph; passive pressure movement does not.
+        active_spine_air = {
+            name for name in ("SPINE-AIR-FWD", "SPINE-AIR-AFT")
+            if electrical is not None and powered and _on(equipment, name)
+            and motor_ready(name)
+        }
         air_source_nodes = [
-            node_id for train in sorted(active_air_trains)
+            node_id for train in sorted(active_air_trains | active_spine_air)
             for node_id in atmosphere_source_nodes.get(train, ())
         ]
-        air_on = bool(air_source_nodes)
+        # An AHU's physical ducts remain open after losing power, but do
+        # not become infinite electrically driven mixing engines.
+        all_ahu_nodes = {
+            f"NODE-HAB-{n:02d}-AHU-AIR" for n in range(1, 9)
+        }
+        powered_ahu_nodes = {
+            f"NODE-HAB-{n:02d}-AHU-AIR" for n in range(1, 9)
+            if _on(equipment, f"HAB-{n:02d}-AHU")
+            and motor_ready(f"HAB-{n:02d}-AHU")
+        }
+        air_on = bool(air_source_nodes and (
+            powered_ahu_nodes or active_spine_air))
         # Process gas at the *installed* ECLSS intake zone. The capture
         # medium is finite and remains aboard, so removing CO2 from the
         # circulating gas cannot silently delete mass from the ship.
@@ -2647,8 +2670,13 @@ def tick_continuous_physics(*, now_game_time=None):
             if a_id == b_id or a_id not in cells or b_id not in cells:
                 continue
             a, b = cells[a_id], cells[b_id]
-            if (air_on and edge.reference["from_node"] in fan_nodes
-                    and edge.reference["to_node"] in fan_nodes):
+            from_node, to_node = (
+                edge.reference["from_node"], edge.reference["to_node"])
+            powered_local_fans = all(
+                endpoint not in all_ahu_nodes or endpoint in powered_ahu_nodes
+                for endpoint in (from_node, to_node))
+            if (air_on and from_node in fan_nodes and to_node in fan_nodes
+                    and powered_local_fans):
                 # Counterflow is an exchange, not doubled net mass.
                 x = min(2.0 * dt, 0.05 * a["mass"], 0.05 * b["mass"])
                 _parcel(a, b, x)
