@@ -191,11 +191,20 @@ class InstalledElectricalTests(EvenniaTestCase):
         self.crew_at("HAB-08-REFUGE")
         crew_physical_action(
             self.worker, "s" * 32, "power", battery, "reserve")
-        before = state("pressure", "PZ-HAB-08").quantity
+        pressure = state("pressure", "PZ-HAB-08")
+        gas = dict(pressure.details)
+        self.assertGreater(gas["physics_oxygen_kg"], 1)
+        pressure.details = dict(
+            gas, physics_oxygen_kg=gas["physics_oxygen_kg"] - 1.0,
+            physics_co2_kg=gas["physics_co2_kg"] + 1.0)
+        pressure.save(update_fields=["details"])
+        before = pressure.quantity
+        before_co2 = pressure.details["physics_co2_kg"]
         tick = tick_continuous_physics(now_game_time=1010)
         self.assertEqual(tick["refuge_co2_captured_kg"], 0)
-        self.assertAlmostEqual(
-            state("pressure", "PZ-HAB-08").quantity, before)
+        actual = state("pressure", "PZ-HAB-08")
+        self.assertAlmostEqual(actual.quantity, before)
+        self.assertAlmostEqual(actual.details["physics_co2_kg"], before_co2)
         ledger = CanonicalShipState.objects.get(
             pk="meta:continuous-physics").details["refuge_scrubbers"]
         self.assertEqual(ledger["units"], {})
