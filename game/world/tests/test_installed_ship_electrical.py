@@ -15,6 +15,7 @@ from world.continuous_ship_physics import (
     PhysicsError, arm_continuous_physics, commission_g19_electrical,
     survey_g19_electrical_source, survey_g19_electrical_worksite,
     configure_g19_electrical_fault, commission_commercial_port,
+    commission_ftl_route,
     crew_physical_action, tick_continuous_physics, local_physics_readout,
 )
 
@@ -253,6 +254,40 @@ class InstalledElectricalTests(EvenniaTestCase):
                              "ISO-G19-MOTOR-HAB-08-AHU", "closed")
         resumed = tick_continuous_physics(now_game_time=1030)
         self.assertTrue(resumed["ventilation_powered"])
+
+    def test_ftl_control_requires_real_b_feeder_and_aborts_on_trip(self):
+        commission_g19_electrical(operator_approved=True)
+        # The FTL station uses a B-side feed; the main A source and an
+        # independent real consumer establish the selected ship load.
+        self.line_up_real_feeder("NODE-GEN-B", "NODE-LP-FTL-SVC")
+        self.line_up_real_feeder("NODE-GEN-M", "NODE-HAB-03-FIRE-DETECT")
+        commissioned = commission_ftl_route(
+            operator_approved=True, route_id="AUX01",
+            destination="DISTANT", distance_ly=.5, cruise_c=5)
+        self.assertEqual(commissioned["status"], "planned")
+        officer = build_ship()["officer"]
+        officer.move_to(find_ship_space("CMD-PRIMARY"), quiet=True)
+        fuse = "ISO-G19-MOTOR-FTL-TRANSLATION-FIELD"
+        set_isolator(fuse, "open", operator=True)
+        with self.assertRaises(PhysicsError):
+            crew_physical_action(
+                officer, "a" * 32, "ftl", "AUX01", "engage")
+        set_isolator(fuse, "closed", operator=True)
+        started = crew_physical_action(
+            officer, "b" * 32, "ftl", "AUX01", "engage")
+        self.assertEqual(started["status"], "succeeded")
+        # A real circuit failure during the engaged leg aborts *without*
+        # advancing position or creating fuel beyond the existing ledger.
+        before = CanonicalShipState.objects.get(
+            pk="meta:continuous-physics").details["motion"]
+        set_isolator(fuse, "open", operator=True)
+        tick_continuous_physics(now_game_time=1010)
+        after = CanonicalShipState.objects.get(
+            pk="meta:continuous-physics").details["motion"]
+        self.assertEqual(after["ftl_leg"]["status"], "aborted")
+        self.assertEqual(after["ftl_leg"]["reason"], "field_failure")
+        self.assertEqual(after["position_m"], before["position_m"])
+        self.assertEqual(after["ftl_fuel_kg"], before["ftl_fuel_kg"])
 
     def test_workshop_rotor_redundant_drive_fuses_do_not_blackout_ship(self):
         commission_g19_electrical(operator_approved=True)
