@@ -39,6 +39,9 @@ def audit_equipment_worksites(model: ShipWorldModel, equipment: list[dict],
     freight_passages = []
     exterior_items = []
     obligations = Counter()
+    site_pressure_inventory = Counter()
+    no_pressure_cell = []
+    vacuum_sites = []
     sited_rooms = set()
     paths = candidate_personnel_routes(model, anchor=anchor)
     no_candidate = []
@@ -61,6 +64,15 @@ def audit_equipment_worksites(model: ShipWorldModel, equipment: list[dict],
             route_classes["unplaced"] += 1
             continue
         sited_rooms.add(room_id)
+        zone = rooms[room_id].metadata.get("pressure_zone")
+        if zone == "VACUUM":
+            site_pressure_inventory["authored_vacuum"] += 1
+            vacuum_sites.append(ident)
+        elif isinstance(zone, str) and zone.startswith("PZ-"):
+            site_pressure_inventory["authored_pressure_cell"] += 1
+        else:
+            site_pressure_inventory["no_surveyed_pressure_cell"] += 1
+            no_pressure_cell.append(ident)
         if room_id in disconnected:
             disconnected_items.append(ident)
             route_classes["disconnected"] += 1
@@ -125,6 +137,9 @@ def audit_equipment_worksites(model: ShipWorldModel, equipment: list[dict],
         "family_count": len(by_family),
         "by_family": dict(sorted(by_family.items())),
         "sited_compartments": len(sited_rooms),
+        "site_pressure_inventory": dict(sorted(site_pressure_inventory.items())),
+        "equipment_in_unsurveyed_atmosphere": sorted(no_pressure_cell),
+        "equipment_in_authored_vacuum": sorted(vacuum_sites),
         "route_classes": dict(sorted(route_classes.items())),
         "selected_route_obligations": dict(sorted(obligations.items())),
         "unplaced_equipment": sorted(unplaced),
