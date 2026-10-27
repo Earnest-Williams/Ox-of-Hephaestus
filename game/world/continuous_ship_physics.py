@@ -101,6 +101,10 @@ from world.ship_equipment_services import (
     validate_service_operations, rearm_service_machine,
     step_service_operations, service_power, service_ids,
 )
+from world.ship_refuge_media_service import (
+    initial_refuge_media_service, validate_refuge_media_service,
+    load_refuge_media,
+)
 from world.ship_refuge_life_support import (
     RefugeAirError, REFUGE_PACKS, initial_refuge_scrubbers,
     validate_refuge_scrubbers, survey_refuge_scrubber,
@@ -548,6 +552,13 @@ def commission_g19_electrical(*, operator_approved=False):
         refuge_old = item.details.get("refuge_scrubbers")
         refuge_upgraded = (refuge_old if refuge_old is not None
                           else initial_refuge_scrubbers())
+        media_old = item.details.get("refuge_media_service")
+        media_upgraded = (media_old if media_old is not None
+                          else initial_refuge_media_service())
+        try:
+            validate_refuge_media_service(media_upgraded)
+        except RefugeAirError as exc:
+            raise PhysicsError(str(exc)) from exc
         services_old = item.details.get("service_operations")
         services_upgraded = (services_old if services_old is not None
                              else initial_service_operations())
@@ -563,6 +574,7 @@ def commission_g19_electrical(*, operator_approved=False):
         if (upgraded != item.details["electrical"]
                 or local_upgraded != local_old
                 or refuge_upgraded != refuge_old
+                or media_upgraded != media_old
                 or services_upgraded != services_old or fuel_needs_migration
                 or newly_enrolled):
             previous = _snapshot(item)
@@ -570,6 +582,7 @@ def commission_g19_electrical(*, operator_approved=False):
             details["electrical"] = upgraded
             details["local_backup"] = local_upgraded
             details["refuge_scrubbers"] = refuge_upgraded
+            details["refuge_media_service"] = media_upgraded
             details["service_operations"] = services_upgraded
             if fuel_needs_migration:
                 stock = state("inventory", "INV-GEN-CART", lock=True)
@@ -613,6 +626,7 @@ def commission_g19_electrical(*, operator_approved=False):
     d["electrical"] = initial_electrical()
     d["local_backup"] = initial_local_backup()
     d["refuge_scrubbers"] = initial_refuge_scrubbers()
+    d["refuge_media_service"] = initial_refuge_media_service()
     d["service_operations"] = initial_service_operations()
     d["generator_cartridge_baseline_kg"] = cartridges.quantity * 1000.0
     d["generator_spent_cartridge_kg"] = 0.0
@@ -2211,6 +2225,15 @@ def tick_continuous_physics(*, now_game_time=None):
     refuge_captured_before = (
         refuge_scrubbers["meter"]["captured_kg"]
         if refuge_scrubbers is not None else 0.0)
+    refuge_media = clock.details.get("refuge_media_service")
+    if refuge_media is not None:
+        try:
+            validate_refuge_media_service(refuge_media)
+        except RefugeAirError as exc:
+            raise PhysicsError(str(exc)) from exc
+    retired_refuge_co2 = (
+        refuge_media["meter"]["retired_capture_kg"]
+        if refuge_media is not None else 0.0)
     service_operations = clock.details.get("service_operations")
     if service_operations is not None:
         try:
@@ -2242,7 +2265,8 @@ def tick_continuous_physics(*, now_game_time=None):
     if not math.isfinite(captured_co2) or not 0 <= captured_co2 <= CO2_CAPTURE_CAPACITY_KG:
         raise PhysicsError("Invalid finite CO2 sorbent inventory")
     total_before = (sum(c["mass"] + c["fuel"] for c in cells.values())
-                    + captured_co2 + refuge_captured_before)
+                    + captured_co2 + refuge_captured_before
+                    + retired_refuge_co2)
     lost = burned = water = oxygen_generated = 0.0
     water_state = clock.details.get("water")
     if water_state is not None:
@@ -3056,7 +3080,8 @@ def tick_continuous_physics(*, now_game_time=None):
     total_after = (sum(c["mass"] + c["fuel"] for c in cells.values())
                    + captured_co2
                    + (refuge_scrubbers["meter"]["captured_kg"]
-                      if refuge_scrubbers is not None else 0.0))
+                      if refuge_scrubbers is not None else 0.0)
+                   + retired_refuge_co2)
     if not math.isclose(total_before + oxygen_generated, total_after + lost,
                         abs_tol=1e-5, rel_tol=1e-10):
         raise PhysicsError("Gas, fire fuel and vented mass did not reconcile")
@@ -3608,6 +3633,8 @@ def tick_continuous_physics(*, now_game_time=None):
         d["local_backup"] = local_backup
     if refuge_scrubbers is not None:
         d["refuge_scrubbers"] = refuge_scrubbers
+    if refuge_media is not None:
+        d["refuge_media_service"] = refuge_media
     if service_operations is not None:
         d["service_operations"] = service_operations
     if electrical is not None:
