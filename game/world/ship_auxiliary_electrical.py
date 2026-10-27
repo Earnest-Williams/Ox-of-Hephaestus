@@ -251,8 +251,15 @@ def step_local_backup(ledger, seconds, *, nodes, equipment, edges, switches):
         if bank["mode"] != "reserve":
             continue
         room, consumer, parent, limit, draw_kw = LOCAL_LOADS[name]
-        if parent in nodes:
-            continue  # grid already runs this local circuit; no battery load
+        # The refuge appliance has its own authored protected-load breaker.
+        # An energised room panel is NOT proof that the air machine itself
+        # receives electricity; a local battery may bridge that distinct
+        # appliance trip. BE and IX stations have no further original
+        # grid-load endpoint, so their known room panel is the witness.
+        normal_endpoint = ("NODE-PWR-" + consumer
+                           if name.endswith("-REFUGE-BAT") else parent)
+        if normal_endpoint in nodes:
+            continue  # the actual primary load is already energised
         source, edge_id, isolator = auxiliary_ids(name)
         wire = edges.get(edge_id)
         battery = equipment.get(name)
