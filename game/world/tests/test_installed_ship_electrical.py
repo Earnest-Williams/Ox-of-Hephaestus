@@ -224,6 +224,72 @@ class InstalledElectricalTests(EvenniaTestCase):
         self.assertNotIn("NODE-HAB-03-CAB-07-LP", after["nodes"])
         self.assertIn("NODE-PWR-HAB-03-CAB-07-FANCOIL", after["nodes"])
 
+    def test_real_flywheel_bay_works_only_when_surveyed_suited_and_connected(self):
+        commission_g19_electrical(operator_approved=True)
+        with self.assertRaises(PhysicsError):
+            survey_g19_electrical_source(
+                operator_approved=True, source="F1-FW-01",
+                capacity_kwh=3906.26, initial_kwh=1,
+                max_charge_mw=.2, max_discharge_mw=.8)
+        survey = survey_g19_electrical_source(
+            operator_approved=True, source="F1-FW-01",
+            capacity_kwh=3906.25, initial_kwh=1,
+            max_charge_mw=.2, max_discharge_mw=.8)
+        self.assertTrue(survey["rated"])
+        self.crew_at("F1-BAY")
+        with self.assertRaises(PhysicsError):
+            crew_physical_action(
+                self.worker, "a" * 32, "power", "F1-FW-01", "discharge")
+        self.assertTrue(survey_g19_electrical_worksite(
+            operator_approved=True, room_id="F1-BAY")["changed"])
+        with self.assertRaises(PhysicsError):
+            crew_physical_action(
+                self.worker, "b" * 32, "power", "F1-FW-01", "discharge")
+        self.worker.db.ox_suit_verified = True
+        self.assertEqual(
+            crew_physical_action(self.worker, "c" * 32, "power",
+                                 "F1-FW-01", "discharge")["status"],
+            "succeeded")
+        # The bank's actual A infeed is fitted; no free energy flows until
+        # the individual module feeder and a genuine downstream load are on.
+        self.line_up_real_feeder("PWR-MSB-A", "NODE-HAB-03-FIRE-DETECT")
+        set_isolator("ISO-PWR-F1-FW-01", "closed", operator=True)
+        first = tick_continuous_physics(now_game_time=1010)
+        self.assertAlmostEqual(first["available_mw"], .8)
+        self.assertGreater(first["electrical"]["meter"]["flywheel_discharge_kwh"], 0)
+        held = CanonicalShipState.objects.get(
+            pk="meta:continuous-physics").details["electrical"][
+                "flywheels"]["F1-FW-01"]["charge_kwh"]
+        self.assertLess(held, 1)
+        set_isolator("ISO-F1-BUS-IN-1", "open", operator=True)
+        off = tick_continuous_physics(now_game_time=1020)
+        self.assertEqual(off["available_mw"], 0)
+        self.assertAlmostEqual(CanonicalShipState.objects.get(
+            pk="meta:continuous-physics").details["electrical"][
+                "flywheels"]["F1-FW-01"]["charge_kwh"], held)
+
+    def test_nonresetting_electrical_migration_preserves_real_old_meter(self):
+        commission_g19_electrical(operator_approved=True)
+        row = CanonicalShipState.objects.get(pk="meta:continuous-physics")
+        details = dict(row.details)
+        original = dict(details["electrical"])
+        original["version"] = 1
+        del original["flywheels"]
+        del original["meter"]["flywheel_charge_kwh"]
+        del original["meter"]["flywheel_discharge_kwh"]
+        original["meter"]["served_kwh"] = 47.5
+        details["electrical"] = original
+        row.details = details
+        row.save(update_fields=["details"])
+        migrated = commission_g19_electrical(operator_approved=True)
+        self.assertTrue(migrated["migrated"])
+        stored = CanonicalShipState.objects.get(
+            pk="meta:continuous-physics").details["electrical"]
+        self.assertEqual(stored["version"], 2)
+        self.assertEqual(stored["meter"]["served_kwh"], 47.5)
+        self.assertFalse(commission_g19_electrical(
+            operator_approved=True)["commissioned"])
+
     def test_generator_trips_do_not_destroy_real_refit_buses(self):
         commission_g19_electrical(operator_approved=True)
         node_ids = {r.source_id for r in
