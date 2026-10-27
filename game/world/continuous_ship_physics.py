@@ -5225,8 +5225,11 @@ def local_physics_readout(actor, target):
                 edges={x.source_id: x for x in edges}, switches=switches),
             "schedule_assured": bus["assured"],
             "source_selection": (
-                ("protected" if state("edge", protected_fire_ids(target)[0]).setting
-                 == "available" else "normal")
+                ("protected"
+                 if state("edge", protected_fire_ids(target)[0]).setting == "available"
+                 else "normal"
+                 if state("edge", "EDGE-G19-MOTOR-" + target).setting == "available"
+                 else "isolated")
                 if target in PROTECTED_FIRE_MOTORS else "single_source"),
             "scope": "attended_individual_motor_circuit",
         }
