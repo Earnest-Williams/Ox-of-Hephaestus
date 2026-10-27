@@ -230,6 +230,52 @@ class InstalledElectricalTests(EvenniaTestCase):
         self.assertEqual(still.details["local_backup"]["last"][
             "grid_charge_requested_mw"], 0)
 
+    def test_one_hab_air_handler_trip_stops_forced_flow_without_isolating_ducts(self):
+        commission_g19_electrical(operator_approved=True)
+        # B ECLSS and its local HAB-08 air handler share genuine A-board
+        # supply but have two distinct fitted motor branch breakers.
+        self.line_up_real_feeder("NODE-GEN-M", "NODE-HAB-08-ECLSS-B-LP")
+        tick = tick_continuous_physics(now_game_time=1010)
+        self.assertTrue(tick["ventilation_powered"])
+        self.assertTrue(tick["power_assured"])
+        set_isolator("ISO-G19-MOTOR-HAB-08-AHU", "open", operator=True)
+        stopped = tick_continuous_physics(now_game_time=1020)
+        self.assertFalse(stopped["ventilation_powered"])
+        self.assertTrue(stopped["power_assured"])
+        # The physical atmosphere duct edge remains intact, allowing
+        # passive pressure equalisation during an actual hull casualty.
+        self.assertEqual(state("edge", "EDGE-ECLSS-B-AIR").setting,
+                         "available")
+        self.crew_at("HAB-08-SERVICE-GALLERY")
+        status = local_physics_readout(self.worker, "HAB-08-AHU")
+        self.assertFalse(status["feeder_conducting"])
+        crew_physical_action(self.worker, "7" * 32, "switch",
+                             "ISO-G19-MOTOR-HAB-08-AHU", "closed")
+        resumed = tick_continuous_physics(now_game_time=1030)
+        self.assertTrue(resumed["ventilation_powered"])
+
+    def test_workshop_rotor_redundant_drive_fuses_do_not_blackout_ship(self):
+        commission_g19_electrical(operator_approved=True)
+        self.line_up_real_feeder("NODE-GEN-M", "NODE-WR-PWR-IF")
+        self.crew_at("WR-ROTOR-MACHINERY")
+        self.assertTrue(local_physics_readout(
+            self.worker, "WR-DRIVE-A")["feeder_conducting"])
+        self.assertTrue(local_physics_readout(
+            self.worker, "WR-DRIVE-B")["feeder_conducting"])
+        set_isolator("ISO-G19-MOTOR-WR-DRIVE-A", "open", operator=True)
+        self.assertFalse(local_physics_readout(
+            self.worker, "WR-DRIVE-A")["feeder_conducting"])
+        self.assertTrue(local_physics_readout(
+            self.worker, "WR-DRIVE-B")["feeder_conducting"])
+        first = tick_continuous_physics(now_game_time=1010)
+        self.assertTrue(first["power_assured"])
+        self.assertGreater(first["available_mw"], 0)
+        set_isolator("ISO-G19-MOTOR-WR-DRIVE-B", "open", operator=True)
+        self.assertFalse(local_physics_readout(
+            self.worker, "WR-DRIVE-B")["feeder_conducting"])
+        second = tick_continuous_physics(now_game_time=1020)
+        self.assertTrue(second["power_assured"])
+
     def test_eclss_motor_is_independently_shed_without_disabling_main_bus(self):
         commission_g19_electrical(operator_approved=True)
         # ECLSS-A was physically refitted to HAB-06's B-fed panel,
