@@ -1188,6 +1188,15 @@ def survey_g19_water_material(*, operator_approved=False, source=None,
     w = clock.details.get("water")
     if w is None:
         raise PhysicsError("Water/waste system not commissioned")
+    # A global 8-tonne stock record cannot be re-surveyed as eight tonnes
+    # at a 1.5-tonne HAB refuge. Authored room allocations are hard limits
+    # on physically located, still-unspent consumables.
+    allocations = store.reference.get("location_allocations_t")
+    if allocations:
+        already_at_room = w["source_surveys"].get(source, {}).get(room_id, 0.0)
+        if (room_id not in allocations
+                or already_at_room + amount > allocations[room_id] * 1000.0 + 1e-7):
+            raise PhysicsError("Survey exceeds original local material allocation")
     try:
         w = register_source_survey(
             w, source=source, room=room_id,
