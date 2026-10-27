@@ -14,6 +14,8 @@ from collections import defaultdict, deque
 GENERATION_MW = {"GEN-M": 3.0, "GEN-A": .65, "GEN-B": .65}
 LOAD_MW = {"essential": .65, "protected": .75, "normal": 1.35,
            "demanding": 2.6}
+# 1 MW for 3.6 seconds delivers 1 kWh, not 1/1000 kWh.
+MW_SECONDS_PER_KWH = 3.6
 SHIP_CAP_MW = 3.3
 EXPECTED_TOPOLOGY = (438, 450, 466)
 BATTERIES = ("BAT-COMMON-OPS", "BAT-COMMON-PROT")
@@ -331,7 +333,7 @@ def source_dispatch(equipment, edges, switches, profile, *, ledger=None,
             if bank["mode"] != "discharge" or bank["charge_kwh"] <= 0:
                 continue
             max_mw = min(bank["max_discharge_mw"],
-                         bank["charge_kwh"] * 3600.0 / dt_s)
+                         bank["charge_kwh"] * MW_SECONDS_PER_KWH / dt_s)
             if expected_target == "PWR-MSB-B":
                 op_capacity += max_mw
                 op_sources.append((name, max_mw))
@@ -393,7 +395,7 @@ def source_dispatch(equipment, edges, switches, profile, *, ledger=None,
                   and module["charge_kwh"] > 0
                   and generator_mw <= 0 and not op_sources):
                 rating = min(module["max_discharge_mw"],
-                             module["charge_kwh"] * 3600.0 / dt_s)
+                             module["charge_kwh"] * MW_SECONDS_PER_KWH / dt_s)
                 flywheel_capacity += rating
                 flywheel_sources.append((name, rating))
                 starts.append(selected_board)
@@ -503,8 +505,8 @@ def step_energy(ledger, dispatch, seconds, *, actual_requested_mw=None):
             if remaining <= 1e-9:
                 break
             bank = result[source_key][name]
-            served = min(remaining, maximum, bank["charge_kwh"] * 3600.0 / dt) if dt else 0
-            energy = served * dt / 3600.0
+            served = min(remaining, maximum, bank["charge_kwh"] * MW_SECONDS_PER_KWH / dt) if dt else 0
+            energy = served * dt / MW_SECONDS_PER_KWH
             bank["charge_kwh"] -= energy
             bank["discharged_kwh"] += energy
             remaining -= served
@@ -514,9 +516,9 @@ def step_energy(ledger, dispatch, seconds, *, actual_requested_mw=None):
         debit_store(dispatch["operational_battery_sources"], ops_served, "banks")
         debit_store(dispatch["protected_battery_sources"], protected, "banks")
         debit_store(dispatch["flywheel_sources"], flywheel_served, "flywheels")
-    battery_out = (ops_served + protected) * dt / 3600.0
-    flywheel_out = flywheel_served * dt / 3600.0
-    produced_kwh = generated * dt / 3600.0
+    battery_out = (ops_served + protected) * dt / MW_SECONDS_PER_KWH
+    flywheel_out = flywheel_served * dt / MW_SECONDS_PER_KWH
+    produced_kwh = generated * dt / MW_SECONDS_PER_KWH
     if dispatch["shore_active"]:
         result["shore"]["import_kwh"] += produced_kwh
         result["meter"]["shore_import_kwh"] += produced_kwh
@@ -524,9 +526,9 @@ def step_energy(ledger, dispatch, seconds, *, actual_requested_mw=None):
         result["meter"]["generation_kwh"] += produced_kwh
     result["meter"]["battery_discharge_kwh"] += battery_out
     result["meter"]["flywheel_discharge_kwh"] += flywheel_out
-    result["meter"]["served_kwh"] += main_served * dt / 3600 + protected * dt / 3600
+    result["meter"]["served_kwh"] += main_served * dt / MW_SECONDS_PER_KWH + protected * dt / MW_SECONDS_PER_KWH
     result["meter"]["unserved_kwh"] += max(
-        0.0, demand - main_served - protected) * dt / 3600
+        0.0, demand - main_served - protected) * dt / MW_SECONDS_PER_KWH
     headroom = max(0.0, producing - generated)
     for name in sorted(dispatch["charge_feeders"]):
         storage = "flywheels" if name in result["flywheels"] else "banks"
@@ -535,11 +537,11 @@ def step_energy(ledger, dispatch, seconds, *, actual_requested_mw=None):
             continue
         charge_rate = min(
             bank["max_charge_mw"], headroom,
-            max(0.0, bank["capacity_kwh"] - bank["charge_kwh"]) * 3600 / dt
+            max(0.0, bank["capacity_kwh"] - bank["charge_kwh"]) * MW_SECONDS_PER_KWH / dt
             if dt else 0.0)
         if charge_rate <= 0:
             continue
-        energy = charge_rate * dt / 3600.0
+        energy = charge_rate * dt / MW_SECONDS_PER_KWH
         bank["charge_kwh"] += energy
         bank["charged_kwh"] += energy
         result["meter"][
