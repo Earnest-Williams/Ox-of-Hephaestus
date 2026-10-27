@@ -5590,6 +5590,45 @@ def local_physics_readout(actor, target):
             return {"id": target, "path_energised": target in grid["nodes"],
                     "schedule_assured": grid["assured"] and target in grid["nodes"],
                     "scope": "physically_local_actual_power_circuit"}
+    if target in REFUGE_PACKS:
+        # The operator may service only the attended fitted package. A
+        # remote character cannot query another refuge's sorbent reserve.
+        pack_room, battery = REFUGE_PACKS[target]
+        if room != pack_room:
+            raise PermissionError("Attend the actual refuge air-treatment pack")
+        clock = _clock()
+        scrubber = clock.details.get("refuge_scrubbers")
+        custody = clock.details.get("refuge_media_service")
+        if scrubber is None or custody is None:
+            raise PhysicsError("Refuge media has no commissioned service ledger")
+        validate_refuge_scrubbers(scrubber)
+        validate_refuge_media_service(custody)
+        account = scrubber["units"].get(target)
+        site = custody["sites"][target]
+        stock = clock.details.get("water") or {}
+        locally_surveyed = stock.get("source_surveys", {}).get(
+            "INV-DC-CONSUMABLES", {}).get(pack_room, 0.0)
+        normal_breaker = state("isolator", "ISO-PWR-" + target)
+        battery_breaker = state(
+            "isolator", "ISO-G19-LOCAL-" + battery)
+        unit = state("equipment", target)
+        return {
+            "id": target, "equipment_sound": unit.condition not in _BROKEN,
+            "media_surveyed": account is not None,
+            "media_capacity_kg": account["capacity_kg"] if account else None,
+            "captured_in_active_media_kg": (
+                account["captured_kg"] if account else None),
+            "media_available_kg": (
+                max(0.0, account["capacity_kg"] - account["captured_kg"])
+                if account else None),
+            "retired_captured_co2_kg": site["retired_capture_kg"],
+            "sealed_spent_media_kg": site["sealed_spent_media_kg"],
+            "fresh_media_installed_kg": site["fresh_installed_kg"],
+            "locally_surveyed_replacement_kg": locally_surveyed,
+            "normal_fuse_open": normal_breaker.setting == "open",
+            "local_dc_fuse_open": battery_breaker.setting == "open",
+            "scope": "attended_individual_refuge_air_package",
+        }
     if target in LOCAL_LOADS:
         # Per-unit electrical measurements are physically local, rather than
         # a bridge-wide oracle into inaccessible battery lockers.
