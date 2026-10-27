@@ -6,8 +6,13 @@ on:
     paths:
       - "game/world/ship_access_audit.py"
       - "game/world/ship_worksite_audit.py"
+      - "game/world/ship_freight_service.py"
+      - "game/world/continuous_ship_physics.py"
+      - "game/commands/ship_physics.py"
       - "game/world/tests/test_ship_access_audit.py"
       - "game/world/tests/test_ship_worksite_audit.py"
+      - "game/world/tests/test_ship_freight_service.py"
+      - "game/world/tests/test_installed_ship_freight_service.py"
       - "game/world/tests/test_installed_ship_access_audit.py"
       - "game/world/tests/test_installed_ship_operational_routes.py"
       - "game/world/ship_crew_access.py"
@@ -34,9 +39,9 @@ jobs:
           python-version: "3.12"
       - name: Compile and audit all 517 authored bidirectional links
         run: |
-          python -m compileall -q game/world/ship_access_audit.py game/world/ship_worksite_audit.py game/world/tests/test_ship_access_audit.py game/world/tests/test_ship_worksite_audit.py game/world/tests/test_installed_ship_access_audit.py game/world/tests/test_installed_ship_operational_routes.py
+          python -m compileall -q game/world/ship_access_audit.py game/world/ship_worksite_audit.py game/world/ship_freight_service.py game/world/tests/test_ship_freight_service.py game/world/tests/test_installed_ship_freight_service.py game/world/tests/test_ship_access_audit.py game/world/tests/test_ship_worksite_audit.py game/world/tests/test_installed_ship_access_audit.py game/world/tests/test_installed_ship_operational_routes.py
           cd game
-          python -m unittest world.tests.test_ship_access_audit world.tests.test_ship_worksite_audit -v
+          python -m unittest world.tests.test_ship_access_audit world.tests.test_ship_worksite_audit world.tests.test_ship_freight_service -v
 
   installed:
     runs-on: ubuntu-latest
@@ -59,4 +64,4 @@ jobs:
           evennia migrate --noinput
       - name: Audit 421 rooms, 1034 exits, physical drum/HAB boarding and return
         working-directory: game
-        run: python -m world.test_runner world.tests.test_installed_ship_access_audit world.tests.test_installed_ship_operational_routes --verbosity=2
+        run: python -m world.test_runner world.tests.test_installed_ship_access_audit world.tests.test_installed_ship_operational_routes world.tests.test_installed_ship_freight_service --verbosity=2
