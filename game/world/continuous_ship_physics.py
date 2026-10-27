@@ -348,6 +348,7 @@ def _snapshot(item):
         if item.details.get("electrical") is not None:
             power = item.details["electrical"]
             result["electrical"] = {
+                "worksite_surveys": power["worksite_surveys"],
                 "meter": power["meter"], "last": power["last"],
                 "banks": power["banks"], "shore": power["shore"],
                 "faults": power["faults"], "sync": power["sync"],
@@ -517,6 +518,56 @@ def commission_g19_electrical(*, operator_approved=False):
     return {"commissioned": True, "nodes": len(node_map),
             "feeders": len(edge_map), "breakers": len(switch_map),
             "rated_battery_kwh": 0.0, "shore_connected": False}
+
+
+
+@transaction.atomic
+def survey_g19_electrical_worksite(*, operator_approved=False, room_id=None):
+    """Survey an actual nonpressurised generator switch room for suited work.
+
+    This never renders the room breathable. Real individual protective gear
+    is separately checked every time a crew member operates switchgear.
+    """
+    if not operator_approved:
+        raise PermissionError("Physical electrical worksite survey is operator-only")
+    if room_id not in {"GEN-M-ROOM", "GEN-A-ROOM", "GEN-B-ROOM"}:
+        raise PhysicsError("Only actual generator machinery spaces may be surveyed")
+    from world.ship_world import find_ship_space
+    if (find_ship_space(room_id) is None
+            or _topology()[0].get(room_id) not in {None, "VACUUM"}):
+        raise PhysicsError("Generator bay is not the fitted unpressurised worksite")
+    if state("equipment", room_id.removesuffix("-ROOM")).space_id != room_id:
+        raise PhysicsError("Generator worksite and real installed plant disagree")
+    import copy
+    item = _clock(lock=True)
+    details = dict(item.details)
+    if "electrical" not in details:
+        raise PhysicsError("G19 electrical power not commissioned")
+    grid = copy.deepcopy(details["electrical"])
+    if grid["worksite_surveys"].get(room_id) == "suited_service":
+        return {"changed": False, "room_id": room_id}
+    before = _snapshot(item)
+    grid["worksite_surveys"][room_id] = "suited_service"
+    validate_electrical(grid)
+    details["electrical"] = grid
+    item.details = details
+    item.revision += 1
+    item.save(update_fields=["details", "revision"])
+    _event(item, "g19_electrical_hazardous_worksite_survey", before)
+    return {"changed": True, "room_id": room_id}
+
+
+def _electrical_crew_air_gate(actor, room, electrical):
+    """No breathable-air guess in inherited generator rooms."""
+    zone = _topology()[0].get(room)
+    if isinstance(zone, str) and zone.startswith("PZ-"):
+        if not _air_safe(state("pressure", zone)):
+            raise PhysicsError("Local switchgear room has unsafe breathing air")
+        return
+    if (zone not in {None, "VACUUM"}
+            or electrical["worksite_surveys"].get(room) != "suited_service"
+            or not bool(getattr(actor.db, "ox_suit_verified", False))):
+        raise PhysicsError("Unpressurised switchgear requires site survey and verified suited engineer")
 
 
 @transaction.atomic
@@ -3414,6 +3465,9 @@ def crew_physical_action(actor, request_id, action, target, value):
             raise PhysicsError("Unsafe switch command")
         if value == "closed" and item.details.get("physics_power_trip_latched"):
             raise PhysicsError("Breaker is physically tripped; isolate fault and reset locally")
+        if _clock().details.get("electrical") is not None and item.reference.get("network") == "power":
+            _electrical_crew_air_gate(
+                actor, item.space_id, _clock().details["electrical"])
         if value == "closed" and target.startswith("ISO-MSB-XTIE"):
             tie = state("edge", "EDGE-MSB-XTIE")
             if tie.setting == "available":
@@ -3432,10 +3486,12 @@ def crew_physical_action(actor, request_id, action, target, value):
             raise PhysicsError("Failed plant cannot be started")
         before = _snapshot(item)
         on = value == "on"
-        if on and target in GENERATION_MW:
+        if target in GENERATION_MW:
             electr = _clock().details.get("electrical")
-            if electr and electr["shore"] and electr["shore"]["connected"]:
-                raise PhysicsError("Isolate the connected shore-power inlet before generator startup")
+            if electr:
+                _electrical_crew_air_gate(actor, item.space_id, electr)
+                if on and electr["shore"] and electr["shore"]["connected"]:
+                    raise PhysicsError("Isolate the connected shore-power inlet before generator startup")
         d = dict(item.details)
         d["physics_commanded_on"] = on
         d["physics_online"] = False if not on else d.get("physics_online", False)
@@ -3479,8 +3535,7 @@ def crew_physical_action(actor, request_id, action, target, value):
             if room not in {c.space_id for c in controls}:
                 raise PermissionError("Physically attend the actual feeder switchgear")
             _crew_at(actor, room)
-            if not _air_safe(state("pressure", _topology()[0][room])):
-                raise PhysicsError("Exposed electrical switch room unsafe")
+            _electrical_crew_air_gate(actor, room, e)
             return edge
         if target == "EDGE-MSB-XTIE":
             edge = at_switch(target)
@@ -3588,9 +3643,7 @@ def crew_physical_action(actor, request_id, action, target, value):
             _crew_at(actor, breaker.space_id)
             if breaker.setting != "open" or breaker.condition in _BROKEN:
                 raise PhysicsError("Protection reset requires isolated sound breaker")
-            zone = _topology()[0].get(breaker.space_id)
-            if not zone or not _air_safe(state("pressure", zone)):
-                raise PhysicsError("Unsafe physical switchgear repair station")
+            _electrical_crew_air_gate(actor, breaker.space_id, e)
             try:
                 e = reset_protection(e, target)
             except ElectricalError as exc:
