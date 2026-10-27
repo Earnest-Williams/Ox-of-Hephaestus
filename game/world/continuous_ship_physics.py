@@ -755,7 +755,8 @@ def configure_g19_electrical_fault(*, operator_approved=False, breaker_id,
     if "electrical" not in d:
         raise PhysicsError("Electrical plant not commissioned")
     breaker = state("isolator", breaker_id, lock=True)
-    if (breaker.reference.get("network") != "power"
+    if (breaker.reference.get("network")
+            not in {"power", "g19_motor", "g19_local_dc"}
             or breaker.condition in _BROKEN):
         raise PhysicsError("No usable installed electrical breaker at this site")
     try:
@@ -3840,7 +3841,8 @@ def crew_physical_action(actor, request_id, action, target, value):
                 raise PhysicsError("Shore connection must be connect|disconnect")
         elif target.startswith("ISO-") and value == "reset":
             breaker = state("isolator", target, lock=True)
-            if breaker.reference.get("network") != "power":
+            if breaker.reference.get("network") not in {
+                    "power", "g19_motor", "g19_local_dc"}:
                 raise PhysicsError("Not an installed power breaker")
             _crew_at(actor, breaker.space_id)
             if breaker.setting != "open" or breaker.condition in _BROKEN:
@@ -5080,6 +5082,56 @@ def local_physics_readout(actor, target):
             return {"id": target, "path_energised": target in grid["nodes"],
                     "schedule_assured": grid["assured"] and target in grid["nodes"],
                     "scope": "physically_local_actual_power_circuit"}
+    if target in LOCAL_LOADS:
+        # Per-unit electrical measurements are physically local, rather than
+        # a bridge-wide oracle into inaccessible battery lockers.
+        spec = LOCAL_LOADS[target]
+        if room != spec[0]:
+            raise PermissionError("Attend this emergency battery at its actual room")
+        clock = _clock()
+        ledger = clock.details.get("local_backup")
+        if ledger is None:
+            raise PhysicsError("Local emergency DC not commissioned")
+        validate_local_backup(ledger)
+        battery = state("equipment", target)
+        load = state("equipment", spec[1])
+        edge = state("edge", "EDGE-G19-LOCAL-" + target)
+        breaker = state("isolator", "ISO-G19-LOCAL-" + target)
+        account = ledger["units"].get(target)
+        return {
+            "id": target, "rated": account is not None,
+            "charge_kwh": account["charge_kwh"] if account else None,
+            "capacity_kwh": account["capacity_kwh"] if account else None,
+            "mode": account["mode"] if account else "unrated",
+            "battery_sound": battery.condition not in _BROKEN,
+            "appliance_sound": load.condition not in _BROKEN,
+            "fuse_closed": breaker.setting == "closed",
+            "wire_sound": edge.condition not in _BROKEN,
+            "last_tick_battery_active": bool(
+                ledger["last"].get("active_local_consumers", {}).get(target)),
+            "scope": "attended_individual_local_dc_circuit",
+        }
+    if target in MOTORS:
+        spec = MOTORS[target]
+        if room != spec[0]:
+            raise PermissionError("Attend this machinery motor feeder at its actual room")
+        clock = _clock()
+        equipment = {x.source_id: x for x in CanonicalShipState.objects.filter(
+            category="equipment")}
+        edges = list(CanonicalShipState.objects.filter(category="edge"))
+        switches = {x.source_id: x for x in CanonicalShipState.objects.filter(
+            category="isolator")}
+        bus = _power(equipment, edges, switches, clock.details["load_profile"],
+                     ledger=clock.details.get("electrical"),
+                     moored=contacts_active(clock.details.get("cargo", {})))
+        return {
+            "id": target, "upstream_panel_energised": spec[1] in bus["nodes"],
+            "feeder_conducting": motor_power(
+                target, nodes=bus["nodes"], equipment=equipment,
+                edges={x.source_id: x for x in edges}, switches=switches),
+            "schedule_assured": bus["assured"],
+            "scope": "attended_individual_motor_circuit",
+        }
     if target == "power":
         electrical = _clock().details.get("electrical")
         if electrical is None:
@@ -5105,6 +5157,11 @@ def local_physics_readout(actor, target):
                 "flywheel_modules_registered": len(electrical["flywheels"]),
                 "tripped_breakers": sorted(
                     k for k, v in electrical["faults"].items() if v["latched"]),
+                "local_backup_registered": len(
+                    (_clock().details.get("local_backup") or {"units": {}})["units"]),
+                "local_backup_stored_kwh": sum(
+                    v["charge_kwh"] for v in
+                    (_clock().details.get("local_backup") or {"units": {}})["units"].values()),
                 "shore_connected": (electrical["shore"]["connected"]
                     if electrical["shore"] else False),
                 "scope": "physically_attended_engineering_power_board"}
