@@ -40,6 +40,12 @@ from world.ship_cargo_manifest import (
     restow_cargo_lot, unsecured_drum_loads,
     active_freight_mw,
 )
+from world.ship_cargo_environment import (
+    CargoClimateError, initial_cargo_environment,
+    validate_cargo_environment, survey_drum_environment,
+    survey_sensitive_lot, inherit_split_care, set_cargo_target,
+    step_cargo_environment,
+)
 from world.ship_motion_machinery import (
     DRUMS, ROTORS, RotorError, initial_rotors, set_rotor_command,
     step_rotors, motion_power_mw, rotor_gravity,
@@ -559,6 +565,13 @@ def commission_g19_electrical(*, operator_approved=False):
             validate_refuge_media_service(media_upgraded)
         except RefugeAirError as exc:
             raise PhysicsError(str(exc)) from exc
+        cargo_climate_old = item.details.get("cargo_environment")
+        cargo_climate_new = (cargo_climate_old if cargo_climate_old is not None
+                             else initial_cargo_environment())
+        try:
+            validate_cargo_environment(cargo_climate_new, item.details["cargo"])
+        except CargoClimateError as exc:
+            raise PhysicsError(str(exc)) from exc
         services_old = item.details.get("service_operations")
         services_upgraded = (services_old if services_old is not None
                              else initial_service_operations())
@@ -575,6 +588,7 @@ def commission_g19_electrical(*, operator_approved=False):
                 or local_upgraded != local_old
                 or refuge_upgraded != refuge_old
                 or media_upgraded != media_old
+                or cargo_climate_new != cargo_climate_old
                 or services_upgraded != services_old or fuel_needs_migration
                 or newly_enrolled):
             previous = _snapshot(item)
@@ -583,6 +597,7 @@ def commission_g19_electrical(*, operator_approved=False):
             details["local_backup"] = local_upgraded
             details["refuge_scrubbers"] = refuge_upgraded
             details["refuge_media_service"] = media_upgraded
+            details["cargo_environment"] = cargo_climate_new
             details["service_operations"] = services_upgraded
             if fuel_needs_migration:
                 stock = state("inventory", "INV-GEN-CART", lock=True)
@@ -627,6 +642,7 @@ def commission_g19_electrical(*, operator_approved=False):
     d["local_backup"] = initial_local_backup()
     d["refuge_scrubbers"] = initial_refuge_scrubbers()
     d["refuge_media_service"] = initial_refuge_media_service()
+    d["cargo_environment"] = initial_cargo_environment()
     d["service_operations"] = initial_service_operations()
     d["generator_cartridge_baseline_kg"] = cartridges.quantity * 1000.0
     d["generator_spent_cartridge_kg"] = 0.0
@@ -1861,7 +1877,10 @@ def survey_cargo_lot(*, operator_approved=False, operation, lot_id=None,
         else:
             raise CargoError("Unknown cargo survey operation")
         validate_cargo(revised, d["motion"]["cargo_mass_kg"])
-    except CargoError as exc:
+        if (operation == "split" and d.get("cargo_environment") is not None):
+            d["cargo_environment"] = inherit_split_care(
+                d["cargo_environment"], cargo, revised, source_id, lot_id)
+    except (CargoError, CargoClimateError) as exc:
         raise PhysicsError(str(exc)) from exc
     if revised != cargo:
         d["cargo"] = revised
