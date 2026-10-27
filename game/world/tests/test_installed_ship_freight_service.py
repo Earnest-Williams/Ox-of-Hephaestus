@@ -161,6 +161,10 @@ class InstalledFreightServiceAccess(EvenniaTestCase):
         self.cross(self.tech, link, "forward")
         self.action(self.tech, "repair", "equipment:" + name, "start")
         self.assertIn("equipment:" + name, _clock().details["repairs"]["jobs"])
+        self.cross(self.tech, link, "reverse")
+        with self.assertRaisesRegex(PhysicsError, "Finish on-site maintenance"):
+            self.action(self.tech, "freight_service", link, "close")
+        self.cross(self.tech, link, "forward")
         self.advance(120)
         self.assertEqual(state("equipment", name).condition, "serviceable")
         self.assertEqual(_clock().details["repairs"]["completed"], 1)
