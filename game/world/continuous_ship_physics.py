@@ -98,7 +98,7 @@ from world.ship_equipment_services import (
     SERVICE_LOADS, MANUAL_RESTART,
     install_service_circuits, initial_service_operations,
     validate_service_operations, rearm_service_machine,
-    step_service_operations, service_power,
+    step_service_operations, service_power, service_ids,
 )
 from world.ship_refuge_life_support import (
     RefugeAirError, REFUGE_PACKS, initial_refuge_scrubbers,
@@ -3974,6 +3974,43 @@ def crew_physical_action(actor, request_id, action, target, value):
                 if on and electr["shore"] and electr["shore"]["connected"]:
                     raise PhysicsError("Isolate the connected shore-power inlet before generator startup")
         d = dict(item.details)
+        if target in SERVICE_LOADS:
+            service_clock = _clock(lock=True)
+            sd = dict(service_clock.details)
+            service = sd.get("service_operations")
+            if service is None:
+                raise PhysicsError("Independent equipment circuits require G19 commissioning")
+            validate_service_operations(service)
+            if on and target in MANUAL_RESTART and (
+                    not service["units"][target]["operating"]
+                    or service["units"][target]["restart_latched"]):
+                # A milling/welding controller may not auto-restart simply
+                # because an electrician restored its lost feeder. The
+                # engineer must attend the actual tool and re-arm it under
+                # a live, physically fused source.
+                equipment_now = {x.source_id: x for x in
+                                 CanonicalShipState.objects.filter(category="equipment")}
+                edges_now = list(CanonicalShipState.objects.filter(category="edge"))
+                breakers_now = {x.source_id: x for x in
+                                CanonicalShipState.objects.filter(category="isolator")}
+                supply = _power(
+                    equipment_now, edges_now, breakers_now,
+                    sd["load_profile"], ledger=sd["electrical"],
+                    moored=contacts_active(sd["cargo"]))
+                if not (supply["assured"] and service_power(
+                        target, nodes=supply["nodes"],
+                        equipment=equipment_now,
+                        edges={x.source_id: x for x in edges_now},
+                        switches=breakers_now)):
+                    raise PhysicsError("Machine tool requires a live attended power circuit to rearm")
+                before_service = _snapshot(service_clock)
+                sd["service_operations"] = rearm_service_machine(service, target)
+                service_clock.details = sd
+                service_clock.revision += 1
+                service_clock.save(update_fields=["details", "revision"])
+                _event(service_clock, "manual_machine_restart_armed",
+                       before_service, actor=actor)
+                d["physics_online"] = False
         d["physics_commanded_on"] = on
         d["physics_online"] = False if not on else d.get("physics_online", False)
         d["physics_startup_s"] = (30.0 if target in GENERATION_MW else 10.0) if (
@@ -5459,6 +5496,36 @@ def local_physics_readout(actor, target):
             "last_tick_battery_active": bool(
                 ledger["last"].get("active_local_consumers", {}).get(target)),
             "scope": "attended_individual_local_dc_circuit",
+        }
+    if target in SERVICE_LOADS:
+        spec = SERVICE_LOADS[target]
+        if room != spec[0]:
+            raise PermissionError("Attend the original operating-equipment room")
+        clock = _clock()
+        running = clock.details.get("service_operations")
+        if running is None:
+            raise PhysicsError("Operating-equipment service not commissioned")
+        validate_service_operations(running)
+        units = {x.source_id: x for x in CanonicalShipState.objects.filter(
+            category="equipment")}
+        edges = list(CanonicalShipState.objects.filter(category="edge"))
+        contacts = {x.source_id: x for x in CanonicalShipState.objects.filter(
+            category="isolator")}
+        power = _power(units, edges, contacts, clock.details["load_profile"],
+                       ledger=clock.details.get("electrical"),
+                       moored=contacts_active(clock.details.get("cargo", {})))
+        supply = service_power(
+            target, nodes=power["nodes"], equipment=units,
+            edges={x.source_id: x for x in edges}, switches=contacts)
+        account = running["units"][target]
+        return {
+            "id": target, "upstream_panel_energised": spec[1] in power["nodes"],
+            "feeder_conducting": supply, "schedule_assured": power["assured"],
+            "operating": account["operating"], "runtime_s": account["runtime_s"],
+            "outage_s": account["outage_s"],
+            "restart_required": account["restart_latched"],
+            "local_breaker": service_ids(target)[2],
+            "scope": "attended_secondary_equipment_circuit",
         }
     if target in MOTORS:
         spec = MOTORS[target]
