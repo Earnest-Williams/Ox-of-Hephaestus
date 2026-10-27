@@ -1,7 +1,7 @@
 """Installed-world G19 electrical operation and casualty tests (no voyage)."""
 from __future__ import annotations
 
-from django.db import transaction
+from collections import defaultdict, deque
 from evennia.utils.test_resources import EvenniaTestCase
 
 from world.bootstrap import build_ship
@@ -34,6 +34,42 @@ class InstalledElectricalTests(EvenniaTestCase):
         self.assertIsNotNone(location, room)
         self.worker.move_to(location, quiet=True)
 
+    def line_up_real_feeder(self, start, destination):
+        """Operator test fixture: energise the authentic connected conductor path.
+
+        A newly installed v0.5 ship begins with 461 OPEN breaker contacts.
+        Tests must prove an actual route and close its individually fitted
+        isolators; physically disconnected loads are never assumed online.
+        """
+        edges = list(CanonicalShipState.objects.filter(category="edge",
+                           reference__network="power"))
+        graph = defaultdict(list)
+        for edge in edges:
+            if edge.setting != "available" or edge.condition in {
+                    "faulted", "failed", "severed", "destroyed", "jammed"}:
+                continue
+            spec = edge.reference
+            graph[spec["from_node"]].append((spec["to_node"], edge))
+            if spec["kind"] in {"bridge_feeder", "cross_tie"}:
+                graph[spec["to_node"]].append((spec["from_node"], edge))
+        visited = {start}
+        previous = {}
+        queue = deque([start])
+        while queue and destination not in visited:
+            for nxt, segment in graph[queue.popleft()]:
+                if nxt not in visited:
+                    visited.add(nxt)
+                    previous[nxt] = segment, segment.reference["from_node"], segment.reference["to_node"]
+                    queue.append(nxt)
+        self.assertIn(destination, visited, "No real power path to requested load")
+        position = destination
+        while position != start:
+            segment, a, b = previous[position]
+            for isolator_id in segment.reference["isolator_ids"]:
+                if state("isolator", isolator_id).setting != "closed":
+                    set_isolator(isolator_id, "closed", operator=True)
+            position = a if position == b else b
+
     def test_full_authored_graph_and_nonresetting_commission(self):
         result = commission_g19_electrical(operator_approved=True)
         self.assertEqual((result["nodes"], result["feeders"], result["breakers"]),
@@ -42,7 +78,7 @@ class InstalledElectricalTests(EvenniaTestCase):
         self.assertFalse(commission_g19_electrical(operator_approved=True)["commissioned"])
         # A main-generator feeder must be physically selected; the authored
         # cold condition is never promoted to a closed contact by commissioning.
-        set_isolator("ISO-GEN-M", "closed", operator=True)
+        self.line_up_real_feeder("NODE-GEN-M", "NODE-HAB-03-FIRE-DETECT")
         tick = tick_continuous_physics(now_game_time=1010)
         self.assertIn("electrical", tick)
         self.assertGreater(tick["electrical"]["meter"]["served_kwh"], 0)
@@ -109,6 +145,7 @@ class InstalledElectricalTests(EvenniaTestCase):
 
     def test_meter_advances_once_only_and_persists_exactly(self):
         commission_g19_electrical(operator_approved=True)
+        self.line_up_real_feeder("NODE-GEN-M", "NODE-HAB-03-FIRE-DETECT")
         first = tick_continuous_physics(now_game_time=1010)
         energy = first["electrical"]["meter"]
         self.assertFalse(tick_continuous_physics(now_game_time=1010)["advanced"])
@@ -165,7 +202,11 @@ class InstalledElectricalTests(EvenniaTestCase):
     def test_cabin_refit_panel_is_not_the_fan_coil_source(self):
         from world.continuous_ship_physics import _power
         commission_g19_electrical(operator_approved=True)
-        set_isolator("ISO-GEN-M", "closed", operator=True)
+        # The SG2 cabin corridor is physically wired to the B distribution,
+        # not the main A board. Line up both real sibling branch circuits.
+        self.line_up_real_feeder("NODE-GEN-B", "NODE-HAB-03-CAB-07-LP")
+        self.line_up_real_feeder("NODE-GEN-B",
+                                "NODE-PWR-HAB-03-CAB-07-FANCOIL")
         def current():
             clock = CanonicalShipState.objects.get(pk="meta:continuous-physics")
             return _power(
