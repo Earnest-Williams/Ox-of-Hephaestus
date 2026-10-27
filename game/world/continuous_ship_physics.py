@@ -4624,14 +4624,17 @@ def crew_physical_action(actor, request_id, action, target, value):
         for pending_patient, pending in rescue_busy["jobs"].items():
             if actor.dbref in {pending_patient, pending["lead"], pending["helper"]}:
                 if not (action == "rescue" and target == pending_patient
-                        and value == "cancel" and actor.dbref == pending["lead"]):
+                        and value == "cancel" and actor.dbref in {pending["lead"], pending["helper"]}):
                     raise PermissionError("Crew member committed to timed physical casualty transport")
     if action in {"repair", "wasteport", "hull", "eva", "rescue"}:
         # A worker who has become incapacitated cannot command or advance
         # a physical repair or sealed waste movement. Deduplicated historic
         # receipts above remain replayable without issuing a second action.
         from world.ship_crew_access import _health_gate
-        _health_gate(actor)
+        # The two assigned carriers must be able to ABORT a carriage
+        # without first leaving the running job that immobilises them.
+        if not (action == "rescue" and value == "cancel"):
+            _health_gate(actor)
     if action == "switch":
         item = state("isolator", target, lock=True)
         _crew_at(actor, item.space_id)
@@ -5464,8 +5467,8 @@ def crew_physical_action(actor, request_id, action, target, value):
         try:
             if value == "cancel":
                 job = rescue["jobs"].get(target)
-                if job is None or job["lead"] != actor.dbref:
-                    raise PermissionError("Only the assigned local rescuer may cancel")
+                if job is None or actor.dbref not in {job["lead"], job["helper"]}:
+                    raise PermissionError("Only a participating carrier at the origin may cancel")
                 origin = getattr(getattr(actor.location, "db", None), "ox_space_id", None)
                 if origin != job["origin"]:
                     raise PermissionError("Cancel from actual rescue origin")

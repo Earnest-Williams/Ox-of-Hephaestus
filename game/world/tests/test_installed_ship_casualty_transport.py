@@ -131,9 +131,10 @@ class InstalledCasualtyCarriage(EvenniaTestCase):
         first = self.op(self.lead, "rescue", self.patient.dbref, val, request=rid)
         self.assertEqual(first, self.op(
             self.lead, "rescue", self.patient.dbref, val, request=rid))
-        with self.assertRaises(PermissionError):
-            self.op(self.helper, "rescue", self.patient.dbref, "cancel")
-        self.op(self.lead, "rescue", self.patient.dbref, "cancel")
+        # Either original carrier can abandon a dangerous or stalled carry.
+        self.op(self.helper, "rescue", self.patient.dbref, "cancel")
+        with self.assertRaises((PermissionError, PhysicsError)):
+            self.op(self.lead, "rescue", self.patient.dbref, "cancel")
         self.assertEqual(_clock().details["rescue"]["cancelled"], 1)
         self.assertEqual(_clock().details["rescue"]["completed"], 0)
         self.assertFalse(_clock().details["rescue"]["jobs"])
