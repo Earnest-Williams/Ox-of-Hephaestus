@@ -248,7 +248,7 @@ class InstalledElectricalTests(EvenniaTestCase):
                 max_charge_mw=.2, max_discharge_mw=.8)
         survey_g19_electrical_source(
             operator_approved=True, source="BAT-COMMON-OPS",
-            capacity_kwh=8000, initial_kwh=.01,
+            capacity_kwh=8000, initial_kwh=10,
             max_charge_mw=.2, max_discharge_mw=.8)
         self.line_up_real_feeder(
             "PWR-MSB-B", "NODE-PWR-HAB-03-CAB-07-FANCOIL")
@@ -259,13 +259,13 @@ class InstalledElectricalTests(EvenniaTestCase):
             "discharge")["status"], "succeeded")
         first = tick_continuous_physics(now_game_time=1010)
         self.assertAlmostEqual(first["available_mw"], .8)
-        self.assertGreater(first["electrical"]["meter"][
-                           "battery_discharge_kwh"], 0)
+        self.assertAlmostEqual(first["electrical"]["meter"][
+                               "battery_discharge_kwh"], .8 * 10 / 3.6)
         clock = CanonicalShipState.objects.get(
             pk="meta:continuous-physics")
         self.assertTrue(clock.details["electrical"]["last"]["main_b"])
         self.assertFalse(clock.details["electrical"]["last"]["main_a"])
-        # Only 10 watt-hours were measured. A prolonged demand cannot
+        # Only 10 kWh were measured. A prolonged demand cannot
         # mint energy, and advancing one time twice never charges twice.
         for i in range(2, 8):
             tick_continuous_physics(now_game_time=1000 + i * 10)
@@ -274,7 +274,7 @@ class InstalledElectricalTests(EvenniaTestCase):
                 "electrical"]["banks"]["BAT-COMMON-OPS"]
         self.assertLess(stock["charge_kwh"], 1e-8)
         self.assertAlmostEqual(
-            stock["discharged_kwh"] + stock["charge_kwh"], .01)
+            stock["discharged_kwh"] + stock["charge_kwh"], 10)
         self.assertFalse(tick_continuous_physics(
             now_game_time=1070)["advanced"])
 
@@ -315,7 +315,7 @@ class InstalledElectricalTests(EvenniaTestCase):
                 max_charge_mw=.2, max_discharge_mw=.8)
         survey = survey_g19_electrical_source(
             operator_approved=True, source="F1-FW-01",
-            capacity_kwh=3906.25, initial_kwh=1,
+            capacity_kwh=3906.25, initial_kwh=10,
             max_charge_mw=.2, max_discharge_mw=.8)
         self.assertTrue(survey["rated"])
         self.crew_at("F1-BAY")
@@ -338,11 +338,13 @@ class InstalledElectricalTests(EvenniaTestCase):
         set_isolator("ISO-PWR-F1-FW-01", "closed", operator=True)
         first = tick_continuous_physics(now_game_time=1010)
         self.assertAlmostEqual(first["available_mw"], .8)
-        self.assertGreater(first["electrical"]["meter"]["flywheel_discharge_kwh"], 0)
+        self.assertAlmostEqual(
+            first["electrical"]["meter"]["flywheel_discharge_kwh"],
+            .8 * 10 / 3.6)
         held = CanonicalShipState.objects.get(
             pk="meta:continuous-physics").details["electrical"][
                 "flywheels"]["F1-FW-01"]["charge_kwh"]
-        self.assertLess(held, 1)
+        self.assertLess(held, 10)
         set_isolator("ISO-F1-BUS-IN-1", "open", operator=True)
         off = tick_continuous_physics(now_game_time=1020)
         self.assertEqual(off["available_mw"], 0)
