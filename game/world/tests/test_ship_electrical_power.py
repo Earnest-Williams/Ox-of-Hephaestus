@@ -390,6 +390,42 @@ class ElectricalPhysicalContracts(unittest.TestCase):
         with self.assertRaises(ElectricalError):
             audit_topology(nodes, edges, switches, strict=False)
 
+    def test_destroyed_actual_msb_or_branch_panel_blocks_current(self):
+        nodes, edges, switches, equipment = grid()
+        equipment["MSB-A"] = eq(True)
+        equipment["MSB-B"] = eq(True)
+        equipment["CAB-LP"] = eq(True)
+        nodes.extend([
+            Row(source_id="PWR-MSB-A", reference={
+                "id": "PWR-MSB-A", "network": "power",
+                "owner_type": "equipment", "owner_id": "MSB-A"}),
+            Row(source_id="PWR-MSB-B", reference={
+                "id": "PWR-MSB-B", "network": "power",
+                "owner_type": "equipment", "owner_id": "MSB-B"}),
+            Row(source_id="NODE-CAB-LP", reference={
+                "id": "NODE-CAB-LP", "network": "power",
+                "owner_type": "equipment", "owner_id": "CAB-LP"}),
+        ])
+        edges.append(edge("EDGE-CAB-LP", "PWR-MSB-A", "NODE-CAB-LP",
+                          kind="room_feeder"))
+        switches["ISO-CAB-LP"] = switch("ISO-CAB-LP")
+        ready = source_dispatch(equipment, edges, switches, "normal",
+                                ledger=initial_electrical(), nodes=nodes)
+        self.assertIn("NODE-CAB-LP", ready["nodes"])
+        equipment["CAB-LP"].condition = "failed"
+        panel_failed = source_dispatch(equipment, edges, switches, "normal",
+                                       ledger=initial_electrical(), nodes=nodes)
+        self.assertNotIn("NODE-CAB-LP", panel_failed["nodes"])
+        self.assertFalse(panel_failed["has_live_load"])
+        equipment["CAB-LP"].condition = "serviceable"
+        equipment["MSB-A"].condition = "destroyed"
+        board_failed = source_dispatch(equipment, edges, switches, "normal",
+                                       ledger=initial_electrical(), nodes=nodes)
+        self.assertNotIn("PWR-MSB-A", board_failed["nodes"])
+        self.assertNotIn("NODE-CAB-LP", board_failed["nodes"])
+        self.assertNotIn("GEN-M", board_failed["active_generators"])
+        self.assertFalse(board_failed["assured"])
+
     def test_damage_to_installed_feeder_is_not_virtual_dispatch(self):
         _, edges, switches, equipment = grid()
         edges[0].condition = "severed"
