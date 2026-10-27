@@ -132,6 +132,24 @@ class InstalledElectricalTests(EvenniaTestCase):
         set_isolator("ISO-G19-MOTOR-FIRE-PUMP-FWD", "open", operator=True)
         self.assertFalse(ready())
 
+    def test_eclss_motor_is_independently_shed_without_disabling_main_bus(self):
+        commission_g19_electrical(operator_approved=True)
+        self.line_up_real_feeder(
+            "NODE-GEN-M", "NODE-HAB-06-ECLSS-A-LP")
+        first = tick_continuous_physics(now_game_time=1010)
+        self.assertTrue(first["ventilation_powered"])
+        self.assertTrue(first["power_assured"])
+        set_isolator("ISO-G19-MOTOR-ECLSS-A", "open", operator=True)
+        second = tick_continuous_physics(now_game_time=1020)
+        self.assertFalse(second["ventilation_powered"])
+        self.assertTrue(second["power_assured"])
+        self.assertGreater(second["available_mw"], 0)
+        self.crew_at("HAB-06-ECLSS-A")
+        local = local_physics_readout(self.worker, "ECLSS-A")
+        self.assertFalse(local["feeder_conducting"])
+        with self.assertRaises(PermissionError):
+            local_physics_readout(self.worker, "ECLSS-B")
+
     def test_motor_overcurrent_trip_is_local_and_resets_only_after_clearance(self):
         commission_g19_electrical(operator_approved=True)
         name = "LT-PLANT"
@@ -173,8 +191,7 @@ class InstalledElectricalTests(EvenniaTestCase):
             capacity_kwh=.2, initial_kwh=.1)
         self.crew_at("HAB-04-REFUGE")
         with self.assertRaises(PermissionError):
-            self.crew_at("HAB-04-REFUGE") or local_physics_readout(
-                self.worker, "HAB-08-REFUGE-BAT")
+            local_physics_readout(self.worker, "HAB-08-REFUGE-BAT")
         crew_physical_action(self.worker, "4" * 32, "power", name, "reserve")
         configure_g19_electrical_fault(
             operator_approved=True, breaker_id=breaker,
