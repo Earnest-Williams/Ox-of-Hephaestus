@@ -224,6 +224,73 @@ class InstalledElectricalTests(EvenniaTestCase):
         self.assertNotIn("NODE-HAB-03-CAB-07-LP", after["nodes"])
         self.assertIn("NODE-PWR-HAB-03-CAB-07-FANCOIL", after["nodes"])
 
+    def test_common_operational_battery_serves_real_b_bus_and_expires(self):
+        commission_g19_electrical(operator_approved=True)
+        with self.assertRaises(PhysicsError):
+            survey_g19_electrical_source(
+                operator_approved=True, source="BAT-COMMON-OPS",
+                capacity_kwh=8001, initial_kwh=10,
+                max_charge_mw=.2, max_discharge_mw=.8)
+        survey_g19_electrical_source(
+            operator_approved=True, source="BAT-COMMON-OPS",
+            capacity_kwh=8000, initial_kwh=.01,
+            max_charge_mw=.2, max_discharge_mw=.8)
+        self.line_up_real_feeder(
+            "PWR-MSB-B", "NODE-PWR-HAB-03-CAB-07-FANCOIL")
+        set_isolator("ISO-BAT-COMMON-OPS", "closed", operator=True)
+        self.crew_at("PWR-AFT")
+        self.assertEqual(crew_physical_action(
+            self.worker, "d" * 32, "power", "BAT-COMMON-OPS",
+            "discharge")["status"], "succeeded")
+        first = tick_continuous_physics(now_game_time=1010)
+        self.assertAlmostEqual(first["available_mw"], .8)
+        self.assertGreater(first["electrical"]["meter"][
+                           "battery_discharge_kwh"], 0)
+        clock = CanonicalShipState.objects.get(
+            pk="meta:continuous-physics")
+        self.assertTrue(clock.details["electrical"]["last"]["main_b"])
+        self.assertFalse(clock.details["electrical"]["last"]["main_a"])
+        # Only 10 watt-hours were measured. A prolonged demand cannot
+        # mint energy, and advancing one time twice never charges twice.
+        for i in range(2, 8):
+            tick_continuous_physics(now_game_time=1000 + i * 10)
+        stock = CanonicalShipState.objects.get(
+            pk="meta:continuous-physics").details[
+                "electrical"]["banks"]["BAT-COMMON-OPS"]
+        self.assertLess(stock["charge_kwh"], 1e-8)
+        self.assertAlmostEqual(
+            stock["discharged_kwh"] + stock["charge_kwh"], .01)
+        self.assertFalse(tick_continuous_physics(
+            now_game_time=1070)["advanced"])
+
+    def test_protected_battery_does_not_create_hidden_msb_backfeed(self):
+        from world.continuous_ship_physics import _power
+        commission_g19_electrical(operator_approved=True)
+        survey_g19_electrical_source(
+            operator_approved=True, source="BAT-COMMON-PROT",
+            capacity_kwh=12000, initial_kwh=1,
+            max_charge_mw=.2, max_discharge_mw=.8)
+        set_isolator("ISO-BAT-COMMON-PROT", "closed", operator=True)
+        self.crew_at("PWR-AFT")
+        crew_physical_action(
+            self.worker, "e" * 32, "power", "BAT-COMMON-PROT",
+            "discharge")
+        electrical = CanonicalShipState.objects.get(
+            pk="meta:continuous-physics").details["electrical"]
+        dispatch = _power(
+            {r.source_id: r for r in
+             CanonicalShipState.objects.filter(category="equipment")},
+            list(CanonicalShipState.objects.filter(category="edge")),
+            {r.source_id: r for r in
+             CanonicalShipState.objects.filter(category="isolator")},
+            "essential", ledger=electrical)
+        self.assertIn("PWR-PROT", dispatch["nodes"])
+        self.assertNotIn("PWR-MSB-A", dispatch["nodes"])
+        self.assertNotIn("PWR-MSB-B", dispatch["nodes"])
+        # No invented outgoing node/feeder is claimed for the isolated
+        # protected bus; a connected distribution load is still necessary.
+        self.assertFalse(dispatch["has_live_load"])
+
     def test_real_flywheel_bay_works_only_when_surveyed_suited_and_connected(self):
         commission_g19_electrical(operator_approved=True)
         with self.assertRaises(PhysicsError):
