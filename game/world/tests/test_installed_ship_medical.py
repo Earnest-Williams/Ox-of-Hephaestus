@@ -15,6 +15,11 @@ class InstalledMedical(EvenniaTestCase):
         initialize_nominal_atmosphere(operator_approved=True)
         arm_continuous_physics(operator_approved=True, now_game_time=1000)
         set_isolator("ISO-GEN-M", "closed", operator=True)
+        # Actual rotating HAB treatment bus has separate upstream and
+        # room breakers; energy from GEN-M alone never closes them.
+        for breaker in ("ISO-ROT-PWR-A", "ISO-HAB-04-A-IN",
+                        "ISO-HAB-04-MED-TREAT-LP"):
+            set_isolator(breaker, "closed", operator=True)
         crew = build_ship()
         self.medic, self.patient = crew["environment"], crew["cargo"]
         self.medic.move_to(find_ship_space("HAB-04-MED-PHARM"), quiet=True)
