@@ -16,6 +16,9 @@ LOAD_MW = {"essential": .65, "protected": .75, "normal": 1.35,
            "demanding": 2.6}
 # 1 MW for 3.6 seconds delivers 1 kWh, not 1/1000 kWh.
 MW_SECONDS_PER_KWH = 3.6
+# Calibrated GAME cartridge-packing consumption, NOT an empirical fusion
+# fuel energy density. Spent housings retain their mass aboard.
+GENERATOR_CARTRIDGE_KG_PER_MWH = 2.0
 SHIP_CAP_MW = 3.3
 EXPECTED_TOPOLOGY = (438, 450, 466)
 BATTERIES = ("BAT-COMMON-OPS", "BAT-COMMON-PROT")
@@ -244,7 +247,7 @@ def connected_nodes(edges, switches, starts, *, blocked_nodes=()):
 
 
 def source_dispatch(equipment, edges, switches, profile, *, ledger=None,
-                    dt_s=10, moored=False, nodes=None):
+                    dt_s=10, moored=False, nodes=None, cartridge_kg=None):
     """Rate installed sources, genuine energised load paths and backup roles.
 
     The operational battery's *own* fitted feeder goes to MSB-B; it may
@@ -287,6 +290,14 @@ def source_dispatch(equipment, edges, switches, profile, *, ledger=None,
                 and _ref(feeder)["to_node"] not in blocked_nodes):
             sources[name] = rating
     generator_mw = min(SHIP_CAP_MW, sum(sources.values()))
+    if cartridge_kg is not None:
+        # 1 MW x 1 hour = 1 MWh. Every generator draws from the same
+        # fitted 125-t cartridge magazine when this source is verified.
+        remaining_kg = number(cartridge_kg)
+        generator_mw = min(
+            generator_mw,
+            remaining_kg * 3600.0 / (
+                GENERATOR_CARTRIDGE_KG_PER_MWH * dt_s))
     starts = ["NODE-" + x for x in sources]
     shore = ledger.get("shore") if ledger is not None else None
     shore_active = bool(shore and shore["connected"] and moored
@@ -447,6 +458,7 @@ def source_dispatch(equipment, edges, switches, profile, *, ledger=None,
         "main_nodes": main_nodes,
         "main_available_mw": main_mw,
         "producer_available_mw": generator_mw,
+        "cartridges_metered": cartridge_kg is not None,
         "operational_battery_available_mw": op_max_mw,
         "flywheel_available_mw": flywheel_max_mw,
         "flywheel_sources": flywheel_sources,
@@ -555,6 +567,10 @@ def step_energy(ledger, dispatch, seconds, *, actual_requested_mw=None):
         headroom -= charge_rate
     result["last"] = {
         "sources": list(dispatch["active_generators"]),
+        "generator_cartridge_consumed_kg": (
+            generated * dt / 3600.0 * GENERATOR_CARTRIDGE_KG_PER_MWH
+            if dispatch.get("cartridges_metered") and not dispatch["shore_active"]
+            else 0.0),
         "shore": dispatch["shore_active"],
         "main_available_mw": main,
         "requested_mw": demand,
