@@ -69,6 +69,12 @@ class AccessTopologyAuditTests(unittest.TestCase):
         self.assertEqual(audit["physical_links"], 517)
         self.assertEqual(audit["installed_exit_directions_expected"], 1034)
         self.assertEqual(sum(audit["component_sizes"]), 421)
+        self.assertEqual(audit["reviewed_sealed_noncrew_voids"],
+                         ["WR-TRIM-TANK-BAY"])
+        self.assertEqual(audit["unexplained_isolated_spaces"], [])
+        self.assertEqual(audit["potential_crew_spaces"], 420)
+        self.assertEqual(audit_access_topology(
+            model, require_connected=True)["reachable_from_command"], 420)
 
     def test_crew_candidate_prefers_real_doors_over_freight_or_eva_shortcut(self):
         rooms = tuple(SpaceSpec(
