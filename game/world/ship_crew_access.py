@@ -180,7 +180,7 @@ def _clearance(actor, exit_obj, dest):
             raise CrewTransitError("Sealed F1/F2 service access not commissioned")
         validate_bay_access(bay_access)
         if bay not in bay_access["surveyed_bays"]:
-            raise CrewTransitError("Unsurveyd F1/F2 service access is closed")
+            raise CrewTransitError("Unsurveyed F1/F2 service access is closed")
         from world.full_ship_operations import MODEL
         if not CanonicalShipState.objects.filter(
                 pk="crew_health:" + actor.dbref, source_model=MODEL).exists():
@@ -200,7 +200,8 @@ def _clearance(actor, exit_obj, dest):
             raise CrewTransitError("Actual flywheel local service panel is damaged")
         from world.continuous_ship_physics import _topology, _air_safe
         zone = _topology()[0].get(corridor)
-        if zone is None or _topology()[0].get(bay) is not None:
+        if (zone != "PZ-TRUNK-A-" + bay[:2] or
+                _topology()[0].get(bay) != "VACUUM"):
             raise CrewTransitError("Survey is not of the original unpressurised bay")
         if not _air_safe(state("pressure", zone)):
             raise CrewTransitError("Breathing-safe trunk required before sealed cycle")

@@ -1554,8 +1554,8 @@ def commission_g19_flywheel_access(*, operator_approved=False):
         control = state("equipment", panel)
         if (find_ship_space(corridor) is None or
                 find_ship_space(bay) is None or
-                zones.get(corridor) != "PZ-TRUNK-A" or
-                zones.get(bay) is not None or
+                zones.get(corridor) != "PZ-TRUNK-A-" + bay[:2] or
+                zones.get(bay) != "VACUUM" or
                 control.space_id != bay or
                 (door.reference.get("from"), door.reference.get("to"),
                  door.reference.get("kind"),
@@ -1588,7 +1588,7 @@ def survey_g19_flywheel_access(*, bay_id, operator_approved=False):
     door = state("access", link)
     panel = state("equipment", BAY_SERVICE_LOCKS[link][2])
     if (door.condition in _BROKEN or panel.condition in _BROKEN or
-            _topology()[0].get(bay_id) is not None):
+            _topology()[0].get(bay_id) != "VACUUM"):
         raise PhysicsError("Failed original flywheel worksite safety survey")
     try:
         surveyed = survey_bay(ledger, bay_id)
@@ -3853,7 +3853,7 @@ def tick_continuous_physics(*, now_game_time=None):
                     or panel is None or panel.condition in _BROKEN
                     or panel.space_id != bay
                     or bay not in bay_access["surveyed_bays"]
-                    or trunk_zone != "PZ-TRUNK-A" or gas is None
+                    or trunk_zone != "PZ-TRUNK-A-" + bay[:2] or gas is None
                     or not _air_safe(state("pressure", trunk_zone))
                     or gas["mass"] <= 0 or gas["burn"] > 0
                     or gas["leak"] > 0 or gas["damage"] >= .2

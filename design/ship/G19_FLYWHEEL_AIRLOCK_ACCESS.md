@@ -3,11 +3,10 @@
 The original ship has two **already authored** `service_airlock` connections:
 `ACC-F1-BAY` from `TRUNK-A-F1` into `F1-BAY`, and `ACC-F2-BAY` from
 `TRUNK-A-F2` into `F2-BAY`. Both are fixed-frame, pressure-rated, normally
-sealed connections. Both bays retain **unsurveyed unpressurised** atmosphere
-rather than being falsely commissioned as new breathable rooms.
+sealed connections. In the installed **v0.5 candidate**, both bays are explicitly `VACUUM`, and the two trunks have their separate `PZ-TRUNK-A-F1` and `PZ-TRUNK-A-F2` pressure cells. The earlier v0.4 geometry used different atmosphere labels; installed v0.5 is authoritative for these safety checks.
 
 This subsystem models each as a captive two-seal transfer mechanism. Gas
-contained in the original airlock assembly is lumped into its original trunk
+contained in the original airlock assembly is lumped into its respective v0.5 trunk
 pressure-cell inventory; cycling retains/retrieves it in the same sealed
 assembly, and neither exterior/bay gas nor invented oxygen is delivered to
 the trunk. The original service hatch remains positively CLOSED to normal
@@ -23,7 +22,7 @@ the corresponding F2 survey. This claims service-rating, NOT safe unsuited air.
 
 The engineer must be an actual, registered living Evennia character wearing
 one **existing physically issued EVA suit** with sound integrity and enough
-finite oxygen for the transfer plus reserve. The adjoining `PZ-TRUNK-A`
+finite oxygen for the transfer plus reserve. The corresponding `PZ-TRUNK-A-F1` or `PZ-TRUNK-A-F2`
 pressure cell must have genuinely breathable conditions; the as-built local
 panel, hatch and pressure-rated geometry must be intact. Ordinary unknown-gas
 doors, freight gates and rotary collars cannot borrow this authorisation.
@@ -34,7 +33,7 @@ Entering and leaving use the corresponding original Evennia directional
 suspends the work on hatch damage, loss of sound suit/life support or
 unsafe trunk gas; it moves the real body at completion and journals the
 physical transfer. The suit remains the sole respiratory source inside
-the unsurveyed flywheel worksite; no gas is generated for it.
+the explicitly vacuum flywheel worksite; no gas is generated for it.
 
 This opens physical access to the two fitted flywheel bays. It **does not**
 make individual high-energy flywheel service safe without subsequent
