@@ -7,6 +7,7 @@ from world.ship_auxiliary_electrical import (
     LOCAL_LOADS, MOTORS, _specs, auxiliary_ids, initial_local_backup,
     survey_local_backup, set_local_mode, step_local_backup, motor_power,
     validate_local_backup, migrate_local_backup, charger_ids,
+    PROTECTED_FIRE_MOTORS, protected_fire_ids, PROTECTED_TRUNK_A,
 )
 from world.ship_electrical_power import ElectricalError
 
@@ -33,7 +34,7 @@ def fitted():
 class AuxiliaryPowerContracts(unittest.TestCase):
     def test_all_real_harnesses_have_separate_endpoints_and_contacts(self):
         ids = _specs()
-        self.assertEqual(len(ids), 3 * len(MOTORS) + 6 * len(LOCAL_LOADS))
+        self.assertEqual(len(ids), 3 * len(MOTORS) + 6 * len(LOCAL_LOADS) + 2 * len(PROTECTED_FIRE_MOTORS))
         self.assertEqual(len(LOCAL_LOADS), 16)
         self.assertEqual(len(MOTORS), 49)
         self.assertEqual(len(set(ids)), len(ids))
@@ -71,6 +72,42 @@ class AuxiliaryPowerContracts(unittest.TestCase):
         self.assertTrue(motor_power(
             "BE-01-LUBE-S", nodes={panel},
             equipment=equipment, edges=e, switches=sw))
+
+    def test_protected_fire_trunk_runs_without_b_main_and_never_parallels(self):
+        e, switches, equipment = fitted()
+        self.assertEqual(len(PROTECTED_FIRE_MOTORS), 2)
+        self.assertEqual(PROTECTED_TRUNK_A[0], "TRUNK-A-AFT")
+        self.assertEqual(PROTECTED_TRUNK_A[-1], "TRUNK-A-BOW")
+        for name in PROTECTED_FIRE_MOTORS:
+            panel = MOTORS[name][1]
+            _, primary_edge, _ = auxiliary_ids(name, motor=True)
+            protected_edge, backup_iso = protected_fire_ids(name)
+            self.assertIn("PWR-AFT", e[protected_edge].reference["route_spaces"])
+            self.assertIn(MOTORS[name][0], e[protected_edge].reference["route_spaces"])
+            self.assertTrue(motor_power(
+                name, nodes={panel}, equipment=equipment,
+                edges=e, switches=switches))
+            e[primary_edge].setting = "standby"
+            e[protected_edge].setting = "available"
+            self.assertTrue(motor_power(
+                name, nodes={"PWR-PROT"}, equipment=equipment,
+                edges=e, switches=switches))
+            self.assertFalse(motor_power(
+                name, nodes={panel}, equipment=equipment,
+                edges=e, switches=switches))
+            switches[backup_iso].setting = "open"
+            self.assertFalse(motor_power(
+                name, nodes={"PWR-PROT"}, equipment=equipment,
+                edges=e, switches=switches))
+            switches[backup_iso].setting = "closed"
+            e[primary_edge].setting = "available"
+            with self.assertRaises(ElectricalError):
+                motor_power(name, nodes={panel, "PWR-PROT"},
+                            equipment=equipment, edges=e, switches=switches)
+            e[protected_edge].setting = "standby"
+            self.assertTrue(motor_power(
+                name, nodes={panel}, equipment=equipment,
+                edges=e, switches=switches))
 
     def test_unrated_local_store_cannot_create_electricity(self):
         e, sw, units = fitted()
