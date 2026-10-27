@@ -57,6 +57,30 @@ def grid():
 
 
 class ElectricalPhysicalContracts(unittest.TestCase):
+    def test_generator_magazine_finite_supply_and_correct_mwh_units(self):
+        _, edges, switches, equipment = grid()
+        empty = source_dispatch(
+            equipment, edges, switches, "normal",
+            ledger=initial_electrical(), dt_s=10, cartridge_kg=0)
+        self.assertEqual(empty["producer_available_mw"], 0)
+        self.assertEqual(empty["available_mw"], 0)
+        self.assertFalse(empty["assured"])
+        self.assertEqual(step_energy(initial_electrical(), empty, 10)[
+                         "last"]["generator_cartridge_consumed_kg"], 0)
+        # 0.002 kg of cartridge stock buys precisely 0.001 MWh:
+        # 1 kWh (0.36 MW x 10 s), not 1000 kWh.
+        scarce = source_dispatch(
+            equipment, edges, switches, "normal",
+            ledger=initial_electrical(), dt_s=10,
+            cartridge_kg=.002)
+        self.assertAlmostEqual(scarce["producer_available_mw"], .36)
+        report = step_energy(initial_electrical(), scarce, 10)
+        self.assertAlmostEqual(report["meter"]["generation_kwh"], 1.0)
+        self.assertAlmostEqual(
+            report["last"]["generator_cartridge_consumed_kg"], .002)
+        self.assertAlmostEqual(report["meter"]["unserved_kwh"],
+                               (1.35 - .36) * 10 / 3.6)
+
     def test_source_dispatch_bounded_by_generators_and_ship_envelope(self):
         _, edges, switches, equipment = grid()
         result = source_dispatch(equipment, edges, switches, "normal")
