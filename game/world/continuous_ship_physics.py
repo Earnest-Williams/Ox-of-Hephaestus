@@ -94,6 +94,11 @@ from world.ship_auxiliary_electrical import (
     step_local_backup, motor_power, fire_pump_service_ready,
     allocate_lt_cooling,
 )
+from world.ship_refuge_life_support import (
+    RefugeAirError, REFUGE_PACKS, initial_refuge_scrubbers,
+    validate_refuge_scrubbers, survey_refuge_scrubber,
+    step_refuge_scrubbers,
+)
 from world.ship_electrical_power import (
     ElectricalError, BATTERIES as POWER_BANKS,
     FLYWHEELS as POWER_FLYWHEELS,
@@ -528,13 +533,22 @@ def commission_g19_electrical(*, operator_approved=False):
         local_old = item.details.get("local_backup")
         local_upgraded = migrate_local_backup(
             local_old if local_old is not None else initial_local_backup())
+        refuge_old = item.details.get("refuge_scrubbers")
+        refuge_upgraded = (refuge_old if refuge_old is not None
+                          else initial_refuge_scrubbers())
+        try:
+            validate_refuge_scrubbers(refuge_upgraded)
+        except RefugeAirError as exc:
+            raise PhysicsError(str(exc)) from exc
         fuel_needs_migration = "generator_cartridge_baseline_kg" not in item.details
         if (upgraded != item.details["electrical"]
-                or local_upgraded != local_old or fuel_needs_migration):
+                or local_upgraded != local_old
+                or refuge_upgraded != refuge_old or fuel_needs_migration):
             previous = _snapshot(item)
             details = dict(item.details)
             details["electrical"] = upgraded
             details["local_backup"] = local_upgraded
+            details["refuge_scrubbers"] = refuge_upgraded
             if fuel_needs_migration:
                 stock = state("inventory", "INV-GEN-CART", lock=True)
                 if stock.quantity is None or not math.isfinite(stock.quantity) or stock.quantity < 0:
@@ -574,6 +588,7 @@ def commission_g19_electrical(*, operator_approved=False):
     install_auxiliary_circuits(CanonicalShipState)
     d["electrical"] = initial_electrical()
     d["local_backup"] = initial_local_backup()
+    d["refuge_scrubbers"] = initial_refuge_scrubbers()
     d["generator_cartridge_baseline_kg"] = cartridges.quantity * 1000.0
     d["generator_spent_cartridge_kg"] = 0.0
     item.details = d
@@ -755,6 +770,50 @@ def survey_g19_electrical_source(*, operator_approved=False, source,
     item.save(update_fields=["details", "revision"])
     _event(item, "g19_electrical_source_survey", before)
     return {"source": source, "rated": True, "operator_verified": True}
+
+
+@transaction.atomic
+def survey_g19_refuge_sorbent(*, operator_approved=False, pack_id,
+                              remaining_capacity_kg):
+    """Attest finite actual medium in one fitted HAB refuge air pack.
+
+    This never creates new gas, loads arbitrary refill stock or assumes an
+    old ship's original sorbent cartridges were fully replenished.
+    """
+    if not operator_approved:
+        raise PermissionError("An operator must survey installed refuge media")
+    _require_installed()
+    item = _clock(lock=True)
+    details = dict(item.details)
+    if "electrical" not in details or "refuge_scrubbers" not in details:
+        raise PhysicsError("Refuge package requires G19 electrical commissioning")
+    if pack_id not in REFUGE_PACKS:
+        raise PhysicsError("Not an installed independently powered refuge package")
+    room, _battery_id = REFUGE_PACKS[pack_id]
+    installed = state("equipment", pack_id, lock=True)
+    attrs = installed.reference.get("attributes", {})
+    if (installed.space_id != room or installed.condition in _BROKEN
+            or installed.reference.get("kind") != "emergency_life_support"
+            or attrs.get("people") != 40 or attrs.get("duration_h") != 72
+            or attrs.get("independent_scrubber") is not True):
+        raise PhysicsError("Installed refuge equipment does not match the fitted design")
+    if _topology()[0].get(room) not in {
+            "PZ-HAB-04", "PZ-HAB-08"}:
+        raise PhysicsError("Refuge lacks its original pressure-cell envelope")
+    try:
+        replacement = survey_refuge_scrubber(
+            details["refuge_scrubbers"], pack_id,
+            remaining_capacity_kg=remaining_capacity_kg)
+    except RefugeAirError as exc:
+        raise PhysicsError(str(exc)) from exc
+    before = _snapshot(item)
+    details["refuge_scrubbers"] = replacement
+    item.details = details
+    item.revision += 1
+    item.save(update_fields=["details", "revision"])
+    _event(item, "g19_finite_refuge_sorbent_survey", before)
+    return {"pack": pack_id, "remaining_capacity_kg": remaining_capacity_kg,
+            "surveyed": True}
 
 
 @transaction.atomic
