@@ -15,7 +15,7 @@ from world.continuous_ship_physics import (
     PhysicsError, arm_continuous_physics, commission_g19_electrical,
     survey_g19_electrical_source, survey_g19_electrical_worksite,
     configure_g19_electrical_fault, commission_commercial_port,
-    commission_ftl_route,
+    commission_ftl_route, survey_g19_refuge_sorbent,
     crew_physical_action, tick_continuous_physics, local_physics_readout,
 )
 
@@ -109,6 +109,96 @@ class InstalledElectricalTests(EvenniaTestCase):
         self.assertEqual(after, replay)
         self.assertEqual(crew_physical_action(
             self.worker, "a" * 32, "power", name, "reserve"), result)
+
+    def test_refuge_battery_runs_finite_actual_co2_capture_with_no_replay(self):
+        commission_g19_electrical(operator_approved=True)
+        battery = "HAB-04-REFUGE-BAT"
+        pack = "HAB-04-REFUGE-AIR"
+        survey_g19_electrical_source(
+            operator_approved=True, source=battery,
+            capacity_kwh=1.0, initial_kwh=0.10)
+        survey_g19_refuge_sorbent(
+            operator_approved=True, pack_id=pack,
+            remaining_capacity_kg=0.008)
+        with self.assertRaises(PhysicsError):
+            survey_g19_refuge_sorbent(
+                operator_approved=True, pack_id=pack,
+                remaining_capacity_kg=0.008)
+        pressure = state("pressure", "PZ-HAB-04")
+        original = dict(pressure.details)
+        self.assertGreater(original["physics_oxygen_kg"], 1.0)
+        pressure.details = dict(
+            original,
+            physics_oxygen_kg=original["physics_oxygen_kg"] - 1,
+            physics_co2_kg=original["physics_co2_kg"] + 1)
+        pressure.save(update_fields=["details"])
+        co2_before = pressure.details["physics_co2_kg"]
+        gas_before = pressure.quantity
+        self.crew_at("HAB-04-REFUGE")
+        receipt = crew_physical_action(
+            self.worker, "r" * 32, "power", battery, "reserve")
+        self.assertEqual(receipt["status"], "succeeded")
+        powered = tick_continuous_physics(now_game_time=1010)
+        self.assertAlmostEqual(powered["refuge_co2_captured_kg"], .004)
+        air = state("pressure", "PZ-HAB-04")
+        self.assertAlmostEqual(
+            air.details["physics_co2_kg"], co2_before - .004, places=7)
+        self.assertAlmostEqual(air.quantity, gas_before - .004, places=7)
+        clock = CanonicalShipState.objects.get(pk="meta:continuous-physics")
+        self.assertAlmostEqual(clock.details["refuge_scrubbers"][
+            "meter"]["captured_kg"], .004)
+        self.assertEqual(
+            clock.details["local_backup"]["last"][
+                "active_local_consumers"][battery], pack)
+        self.assertEqual(crew_physical_action(
+            self.worker, "r" * 32, "power", battery, "reserve"), receipt)
+        self.assertFalse(tick_continuous_physics(
+            now_game_time=1010)["advanced"])
+        set_isolator(
+            "ISO-G19-LOCAL-" + battery, "open", operator=True)
+        blocked = tick_continuous_physics(now_game_time=1020)
+        self.assertEqual(blocked["refuge_co2_captured_kg"], 0)
+        self.assertAlmostEqual(
+            state("pressure", "PZ-HAB-04").quantity, gas_before - .004,
+            places=7)
+        set_isolator(
+            "ISO-G19-LOCAL-" + battery, "closed", operator=True)
+        restored = tick_continuous_physics(now_game_time=1030)
+        self.assertAlmostEqual(restored["refuge_co2_captured_kg"], .004)
+        empty = tick_continuous_physics(now_game_time=1040)
+        self.assertEqual(empty["refuge_co2_captured_kg"], 0)
+        clock = CanonicalShipState.objects.get(pk="meta:continuous-physics")
+        self.assertAlmostEqual(clock.details["refuge_scrubbers"][
+            "meter"]["captured_kg"], .008)
+        self.assertEqual(clock.details["refuge_scrubbers"]["last"][
+            "blocked"][pack], "sorbent_exhausted")
+        self.assertAlmostEqual(
+            state("pressure", "PZ-HAB-04").quantity, gas_before - .008,
+            places=7)
+        self.assertFalse(commission_g19_electrical(
+            operator_approved=True)["commissioned"])
+        again = CanonicalShipState.objects.get(pk="meta:continuous-physics")
+        self.assertEqual(again.details["refuge_scrubbers"][
+            "meter"]["captured_kg"], clock.details["refuge_scrubbers"][
+            "meter"]["captured_kg"])
+
+    def test_unsurveyed_refuge_scrubber_cannot_supply_invisible_co2_sink(self):
+        commission_g19_electrical(operator_approved=True)
+        battery = "HAB-08-REFUGE-BAT"
+        survey_g19_electrical_source(
+            operator_approved=True, source=battery,
+            capacity_kwh=1.0, initial_kwh=0.05)
+        self.crew_at("HAB-08-REFUGE")
+        crew_physical_action(
+            self.worker, "s" * 32, "power", battery, "reserve")
+        before = state("pressure", "PZ-HAB-08").quantity
+        tick = tick_continuous_physics(now_game_time=1010)
+        self.assertEqual(tick["refuge_co2_captured_kg"], 0)
+        self.assertAlmostEqual(
+            state("pressure", "PZ-HAB-08").quantity, before)
+        ledger = CanonicalShipState.objects.get(
+            pk="meta:continuous-physics").details["refuge_scrubbers"]
+        self.assertEqual(ledger["units"], {})
 
     def test_motor_trip_is_local_not_a_shipwide_blackout(self):
         commission_g19_electrical(operator_approved=True)
