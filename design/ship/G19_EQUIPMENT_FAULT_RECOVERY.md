@@ -157,3 +157,8 @@ isolation interlock was bypassed. The flywheel maintenance workflow now
 includes crew-access changes in its trigger and compilation test set.
 [Measured-energy maintenance #40743495129](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40743495129)
 has passed its pure and installed jobs after the correction.
+[Rated F1/F2 hazardous-access #40743382011](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40743382011)
+also passed both jobs, including **4/4 installed service-airlock tests**:
+independent entry to each original bay, damaged hatch pause/resumption,
+refusal without a physically issued suit/survey, and retained trunk gas
+and finite suit oxygen on return.
