@@ -160,5 +160,8 @@ def attributed_fire_discharge(pumps, delivered_kg, *, demand_present):
         raise ProcessOutputError("Unidentified real fire-main source")
     if not demand_present and quantity > EPS:
         raise ProcessOutputError("Water spray without an actual open mist demand")
-    return {name: quantity if len(ids) == 1 and demand_present else 0.0
-            for name in PROTECTED_FIRE_MOTORS}
+    return {
+        name: (quantity if len(ids) == 1 and demand_present and ids[0] == name
+               else 0.0)
+        for name in PROTECTED_FIRE_MOTORS
+    }
