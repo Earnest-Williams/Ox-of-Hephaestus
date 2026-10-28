@@ -41,6 +41,7 @@ RECIPES = {
 }
 PREPARATION_LOSS = 0.04
 MAX_CARRY_KG = 5.0
+MAX_GALLEY_RAW_KG = 180.0
 MAX_MEALS_PER_SITE = 160
 MAX_STORED_MEAL_HOURS = 36.0
 MAX_CROP_HOLD_HOURS = 96.0
@@ -171,6 +172,8 @@ def validate_food(food, *, inventory_kg=None):
             raise FoodError("Original food compartment overfilled")
     for amount in food["galley_raw"].values():
         _q(amount)
+    if _mass(food["galley_raw"]) > MAX_GALLEY_RAW_KG + EPS:
+        raise FoodError("Original galley staging rack is physically full")
     for room, amount in food["waste"].items():
         _q(amount)
     for actor, carrier in food["carried"].items():
@@ -339,6 +342,9 @@ def deliver_to_galley(food, *, actor):
     carrier = _ensure_carrier(out, actor)
     if _mass(carrier["food"]) <= EPS:
         raise FoodError("No carried real food to deliver")
+    if _mass(out["galley_raw"]) + _mass(carrier["food"]) > (
+            MAX_GALLEY_RAW_KG + EPS):
+        raise FoodError("Galley raw-food staging rack has no remaining space")
     for kind in KINDS:
         out["galley_raw"][kind] += carrier["food"][kind]
         carrier["food"][kind] = 0.0
@@ -480,6 +486,23 @@ def step_food(food, seconds, *, temperatures_k, living_crew=()):
             out["meter"]["stored_wasted_kg"] += lost
             out["waste"][room] += lost
             last_spoiled += lost
+    # Neither a galley counter nor a person's hands are an indefinitely
+    # refrigerated fresh-food receiver. A failed or overheated room worsens
+    # decay; a physical mass fraction becomes sanitary refuse in that room.
+    raw = out["galley_raw"]
+    raw_rate = 0.8 if _q(temperatures_k[GALLEY], 1000) > 303.15 else 0.18
+    raw_spoil = min(raw["fresh"], raw["fresh"] * raw_rate * dt / DAY)
+    raw["fresh"] -= raw_spoil
+    out["waste"][GALLEY] += raw_spoil
+    out["meter"]["fresh_wasted_kg"] += raw_spoil
+    last_spoiled += raw_spoil
+    for carrier in out["carried"].values():
+        carried = carrier["food"]
+        spoil = min(carried["fresh"], carried["fresh"] * 0.22 * dt / DAY)
+        carried["fresh"] -= spoil
+        carrier["waste_kg"] += spoil
+        out["meter"]["fresh_wasted_kg"] += spoil
+        last_spoiled += spoil
     for room, meals in out["meals"].items():
         hot = _q(temperatures_k[room], 1000.0) > 303.15
         maximum_age = (6 if hot else MAX_STORED_MEAL_HOURS) * 3600
