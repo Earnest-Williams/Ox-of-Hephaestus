@@ -182,6 +182,10 @@ from world.ship_instrumentation import (
     sample_instrumentation, acknowledge_alarm, panel_readout, diagnostics,
     panel_selftest,
 )
+from world.ship_workshop_dynamics import (
+    WORKSHOP_DRIVES, GAUGE_FIELD, WorkshopGaugeError,
+    step_workshop_gauge, machine_output_confirmed, machine_safely_stopped,
+)
 from world.ship_fault_recovery import (
     FaultRecoveryError, initial_fault_cases, inspect_fault, isolate_fault,
     begin_verified_work, finished_verified_work, check_repair,
@@ -3416,6 +3420,27 @@ def tick_continuous_physics(*, now_game_time=None):
                     service_operations, dt, nodes=power["nodes"],
                     equipment=equipment, edges=aux_edges,
                     switches=isolators, supply_assured=power["assured"])
+                # The six original machine-shop mechanisms have actual local
+                # simulated spindle or hydraulic outputs, with inertia even
+                # after an electrician opens the source. Only a running,
+                # independently fused service may drive them. Neither a
+                # live panel nor an ON command alone produces spindle speed.
+                operating_shop = set(service_operations["last"]["operating"])
+                for tool_id in WORKSHOP_DRIVES:
+                    tool = equipment.get(tool_id)
+                    if tool is None:
+                        raise PhysicsError("Original workshop machine disappeared")
+                    earlier = tool.details.get(GAUGE_FIELD)
+                    latest = step_workshop_gauge(
+                        tool_id, earlier, dt_s=dt,
+                        now_s=last + duration,
+                        driven=tool_id in operating_shop)
+                    if earlier != latest:
+                        new_details = dict(tool.details)
+                        new_details[GAUGE_FIELD] = latest
+                        tool.details = new_details
+                        tool.revision += 1
+                        changed_equipment.add(tool.key)
                 if equipment_wear is not None:
                     equipment_wear, wear_events = step_equipment_wear(
                         equipment_wear, service_operations, equipment)
@@ -5244,6 +5269,12 @@ def tick_continuous_physics(*, now_game_time=None):
                     and machine.details.get("physics_online") is True
                     and machine.details.get("physics_startup_s", 0) == 0
                     and not machine.details.get("physics_trip_reason")
+                    and (name not in WORKSHOP_DRIVES or
+                         machine_output_confirmed(
+                             name, machine.details,
+                             observed_s=last + seconds,
+                             operating=bool(service_operations and
+                               name in service_operations["last"]["operating"])))
                     and physically_restored and has_real_supply
                     and not known_alarm
                     and not (repairs and "equipment:" + name in repairs["jobs"]))
@@ -6963,8 +6994,9 @@ def crew_physical_action(actor, request_id, action, target, value):
         opened = verified_open_feeders(target, feeders)
         tripped = any(x.details.get("physics_power_trip_latched")
                       for x in feeders.values())
-        stopped = not any(machine.details.get(k) for k in (
+        stopped = (not any(machine.details.get(k) for k in (
             "physics_online", "physics_commanded_on", "physics_startup_s"))
+            and machine_safely_stopped(target, machine.details))
         active = "equipment:" + target in (d.get("repairs") or {"jobs": {}})["jobs"]
         now = d["last_game_time"]
         stamp = machine.details.get("repair_completed_game_time")
@@ -8455,6 +8487,10 @@ def local_physics_readout(actor, target):
             "machine_commanded": machine.details.get("physics_commanded_on"),
             "machine_running": machine.details.get("physics_online"),
             "startup_remaining_s": machine.details.get("physics_startup_s"),
+            "attended_mechanical_output": (
+                machine.details.get(GAUGE_FIELD)
+                if name in WORKSHOP_DRIVES else None),
+            "mechanically_stopped": machine_safely_stopped(name, machine.details),
             "real_source_node": parent_node,
             "upstream_node_energised": parent_node in distribution["nodes"],
             "dispatch_assured": distribution["assured"],
@@ -8739,6 +8775,17 @@ def local_physics_readout(actor, target):
                 current_wear["wear_s"] / 3600.0 if current_wear else None),
             "historical_wear_surveyed": (
                 current_wear["surveyed"] if current_wear else None),
+            "workshop_mechanical_output": (
+                units[target].details.get(GAUGE_FIELD)
+                if target in WORKSHOP_DRIVES else None),
+            "output_proven_at_site": (
+                machine_output_confirmed(
+                    target, units[target].details,
+                    observed_s=clock.details["last_game_time"],
+                    operating=bool(
+                        power["assured"] and supply and
+                        target in running["last"]["operating"]))
+                if target in WORKSHOP_DRIVES else False),
             "scope": "attended_secondary_equipment_circuit",
         }
     if target in MOTORS:
