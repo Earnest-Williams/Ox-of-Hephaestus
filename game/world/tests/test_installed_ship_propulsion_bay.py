@@ -43,14 +43,14 @@ class OriginalPropulsionServiceBay(EvenniaTestCase):
         self.assertFalse(commission_g19_propulsion_bay(
             operator_approved=True)["commissioned"])
         set_isolator("ISO-GEN-M", "closed", operator=True)
-        # With the real G19 electrical dispatcher the generator alone is
-        # insufficient: prove installed conductors through the authentic
-        # original propulsion station and independent protected load.
-        self.energize("NODE-LP-PROP-CTRL")
-        self.energize("NODE-HAB-03-FIRE-DETECT")
+        set_isolator("ISO-GEN-B", "closed", operator=True)
+        # Original PROP-CTRL is a B-side load. Do NOT silently traverse
+        # the normally standby/open MSB cross-tie from GEN-M's A board.
+        self.energize("NODE-LP-PROP-CTRL", source="NODE-GEN-B")
+        self.energize("NODE-HAB-03-FIRE-DETECT", source="NODE-GEN-M")
         self.now, self.serial = 1000, 100
 
-    def energize(self, destination):
+    def energize(self, destination, *, source):
         edges = list(CanonicalShipState.objects.filter(
             category="edge", reference__network="power"))
         graph = defaultdict(list)
@@ -63,7 +63,7 @@ class OriginalPropulsionServiceBay(EvenniaTestCase):
             graph[a].append((b, edge))
             if edge.reference["kind"] in {"bridge_feeder", "cross_tie"}:
                 graph[b].append((a, edge))
-        q, seen, previous = deque(["NODE-GEN-M"]), {"NODE-GEN-M"}, {}
+        q, seen, previous = deque([source]), {source}, {}
         while q and destination not in seen:
             for nxt, edge in graph[q.popleft()]:
                 if nxt not in seen:
@@ -74,7 +74,7 @@ class OriginalPropulsionServiceBay(EvenniaTestCase):
                     q.append(nxt)
         self.assertIn(destination, seen, "No real main-bus path to destination")
         node = destination
-        while node != "NODE-GEN-M":
+        while node != source:
             edge, a, b = previous[node]
             for iso in edge.reference["isolator_ids"]:
                 if state("isolator", iso).setting != "closed":
