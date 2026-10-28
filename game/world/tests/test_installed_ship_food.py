@@ -80,8 +80,11 @@ class InstalledFoodTests(EvenniaTestCase):
             node = a if node == b else b
 
     def prime_plant(self):
+        # The original HAB-02 galley panel is wired to the B-side bus.
+        # Cross-tie EDGE-MSB-XTIE is STANDBY, not a free A->B shortcut.
         set_isolator("ISO-GEN-M", "closed", operator=True)
-        self.line_up_source("NODE-GEN-M", "NODE-HAB-02-GALLEY-LP")
+        set_isolator("ISO-GEN-B", "closed", operator=True)
+        self.line_up_source("NODE-GEN-B", "NODE-HAB-02-GALLEY-LP")
         for row in CanonicalShipState.objects.filter(category="isolator"):
             if row.reference.get("network") in {
                     "potable_water", "greywater", "blackwater"}:
