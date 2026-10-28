@@ -182,6 +182,12 @@ from world.ship_instrumentation import (
     sample_instrumentation, acknowledge_alarm, panel_readout, diagnostics,
     panel_selftest,
 )
+from world.ship_process_outputs import (
+    METRICS as PROCESS_METRICS, FIELD as PROCESS_FIELD,
+    AIR_TRAINS, AIR_HANDLERS, SPINE_FANS, WATER_MACHINES, BEARING_PUMPS,
+    ProcessOutputError, step_process_output, proves_process_output,
+    machine_depressurized, attributed_fire_discharge,
+)
 from world.ship_workshop_dynamics import (
     WORKSHOP_DRIVES, GAUGE_FIELD, WorkshopGaugeError,
     step_workshop_gauge, machine_output_confirmed, machine_safely_stopped,
@@ -3350,6 +3356,8 @@ def tick_continuous_physics(*, now_game_time=None):
     while duration < seconds - 1e-9:
         dt = min(STEP_SECONDS, seconds - duration)
         duration += dt
+        # Only physically delivered media earns per-machine output proof.
+        media_output_kg = {name: 0.0 for name in PROCESS_METRICS}
         if (flywheel_service is not None and flywheel_service["rundowns"]
                 and electrical is not None):
             # An attended supervised run-down does not keep spinning when
@@ -3513,6 +3521,10 @@ def tick_continuous_physics(*, now_game_time=None):
                         0.0 if food is not None else None))
             except WaterError as exc:
                 raise PhysicsError(str(exc)) from exc
+            for side in "AB":
+                treated = water_report[f"processed_{side}_kg"]
+                for kind in ("WASTE-PROC", "WATER-PROC"):
+                    media_output_kg[f"{kind}-{side}"] += treated
             for key, amount in balances.items():
                 water_stocks[key].quantity = amount / 1000.0
             if cultivation is not None:
@@ -3944,6 +3956,7 @@ def tick_continuous_physics(*, now_game_time=None):
             removed = min(cells[zone]["co2"],
                           CO2_CAPTURE_KG_S_PER_TRAIN * dt, available)
             if removed > 0:
+                media_output_kg[train] += removed
                 cells[zone]["co2"] -= removed
                 cells[zone]["mass"] -= removed
                 cells[zone]["energy"] -= removed * CP_GAS_KJ_KG_K * cells[zone]["temperature"]
@@ -3986,6 +3999,17 @@ def tick_continuous_physics(*, now_game_time=None):
                 x = min(2.0 * dt, 0.05 * a["mass"], 0.05 * b["mass"])
                 _parcel(a, b, x)
                 _parcel(b, a, x)
+                # Site-specific fan proof is actual local duct parcel motion,
+                # not an inferred motor current or passive gas equilibration.
+                for fan in AIR_HANDLERS:
+                    if (f"NODE-{fan}-AIR" in (from_node, to_node)
+                            and f"NODE-{fan}-AIR" in powered_ahu_nodes):
+                        media_output_kg[fan] += x
+                for fan in SPINE_FANS:
+                    if (fan in active_spine_air and
+                            any(node in (from_node, to_node)
+                                for node in atmosphere_source_nodes.get(fan, ()))):
+                        media_output_kg[fan] += x
             pa, pb = _cell_pressure(a), _cell_pressure(b)
             if abs(pa - pb) > 1:
                 donor, receiver = (a, b) if pa > pb else (b, a)
@@ -4055,6 +4079,7 @@ def tick_continuous_physics(*, now_game_time=None):
                 if electrical is not None else powered)
         ]
         fire_nodes = _reachable(edges, isolators, "fire_main", fire_starts)
+        fire_water_delivered_kg = 0.0
         # Waste heat is a physical output of operating machinery, not an
         # operator-injected scenario fault. It persists through a cooling
         # failure and can therefore cause a secondary thermal casualty.
@@ -4099,6 +4124,7 @@ def tick_continuous_physics(*, now_game_time=None):
             if mist_kg:
                 inventory.quantity -= mist_kg / 1000.0
                 water += mist_kg
+                fire_water_delivered_kg += mist_kg
                 # Mist cools locally but cannot remove more sensible heat than exists.
                 cell["energy"] -= min(
                     max(0.0, cell["energy"] -
@@ -4136,6 +4162,15 @@ def tick_continuous_physics(*, now_game_time=None):
                 cell["burn"] = 0.0
             # No automatic ignition without a finite, already ignited fuel load.
             # Smoke/heat and equipment damage can still spread via open ducts.
+        # If two fire pumps share one live header, spray is proven but
+        # individually attributed pump output is unknown. A single
+        # operating pump can be credited with its real finite discharge.
+        if electrical is not None:
+            for name, kg in attributed_fire_discharge(
+                    [node[5:] for node in fire_starts],
+                    fire_water_delivered_kg,
+                    demand_present=any(c["mist"] > 0 for c in cells.values())).items():
+                media_output_kg[name] += kg
         local_charge_mw = 0.0
         if local_backup is not None:
             prior_charge = local_backup["meter"]["charged_kwh"]
@@ -4211,6 +4246,35 @@ def tick_continuous_physics(*, now_game_time=None):
                     cartridge_stock.quantity * 1000.0 + cartridge_spent,
                     cartridge_baseline, abs_tol=1e-4, rel_tol=1e-11):
                 raise PhysicsError("Generator source fuel custody escaped its ledger")
+        # Original machine records carry bounded medium-specific output
+        # receipts. Empty loops create no positive proof; bearing oil
+        # circulates in a finite-pressure sealed skid, with no mass loss.
+        if electrical is not None:
+            for machine_id in PROCESS_METRICS:
+                machine = equipment.get(machine_id)
+                if machine is None:
+                    raise PhysicsError("Commissioned process feeder lost its original machine")
+                prior = machine.details.get(PROCESS_FIELD)
+                bearing_driven = bool(
+                    machine_id in BEARING_PUMPS and power["assured"]
+                    and machine.condition not in _BROKEN
+                    and motor_ready(machine_id))
+                if not (prior is not None or bearing_driven
+                        or media_output_kg[machine_id] > 0):
+                    continue
+                try:
+                    receipt = step_process_output(
+                        machine_id, prior, dt_s=dt, now_s=last + duration,
+                        delivered_kg=media_output_kg[machine_id],
+                        driven=bearing_driven)
+                except ProcessOutputError as exc:
+                    raise PhysicsError(str(exc)) from exc
+                if receipt != prior:
+                    details = dict(machine.details)
+                    details[PROCESS_FIELD] = receipt
+                    machine.details = details
+                    machine.revision += 1
+                    changed_equipment.add(machine.key)
         summary = {
             "available_mw": round(power["available_mw"], 4),
             "requested_mw": power["requested_mw"],
@@ -4992,8 +5056,10 @@ def tick_continuous_physics(*, now_game_time=None):
                 valid_site = False
             if (valid_site and row is not None
                     and category == "equipment"
-                    and identifier in WORKSHOP_DRIVES
-                    and not machine_safely_stopped(identifier, row.details)):
+                    and (identifier in WORKSHOP_DRIVES
+                         and not machine_safely_stopped(identifier, row.details)
+                         or identifier in BEARING_PUMPS
+                         and not machine_depressurized(identifier, row.details))):
                 # The original disconnected spindle can still coast and a
                 # hydraulic press can retain pressure. No timed hands-on
                 # work occurs until its actual local gauge reads zero.
@@ -5277,6 +5343,9 @@ def tick_continuous_physics(*, now_game_time=None):
                     and machine.details.get("physics_online") is True
                     and machine.details.get("physics_startup_s", 0) == 0
                     and not machine.details.get("physics_trip_reason")
+                    and (name not in PROCESS_METRICS or
+                         proves_process_output(
+                             name, machine.details, observed_s=last + seconds))
                     and (name not in WORKSHOP_DRIVES or
                          machine_output_confirmed(
                              name, machine.details,
@@ -7016,7 +7085,8 @@ def crew_physical_action(actor, request_id, action, target, value):
                       for x in feeders.values())
         stopped = (not any(machine.details.get(k) for k in (
             "physics_online", "physics_commanded_on", "physics_startup_s"))
-            and machine_safely_stopped(target, machine.details))
+            and machine_safely_stopped(target, machine.details)
+            and machine_depressurized(target, machine.details))
         active = "equipment:" + target in (d.get("repairs") or {"jobs": {}})["jobs"]
         now = d["last_game_time"]
         stamp = machine.details.get("repair_completed_game_time")
@@ -7712,6 +7782,9 @@ def crew_physical_action(actor, request_id, action, target, value):
                     and not machine_safely_stopped(ident, unit.details)):
                 raise PhysicsError(
                     "Machine rotor or hydraulic accumulator has not physically stopped")
+            if (category == "equipment" and ident in BEARING_PUMPS
+                    and not machine_depressurized(ident, unit.details)):
+                raise PhysicsError("Bearing lubrication pressure must bleed down before repair")
             if not safe_repair_target(
                     unit, pressure_rows=pressure, zones=_topology()[0],
                     rotors=d["rotors"], motion=d["motion"],
@@ -8514,7 +8587,14 @@ def local_physics_readout(actor, target):
             "attended_mechanical_output": (
                 machine.details.get(GAUGE_FIELD)
                 if name in WORKSHOP_DRIVES else None),
-            "mechanically_stopped": machine_safely_stopped(name, machine.details),
+            "mechanically_stopped": (
+                machine_safely_stopped(name, machine.details)
+                and machine_depressurized(name, machine.details)),
+            "observed_process_output": (
+                machine.details.get(PROCESS_FIELD)
+                if name in PROCESS_METRICS else None),
+            "process_output_recent": proves_process_output(
+                name, machine.details, observed_s=d["last_game_time"]),
             "real_source_node": parent_node,
             "upstream_node_energised": parent_node in distribution["nodes"],
             "dispatch_assured": distribution["assured"],
