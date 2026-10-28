@@ -93,3 +93,50 @@ Use the focused workflow
 `.github/workflows/ox-g19-cnc-recovery.yml` for future isolated repair
 regressions; the larger G19 instrumentation workflow must also pass
 before subsystem acceptance. Neither workflow runs the 40-person voyage.
+
+## Original workshop mechanical-output retrofit (G19)
+
+Powering a machine is not proof that its shaft turns or hydraulic pump
+builds pressure. The six original `SHOP-*` machines now have a local,
+world-owned mechanism recorded on their **existing original equipment
+objects** (`physics_workshop_gauge`). No new space, machine or remote
+sensor has been invented.
+
+| Original machine | Physically attended local output |
+| --- | --- |
+| `SHOP-CNC-MILL`, `SHOP-CNC-LATHE` | Spindle rpm and cumulative revolutions |
+| `SHOP-MANUAL-LATHE` | Spindle rpm and cumulative revolutions |
+| `SHOP-GRINDER`, `SHOP-BALANCER` | Wheel/rotor rpm and cumulative revolutions |
+| `SHOP-PRESS` | Hydraulic pressure and accumulated pressure-seconds |
+
+Each independent ten-second physics interval integrates finite acceleration
+or spin-down / pressure bleed-down. A genuine running service with a healthy
+machine, a closed sound fitted breaker, live downstream consumer topology and
+assured power may **drive** the mechanism. An operator's ON command or a
+conducting feeder by itself cannot. When a source is lost, a machine turns
+off or the hardware fails, its accumulated shaft motion/pressure decays
+rather than vanishing; physically opening the source does not instantly
+render rotating parts safe.
+
+Signed restart verification now requires actual *fresh local mechanical
+output* as well as the older two consecutive healthy electrical/instrument
+epochs, and the physical worksite report includes the gauge. For the
+original six machines, hands-on repair and fault isolation require **zero
+physical motion/pressure**. These requirements also apply to previously
+commissioned **legacy finite repairs** without signed diagnostic cases:
+active work padlocks all original fitted machine feeders against reconnection,
+and no timed repair advances while the local mechanism is coasting.
+
+The two original `WELD-CELL` service machines have **not** gained fictional
+welding-arc evidence: their real arc production still needs a separately
+implemented consumable/electrode-and-workpiece action. The 72 auxiliary
+motors similarly retain their own process-specific verification backlog;
+a new spindle gauge for an unrelated machine would be a fabricated sensor.
+These mechanisms are fictional game-calibrated physical dynamics, not
+manufacturer speed ratings or workshop qualification specifications.
+
+Tested [focused CNC recovery #40742623886](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40742623886):
+four pure seeded/range/inertia tests and two installed Evennia scenarios
+passed. A third installed regression proving the **unsigned legacy repair
+padlock** is included in the following workflow revision; its acceptance
+remains subject to CI. The broader 14-job G19 compatibility gate is separate.
