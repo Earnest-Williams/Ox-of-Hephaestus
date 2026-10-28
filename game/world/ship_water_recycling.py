@@ -234,6 +234,10 @@ def step_water(water, seconds, *, stocks, hardware, crew_count=40,
     report = {
         "domestic_kg": 0.0, "unserved_kg": 0.0,
         "processed_kg": 0.0, "recovered_kg": 0.0, "reject_kg": 0.0,
+        # Independently attributable mass through the *existing* A/B
+        # processors. Both original water and waste skids in each train
+        # must be functioning for any positive volume to be booked.
+        "processed_A_kg": 0.0, "processed_B_kg": 0.0,
         "sanitary_kg": 0.0, "makeup_kg": 0.0,
         "oxygen_kg": 0.0, "hydrogen_kg": 0.0,
         "technical_kg": 0.0, "cultivation_water_kg": 0.0,
@@ -325,6 +329,7 @@ def step_water(water, seconds, *, stocks, hardware, crew_count=40,
         limits[side][stream] -= amount
         residue_budget[stream] -= amount
         report["processed_kg"] += amount
+        report[f"processed_{side}_kg"] += amount
         report["recovered_kg"] += recovered
         report["sanitary_kg"] += sanitary
         report["reject_kg"] += rejected
@@ -385,6 +390,10 @@ def step_water(water, seconds, *, stocks, hardware, crew_count=40,
 
     report["domestic_kg"] = served
     report["unserved_kg"] = max(0.0, demand - served)
+    if not math.isclose(
+            report["processed_A_kg"] + report["processed_B_kg"],
+            report["processed_kg"], rel_tol=1e-11, abs_tol=1e-8):
+        raise WaterError("Individually measured A/B processor flows do not reconcile")
 
     # Bounded, *separate* normal and explicitly released emergency makeup.
     # No automatic draindown of the protected 70 t reserve.
