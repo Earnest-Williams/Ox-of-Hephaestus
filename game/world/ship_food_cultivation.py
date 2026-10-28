@@ -253,3 +253,28 @@ def replenish_nutrients(ledger, *, bay, kg):
     bed["replenished_nutrient_kg"] += amount
     validate_cultivation(out)
     return out
+
+
+def migrate_cultivation_v1(ledger):
+    """Nonresetting upgrade of previously commissioned G19 growing beds.
+
+    Older v1 beds lack released harvest and replenished-nutrient counters.
+    Reconstruct only the two previously nonexistent ZERO meters. Existing
+    crop biomass, charged media, consumed water and surveys are untouched.
+    """
+    if not isinstance(ledger, dict) or ledger.get("version") != 1 or (
+            not isinstance(ledger.get("beds"), dict)
+            or set(ledger["beds"]) != {_bed_id(i) for i in GROW_BAYS}):
+        raise CultivationError("Unknown previous grow-bed service ledger")
+    out = copy.deepcopy(ledger)
+    prototype = next(iter(initial_cultivation()["beds"].values()))
+    additions = {"released_kg", "replenished_nutrient_kg"}
+    for name, bed in out["beds"].items():
+        if (not isinstance(bed, dict)
+                or set(bed) - set(prototype)
+                or set(prototype) - set(bed) - additions):
+            raise CultivationError("Unrecognised inherited grow-bed service data")
+        for key in additions:
+            bed.setdefault(key, 0.0)
+    validate_cultivation(out)
+    return out
