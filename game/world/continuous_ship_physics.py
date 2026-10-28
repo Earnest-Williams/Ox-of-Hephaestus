@@ -5466,6 +5466,20 @@ def _crew_at(actor, space_id):
         raise PermissionError("No qualified department authority")
 
 
+def _food_at(actor, room):
+    """Any authenticated living ship crew may provision and eat locally.
+
+    Department-specific machinery authorisation is deliberately NOT a
+    requirement for ordinary galley, pantry and meal work.
+    """
+    if (actor is None or getattr(actor, "location", None) is None or
+            getattr(actor.location.db, "ox_space_id", None) != room):
+        raise PermissionError("Real crew must attend the original food worksite")
+    if not (getattr(actor.db, "crew_role", None) or
+            actor.check_permstring("Developer")):
+        raise PermissionError("Food custody requires a real authenticated crew member")
+
+
 def _receipt(event, request_id, actor, action, target):
     return {
         "request_id": request_id, "actor_dbref": actor.dbref,
@@ -6690,7 +6704,7 @@ def crew_physical_action(actor, request_id, action, target, value):
                 set(GROW_BAYS.values()) |
                 {FOOD_GALLEY, FOOD_MESS} | set(FOOD_WASTE_RECEIVERS)):
             raise PhysicsError("Food operation requires a fitted ship worksite")
-        _crew_at(actor, target)
+        _food_at(actor, target)
         zone = _topology()[0].get(target)
         if not zone or not _air_safe(state("pressure", zone, lock=True)):
             raise PhysicsError("Food handling requires safe surveyed local air")
