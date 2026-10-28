@@ -8748,8 +8748,15 @@ def crew_physical_action(actor, request_id, action, target, value):
                             value == "start" and permit["worker"] != actor.dbref):
                         raise PhysicsError("Individual stopped flywheel requires its owner's padlocked module permit")
             elif not (isinstance(zone, str) and zone.startswith("PZ-")):
-                if not (r["site_surveys"].get(room) == "suited_service"
-                        and bool(getattr(actor.db, "ox_suit_verified", False))):
+                if room == PROP_BAY:
+                    # A REAL finite EVA suit and an active signed PROP-SVC
+                    # permit supersede the obsolete boolean generator-suit
+                    # placeholder. No shortcut through ox_suit_verified.
+                    if not (_propulsion_bay_worker_ready(actor, d, inside=True)
+                            and r["site_surveys"].get(room) == "suited_service"):
+                        raise PhysicsError("Rated propulsion bay entry and physical suit permit absent")
+                elif not (r["site_surveys"].get(room) == "suited_service"
+                          and bool(getattr(actor.db, "ox_suit_verified", False))):
                     raise PhysicsError("Unpressurised machinery requires surveyed suited maintenance")
             pressure = {x.source_id: x for x in
                         CanonicalShipState.objects.filter(category="pressure")}
