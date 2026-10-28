@@ -558,6 +558,95 @@ class InstalledElectricalTests(EvenniaTestCase):
             pk="meta:continuous-physics").details["refuge_scrubbers"]
         self.assertEqual(ledger["units"], {})
 
+    def test_live_eclss_capture_has_current_mass_receipt_not_just_power(self):
+        from world.ship_process_outputs import FIELD, proves_process_output
+        commission_g19_electrical(operator_approved=True)
+        self.line_up_real_feeder("NODE-GEN-B", "NODE-HAB-06-ECLSS-A-LP")
+        self.line_up_real_feeder("NODE-GEN-M", "NODE-HAB-03-FIRE-DETECT")
+        self.line_up_real_feeder("NODE-GEN-M", "NODE-HAB-08-ECLSS-B-LP")
+        before = CanonicalShipState.objects.get(
+            pk="meta:continuous-physics").details["co2_captured_kg"]
+        tick = tick_continuous_physics(now_game_time=1010)
+        self.assertTrue(tick["power_assured"])
+        after = CanonicalShipState.objects.get(
+            pk="meta:continuous-physics").details["co2_captured_kg"]
+        proof_a = state("equipment", "ECLSS-A").details[FIELD]
+        proof_b = state("equipment", "ECLSS-B").details[FIELD]
+        self.assertGreater(proof_a["amount"], 0)
+        self.assertGreater(proof_b["amount"], 0)
+        self.assertAlmostEqual(
+            proof_a["amount"] + proof_b["amount"], after - before)
+        self.assertTrue(proves_process_output(
+            "ECLSS-A", {FIELD: proof_a}, observed_s=1010))
+        set_isolator("ISO-G19-MOTOR-ECLSS-A", "open", operator=True)
+        tick_continuous_physics(now_game_time=1020)
+        dead = state("equipment", "ECLSS-A").details[FIELD]
+        healthy = state("equipment", "ECLSS-B").details[FIELD]
+        self.assertEqual(dead["amount"], 0)
+        self.assertGreater(healthy["amount"], 0)
+        self.crew_at("HAB-06-ECLSS-A")
+        local = local_physics_readout(self.worker, "fault:ECLSS-A")
+        self.assertFalse(local["process_output_recent"])
+        self.assertFalse(local["equipment_feed_conducting"])
+        with self.assertRaises(PermissionError):
+            local_physics_readout(self.worker, "fault:ECLSS-B")
+
+    def test_bearing_lube_own_flow_pressure_and_actual_fuse_loss(self):
+        from world.ship_process_outputs import FIELD
+        commission_g19_electrical(operator_approved=True)
+        self.line_up_real_feeder("NODE-GEN-M", "NODE-LP-BE-01-SVC")
+        self.line_up_real_feeder("NODE-GEN-M", "NODE-HAB-03-FIRE-DETECT")
+        tick = tick_continuous_physics(now_game_time=1010)
+        self.assertTrue(tick["power_assured"])
+        skid = state("equipment", "BE-01-LUBE-N").details[FIELD]
+        neighbor = state("equipment", "BE-01-LUBE-S").details[FIELD]
+        self.assertGreater(skid["amount"], 0)
+        self.assertEqual(skid["pressure_bar"], 4.0)
+        self.assertGreater(neighbor["amount"], 0)
+        self.crew_at("BE-01-SVC")
+        readout = local_physics_readout(self.worker, "fault:BE-01-LUBE-N")
+        self.assertTrue(readout["process_output_recent"])
+        self.assertFalse(readout["mechanically_stopped"])
+        set_isolator("ISO-G19-MOTOR-BE-01-LUBE-N", "open", operator=True)
+        tick_continuous_physics(now_game_time=1020)
+        stopped = state("equipment", "BE-01-LUBE-N").details[FIELD]
+        alive = state("equipment", "BE-01-LUBE-S").details[FIELD]
+        self.assertEqual(stopped["amount"], 0)
+        self.assertEqual(stopped["pressure_bar"], 0)
+        self.assertGreater(alive["amount"], 0)
+        self.assertTrue(local_physics_readout(
+            self.worker, "fault:BE-01-LUBE-N")["mechanically_stopped"])
+
+    def test_individual_a_b_wet_processors_require_real_processed_mass(self):
+        from world.ship_process_outputs import FIELD
+        commission_g19_electrical(operator_approved=True)
+        commission_g19_water(operator_approved=True)
+        self.line_up_real_feeder("NODE-GEN-B", "NODE-HAB-06-ECLSS-A-LP")
+        self.line_up_real_feeder("NODE-GEN-M", "NODE-HAB-08-ECLSS-B-LP")
+        self.line_up_real_feeder("NODE-GEN-M", "NODE-HAB-03-FIRE-DETECT")
+        for valve in CanonicalShipState.objects.filter(category="isolator"):
+            if (valve.reference.get("network") in {
+                    "potable_water", "greywater", "blackwater"}
+                    and valve.condition in {"serviceable", "degraded"}):
+                set_isolator(valve.source_id, "open", operator=True)
+        first = tick_continuous_physics(now_game_time=1010)
+        self.assertTrue(first["power_assured"])
+        self.assertGreater(first["water"]["last_step"]["processed_kg"], 0)
+        proc_a = state("equipment", "WATER-PROC-A").details[FIELD]
+        waste_a = state("equipment", "WASTE-PROC-A").details[FIELD]
+        self.assertGreater(proc_a["amount"], 0)
+        self.assertAlmostEqual(proc_a["amount"], waste_a["amount"])
+        set_isolator("ISO-G19-MOTOR-WATER-PROC-A", "open", operator=True)
+        second = tick_continuous_physics(now_game_time=1020)
+        self.assertTrue(second["power_assured"])
+        self.assertEqual(
+            state("equipment", "WATER-PROC-A").details[FIELD]["amount"], 0)
+        self.assertGreater(
+            state("equipment", "WATER-PROC-B").details[FIELD]["amount"], 0)
+        self.crew_at("HAB-06-ECLSS-A")
+        source = local_physics_readout(self.worker, "fault:WATER-PROC-A")
+        self.assertFalse(source["process_output_recent"])
+
     def test_motor_trip_is_local_not_a_shipwide_blackout(self):
         commission_g19_electrical(operator_approved=True)
         self.line_up_real_feeder("NODE-GEN-B", "NODE-LP-WATER-FWD")
@@ -725,11 +814,21 @@ class InstalledElectricalTests(EvenniaTestCase):
         after = state("inventory", "INV-WATER-NORMAL").quantity
         self.assertTrue(live["power_assured"])
         self.assertLess(after, before)
+        from world.ship_process_outputs import FIELD
+        meter = state("equipment", "FIRE-PUMP-FWD").details[FIELD]
+        self.assertAlmostEqual(meter["amount"], (before - after) * 1000,
+                               places=6)
+        self.assertGreater(meter["amount"], 0)
+        self.assertFalse("FIRE-PUMP-AFT" in {
+            p for p in ("FIRE-PUMP-AFT",)
+            if state("equipment", p).details.get(FIELD, {}).get("amount", 0) > 0})
         set_isolator("ISO-G19-MOTOR-FIRE-PUMP-FWD", "open", operator=True)
         isolated = tick_continuous_physics(now_game_time=1020)
         self.assertTrue(isolated["power_assured"])
         self.assertAlmostEqual(
             state("inventory", "INV-WATER-NORMAL").quantity, after)
+        self.assertEqual(
+            state("equipment", "FIRE-PUMP-FWD").details[FIELD]["amount"], 0)
         set_isolator("ISO-G19-MOTOR-FIRE-PUMP-FWD", "closed", operator=True)
         restored = tick_continuous_physics(now_game_time=1030)
         self.assertTrue(restored["power_assured"])
