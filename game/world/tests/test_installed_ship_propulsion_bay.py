@@ -193,8 +193,13 @@ class OriginalPropulsionServiceBay(EvenniaTestCase):
         self.assertTrue(at_work["entry_ready"])
         self.assertEqual(at_work["real_controller_condition"], "failed")
         self.action("propulsion_bay", "PROP-SVC", "inspect")
+        # This command must actually originate at PROP-CTRL, not from the
+        # suited mechanic working on the physically separate controller.
+        self.assertTrue(self.crew["chief"].move_to(
+            find_ship_space("PROP-CTRL"), quiet=True))
         with self.assertRaises(PhysicsError):
-            self.action("drive", "MAIN", "release")
+            self.action("drive", "MAIN", "release",
+                        actor=self.crew["chief"])
         job = self.action("repair", "equipment:LCS-PROP", "start")
         self.assertEqual(job["status"], "succeeded")
         self.assertEqual(state("equipment", "LCS-PROP").condition, "failed")
@@ -277,9 +282,11 @@ class OriginalPropulsionServiceBay(EvenniaTestCase):
         self.enter()
         with self.assertRaises(PhysicsError):
             self.action("switch", "ISO-LP-PROP-SVC", "closed")
-        self.at("PROP-CTRL")
+        self.assertTrue(self.crew["chief"].move_to(
+            find_ship_space("PROP-CTRL"), quiet=True))
         with self.assertRaises(PhysicsError):
-            self.action("drive", "MAIN", "release")
+            self.action("drive", "MAIN", "release",
+                        actor=self.crew["chief"])
 
 
 if __name__ == "__main__":
