@@ -73,6 +73,29 @@ class InstalledMedical(EvenniaTestCase):
         self.assertEqual(_clock().details["medical"]["completed"], 1)
         self.assertLess(CanonicalShipState.objects.get(pk="crew_health:" + self.patient.dbref).details["injury"], .30)
 
+    def test_followup_is_real_attended_clock_work(self):
+        self.prepare()
+        self.action("observe", self.patient.dbref)
+        clinic = _clock().details["medical"]
+        self.assertEqual(clinic["used_dressings"], 1)
+        self.assertEqual(clinic["observations"][self.patient.dbref]["remaining_s"], 7200)
+        self.tick(60)
+        current = CanonicalShipState.objects.get(
+            pk="crew_health:" + self.patient.dbref).details["injury"]
+        self.assertLess(current, .30)
+        self.medic.move_to(find_ship_space("HAB-04-MED-PHARM"), quiet=True)
+        remaining = _clock().details["medical"]["observations"][
+            self.patient.dbref]["remaining_s"]
+        self.tick(60)
+        self.assertEqual(_clock().details["medical"]["observations"][
+            self.patient.dbref]["remaining_s"], remaining)
+        self.assertEqual(CanonicalShipState.objects.get(
+            pk="crew_health:" + self.patient.dbref).details["injury"], current)
+        self.medic.move_to(find_ship_space("HAB-04-MED-TREAT"), quiet=True)
+        self.action("discharge", self.patient.dbref)
+        self.assertFalse(_clock().details["medical"]["observations"])
+        self.assertEqual(_clock().details["medical"]["used_dressings"], 1)
+
     def test_lost_local_feeder_pauses_work_without_refund(self):
         self.prepare()
         self.action("care", self.patient.dbref)
