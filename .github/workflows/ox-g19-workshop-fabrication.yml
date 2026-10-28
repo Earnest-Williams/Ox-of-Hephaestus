@@ -4,11 +4,14 @@ on:
     branches: [g19-complete-ship-systems]
     paths:
       - "game/world/ship_workshop_fabrication.py"
+      - "game/world/ship_workshop_welding.py"
       - "game/world/ship_workshop_dynamics.py"
       - "game/world/ship_equipment_repair.py"
       - "game/world/continuous_ship_physics.py"
       - "game/world/tests/test_ship_workshop_fabrication.py"
+      - "game/world/tests/test_ship_workshop_welding.py"
       - "game/world/tests/test_installed_ship_workshop_fabrication.py"
+      - "game/world/tests/test_installed_ship_workshop_welding.py"
       - ".github/workflows/ox-g19-workshop-fabrication.yml"
   workflow_dispatch:
 permissions:
@@ -23,10 +26,10 @@ jobs:
         with:
           python-version: "3.12"
       - name: Compile physical workshop and world integration
-        run: python -m compileall -q game/world/ship_workshop_fabrication.py game/world/continuous_ship_physics.py game/world/tests/test_ship_workshop_fabrication.py game/world/tests/test_installed_ship_workshop_fabrication.py
+        run: python -m compileall -q game/world/ship_workshop_fabrication.py game/world/ship_workshop_welding.py game/world/continuous_ship_physics.py game/world/tests/test_ship_workshop_fabrication.py game/world/tests/test_ship_workshop_welding.py game/world/tests/test_installed_ship_workshop_fabrication.py game/world/tests/test_installed_ship_workshop_welding.py
       - name: Pure manufacturing, spindle, conservation and real maintenance
         working-directory: game
-        run: python -m unittest world.tests.test_ship_workshop_fabrication world.tests.test_ship_workshop_dynamics world.tests.test_ship_equipment_repair -v
+        run: python -m unittest world.tests.test_ship_workshop_fabrication world.tests.test_ship_workshop_welding world.tests.test_ship_workshop_dynamics world.tests.test_ship_equipment_repair -v
   installed:
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -49,4 +52,4 @@ jobs:
           evennia migrate --noinput
       - name: Installed hand-carried blanks, running spindle, finished spares and cassette
         working-directory: game
-        run: python -m world.test_runner world.tests.test_installed_ship_workshop_fabrication --verbosity=2
+        run: python -m world.test_runner world.tests.test_installed_ship_workshop_fabrication world.tests.test_installed_ship_workshop_welding --verbosity=2
