@@ -185,7 +185,8 @@ from world.ship_instrumentation import (
 from world.ship_fault_recovery import (
     FaultRecoveryError, initial_fault_cases, inspect_fault, isolate_fault,
     begin_verified_work, finished_verified_work, check_repair,
-    authorize_restart, verify_restart, feeders_for, validate_fault_cases,
+    authorize_restart, verify_restart, feeders_for, verified_open_feeders,
+    validate_fault_cases,
 )
 from world.ship_instrumentation_world import (
     original_panel_roster, observed_panel_evidence, local_relay_summary,
@@ -4977,6 +4978,18 @@ def tick_continuous_physics(*, now_game_time=None):
                         flywheel_service=flywheel_service,
                         electrical=electrical,
                         exterior_radiators=exterior_radiators)):
+                # A staged component may not progress while any of its
+                # individually fitted feeds has been restored, bypassed or
+                # damaged. Legacy repairs without a signed case retain the
+                # existing specialist safe_repair_target interlocks.
+                if category == "equipment" and fault_cases is not None:
+                    case = fault_cases["cases"].get(identifier)
+                    if case is not None and (
+                            case["stage"] != "repairing" or not
+                            verified_open_feeders(identifier, {
+                                feeder: isolators.get(feeder)
+                                for feeder in case["feeders"]})):
+                        continue
                 safe.add(key)
         try:
             repairs, repair_completed = step_repairs(
@@ -5775,6 +5788,13 @@ def crew_physical_action(actor, request_id, action, target, value):
             raise PhysicsError("Unsafe switch command")
         if value == "closed" and item.details.get("physics_power_trip_latched"):
             raise PhysicsError("Breaker is physically tripped; isolate fault and reset locally")
+        if value == "closed":
+            fault_cases = (_clock().details.get("fault_cases") or
+                           {"cases": {}})["cases"]
+            if any(target in case["feeders"] and case["stage"] in {
+                    "isolated", "repairing", "repaired"}
+                   for case in fault_cases.values()):
+                raise PhysicsError("Attended machinery isolation padlock prevents re-energizing feeder")
         if value == "closed" and target in {"ISO-GEN-M", "ISO-GEN-A", "ISO-GEN-B"}:
             shore = (_clock().details.get("electrical") or {}).get("shore")
             if shore and shore["connected"]:
@@ -6864,17 +6884,24 @@ def crew_physical_action(actor, request_id, action, target, value):
             raise PhysicsError("No individually fitted machine circuit")
         machine = state("equipment", target, lock=True)
         _crew_at(actor, machine.space_id)
+        if (getattr(actor.db, "crew_role", None) not in AUTHORISED_ROLES
+                and not actor.check_permstring("Developer")):
+            raise PermissionError("Qualified engineering duty required for diagnostic permit")
         _food_at(actor, machine.space_id)
+        if _clock().details.get("electrical") is None:
+            raise PhysicsError("Individual machinery circuits not commissioned")
+        _electrical_crew_air_gate(
+            actor, machine.space_id, _clock().details["electrical"])
         clock = _clock(lock=True)
         before = _snapshot(clock)
         d = dict(clock.details)
         ledger = d.get("fault_cases") or initial_fault_cases()
         validate_fault_cases(ledger)
-        feeders = [state("isolator", key, lock=True)
-                   for key in feeders_for(target)]
-        opened = all(x.setting == "open" and x.condition not in _BROKEN
-                     for x in feeders)
-        tripped = any(x.details.get("physics_power_trip_latched") for x in feeders)
+        feeders = {key: state("isolator", key, lock=True)
+                   for key in feeders_for(target)}
+        opened = verified_open_feeders(target, feeders)
+        tripped = any(x.details.get("physics_power_trip_latched")
+                      for x in feeders.values())
         stopped = not any(machine.details.get(k) for k in (
             "physics_online", "physics_commanded_on", "physics_startup_s"))
         active = "equipment:" + target in (d.get("repairs") or {"jobs": {}})["jobs"]
@@ -6913,6 +6940,10 @@ def crew_physical_action(actor, request_id, action, target, value):
                     raise FaultRecoveryError("Original local sensor panel required")
                 p = ins["panels"][panel]
                 panel_ok = p["status"] == "online" and p["last_good_s"] == now
+                signal_quality_clear = not any(
+                    a["panel"] == panel and a["active"] and a["code"] in {
+                        "INSTRUMENT_LOST", "INSTRUMENT_UNRELIABLE"}
+                    for a in ins["alarms"].values())
                 units = {x.source_id: x for x in
                          CanonicalShipState.objects.filter(category="equipment")}
                 edges = {x.source_id: x for x in
@@ -6931,7 +6962,8 @@ def crew_physical_action(actor, request_id, action, target, value):
                 if value == "authorize":
                     ledger = authorize_restart(ledger, target, actor=actor.dbref,
                         now_s=now, sample_count=ins["sample_count"],
-                        sound_hardware=machine.condition == "serviceable" and panel_ok,
+                        sound_hardware=(machine.condition == "serviceable"
+                                        and panel_ok and signal_quality_clear),
                         live_feeder=live, tripped=tripped, active_work=active)
                 else:
                     ledger = verify_restart(ledger, target, actor=actor.dbref,
@@ -6939,6 +6971,7 @@ def crew_physical_action(actor, request_id, action, target, value):
                         running=bool(machine.details.get("physics_online")),
                         live_feeder=live, condition=machine.condition,
                         tripped=tripped, panel_live=panel_ok,
+                        signal_quality_clear=signal_quality_clear,
                         alarm_active=any(a["active"] and a["subject"] == target
                                          for a in ins["alarms"].values()
                                          if a["panel"] == panel))
@@ -7572,10 +7605,11 @@ def crew_physical_action(actor, request_id, action, target, value):
                         cases = d.get("fault_cases") or initial_fault_cases()
                         case = cases["cases"].get(ident)
                         if case is not None:
-                            if case["stage"] != "isolated" or not all(
-                                    state("isolator", feeder).setting == "open"
-                                    for feeder in feeders_for(ident)):
-                                raise PhysicsError("Signed fault case needs full feeder isolation")
+                            if (case["stage"] != "isolated" or not
+                                    verified_open_feeders(ident, {
+                                        feeder: state("isolator", feeder, lock=True)
+                                        for feeder in feeders_for(ident)})):
+                                raise PhysicsError("Signed case requires physically verified complete feeder isolation")
                             d["fault_cases"] = begin_verified_work(
                                 cases, ident, isolated=True)
                     r = begin_repair(
