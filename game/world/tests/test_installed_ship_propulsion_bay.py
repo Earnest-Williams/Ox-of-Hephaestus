@@ -1,4 +1,5 @@
 """G19 fitted PROP-SVC: original rated hatch, attended suit, finite gas/repair."""
+from collections import defaultdict, deque
 from evennia.utils.test_resources import EvenniaTestCase
 
 from world.bootstrap import build_ship
@@ -16,7 +17,7 @@ from world.continuous_ship_physics import (
     survey_g19_water_material,
     crew_physical_action, local_physics_readout, tick_continuous_physics,
 )
-from world.models import WorkReceipt
+from world.models import CanonicalShipState, WorkReceipt
 
 
 class OriginalPropulsionServiceBay(EvenniaTestCase):
@@ -42,7 +43,43 @@ class OriginalPropulsionServiceBay(EvenniaTestCase):
         self.assertFalse(commission_g19_propulsion_bay(
             operator_approved=True)["commissioned"])
         set_isolator("ISO-GEN-M", "closed", operator=True)
+        # With the real G19 electrical dispatcher the generator alone is
+        # insufficient: prove installed conductors through the authentic
+        # original propulsion station and independent protected load.
+        self.energize("NODE-LP-PROP-CTRL")
+        self.energize("NODE-HAB-03-FIRE-DETECT")
         self.now, self.serial = 1000, 100
+
+    def energize(self, destination):
+        edges = list(CanonicalShipState.objects.filter(
+            category="edge", reference__network="power"))
+        graph = defaultdict(list)
+        for edge in edges:
+            if (edge.condition in {
+                    "faulted", "failed", "jammed", "severed", "destroyed"}
+                    or edge.setting != "available"):
+                continue
+            a, b = edge.reference["from_node"], edge.reference["to_node"]
+            graph[a].append((b, edge))
+            if edge.reference["kind"] in {"bridge_feeder", "cross_tie"}:
+                graph[b].append((a, edge))
+        q, seen, previous = deque(["NODE-GEN-M"]), {"NODE-GEN-M"}, {}
+        while q and destination not in seen:
+            for nxt, edge in graph[q.popleft()]:
+                if nxt not in seen:
+                    seen.add(nxt)
+                    previous[nxt] = (
+                        edge, edge.reference["from_node"],
+                        edge.reference["to_node"])
+                    q.append(nxt)
+        self.assertIn(destination, seen, "No real main-bus path to destination")
+        node = destination
+        while node != "NODE-GEN-M":
+            edge, a, b = previous[node]
+            for iso in edge.reference["isolator_ids"]:
+                if state("isolator", iso).setting != "closed":
+                    set_isolator(iso, "closed", operator=True)
+            node = a if node == b else b
 
     def rid(self):
         self.serial += 1
@@ -181,7 +218,12 @@ class OriginalPropulsionServiceBay(EvenniaTestCase):
         prior = _clock().details["motion"]["expended_propellant_kg"]
         self.tick(10)
         motion = _clock().details["motion"]
-        self.assertTrue(motion["drive_firing"])
+        self.assertTrue(motion["drive_firing"], {
+            "motion": motion,
+            "source_dispatch": _clock().details["electrical"]["last"],
+            "electric_meters": _clock().details["electrical"]["meter"],
+            "summary": _clock().details["summary"],
+        })
         self.assertGreater(motion["expended_propellant_kg"], prior)
         self.assertGreater(motion["velocity_m_s"][0], 0)
         self.action("helm", "HELM", "coast", actor=self.helm)
