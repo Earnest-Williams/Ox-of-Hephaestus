@@ -29,7 +29,8 @@ def trunk():
     mass = 101325 * 950/(287.05*293.15)
     return {
         "mass_kg": mass, "oxygen_kg": mass*.232,
-        "co2_kg": mass*.0004, "temperature_k": 293.15,
+        "co2_kg": mass*.0004, "smoke_kg": 0.002,
+        "temperature_k": 293.15,
         "volume_m3": 950,
     }
 
@@ -82,6 +83,9 @@ class PropulsionBayPureTests(unittest.TestCase):
         self.assertAlmostEqual(
             s["gas"]["oxygen_kg"] + source["oxygen_kg"],
             sample(98500)["gas"]["oxygen_kg"] + trunk()["oxygen_kg"])
+        self.assertAlmostEqual(
+            s["gas"]["smoke_kg"] + source["smoke_kg"],
+            sample(98500)["gas"]["smoke_kg"] + trunk()["smoke_kg"])
         self.assertTrue(validate_bay(s))
         # One more measured, bounded tap can bring the pressurised compartment
         # through a real 2 kPa differential threshold; never instant gas.
