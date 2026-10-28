@@ -167,6 +167,41 @@ class InstalledInstrumentationTests(EvenniaTestCase):
                 "SHOP-CNC-MILL", "check")
         self.assertEqual(state("equipment", "SHOP-CNC-MILL").condition, "failed")
 
+    def test_cnc_spindle_coasts_after_power_off_and_blocks_hands_on_isolation(self):
+        # The machine tool's local physical output cannot disappear because
+        # its electrical contactor has opened. Let the original shaft coast
+        # before a worker is permitted to enter the mechanism.
+        commission_g19_instrumentation(operator_approved=True)
+        self.energize("NODE-LP-SHOP-MECH")
+        self.energize("NODE-HAB-03-FIRE-DETECT")
+        self.at("SHOP-MECH")
+        name = "SHOP-CNC-MILL"
+        breaker = "ISO-G19-SVC-" + name
+        act = lambda tag, action, target, value: crew_physical_action(
+            self.worker, tag * 32, action, target, value)
+        self.assertEqual(act("a", "plant", name, "on")["status"], "succeeded")
+        tick_continuous_physics(now_game_time=1010)
+        tick_continuous_physics(now_game_time=1020)
+        powered = local_physics_readout(self.worker, name)
+        self.assertTrue(powered["output_proven_at_site"], powered)
+        self.assertGreater(powered["workshop_mechanical_output"]["value"], 300)
+        self.assertEqual(act("b", "plant", name, "off")["status"], "succeeded")
+        set_component_condition("equipment", name, "failed", operator=True)
+        self.assertEqual(act("c", "fault", name, "inspect")["status"], "succeeded")
+        self.assertEqual(act("d", "switch", breaker, "open")["status"], "succeeded")
+        with self.assertRaisesRegex(PhysicsError, "stopped safe machine"):
+            act("e", "fault", name, "isolate")
+        still_spinning = local_physics_readout(self.worker, "fault:" + name)
+        self.assertFalse(still_spinning["mechanically_stopped"])
+        tick_continuous_physics(now_game_time=1030)
+        tick_continuous_physics(now_game_time=1040)
+        stopped = local_physics_readout(self.worker, "fault:" + name)
+        self.assertTrue(stopped["mechanically_stopped"], stopped)
+        self.assertEqual(stopped["attended_mechanical_output"]["value"], 0)
+        self.assertEqual(act("e", "fault", name, "isolate")["status"], "succeeded")
+        with self.assertRaises(PhysicsError):
+            act("f", "switch", breaker, "closed")
+
     def test_actual_shop_failure_requires_finite_repair_and_measured_restart(self):
         from world.continuous_ship_physics import (
             commission_g19_water, commission_g19_repairs,
@@ -251,6 +286,10 @@ class InstalledInstrumentationTests(EvenniaTestCase):
             act("8", "fault", name, "verify")
         tick_continuous_physics(now_game_time=1630)
         self.assertTrue(state("equipment", name).details["physics_online"])
+        output = local_physics_readout(self.worker, name)
+        self.assertTrue(output["output_proven_at_site"], output)
+        self.assertEqual(output["workshop_mechanical_output"]["kind"], "spindle_rpm")
+        self.assertGreaterEqual(output["workshop_mechanical_output"]["value"], 300)
         self.assertEqual(act("9", "fault", name, "verify")["status"], "succeeded")
         verified = local_physics_readout(self.worker, "fault:" + name)["case"]
         self.assertEqual(verified["stage"], "verified")
