@@ -2841,7 +2841,8 @@ def tick_continuous_physics(*, now_game_time=None):
                     worker is not None
                     and _flywheel_suit_ready(worker, job["room"], {
                         **clock.details, "eva": eva,
-                        "electrical": electrical, "bay_access": bay_access})
+                        "electrical": electrical,
+                        "bay_access": clock.details.get("bay_access")})
                     and equipment[name].condition not in _BROKEN
                     and isolators[module_breaker(name)].condition not in _BROKEN
                     and isolators[module_breaker(name)].setting == "closed")
