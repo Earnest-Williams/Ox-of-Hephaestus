@@ -3,7 +3,7 @@ from evennia.utils.test_resources import EvenniaTestCase
 from world.bootstrap import build_ship
 from world.ship_world import build_canonical_ship, find_ship_space
 from world.full_ship_operations import install_candidate, install_pressure_cells, initialize_nominal_atmosphere, set_isolator
-from world.continuous_ship_physics import arm_continuous_physics, commission_g19_medical, commission_g19_crew_physiology, crew_physical_action, tick_continuous_physics, _clock
+from world.continuous_ship_physics import PhysicsError, arm_continuous_physics, commission_g19_medical, commission_g19_crew_physiology, crew_physical_action, tick_continuous_physics, _clock
 from world.models import CanonicalShipState, WorkReceipt
 
 class InstalledMedical(EvenniaTestCase):
@@ -106,7 +106,7 @@ class InstalledMedical(EvenniaTestCase):
         self.action("kit", "deliver")
         self.assertEqual(_clock().details["medical"]["obs_dressings"], 2)
         self.assertEqual(_clock().details["medical"]["dressings"], 0)
-        with self.assertRaises(Exception):
+        with self.assertRaises(PhysicsError):
             self.action("observe", self.patient.dbref)
         set_isolator("ISO-HAB-04-MED-OBS-LP", "closed", operator=True)
         started = self.action("observe", self.patient.dbref)
