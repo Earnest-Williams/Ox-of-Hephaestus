@@ -3192,6 +3192,9 @@ def tick_continuous_physics(*, now_game_time=None):
             validate_cultivation(cultivation)
         except CultivationError as exc:
             raise PhysicsError(str(exc)) from exc
+    fault_cases = clock.details.get("fault_cases")
+    if fault_cases is not None:
+        validate_fault_cases(fault_cases)
     instrumentation = clock.details.get("instrumentation")
     if instrumentation is not None:
         try:
@@ -5024,9 +5027,9 @@ def tick_continuous_physics(*, now_game_time=None):
             item.revision += 1
             item.save(update_fields=["details", "condition", "revision"])
             if category == "equipment" and identifier in set(MOTORS) | set(SERVICE_LOADS):
-                cases = d.get("fault_cases") or initial_fault_cases()
+                cases = fault_cases or initial_fault_cases()
                 if cases["cases"].get(identifier, {}).get("stage") == "repairing":
-                    d["fault_cases"] = finished_verified_work(
+                    fault_cases = finished_verified_work(
                         cases, identifier, stamp=last + seconds,
                         installed_kg=installed_spares)
             _event(item, "crew_finite_equipment_repair_complete", prior)
@@ -5148,6 +5151,9 @@ def tick_continuous_physics(*, now_game_time=None):
             actor.msg("The indexed personnel carriage reaches its destination.")
     old = _snapshot(clock)
     d = dict(clock.details)
+    if fault_cases is not None:
+        validate_fault_cases(fault_cases)
+        d["fault_cases"] = fault_cases
     d["last_game_time"] = last + seconds
     d["ticks"] += 1
     d["lost_to_space_kg"] += lost
@@ -5155,8 +5161,6 @@ def tick_continuous_physics(*, now_game_time=None):
     d["water_suppression_kg"] += water
     d["co2_captured_kg"] = captured_co2
     d["motion"] = motion
-    if "fault_cases" in d:
-        validate_fault_cases(d["fault_cases"])
     if instrumentation is not None:
         # Use physical end-of-tick cell/machine/breaker status. The chosen
         # source is an actual installed panel and its current power node,
