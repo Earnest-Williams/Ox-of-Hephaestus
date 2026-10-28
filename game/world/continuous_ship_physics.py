@@ -64,7 +64,7 @@ from world.ship_waste_offload import (
     debit_ship_mass_for_waste,
 )
 from world.ship_equipment_repair import (
-    REPAIR_CLASSES, initial_repairs, validate_repairs,
+    REPAIR_CLASSES, MAX_HAND_PARTS_KG, initial_repairs, validate_repairs,
     take_parts, begin_repair, join_repair, step_repairs, move_toolkit,
 )
 from world.ship_freight_service import (
