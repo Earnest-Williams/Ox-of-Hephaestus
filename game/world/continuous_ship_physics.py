@@ -177,6 +177,13 @@ from world.ship_food_logistics import (
     take_waste, deliver_waste, certify_nutrients, take_nutrients,
     install_nutrients, feed_patient,
 )
+from world.ship_instrumentation import (
+    InstrumentError, initial_instrumentation, validate_instrumentation,
+    sample_instrumentation, acknowledge_alarm, panel_readout, diagnostics,
+)
+from world.ship_instrumentation_world import (
+    original_panel_roster, observed_panel_evidence, local_relay_summary,
+)
 from world.ship_refuge_media_service import (
     initial_refuge_media_service, validate_refuge_media_service,
     load_refuge_media,
@@ -830,6 +837,84 @@ def survey_g19_cultivation_nutrients(*, operator_approved=False,
     clock.save(update_fields=["details", "revision"])
     _event(clock, "operator_original_nutrient_charge_survey", before)
     return {"bay": bay, "surveyed_kg": charge_kg}
+
+
+@transaction.atomic
+def commission_g19_instrumentation(*, operator_approved=False):
+    """Commission 116 REAL power-fed panels without fake sensors or reset."""
+    if not operator_approved:
+        raise PermissionError("Only operator may validate installed local instruments")
+    _require_installed()
+    clock = _clock(lock=True)
+    if clock.details.get("electrical") is None:
+        raise PhysicsError("Installed electrical distribution must be commissioned")
+    roster, zones = original_panel_roster(load_candidate())
+    installed = {row.source_id: row for row in CanonicalShipState.objects.filter(
+        category="equipment", source_id__in=roster)}
+    if len(installed) != len(roster):
+        raise PhysicsError("Missing one of 116 original local panel units")
+    for name, room in roster.items():
+        if installed[name].space_id != room:
+            raise PhysicsError("Original panel relocated without wiring")
+        node = state("node", "NODE-" + name)
+        if (node.reference.get("network") != "power"
+                or node.reference.get("owner_id") != name):
+            raise PhysicsError("Local panel not linked to genuine power node")
+    previous = clock.details.get("instrumentation")
+    if previous is not None:
+        try:
+            validate_instrumentation(previous, panel_rooms=roster)
+        except InstrumentError as exc:
+            raise PhysicsError(str(exc)) from exc
+        return {"commissioned": False, "fitted_panels": len(roster)}
+    try:
+        ledger = initial_instrumentation(
+            roster, zones, start_s=clock.details["last_game_time"])
+        validate_instrumentation(ledger, panel_rooms=roster)
+    except InstrumentError as exc:
+        raise PhysicsError(str(exc)) from exc
+    before = _snapshot(clock)
+    d = dict(clock.details)
+    d["instrumentation"] = ledger
+    clock.details = d
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "g19_original_local_instrumentation_commissioned", before)
+    return {"commissioned": True, "fitted_panels": len(roster),
+            "last_sample_game_time": None}
+
+
+def _instrument_power_grid(details):
+    installed = {r.source_id: r for r in CanonicalShipState.objects.filter(
+        category="equipment")}
+    edges = list(CanonicalShipState.objects.filter(category="edge"))
+    isolators = {r.source_id: r for r in CanonicalShipState.objects.filter(
+        category="isolator")}
+    grid = _power(installed, edges, isolators, details["load_profile"],
+                  ledger=details.get("electrical"),
+                  moored=contacts_active(details["cargo"]))
+    return grid, installed
+
+
+def _instrument_local_panel(actor, panel, room, ledger, *, require_live=True):
+    info = ledger["panels"].get(panel)
+    if info is None:
+        raise PhysicsError("No commissioned original local instrument face")
+    if info["room"] != room:
+        raise PermissionError("No remote access to another shipboard panel")
+    installed = state("equipment", panel)
+    grid, equipment = _instrument_power_grid(_clock().details)
+    if (installed.space_id != room or installed.condition in _BROKEN
+            or "NODE-" + panel not in grid["nodes"]):
+        if require_live:
+            raise PhysicsError("Physical local panel unpowered or damaged")
+        return False
+    # An unpressurised original switchgear bay requires the same surveyed
+    # breathing protection as manual electrical work; no free EVA oracle.
+    zone = _topology()[0].get(room)
+    if not (isinstance(zone, str) and zone.startswith("PZ-")):
+        _electrical_crew_air_gate(actor, room, _clock().details["electrical"])
+    return True
 
 
 @transaction.atomic
@@ -3101,6 +3186,14 @@ def tick_continuous_physics(*, now_game_time=None):
             validate_cultivation(cultivation)
         except CultivationError as exc:
             raise PhysicsError(str(exc)) from exc
+    instrumentation = clock.details.get("instrumentation")
+    if instrumentation is not None:
+        try:
+            validate_instrumentation(instrumentation)
+            if abs(instrumentation["last_s"] - last) > 1e-7:
+                raise PhysicsError("Installed instrument epoch is not aligned with ship time")
+        except InstrumentError as exc:
+            raise PhysicsError(str(exc)) from exc
     food = clock.details.get("food")
     if food is not None:
         if food_inventory is None:
@@ -5050,6 +5143,29 @@ def tick_continuous_physics(*, now_game_time=None):
     d["water_suppression_kg"] += water
     d["co2_captured_kg"] = captured_co2
     d["motion"] = motion
+    if instrumentation is not None:
+        # Use physical end-of-tick cell/machine/breaker status. The chosen
+        # source is an actual installed panel and its current power node,
+        # not a global operator view of uninstalled future sensors.
+        try:
+            panel_evidence = observed_panel_evidence(
+                instrumentation, cells=cells, equipment=equipment,
+                isolators=isolators, nodes_energised=set(power["nodes"]),
+                electrical=electrical, water=water_state,
+                cultivation=cultivation, food=food,
+                services=service_operations, motion=motion,
+                fire_loops=(
+                    "FIRE-DETECT-FWD", "FIRE-DETECT-CARGO-FWD",
+                    "FIRE-DETECT-FLY-FWD", "FIRE-DETECT-CENTRAL",
+                    "FIRE-DETECT-WR", "FIRE-DETECT-FLY-AFT",
+                    "FIRE-DETECT-CARGO-AFT", "FIRE-DETECT-AFT",
+                ))
+            instrumentation = sample_instrumentation(
+                instrumentation, last + seconds, panel_evidence)
+            validate_instrumentation(instrumentation)
+        except InstrumentError as exc:
+            raise PhysicsError(str(exc)) from exc
+        d["instrumentation"] = instrumentation
     if local_backup is not None:
         d["local_backup"] = local_backup
     if refuge_scrubbers is not None:
@@ -5176,6 +5292,15 @@ def tick_continuous_physics(*, now_game_time=None):
             len(food["last"]["impaired"]) if food is not None else None),
         "nutrition_incapacitated": (
             len(food["last"]["incapacitated"]) if food is not None else None),
+        "instrument_panels_online": (
+            sum(p["status"] == "online" for p in
+                instrumentation["panels"].values())
+            if instrumentation is not None else None),
+        "instrument_active_alarms": (
+            sum(a["active"] for a in instrumentation["alarms"].values())
+            if instrumentation is not None else None),
+        "instrument_samples": (
+            instrumentation["sample_count"] if instrumentation is not None else None),
         "crop_staged_kg": (
             round(sum(b["staged_kg"] for b in cultivation["beds"].values()), 4)
             if cultivation is not None else None),
@@ -5511,7 +5636,7 @@ def crew_physical_action(actor, request_id, action, target, value):
     """
     if not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
         raise PhysicsError("Expected one 32-character lowercase request UUID")
-    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food"}:
+    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument"}:
         raise PhysicsError("Unknown physical operation")
     if actor is None or getattr(actor.db, "ox_terminal_dead", False):
         raise PermissionError("A deceased or missing character cannot operate machinery")
@@ -5533,8 +5658,8 @@ def crew_physical_action(actor, request_id, action, target, value):
                     "isolator:" if action == "switch"
                     else "pressure:" if action == "mist"
                     else "access:" if action == "hatch"
-                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food"}
-                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food"} else target)
+                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument"}
+                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument"} else target)
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
@@ -6709,6 +6834,38 @@ def crew_physical_action(actor, request_id, action, target, value):
         item.save(update_fields=["details", "revision"])
 
 
+
+    elif action == "instrument":
+        # Human attention to one real powered panel. This cannot repair,
+        # isolate, suppress, energize or falsify the sensed fault.
+        clock = _clock(lock=True)
+        before = _snapshot(clock)
+        d = dict(clock.details)
+        ledger = d.get("instrumentation")
+        if ledger is None:
+            raise PhysicsError("Original 116-panel instrumentation not commissioned")
+        _food_at(actor, ledger["panels"].get(target, {}).get("room"))
+        here = getattr(getattr(actor.location, "db", None), "ox_space_id", None)
+        _instrument_local_panel(actor, target, here, ledger)
+        if value == "test":
+            # Self-test returns proof the actual panel is powered now; real
+            # pressure/fault values remain dated to the next physical tick.
+            pass
+        elif isinstance(value, str) and value.startswith("ack:"):
+            key = value[4:]
+            try:
+                ledger = acknowledge_alarm(
+                    ledger, target, key, actor=actor.dbref,
+                    now_s=d["last_game_time"])
+            except InstrumentError as exc:
+                raise PhysicsError(str(exc)) from exc
+        else:
+            raise PhysicsError("Only real panel self-test or local alarm acknowledge")
+        d["instrumentation"] = ledger
+        clock.details = d
+        clock.revision += 1
+        clock.save(update_fields=["details", "revision"])
+        item = clock
 
     elif action == "food":
         # Every parcel is picked up, carried through *actual* ship exits and
@@ -8011,6 +8168,58 @@ def local_physics_readout(actor, target):
     room = getattr(getattr(location, "db", None), "ox_space_id", None)
     if not room:
         raise PermissionError("Stand at an installed ship compartment")
+    if (target in {"instruments", "alarms", "alarm_bridge"}
+            or target.startswith("panel:")
+            or target.startswith("diagnose:")):
+        clock = _clock()
+        ledger = clock.details.get("instrumentation")
+        if ledger is None:
+            raise PhysicsError("Original ship instrumentation not commissioned")
+        try:
+            validate_instrumentation(ledger)
+        except InstrumentError as exc:
+            raise PhysicsError(str(exc)) from exc
+        if target == "alarm_bridge":
+            grid, installed = _instrument_power_grid(clock.details)
+            try:
+                return local_relay_summary(
+                    ledger, room=room, powered_nodes=set(grid["nodes"]),
+                    equipment=installed)
+            except InstrumentError as exc:
+                raise PhysicsError(str(exc)) from exc
+        panels = [key for key, p in ledger["panels"].items()
+                  if p["room"] == room]
+        if not panels:
+            raise PermissionError("No original local instrument panel fitted in this room")
+        if target.startswith("panel:"):
+            panel = target[6:]
+            _instrument_local_panel(actor, panel, room, ledger)
+            return panel_readout(
+                ledger, panel, now_s=clock.details["last_game_time"])
+        if target.startswith("diagnose:"):
+            key = target[9:]
+            panel = key.split("|", 1)[0]
+            _instrument_local_panel(actor, panel, room, ledger)
+            try:
+                return diagnostics(ledger, key, panel_id=panel)
+            except InstrumentError as exc:
+                raise PhysicsError(str(exc)) from exc
+        visible = {
+            panel: panel_readout(
+                ledger, panel, now_s=clock.details["last_game_time"])
+            for panel in panels
+            if _instrument_local_panel(actor, panel, room, ledger,
+                                       require_live=False)
+        }
+        if not visible:
+            raise PhysicsError("No live local instrument at this physical worksite")
+        if target == "alarms":
+            return {"alarms": {
+                key: alarm for sample in visible.values()
+                for key, alarm in sample["active_alarms"].items()},
+                "scope": "local_only_not_remote_failure_oracle"}
+        return {"panels": visible,
+                "scope": "installed_powered_instruments_in_own_room_only"}
     if target in {"food", "nutrition"}:
         clock = _clock()
         ledger = clock.details.get("food")
