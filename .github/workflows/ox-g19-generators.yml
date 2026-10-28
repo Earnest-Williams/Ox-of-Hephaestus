@@ -1,0 +1,27 @@
+name: Ox G19 original generator-room containment
+on:
+  push:
+    branches: [g19-complete-ship-systems]
+    paths:
+      - "game/world/ship_generator_bay_service.py"
+      - "game/world/tests/test_ship_generator_bay_service.py"
+      - "game/world/ship_propulsion_bay_service.py"
+      - ".github/workflows/ox-g19-generators.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile as-fitted gas and lockout kernels
+        run: |
+          python -m compileall -q game/world/ship_generator_bay_service.py game/world/tests/test_ship_generator_bay_service.py
+      - name: Gas source custody, original volume bounds and three independent permits
+        working-directory: game
+        run: python -m unittest world.tests.test_ship_generator_bay_service world.tests.test_ship_propulsion_bay_service -v
