@@ -167,6 +167,54 @@ class InstalledInstrumentationTests(EvenniaTestCase):
                 "SHOP-CNC-MILL", "check")
         self.assertEqual(state("equipment", "SHOP-CNC-MILL").condition, "failed")
 
+    def test_legacy_work_order_cannot_service_coasting_mill_or_reclose_feeder(self):
+        # Existing finite repairs need the same real mechanical stop and
+        # owner-specific breaker padlock even without a signed fault case.
+        from world.continuous_ship_physics import (
+            commission_g19_water, commission_g19_repairs,
+            survey_g19_water_material,
+        )
+        name = "SHOP-CNC-MILL"
+        breaker = "ISO-G19-SVC-" + name
+        commission_g19_water(operator_approved=True)
+        commission_g19_repairs(operator_approved=True)
+        self.energize("NODE-LP-SHOP-MECH")
+        self.energize("NODE-HAB-03-FIRE-DETECT")
+        act = lambda tag, action, target, value: crew_physical_action(
+            self.worker, tag * 32, action, target, value)
+        self.at("TOOL-CRIB")
+        self.assertEqual(act("a", "repair", "TOOL-CRIB",
+                             "pickup_toolkit")["status"], "succeeded")
+        survey_g19_water_material(
+            operator_approved=True, source="INV-SPARES",
+            room_id="SPARES-CENTRAL", verified_kg=4)
+        self.at("SPARES-CENTRAL")
+        self.assertEqual(act("b", "repair", "INV-SPARES",
+                             "pickup:3")["status"], "succeeded")
+        self.at("SHOP-MECH")
+        self.assertEqual(act("c", "plant", name, "on")["status"], "succeeded")
+        tick_continuous_physics(now_game_time=1010)
+        tick_continuous_physics(now_game_time=1020)
+        self.assertTrue(local_physics_readout(
+            self.worker, name)["output_proven_at_site"])
+        self.assertEqual(act("d", "plant", name, "off")["status"], "succeeded")
+        set_component_condition("equipment", name, "failed", operator=True)
+        self.assertEqual(act("e", "switch", breaker, "open")["status"], "succeeded")
+        self.assertIsNone(local_physics_readout(
+            self.worker, "fault:" + name)["case"])
+        with self.assertRaisesRegex(PhysicsError, "physically stopped"):
+            act("f", "repair", "equipment:" + name, "start")
+        tick_continuous_physics(now_game_time=1030)
+        tick_continuous_physics(now_game_time=1040)
+        self.assertTrue(local_physics_readout(
+            self.worker, "fault:" + name)["mechanically_stopped"])
+        self.assertEqual(act("f", "repair", "equipment:" + name,
+                             "start")["status"], "succeeded")
+        with self.assertRaisesRegex(PhysicsError, "padlocks its fitted feeder"):
+            act("g", "switch", breaker, "closed")
+        self.assertEqual(state("isolator", breaker).setting, "open")
+        self.assertEqual(state("equipment", name).condition, "failed")
+
     def test_cnc_spindle_coasts_after_power_off_and_blocks_hands_on_isolation(self):
         # The machine tool's local physical output cannot disappear because
         # its electrical contactor has opened. Let the original shaft coast
