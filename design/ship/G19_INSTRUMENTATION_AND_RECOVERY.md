@@ -52,3 +52,16 @@ Pressure leakage → inspect original pressure zone/hatch/isolation/hull work; a
 `.github/workflows/ox-g19-instrumentation.yml` is the independent draft-safe acceptance gate: (1) pure instrument/provenance/latching/tamper/fuzz and established resource-system tests; (2) installed 116-panel/world/fault/self-test/relay tests; and (3) **98 existing installed tests** across electrical, water/waste, food, physiology, movement, EVA, medical, hull and waste repair, in separately isolated sharded jobs. The final code head is accepted only if **every job** succeeds. Independent compatibility tests are not removed or skipped to manufacture acceptance.
 
 This phase extends the operational ship while leaving PR #138 draft and the user-excluded 40-crew voyage unrun. Original hardware identity and live crew point-of-view remain the source of truth.
+
+
+## Hardening: uncertain sensors, fast failures and recorded panel self-test
+
+- **Physical deterioration matters.** A degraded, powered original panel has `status=degraded`, no fresh credible channel readings, preserves its earlier timestamp and raises `INSTRUMENT_UNRELIABLE`. It cannot silently clear an existing fire, pressure or machinery failure. Two subsequent good, *distinct ship-time* observations are needed to resolve each latched alarm after physical service.
+- **Rates are observed rather than guessed.** Two sequential trustworthy original-panel samples can detect a pressure fall faster than **0.12 kPa/s** (`RAPID_DECOMPRESSION`) or a local temperature rise above **0.30 K/s** (`TEMPERATURE_RISE_RATE`), even before an absolute hazard threshold is exceeded. A single sample after blackout or damaged-panel service is not used to extrapolate dangerous trends.
+- **The protected HAB relay has three distinct outcomes:** `alerts_by_arc` contains observed issues or a genuine empty warning list with a live sensor; `lost_protected_links` means the actual fire-detector / comms hardware lacks power or integrity; `lost_local_monitoring` means the protected link exists but no dependable local panel samples are being received. Silence is not evidence of safety.
+- **Signed panel self-tests are real work.** `oxplant <uuid> instrument <original-panel-id> test` now records an original hardware-condition check, local conducting electrical node, last reliable reading age, and pass/fail into the same durable world event and replay-safe `WorkReceipt`. A passed check means the live source and recent recorded signal are available, not that every physical sensor is calibrated, or that a machine has been repaired.
+- **Acceptance tests** include actual degraded panels and restoration, live relay-loss diagnostics, rapid decompression, thermal acceleration, no unsupported trend across dark intervals, replay protection and seeded quality/fault sequences. The existing ship compatibility suite remains intact; the excluded 40-crew voyage is not run.
+
+### CI policy
+
+The food and instrumentation acceptance workflows run for direct G19 branch commits, but automatically **defer expensive pull-request jobs while the PR is draft** and react to `ready_for_review`. This satisfies the repository-wide CI scope guard without treating a prior green commit as acceptance of new runtime edits.
