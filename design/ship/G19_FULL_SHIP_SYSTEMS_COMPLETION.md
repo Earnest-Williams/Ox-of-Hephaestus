@@ -296,3 +296,63 @@ fault injection and incomplete maintenance/suit/rotary mechanisms.
 
 **No production activation and no merge while this document says
 implementation in progress.**
+
+
+## Late G19 subsystem continuation — food, medical, workshop and propulsion (28 October 2026)
+
+The living ship now has real finite installed provisioning and hydroponics,
+attended medical stabilization and convalescence, separately isolatable
+workshop machinery, original-part fabrication and local measured propulsion
+output. All these use the **same G19 Evennia physics clock, original rooms,
+source-material ledgers and authenticated replay-safe worker receipts**.
+
+- **Medical:** bounded first aid and slow convalescence passed its earlier
+  two-job installed medical gate
+  [run #40771595898](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40771595898).
+  The subsequent physical `HAB-04-MED-OBS` revision now gives the original
+  observation bay its own personally delivered stock, independently
+  fed original panel/isolator and actual attended continuing care.
+  Unlike the treatment room, the original observation room has separate
+  `ISO-HAB-04-MED-OBS-LP` and `NODE-HAB-04-MED-OBS-LP` under the shared
+  real `PZ-HAB-04` atmosphere; the separate independent pressure cell
+  of medical isolation `HAB-04-MED-ISO` is not confused with it.
+  The observation-bay extension has its own new pure/installed CI and
+  must not be counted accepted until the final code-head jobs pass.
+  See [HAB-04 medical care](G19_MEDICAL_CARE.md).
+- **CNC original part production:** positive surveyed existing `INV-SPARES`
+  workpiece source; actual local CNC/lathe service, delivered electrical
+  power and measured live spindle; 90 s per kg of attended machining,
+  75% finished mass / 25% physically retained offcuts. A four-kilogram
+  blank produces a three-kilogram repair part (with actual authenticated
+  failed-machine repair) and one kilogram of carried industrial waste.
+  [Full CNC pure/installed green #40772270736](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40772270736).
+  See [workshop fabrication contract](G19_WORKSHOP_FABRICATION.md).
+- **Original twin welding cells:** locally staffed `WELD-CELL-A/B` use
+  individually surveyed and transported finite filler plus a real base
+  replacement part. Powered arc work generates measurable and thermally
+  accounted kJ inside the original `SHOP-WELD` gas cell. A representative
+  3 kg base and 1 kg electrode produces 3.85 kg welded output and 0.15 kg
+  of retrievable industrial slag. Two-job pure/installed **combined
+  CNC + welding** baseline
+  [#40773822827 passed](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40773822827);
+  the later source-specific `fault` positive-arc restart verifier requires
+  the expanded test workflow on the exact runtime. See
+  [welding and spent-material contract](G19_WORKSHOP_WELDING.md).
+- **Main propulsion:** a staffed `PROP-CTRL` work receipt now
+  establishes a before/after **real consumed propellant and measured
+  three-axis velocity change**, not an ON flag. The main-drive
+  proof plus original aft nozzle inspection passed the two-job
+  [installed propulsion gate #40772191972](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40772191972).
+  Critically, original `LCS-PROP` is physically at `PROP-SVC`,
+  **not** `PROP-CTRL`. The `PROP-SVC` room has an unsurveyed atmosphere
+  and original pressure-boundary service hatch; no crew or repair shortcut
+  has been fabricated. Explicit integrated regression protects against
+  remote physical repair of `LCS-PROP`; rated hazard/entry work remains
+  pending. See
+  [aft nozzle inspection and drive witness](G19_AFT_PROPULSION_EVA_INSPECTION.md).
+
+**Integration boundary:** G19 still requires wider equipment-family and
+worksite characterization, remaining unsurveyed machinery zones, full
+multi-system casualty/replay testing and original whole-vessel closure.
+The deferred 40-crew voyage has not been run; PR #138 remains draft
+and unmerged.
