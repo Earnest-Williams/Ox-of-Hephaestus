@@ -1,4 +1,5 @@
 """G19 real vacuum flywheel maintenance, shared spares, suits and lockout."""
+from collections import defaultdict, deque
 from evennia.utils.test_resources import EvenniaTestCase
 from world.bootstrap import build_ship
 from world.ship_world import build_canonical_ship, find_ship_space, find_world_entity
@@ -17,7 +18,7 @@ from world.continuous_ship_physics import (
     local_physics_readout,
 )
 from world.ship_crew_access import traverse_canonical_exit
-from world.models import WorkReceipt
+from world.models import WorkReceipt, CanonicalShipState
 
 
 class InstalledFlywheelMaintenance(EvenniaTestCase):
@@ -106,6 +107,110 @@ class InstalledFlywheelMaintenance(EvenniaTestCase):
             self.now += delta
             tick_continuous_physics(now_game_time=self.now)
             seconds -= delta
+
+    def fitted_load_path(self, start, end):
+        """Close ONLY the actual installed linked conductors to a ship load."""
+        graph = defaultdict(list)
+        for edge in CanonicalShipState.objects.filter(category="edge",
+                                                   reference__network="power"):
+            if edge.condition in {"faulted", "failed", "severed", "jammed"}:
+                continue
+            if edge.setting != "available":
+                continue
+            attrs = edge.reference
+            graph[attrs["from_node"]].append((attrs["to_node"], edge))
+            if attrs["kind"] in {"bridge_feeder", "cross_tie"}:
+                graph[attrs["to_node"]].append((attrs["from_node"], edge))
+        prev = {}
+        seen = {start}
+        queue = deque([start])
+        while queue and end not in seen:
+            node = queue.popleft()
+            for neighbor, edge in graph[node]:
+                if neighbor not in seen:
+                    prev[neighbor] = (node, edge)
+                    seen.add(neighbor)
+                    queue.append(neighbor)
+        self.assertIn(end, seen, "No actual power route to that shipboard load")
+        node = end
+        while node != start:
+            former, edge = prev[node]
+            for breaker_id in edge.reference["isolator_ids"]:
+                if state("isolator", breaker_id).setting != "closed":
+                    set_isolator(breaker_id, "closed", operator=True)
+            node = former
+
+    def test_charged_rotor_distributes_real_kwh_before_measured_safe_lockout(self):
+        name = "F1-FW-02"
+        self.gear()
+        self.enter(through_lock=True)
+        self.fitted_load_path("PWR-MSB-A", "NODE-HAB-03-FIRE-DETECT")
+        set_isolator("ISO-GEN-M", "open", operator=True)
+        self.act("switch", "ISO-PWR-F1-FW-02", "closed")
+        stored = _clock().details["electrical"]["flywheels"][name]
+        self.assertEqual(stored["charge_kwh"], 10)
+        with self.assertRaises(PhysicsError):
+            self.act("flywheel_service", name, "lock")
+        started = self.act("flywheel_service", name, "rundown")
+        self.assertEqual(started, self.act(
+            "flywheel_service", name, "rundown",
+            request_id=started["request_id"]))
+        with self.assertRaises(PhysicsError):
+            self.act("power", name, "standby")
+        self.tick(10)
+        d = _clock().details
+        delivered = d["electrical"]["meter"]["flywheel_discharge_kwh"]
+        self.assertGreater(delivered, 1)
+        self.assertAlmostEqual(10 - d["electrical"]["flywheels"][
+            name]["charge_kwh"], delivered, delta=.00001)
+        # Disconnecting the real module feeder halts the metered job;
+        # it cannot erase the still spinning rotor's energy.
+        self.act("switch", "ISO-PWR-F1-FW-02", "open")
+        self.tick(10)
+        paused = _clock().details
+        self.assertAlmostEqual(paused["electrical"][
+            "flywheels"][name]["charge_kwh"], 10-delivered, delta=.00001)
+        self.assertEqual(paused["flywheel_service"]["rundown_finished"], 0)
+        self.act("switch", "ISO-PWR-F1-FW-02", "closed")
+        self.tick(60)
+        d = _clock().details
+        self.assertFalse(d["flywheel_service"]["rundowns"])
+        self.assertEqual(d["flywheel_service"]["rundown_finished"], 1)
+        self.assertAlmostEqual(
+            d["flywheel_service"]["rundown_delivered_kwh"], 10, delta=.00001)
+        self.assertAlmostEqual(
+            d["electrical"]["meter"]["flywheel_discharge_kwh"], 10,
+            delta=.00001)
+        self.assertAlmostEqual(
+            d["electrical"]["flywheels"][name]["charge_kwh"], 0,
+            delta=.00001)
+        self.assertEqual(d["electrical"]["flywheels"][name]["mode"], "standby")
+        self.act("switch", "ISO-PWR-F1-FW-02", "open")
+        self.act("flywheel_service", name, "lock")
+        self.assertIn(name, _clock().details["flywheel_service"]["permits"])
+
+    def test_halt_supervised_discharge_retains_unspent_energy(self):
+        name = "F1-FW-02"
+        self.gear()
+        self.enter()
+        self.fitted_load_path("PWR-MSB-A", "NODE-HAB-03-FIRE-DETECT")
+        set_isolator("ISO-GEN-M", "open", operator=True)
+        self.act("switch", "ISO-PWR-F1-FW-02", "closed")
+        self.act("flywheel_service", name, "rundown")
+        self.tick(10)
+        charge = _clock().details["electrical"]["flywheels"][name]["charge_kwh"]
+        self.act("flywheel_service", name, "halt")
+        self.assertEqual(_clock().details["flywheel_service"]["rundown_halted"], 1)
+        self.tick(20)
+        self.assertAlmostEqual(
+            _clock().details["electrical"]["flywheels"][name]["charge_kwh"],
+            charge, delta=.000001)
+        self.assertEqual(
+            _clock().details["electrical"]["flywheels"][name]["mode"],
+            "standby")
+        with self.assertRaises(PhysicsError):
+            self.act("flywheel_service", name, "lock")
+
 
     def test_real_suited_entry_failed_module_repair_and_release(self):
         self.stock()
