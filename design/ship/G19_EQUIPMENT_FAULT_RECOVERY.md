@@ -58,3 +58,38 @@ motors have no `physics_online` output or direct flow sensor. They remain
 unverified rather than being declared repaired on electrical continuity
 alone. Their next construction task is an authentic motor-output observation
 via the existing linked process or rotor state, without inventing sensors.
+
+## CNC mill integrated power acceptance (28 October 2026)
+
+The G19 installed CNC mill scenario now exercises the full signed work
+chain with three kilograms of real issued spare stock, the original
+`SHOP-MECH` worksite, `ISO-G19-SVC-SHOP-CNC-MILL` local breaker, a fresh
+post-reconnection panel sample, and two subsequent sound operating epochs.
+Its focused real Evennia run passed:
+[Ox G19 CNC mill recovery #40739117665](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40739117665),
+tested at `2c02bc1f`.
+
+**Electrical diagnostic:** the original failing fixture had the GEN-M source
+serviceable and commanded on, 3.0 MW rated available against 1.35 MW
+selected normal demand, and a conducting CNC feeder. Yet the main
+dispatcher correctly delivered **zero** because the fixture had closed
+only a power route to the workshop distribution panel, with **no
+qualifying fitted downstream consumer**. The initial report showed
+`main_available_mw=3.0`, `live_consumer_circuit=false`,
+`generator_delivered_mw=0.0` and `unserved_mw=1.35`.
+This was not a generator fault and was not solved by bypassing power safety.
+
+The accepted setup retains the real GEN-M -> workshop-panel connection
+and additionally closes the existing GEN-M -> HAB-03 fire-detection
+consumer route used elsewhere by accepted installed electrical tests.
+The ship's G19 model budgets normal operation as a **grouped 1.35 MW load**,
+not an invented 1.35 MW demand for the one detector. A live real
+consumer is the admission gate to that grouped budget; its presence
+must not be interpreted as detailed per-device power metering. The
+generator, fuel custody, feeder protection and normal-load threshold
+remain unchanged.
+
+Use the focused workflow
+`.github/workflows/ox-g19-cnc-recovery.yml` for future isolated repair
+regressions; the larger G19 instrumentation workflow must also pass
+before subsystem acceptance. Neither workflow runs the 40-person voyage.
