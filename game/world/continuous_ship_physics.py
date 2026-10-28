@@ -107,6 +107,12 @@ from world.ship_crew_medical import (
     CLINIC_ZONE, initial_medical, validate_medical, carry_medical_kit,
     begin_care, step_care,
 )
+from world.ship_flywheel_maintenance import (
+    FlywheelServiceError, MODULES as SERVICE_FLYWHEELS,
+    initial_flywheel_service, validate_flywheel_service,
+    issue_permit, release_permit, permit_live, module_dead,
+    module_room, module_breaker, bus_safe, service_pulse,
+)
 from world.ship_hazardous_access import (
     BayAccessError, LOCKS as BAY_SERVICE_LOCKS, CYCLE_S as BAY_SERVICE_CYCLE_S,
     initial_bay_access, validate_bay_access, survey_bay,
@@ -405,6 +411,8 @@ def _snapshot(item):
             result["rescue"] = item.details["rescue"]
         if item.details.get("bay_access") is not None:
             result["bay_access"] = item.details["bay_access"]
+        if item.details.get("flywheel_service") is not None:
+            result["flywheel_service"] = item.details["flywheel_service"]
         if item.details.get("eva") is not None:
             system = item.details["eva"]
             result["eva"] = {
@@ -753,12 +761,52 @@ def survey_g19_electrical_worksite(*, operator_approved=False, room_id=None):
     return {"changed": True, "room_id": room_id}
 
 
+
+def _flywheel_suit_ready(actor, room, details):
+    """No legacy suit attestation is accepted in the two vacuum flywheel bays.
+
+    Real issued EVA gear, its finite oxygen and chronic injury record, the
+    actually surveyed lock and existing operator-attested worksite must all
+    describe the SAME currently present engineer.
+    """
+    if room not in {"F1-BAY", "F2-BAY"} or actor is None:
+        return False
+    if (getattr(getattr(getattr(actor, "location", None), "db", None),
+                "ox_space_id", None) != room
+            or getattr(actor.db, "ox_terminal_dead", False)
+            or getattr(actor.db, "crew_role", None) not in AUTHORISED_ROLES
+            or _topology()[0].get(room) != "VACUUM"):
+        return False
+    health = CanonicalShipState.objects.filter(
+        pk="crew_health:" + actor.dbref, source_model=MODEL).first()
+    if health is None or health.condition not in {"fit", "impaired"}:
+        return False
+    ea, bay = details.get("eva"), details.get("bay_access")
+    power = details.get("electrical")
+    if (not ea or not bay or not power
+            or room not in bay["surveyed_bays"]
+            or power["worksite_surveys"].get(room) != "suited_service"
+            or actor.dbref in ea["transits"]
+            or actor.dbref in bay["jobs"]):
+        return False
+    _, suit = suit_of(ea, actor.dbref)
+    return bool(
+        suit is not None and suit["integrity"] >= .8
+        and suit["exposure"]["condition"] not in {
+            "incapacitated", "critical", "dead"}
+        and suit["exposure"]["suit_oxygen_kg"] > 0.01)
+
+
 def _electrical_crew_air_gate(actor, room, electrical):
     """No breathable-air guess in inherited generator rooms."""
     zone = _topology()[0].get(room)
     if isinstance(zone, str) and zone.startswith("PZ-"):
         if not _air_safe(state("pressure", zone)):
             raise PhysicsError("Local switchgear room has unsafe breathing air")
+        return
+    if room in {"F1-BAY", "F2-BAY"}:
+        if not _flywheel_suit_ready(actor, room, _clock().details):
+            raise PhysicsError("Flywheel work requires a real issued suit and surveyed service airlock")
         return
     if (zone not in {None, "VACUUM"}
             or electrical["worksite_surveys"].get(room) != "suited_service"
@@ -813,6 +861,9 @@ def survey_g19_electrical_source(*, operator_approved=False, source,
     # Every commissioned store has its own real equipment and power port.
     equipment = state("equipment", source, lock=True)
     source_is_flywheel = source in POWER_FLYWHEELS
+    if (source_is_flywheel and source in
+            (d.get("flywheel_service") or {"permits": {}})["permits"]):
+        raise PhysicsError("An open maintenance lockout prevents source resurvey")
     feeder_id = ("EDGE-PWR-" if source_is_flywheel else "EDGE-") + source
     node_id = ("NODE-PWR-" if source_is_flywheel else "NODE-") + source
     feeder = state("edge", feeder_id, lock=True)
@@ -1606,6 +1657,33 @@ def survey_g19_flywheel_access(*, bay_id, operator_approved=False):
     return {"changed": True, "bay": bay_id}
 
 
+
+@transaction.atomic
+def commission_g19_flywheel_service(*, operator_approved=False):
+    """Commission non-resetting work permits against original measured stores."""
+    if not operator_approved:
+        raise PermissionError("Flywheel module maintenance requires operator authority")
+    clock = _clock(lock=True)
+    d = dict(clock.details)
+    prior = d.get("flywheel_service")
+    if prior is not None:
+        validate_flywheel_service(prior)
+        return {"commissioned": False, "live_permits": len(prior["permits"])}
+    if any(d.get(key) is None for key in (
+            "electrical", "repairs", "eva", "bay_access")):
+        raise PhysicsError("Commission original electricity, shared repairs, suits and bay locks first")
+    if not all(name in d["bay_access"]["surveyed_bays"]
+               for name in ("F1-BAY", "F2-BAY")):
+        raise PhysicsError("Both original F1/F2 airlocks require verified surveys")
+    before = _snapshot(clock)
+    d["flywheel_service"] = initial_flywheel_service()
+    clock.details = d
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "g19_flywheel_isolation_service_commissioned", before)
+    return {"commissioned": True, "fitted_modules": len(SERVICE_FLYWHEELS)}
+
+
 @transaction.atomic
 def commission_g19_eva(*, operator_approved=False):
     """Commission two real EVA locks and four initially empty breathing sets."""
@@ -1805,23 +1883,29 @@ def commission_g19_repairs(*, operator_approved=False):
 @transaction.atomic
 def survey_g19_repair_site(*, operator_approved=False, room_id=None,
                            work_class=None):
-    """Operator verifies nonbreathable generator machinery worksite.
+    """Attest an original nonbreathable generator or F1/F2 service bay.
 
-    This is NOT a pressure-zone mutation or a universal suit bypass. Only
-    identified generator bays outside the pressurised map qualify, and every
-    participating engineer must additionally have independently verified PPE.
+    This records a workplace, not a new atmosphere, suit or repair permit.
     """
     if not operator_approved:
         raise PermissionError("Hazardous generator-service survey is operator-only")
     if work_class != "suited_service" or room_id not in {
-            "GEN-M-ROOM", "GEN-A-ROOM", "GEN-B-ROOM"}:
-        raise PhysicsError("Only installed unpressurised generator bays can be surveyed")
+            "GEN-M-ROOM", "GEN-A-ROOM", "GEN-B-ROOM", "F1-BAY", "F2-BAY"}:
+        raise PhysicsError("Only installed generator or flywheel service bays can be surveyed")
     from world.ship_world import find_ship_space
-    if find_ship_space(room_id) is None or _topology()[0].get(room_id) is not None:
-        raise PhysicsError("No eligible unclassified generator service bay")
-    generator = state("equipment", room_id.replace("-ROOM", ""))
-    if generator.space_id != room_id:
-        raise PhysicsError("Generator service-room identity mismatch")
+    if (find_ship_space(room_id) is None or
+            _topology()[0].get(room_id) not in {None, "VACUUM"}):
+        raise PhysicsError("No fitted vacuum machinery worksite")
+    installed = (
+        room_id.replace("-ROOM", "") if room_id.endswith("-ROOM")
+        else room_id.replace("-BAY", "-BUS"))
+    if state("equipment", installed).space_id != room_id:
+        raise PhysicsError("Installed machinery and original service room disagree")
+    if room_id in {"F1-BAY", "F2-BAY"}:
+        clock = _clock()
+        if (clock.details.get("bay_access") is None or
+                room_id not in clock.details["bay_access"]["surveyed_bays"]):
+            raise PhysicsError("Original rated flywheel service airlock must be surveyed first")
     clock = _clock(lock=True)
     if clock.details.get("repairs") is None:
         raise PhysicsError("Shared repairs have not been commissioned")
@@ -1837,7 +1921,7 @@ def survey_g19_repair_site(*, operator_approved=False, room_id=None,
     clock.details = details
     clock.revision += 1
     clock.save(update_fields=["details", "revision"])
-    event = _event(clock, "operator_suited_generator_site_survey", before)
+    event = _event(clock, "operator_suited_machinery_site_survey", before)
     audit = dict(event.after)
     audit["repair_site_survey"] = {"room": room_id, "class": work_class}
     event.after = audit
@@ -2656,6 +2740,12 @@ def tick_continuous_physics(*, now_game_time=None):
         except HabSyncError as exc:
             raise PhysicsError(str(exc)) from exc
     eva = clock.details.get("eva")
+    flywheel_service = clock.details.get("flywheel_service")
+    if flywheel_service is not None:
+        try:
+            validate_flywheel_service(flywheel_service)
+        except FlywheelServiceError as exc:
+            raise PhysicsError(str(exc)) from exc
     if eva is not None:
         try:
             validate_eva(eva)
@@ -4089,7 +4179,16 @@ def tick_continuous_physics(*, now_game_time=None):
                             and worn["exposure"]["suit_oxygen_kg"] > 0
                             and worn["exposure"]["condition"] not in {
                                 "incapacitated", "critical", "dead"})
-                        if not fitted_eva and not (
+                        if room_id in {"F1-BAY", "F2-BAY"}:
+                            real_suit = _flywheel_suit_ready(
+                                actor, room_id, {
+                                    **clock.details, "eva": eva,
+                                    "electrical": electrical,
+                                    "bay_access": bay_access})
+                            if not (real_suit and
+                                    repairs["site_surveys"].get(room_id) == "suited_service"):
+                                continue
+                        elif not fitted_eva and not (
                                 repairs["site_surveys"].get(room_id) == "suited_service"
                                 and getattr(actor.db, "ox_suit_verified", False)):
                             continue
@@ -4151,7 +4250,9 @@ def tick_continuous_physics(*, now_game_time=None):
                         isolators=isolators, workroom=job["room"],
                         surveyed_suit_work=(
                             repairs["site_surveys"].get(job["room"]) ==
-                            "suited_service"))):
+                            "suited_service"),
+                        flywheel_service=flywheel_service,
+                        electrical=electrical))):
                 safe.add(key)
         try:
             repairs, repair_completed = step_repairs(
@@ -4346,6 +4447,8 @@ def tick_continuous_physics(*, now_game_time=None):
         d["medical"] = medical
     if rescue is not None:
         d["rescue"] = rescue
+    if flywheel_service is not None:
+        d["flywheel_service"] = flywheel_service
     if bay_access is not None:
         d["bay_access"] = bay_access
     if major_damage is not None:
@@ -4370,6 +4473,8 @@ def tick_continuous_physics(*, now_game_time=None):
                 key for key, fault in electrical["faults"].items()
                 if fault["latched"]),
         } if electrical is not None else None),
+        "flywheel_locked_modules": (len(flywheel_service["permits"])
+                                    if flywheel_service is not None else None),
         "bay_access_active_cycles": (len(bay_access["jobs"]) if bay_access is not None else None),
         "bay_access_completed": (bay_access["completed"] if bay_access is not None else None),
         "rescue_active_transfers": (len(rescue["jobs"]) if rescue is not None else None),
@@ -4715,7 +4820,7 @@ def crew_physical_action(actor, request_id, action, target, value):
     """
     if not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
         raise PhysicsError("Expected one 32-character lowercase request UUID")
-    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue"}:
+    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service"}:
         raise PhysicsError("Unknown physical operation")
     if actor is None or getattr(actor.db, "ox_terminal_dead", False):
         raise PermissionError("A deceased or missing character cannot operate machinery")
@@ -4737,8 +4842,8 @@ def crew_physical_action(actor, request_id, action, target, value):
                     "isolator:" if action == "switch"
                     else "pressure:" if action == "mist"
                     else "access:" if action == "hatch"
-                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue"}
-                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue"} else target)
+                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service"}
+                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service"} else target)
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
@@ -4810,6 +4915,10 @@ def crew_physical_action(actor, request_id, action, target, value):
                     "g19_equipment_service"}):
             _electrical_crew_air_gate(
                 actor, item.space_id, _clock().details["electrical"])
+        if value == "closed" and target.startswith("ISO-PWR-F") and (
+                target.removeprefix("ISO-PWR-") in
+                (_clock().details.get("flywheel_service") or {"permits": {}})["permits"]):
+            raise PhysicsError("Physical flywheel maintenance padlock inhibits module re-energisation")
         if value == "closed" and target.startswith("ISO-MSB-XTIE"):
             tie = state("edge", "EDGE-MSB-XTIE")
             if tie.setting == "available":
@@ -5041,6 +5150,10 @@ def crew_physical_action(actor, request_id, action, target, value):
                 raise PhysicsError("Unrated, isolated or damaged fitted energy store")
             if value not in {"standby", "charge", "discharge"}:
                 raise PhysicsError("Energy store requires standby|charge|discharge")
+            if (family == "flywheels" and value != "standby" and
+                    target in (d.get("flywheel_service") or
+                               {"permits": {}})["permits"]):
+                raise PhysicsError("Measured flywheel remains under a real maintenance padlock")
             e[family][target]["mode"] = value
         elif target == "SHORE-PWR":
             supply = state("equipment", target, lock=True)
@@ -5838,6 +5951,49 @@ def crew_physical_action(actor, request_id, action, target, value):
         item.details = d
         item.revision += 1
         item.save(update_fields=["details", "revision"])
+
+    elif action == "flywheel_service":
+        # Independently measured zero rotation is distinct from an open
+        # 64-module bank contact. The permit retains the individual lock.
+        if target not in SERVICE_FLYWHEELS or value not in {"lock", "release"}:
+            raise PhysicsError("Flywheel service requires fitted module and lock|release")
+        item = _clock(lock=True)
+        before = _snapshot(item)
+        d = dict(item.details)
+        ledger = d.get("flywheel_service")
+        if ledger is None:
+            raise PhysicsError("As-built F1/F2 module lockout not commissioned")
+        room = module_room(target)
+        _crew_at(actor, room)
+        if not _flywheel_suit_ready(actor, room, d):
+            raise PhysicsError("Flywheel module service requires an actual issued suited worker")
+        repairs = d.get("repairs")
+        if (repairs is None or
+                repairs["site_surveys"].get(room) != "suited_service"):
+            raise PhysicsError("No operator-attested physical repair worksite")
+        module = state("equipment", target, lock=True)
+        breaker = state("isolator", module_breaker(target), lock=True)
+        if (module.space_id != room or
+                (breaker.space_id, breaker.reference.get("network"),
+                 breaker.reference.get("kind")) != (room, "power", "breaker")):
+            raise PhysicsError("Actual individual F1/F2 module feeder is mismatched")
+        try:
+            if value == "lock":
+                ledger = issue_permit(
+                    ledger, module=target, worker=actor.dbref,
+                    game_time=d["last_game_time"],
+                    electrical=d.get("electrical"),
+                    switches={module_breaker(target): breaker})
+            else:
+                ledger = release_permit(
+                    ledger, module=target, worker=actor.dbref,
+                    repair_active="equipment:" + target in repairs["jobs"])
+        except FlywheelServiceError as exc:
+            raise PhysicsError(str(exc)) from exc
+        d["flywheel_service"] = ledger
+        item.details = d
+        item.revision += 1
+        item.save(update_fields=["details", "revision"])
     elif action == "repair":
         item = _clock(lock=True)
         before = _snapshot(item)
@@ -5924,7 +6080,17 @@ def crew_physical_action(actor, request_id, action, target, value):
             elif room != unit.space_id:
                 raise PermissionError("Repairer is not at the installed machinery")
             zone = _topology()[0].get(room)
-            if not (isinstance(zone, str) and zone.startswith("PZ-")):
+            if room in {"F1-BAY", "F2-BAY"}:
+                if (r["site_surveys"].get(room) != "suited_service" or
+                        not _flywheel_suit_ready(actor, room, d)):
+                    raise PhysicsError("F1/F2 repairs require an actual issued oxygen suit and airlock survey")
+                if ident in SERVICE_FLYWHEELS:
+                    permit = (d.get("flywheel_service") or
+                              {"permits": {}})["permits"].get(ident)
+                    if (permit is None or
+                            value == "start" and permit["worker"] != actor.dbref):
+                        raise PhysicsError("Individual stopped flywheel requires its owner's padlocked module permit")
+            elif not (isinstance(zone, str) and zone.startswith("PZ-")):
                 if not (r["site_surveys"].get(room) == "suited_service"
                         and bool(getattr(actor.db, "ox_suit_verified", False))):
                     raise PhysicsError("Unpressurised machinery requires surveyed suited maintenance")
@@ -5940,7 +6106,9 @@ def crew_physical_action(actor, request_id, action, target, value):
                     water=water, cargo=d["cargo"], equipment=equipment,
                     isolators=isolators, workroom=room,
                     surveyed_suit_work=(
-                        r["site_surveys"].get(room) == "suited_service")):
+                        r["site_surveys"].get(room) == "suited_service"),
+                    flywheel_service=d.get("flywheel_service"),
+                    electrical=d.get("electrical")):
                 raise PhysicsError("Safe local isolation and known repairable damage required")
             try:
                 if value == "start":
@@ -6929,6 +7097,36 @@ def local_physics_readout(actor, target):
             "injury": own.details["injury"],
             "scope": "own_physically_measured_crew_health_only",
         }
+    if target == "flywheel_service":
+        d = _clock().details
+        ledger = d.get("flywheel_service")
+        if ledger is None or room not in {"F1-BAY", "F2-BAY"}:
+            raise PermissionError("Read the physical F1/F2 module maintenance station locally")
+        validate_flywheel_service(ledger)
+        if not _flywheel_suit_ready(actor, room, d):
+            raise PermissionError("Suited engineer must attend the vacuum service bay")
+        e = d["electrical"]
+        owned = {
+            name: {
+                "measured_charge_kwh": e["flywheels"].get(
+                    name, {}).get("charge_kwh"),
+                "source_mode": e["flywheels"].get(name, {}).get("mode"),
+                "feeder": state("isolator", module_breaker(name)).setting,
+                "lockout_owner": ledger["permits"].get(name, {}).get("worker"),
+                "isolated_for_service_now": permit_live(
+                    ledger, name, e, {
+                        module_breaker(name): state(
+                            "isolator", module_breaker(name))}),
+                "job": (d.get("repairs") or {"jobs": {}})["jobs"].get(
+                    "equipment:" + name),
+            } for name in POWER_FLYWHEELS if module_room(name) == room and (
+                name in e["flywheels"] or name in ledger["permits"])
+        }
+        return {"room": room, "modules": owned,
+                "active_permits_here": sum(
+                    name in ledger["permits"] for name in POWER_FLYWHEELS
+                    if module_room(name) == room),
+                "scope": "live_own_physically_attended_flywheel_bank"}
     if target == "bay_access":
         ledger = _clock().details.get("bay_access")
         if ledger is None:

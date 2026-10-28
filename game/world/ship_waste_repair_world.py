@@ -126,7 +126,8 @@ def live_waste_route(route, *, source_room, freight_lock, doors,
 
 def safe_repair_target(item, *, pressure_rows, zones, rotors, motion,
                        water, cargo, equipment, isolators,
-                       workroom=None, surveyed_suit_work=False):
+                       workroom=None, surveyed_suit_work=False,
+                       flywheel_service=None, electrical=None):
     """A machinery repair is allowed only when real conditions permit it."""
     from world.continuous_ship_physics import PLANTS, _air_safe
 
@@ -147,6 +148,20 @@ def safe_repair_target(item, *, pressure_rows, zones, rotors, motion,
         # A separate positive operator survey and VERIFIED suited worker are
         # required before work; air is never invented by this exemption.
         return False
+    # Flywheel cartridges can still be spinning with their feeder OPEN.
+    # Only the real measured kWh store and its own held padlock prove zero.
+    from world.ship_flywheel_maintenance import (
+        MODULES as FLYWHEELS, permit_live, bus_safe)
+    if item.category == "equipment" and item.source_id in FLYWHEELS:
+        if (not surveyed_suit_work or flywheel_service is None
+                or electrical is None or not permit_live(
+                    flywheel_service, item.source_id,
+                    electrical, isolators)):
+            return False
+    if item.category == "equipment" and item.source_id in {"F1-BUS", "F2-BUS"}:
+        if not surveyed_suit_work or not bus_safe(
+                item.source_id[:2], isolators):
+            return False
     if item.condition not in {"degraded", "faulted", "failed", "jammed", "severed"}:
         return False
     if item.details.get("physics_trip_reason"):
