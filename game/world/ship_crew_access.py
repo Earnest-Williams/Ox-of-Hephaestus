@@ -378,6 +378,10 @@ def _clearance(actor, exit_obj, dest):
 def traverse_canonical_exit(actor, exit_obj, dest, *, request_id=None):
     """Execute and journal a physical exit movement once, under the world clock."""
     from world.continuous_ship_physics import _clock
+    from world.ship_propulsion_bay_service import (
+        HATCH as PROP_BAY_HATCH, BAY as PROP_BAY,
+        finish_entry, BayAccessError,
+    )
 
     _require_installed()
     clock = _clock(lock=True)
