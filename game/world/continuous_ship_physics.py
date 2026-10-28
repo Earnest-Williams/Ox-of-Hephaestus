@@ -111,6 +111,18 @@ from world.ship_propulsion_proof import (
     DriveProofError, initial_drive_proof, validate_drive_proof,
     start_drive_proof, verify_drive_proof,
 )
+from world.ship_propulsion_bay_service import (
+    BayAccessError, HATCH as PROP_BAY_HATCH,
+    FREIGHT_HATCH as PROP_BAY_FREIGHT, BAY as PROP_BAY,
+    TRUNK as PROP_BAY_TRUNK, TRUNK_ZONE as PROP_BAY_TRUNK_ZONE,
+    PANEL as PROP_BAY_PANEL, CONTROLLER as PROP_BAY_CONTROLLER,
+    FEEDER as PROP_BAY_FEEDER,
+    initial_bay_service, validate_bay, survey_existing_gas,
+    source_pressure as bay_source_pressure,
+    bay_pressure as fitted_bay_pressure, bay_gas_safe,
+    safe_motion as bay_motion_safed, equalize_from_trunk,
+    bay_entry_ready, permit_entry, inspect_bay, release_entry,
+)
 from world.ship_propulsion_exterior import (
     PlumeAccessError, FACE as PROPULSION_FACE,
     BASE as PROPULSION_BASE, LINK as PROPULSION_LINK,
@@ -1975,6 +1987,178 @@ def survey_g19_flywheel_access(*, bay_id, operator_approved=False):
 
 
 
+
+
+def _propulsion_bay_source():
+    """Real upstream pressure cell and its independently metered gas."""
+    if _topology()[0].get(PROP_BAY_TRUNK) != PROP_BAY_TRUNK_ZONE:
+        raise PhysicsError("Original propulsion-bay feed trunk geometry mismatches")
+    cell = state("pressure", PROP_BAY_TRUNK_ZONE, lock=True)
+    if cell.quantity is None or not _air_safe(cell):
+        raise PhysicsError("Aft crew trunk has unsafe or unmeasured breathing gas")
+    d = cell.details
+    return cell, {
+        "mass_kg": cell.quantity,
+        "oxygen_kg": d["physics_oxygen_kg"],
+        "co2_kg": d["physics_co2_kg"],
+        "temperature_k": d["temperature_k"],
+        "volume_m3": d["gas_volume_m3"],
+    }
+
+
+def _propulsion_bay_suit_ready(actor, details):
+    """Do not substitute ox_suit_verified for a REAL issued finite EVA suit."""
+    room = getattr(getattr(getattr(actor, "location", None), "db", None),
+                   "ox_space_id", None)
+    if (actor is None or room not in {PROP_BAY_TRUNK, PROP_BAY}
+            or getattr(actor.db, "ox_terminal_dead", False)
+            or getattr(actor.db, "crew_role", None) not in AUTHORISED_ROLES
+            and not actor.check_permstring("Developer")):
+        return False
+    health = CanonicalShipState.objects.filter(
+        pk="crew_health:" + actor.dbref, source_model=MODEL).first()
+    if health is None or health.condition not in {"fit", "impaired"}:
+        return False
+    eva = details.get("eva")
+    if eva is None or actor.dbref in eva["transits"]:
+        return False
+    _, suit = suit_of(eva, actor.dbref)
+    return bool(suit is not None and suit["integrity"] >= .8
+                and suit["exposure"]["suit_oxygen_kg"] > .01
+                and suit["exposure"]["condition"] not in {
+                    "incapacitated", "critical", "dead"})
+
+
+def _propulsion_bay_ready(details, *, require_permit=True, hatch_closed=False):
+    """Original rated hatch, actual independent upstream gas and machinery."""
+    ledger = details.get("propulsion_bay")
+    if ledger is None:
+        return False
+    hatch = state("access", PROP_BAY_HATCH)
+    freight = state("access", PROP_BAY_FREIGHT)
+    feeder = state("isolator", PROP_BAY_FEEDER)
+    if (hatch.condition in _BROKEN or freight.condition in _BROKEN
+            or freight.setting != "closed" or feeder.condition in _BROKEN
+            or feeder.setting != "open" or
+            hatch.reference.get("from") != PROP_BAY_TRUNK or
+            hatch.reference.get("to") != PROP_BAY or
+            hatch.reference.get("kind") != "service_door" or
+            hatch.reference.get("pressure_boundary") is not True or
+            hatch_closed and hatch.setting != "closed" or
+            hatch.setting not in {"closed", "open"} or
+            (details.get("propulsion_exterior") or {}).get("permit") is not None):
+        return False
+    try:
+        cell, source = _propulsion_bay_source()
+        return bay_entry_ready(
+            ledger, source_pa=bay_source_pressure(source), source_safe=_air_safe(cell),
+            motion=details["motion"], feeder_open=True,
+            hatch_sound=True, other_closed=True,
+            now_s=details["last_game_time"], require_permit=require_permit)
+    except (ShipOperationsError, PhysicsError, BayAccessError):
+        return False
+
+
+def _propulsion_bay_worker_ready(actor, details, *, inside=True):
+    """Same owner must attend the original suited worksite, hatch shut."""
+    ledger = details.get("propulsion_bay")
+    if ledger is None or ledger["permit"] is None or (
+            ledger["permit"]["holder"] != getattr(actor, "dbref", None)):
+        return False
+    room = getattr(getattr(getattr(actor, "location", None), "db", None),
+                   "ox_space_id", None)
+    if inside and room != PROP_BAY:
+        return False
+    return bool(_propulsion_bay_suit_ready(actor, details) and
+                _propulsion_bay_ready(details, hatch_closed=inside))
+
+
+@transaction.atomic
+def commission_g19_propulsion_bay(*, operator_approved=False):
+    """Enroll the existing isolated original propulsion service compartment."""
+    if not operator_approved:
+        raise PermissionError("Original rated propulsion service hatch is operator-commissioned")
+    clock = _clock(lock=True)
+    if clock.details.get("propulsion_bay") is not None:
+        validate_bay(clock.details["propulsion_bay"])
+        return {"commissioned": False}
+    if any(clock.details.get(k) is None for k in ("eva", "repairs", "electrical")):
+        raise PhysicsError("Existing suit, electric isolation and finite repair plant required")
+    from world.ship_world import find_ship_space
+    if (find_ship_space(PROP_BAY_TRUNK) is None or
+            find_ship_space(PROP_BAY) is None or
+            _topology()[0].get(PROP_BAY) is not None):
+        raise PhysicsError("No original unsurveyed propulsion service compartment")
+    hatch = state("access", PROP_BAY_HATCH)
+    freight = state("access", PROP_BAY_FREIGHT)
+    panel = state("equipment", PROP_BAY_PANEL)
+    control = state("equipment", PROP_BAY_CONTROLLER)
+    feeder = state("isolator", PROP_BAY_FEEDER)
+    if (hatch.reference.get("from") != PROP_BAY_TRUNK or
+            hatch.reference.get("to") != PROP_BAY or
+            hatch.reference.get("pressure_boundary") is not True or
+            hatch.reference.get("kind") != "service_door" or
+            hatch.setting != "closed" or hatch.condition in _BROKEN or
+            freight.reference.get("to") != PROP_BAY or
+            freight.reference.get("kind") != "freight_door" or
+            freight.setting != "closed" or
+            any(x.space_id != PROP_BAY for x in (panel, control, feeder)) or
+            feeder.reference.get("network") != "power"):
+        raise PhysicsError("Original rated hatch, controller, freight boundary or isolation missing")
+    old = _snapshot(clock)
+    d = dict(clock.details)
+    d["propulsion_bay"] = initial_bay_service()
+    clock.details = d
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "g19_existing_propulsion_bay_survey_commissioned", old)
+    return {"commissioned": True, "service_hatch": PROP_BAY_HATCH}
+
+
+@transaction.atomic
+def survey_g19_propulsion_bay(*, operator_approved=False,
+                              volume_m3=None, pressure_pa=None,
+                              temperature_k=None,
+                              oxygen_mass_fraction=None,
+                              co2_mass_fraction=None,
+                              smoke_mass_fraction=0.0):
+    """Positive isolated bay pressure/composition observation, never free air."""
+    if not operator_approved:
+        raise PermissionError("Only operator may positively survey original gas compartment")
+    clock = _clock(lock=True)
+    d = dict(clock.details)
+    ledger = d.get("propulsion_bay")
+    if ledger is None:
+        raise PhysicsError("Original PROP-SVC rated-hatch service is not commissioned")
+    hatch = state("access", PROP_BAY_HATCH)
+    peer = state("access", PROP_BAY_FREIGHT)
+    if (hatch.condition in _BROKEN or peer.condition in _BROKEN
+            or peer.setting != "closed"):
+        raise PhysicsError("A damaged or open rated hatch cannot prove isolated bay gas")
+    try:
+        surveyed = survey_existing_gas(
+            ledger, volume_m3=volume_m3, pressure_pa=pressure_pa,
+            temperature_k=temperature_k,
+            oxygen_mass_fraction=oxygen_mass_fraction,
+            co2_mass_fraction=co2_mass_fraction,
+            smoke_mass_fraction=smoke_mass_fraction,
+            now_s=d["last_game_time"], hatch_closed=hatch.setting=="closed")
+    except BayAccessError as exc:
+        raise PhysicsError(str(exc)) from exc
+    # An atmosphere classification does NOT permit bare-handed maintenance:
+    # original room remains pressure-unclassified and always needs a real suit.
+    repairs = dict(d["repairs"])
+    repairs["site_surveys"] = dict(repairs["site_surveys"])
+    repairs["site_surveys"][PROP_BAY] = "suited_service"
+    validate_repairs(repairs)
+    old = _snapshot(clock)
+    d["propulsion_bay"], d["repairs"] = surveyed, repairs
+    clock.details = d
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "g19_propulsion_bay_gas_and_pressure_measured", old)
+    return {"room": PROP_BAY, "pressure_pa": round(fitted_bay_pressure(
+                surveyed["gas"]), 1), "gas_mass_kg": surveyed["gas"]["mass_kg"]}
 
 
 @transaction.atomic
