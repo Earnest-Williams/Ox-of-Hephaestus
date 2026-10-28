@@ -3368,7 +3368,9 @@ def tick_continuous_physics(*, now_game_time=None):
                             for key, item in water_stocks.items()},
                     hardware=hardware, crew_count=40,
                     cultivation_demand_kg=(sum(irrigation_plan.values())
-                                           if cultivation is not None else None))
+                                           if cultivation is not None else None),
+                    food_rehydration_demand_kg=(
+                        0.0 if food is not None else None))
             except WaterError as exc:
                 raise PhysicsError(str(exc)) from exc
             for key, amount in balances.items():
