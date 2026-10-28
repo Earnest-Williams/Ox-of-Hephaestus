@@ -4,7 +4,7 @@ import unittest
 
 from world.ship_crew_exposure import initial_exposure
 from world.ship_crew_medical import (
-    MedicalError, TREATMENT_ROOM, initial_medical, validate_medical,
+    MedicalError, TREATMENT_ROOM, OBSERVATION_ROOM, initial_medical, validate_medical,
     carry_medical_kit, begin_care, begin_observation, discharge_observation, step_care,
 )
 
@@ -148,6 +148,66 @@ class MedicalTests(unittest.TestCase):
         self.assertEqual(discharged["used_dressings"], 1)
         with self.assertRaises(MedicalError):
             discharge_observation(discharged, patient="#1", caregiver="#2")
+
+    def test_real_observation_room_has_separate_finite_stock_and_power(self):
+        in_hand = carry_medical_kit(
+            self.m, actor="#2", verb="pickup", cases=2)
+        at_obs = carry_medical_kit(
+            in_hand, actor="#2", verb="deliver",
+            destination=OBSERVATION_ROOM)
+        self.assertEqual(at_obs["obs_dressings"], 2)
+        self.assertEqual(at_obs["dressings"], 0)
+        with self.assertRaises(MedicalError):
+            begin_observation(
+                self.staged(), patient="#1", caregiver="#2", health=self.h,
+                patient_room=OBSERVATION_ROOM,
+                caregiver_room=OBSERVATION_ROOM,
+                equipment_ok=True, breathable=True)
+        course = begin_observation(
+            at_obs, patient="#1", caregiver="#2", health=self.h,
+            patient_room=OBSERVATION_ROOM,
+            caregiver_room=OBSERVATION_ROOM,
+            equipment_ok=True, breathable=True)
+        self.assertEqual(course["obs_dressings"], 1)
+        self.assertEqual(course["obs_fluid_kg"], .5)
+        self.assertEqual(course["observations"]["#1"]["room"],
+                         OBSERVATION_ROOM)
+        # A treatment-room witness cannot substitute for the actual
+        # powered, staffed observation site.
+        paused, health, _ = step_care(
+            course, {"#1": self.h}, 10, occupants={"#1", "#2"},
+            equipment_ok=True, breathable=True,
+            observer_occupants=set(), observer_powered=True,
+            observer_breathable=True)
+        self.assertEqual(paused["observations"]["#1"]["observed_s"], 0)
+        self.assertEqual(health["#1"]["injury"], self.h["injury"])
+        unpowered, health, _ = step_care(
+            course, {"#1": self.h}, 10, occupants=set(),
+            equipment_ok=True, breathable=True,
+            observer_occupants={"#1", "#2"}, observer_powered=False,
+            observer_breathable=True)
+        self.assertEqual(unpowered["observations"]["#1"]["observed_s"], 0)
+        recovered, health, _ = step_care(
+            course, {"#1": self.h}, 10, occupants=set(),
+            equipment_ok=False, breathable=True,
+            observer_occupants={"#1", "#2"}, observer_powered=True,
+            observer_breathable=True)
+        self.assertEqual(recovered["observations"]["#1"]["observed_s"], 10)
+        self.assertLess(health["#1"]["injury"], self.h["injury"])
+        self.assertEqual(recovered["used_dressings"], 1)
+
+    def test_malformed_legacy_and_new_observation_stock_are_rejected(self):
+        staged = carry_medical_kit(
+            carry_medical_kit(
+                self.m, actor="#2", verb="pickup", cases=1),
+            actor="#2", verb="deliver", destination=OBSERVATION_ROOM)
+        staged["obs_fluid_kg"] += .5
+        with self.assertRaises(MedicalError):
+            validate_medical(staged)
+        damaged = initial_medical(dressings=2, fluid_kg=1)
+        damaged["observation_completed"] = -1
+        with self.assertRaises(MedicalError):
+            validate_medical(damaged)
 
     def test_observation_completion_and_fatality(self):
         m = begin_observation(
