@@ -240,6 +240,43 @@ class OriginalPropulsionServiceBay(EvenniaTestCase):
         self.assertEqual(WorkReceipt.objects.filter(
             operation="propulsion_bay").count(), 3)
 
+    def test_depleted_issued_suit_retreats_but_cannot_reenter_propulsion_bay(self):
+        self.prepare()
+        self.enter()
+        # A casualty scenario exhausts an already-issued genuine EVA suit.
+        # Update existing finite oxygen custody instead of granting a new
+        # suit or using the obsolete ox_suit_verified boolean shortcut.
+        from copy import deepcopy
+        from world.ship_eva_operations import suit_of, validate_eva
+        clock = _clock(lock=True)
+        previous = dict(clock.details)
+        altered = deepcopy(previous["eva"])
+        suit_id, suit = suit_of(altered, self.engineer.dbref)
+        self.assertIsNotNone(suit_id)
+        lost = suit["exposure"]["suit_oxygen_kg"] - .005
+        self.assertGreater(lost, 0)
+        suit["exposure"]["suit_oxygen_kg"] = .005
+        altered["consumed_oxygen_kg"] += lost
+        validate_eva(altered)
+        previous["eva"] = altered
+        clock.details = previous
+        clock.revision += 1
+        clock.save(update_fields=["details", "revision"])
+        with self.assertRaises(PhysicsError):
+            self.action("propulsion_bay", "PROP-SVC", "inspect")
+        # Genuine reverse transit must remain possible while the original
+        # rated receiver is at equal pressure and safely breathable.
+        self.action("hatch", "ACC-PROP-SVC", "open")
+        self.assertEqual(self.transit("reverse")["status"], "succeeded")
+        self.assertEqual(self.engineer.location.db.ox_space_id, "TRUNK-B-AFT")
+        self.action("hatch", "ACC-PROP-SVC", "closed")
+        # Low oxygen is NOT a new service-entry permit.
+        with self.assertRaises(PhysicsError):
+            self.action("hatch", "ACC-PROP-SVC", "open")
+        self.action("propulsion_bay", "PROP-SVC", "release")
+        self.assertEqual(_clock().details["propulsion_bay"]["entries"], 1)
+        self.assertIsNone(_clock().details["propulsion_bay"]["permit"])
+
     def test_metered_bleed_never_vents_or_invents_trunk_atmosphere(self):
         self.at("PROP-CTRL")
         self.action("drive", "MAIN", "inhibit")
