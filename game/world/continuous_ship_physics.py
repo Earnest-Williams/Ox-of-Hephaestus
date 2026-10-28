@@ -5335,7 +5335,7 @@ def crew_physical_action(actor, request_id, action, target, value):
     """
     if not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
         raise PhysicsError("Expected one 32-character lowercase request UUID")
-    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service"}:
+    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation"}:
         raise PhysicsError("Unknown physical operation")
     if actor is None or getattr(actor.db, "ox_terminal_dead", False):
         raise PermissionError("A deceased or missing character cannot operate machinery")
@@ -5357,8 +5357,8 @@ def crew_physical_action(actor, request_id, action, target, value):
                     "isolator:" if action == "switch"
                     else "pressure:" if action == "mist"
                     else "access:" if action == "hatch"
-                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service"}
-                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service"} else target)
+                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation"}
+                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation"} else target)
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
@@ -6529,6 +6529,29 @@ def crew_physical_action(actor, request_id, action, target, value):
 
 
 
+    elif action == "cultivation":
+        if target not in {f"GROW-{n}" for n in GROW_BAYS} or value != "harvest":
+            raise PhysicsError("Only physical harvest at the three fitted grow bays is supported")
+        bay = int(target[-1])
+        room = GROW_BAYS[bay]
+        _crew_at(actor, room)
+        if not _air_safe(state("pressure", _topology()[0][room])):
+            raise PhysicsError("Unsafe room atmosphere for attended food handling")
+        clock = _clock(lock=True)
+        cultivation = clock.details.get("cultivation")
+        if cultivation is None:
+            raise PhysicsError("Original hydroponics not commissioned")
+        try:
+            cultivation, collected = harvest_cultivation(cultivation, bay=bay)
+        except CultivationError as exc:
+            raise PhysicsError(str(exc)) from exc
+        before = _snapshot(clock)
+        details = dict(clock.details)
+        details["cultivation"] = cultivation
+        clock.details = details
+        clock.revision += 1
+        clock.save(update_fields=["details", "revision"])
+        item = clock
     elif action == "propulsion_service":
         # v0.5 has an exterior platform, but no separately identifiable
         # external nozzle machine. Only a suited inspection is admissible.
@@ -7381,7 +7404,23 @@ def crew_physical_action(actor, request_id, action, target, value):
             item.revision += 1
             item.save(update_fields=["setting", "revision"])
     elif action == "service":
-        if target in REFUGE_PACKS:
+        if target in {f"GROW-{n}" for n in GROW_BAYS}:
+        name = target
+        room_id = GROW_BAYS[int(name[-1])]
+        if room != room_id:
+            raise PermissionError("Attend the original grow-room process skid")
+        ledger = _clock().details.get("cultivation")
+        if ledger is None:
+            raise PhysicsError("Cultivation not commissioned")
+        validate_cultivation(ledger)
+        return {
+            "bed": name,
+            **dict(ledger["beds"][name]),
+            "last_producing": name in ledger["last"]["productive"],
+            "water_applied_this_step_kg": ledger["last"]["water_applied_kg"],
+            "scope": "physically_attended_growth_and_staged_harvest",
+        }
+    if target in REFUGE_PACKS:
             if not isinstance(value, str) or not value.startswith("refill:"):
                 raise PhysicsError("Refuge filter needs refill:<kg> of surveyed local media")
             item = state("equipment", target, lock=True)
