@@ -8321,7 +8321,7 @@ def local_physics_readout(actor, target):
                 "feeders": {f: state("isolator", f).setting
                             for f in feeders_for(name)},
                 "scope": "actual_local_machine_only"}
-    if (target in {"instruments", "alarms", "alarm_bridge"}'
+    if (target in {"instruments", "alarms", "alarm_bridge"}
             or target.startswith("panel:")
             or target.startswith("diagnose:")):
         clock = _clock()
