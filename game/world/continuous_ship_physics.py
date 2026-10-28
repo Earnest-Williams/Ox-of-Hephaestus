@@ -4252,7 +4252,7 @@ def tick_continuous_physics(*, now_game_time=None):
                             repairs["site_surveys"].get(job["room"]) ==
                             "suited_service"),
                         flywheel_service=flywheel_service,
-                        electrical=electrical))):
+                        electrical=electrical)):
                 safe.add(key)
         try:
             repairs, repair_completed = step_repairs(
