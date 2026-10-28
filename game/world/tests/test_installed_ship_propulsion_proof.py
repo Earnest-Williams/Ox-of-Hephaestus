@@ -4,11 +4,12 @@ from world.bootstrap import build_ship
 from world.ship_world import build_canonical_ship, find_ship_space
 from world.full_ship_operations import (
     install_candidate, install_pressure_cells, initialize_nominal_atmosphere,
-    set_isolator, set_component_condition,
+    set_isolator, set_component_condition, state,
 )
 from world.continuous_ship_physics import (
     PhysicsError, arm_continuous_physics, crew_physical_action,
     tick_continuous_physics, local_physics_readout, _clock,
+    commission_g19_water, commission_g19_repairs,
 )
 from world.models import WorkReceipt
 
@@ -66,6 +67,19 @@ class RealDriveOutputWitness(EvenniaTestCase):
             operation="drive", arguments__value="prove_verify").count(), 1)
         with self.assertRaises(PhysicsError):
             self.action(self.engineer, "drive", "MAIN", "prove_verify")
+
+    def test_propulsion_service_bay_is_not_a_remote_repair_shortcut(self):
+        commission_g19_water(operator_approved=True)
+        commission_g19_repairs(operator_approved=True)
+        set_component_condition("equipment", "LCS-PROP", "failed", operator=True)
+        self.assertEqual(state("equipment", "LCS-PROP").space_id, "PROP-SVC")
+        # The control station is a different real pressure cell. An
+        # engineer standing here cannot perform hands-on work at the
+        # atmosphere-unsurveyed original propulsion service room.
+        with self.assertRaises(PermissionError):
+            self.action(self.engineer, "repair", "equipment:LCS-PROP", "start")
+        with self.assertRaises(PermissionError):
+            local_physics_readout(self.helm, "drive_proof")
 
     def test_idle_drive_and_damaged_controller_cannot_verify_output(self):
         self.action(self.engineer, "drive", "MAIN", "prove_start")
