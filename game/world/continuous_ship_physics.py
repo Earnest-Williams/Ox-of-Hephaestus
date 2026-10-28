@@ -112,7 +112,7 @@ from world.ship_propulsion_proof import (
     start_drive_proof, verify_drive_proof,
 )
 from world.ship_propulsion_bay_service import (
-    BayAccessError, HATCH as PROP_BAY_HATCH,
+    BayAccessError as PropulsionBayError, HATCH as PROP_BAY_HATCH,
     FREIGHT_HATCH as PROP_BAY_FREIGHT, BAY as PROP_BAY,
     TRUNK as PROP_BAY_TRUNK, TRUNK_ZONE as PROP_BAY_TRUNK_ZONE,
     PANEL as PROP_BAY_PANEL, CONTROLLER as PROP_BAY_CONTROLLER,
@@ -2055,7 +2055,7 @@ def _propulsion_bay_ready(details, *, require_permit=True, hatch_closed=False):
             motion=details["motion"], feeder_open=True,
             hatch_sound=True, other_closed=True,
             now_s=details["last_game_time"], require_permit=require_permit)
-    except (ShipOperationsError, PhysicsError, BayAccessError):
+    except (ShipOperationsError, PhysicsError, PropulsionBayError):
         return False
 
 
@@ -2143,7 +2143,7 @@ def survey_g19_propulsion_bay(*, operator_approved=False,
             co2_mass_fraction=co2_mass_fraction,
             smoke_mass_fraction=smoke_mass_fraction,
             now_s=d["last_game_time"], hatch_closed=hatch.setting=="closed")
-    except BayAccessError as exc:
+    except PropulsionBayError as exc:
         raise PhysicsError(str(exc)) from exc
     # An atmosphere classification does NOT permit bare-handed maintenance:
     # original room remains pressure-unclassified and always needs a real suit.
@@ -8424,7 +8424,7 @@ def crew_physical_action(actor, request_id, action, target, value):
                         for job in (d.get("repairs") or {"jobs": {}})["jobs"].values()))
             else:
                 raise PhysicsError("Use bleed:<kg>, secure, inspect or release at true PROP-SVC")
-        except (BayAccessError, TypeError, ValueError) as exc:
+        except (PropulsionBayError, TypeError, ValueError) as exc:
             raise PhysicsError(str(exc)) from exc
         validate_bay(bay)
         d["propulsion_bay"] = bay
