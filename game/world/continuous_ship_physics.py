@@ -7571,11 +7571,13 @@ def crew_physical_action(actor, request_id, action, target, value):
                     if category == "equipment" and ident in set(MOTORS) | set(SERVICE_LOADS):
                         cases = d.get("fault_cases") or initial_fault_cases()
                         case = cases["cases"].get(ident)
-                        if not case or case["stage"] != "isolated" or not all(
-                                state("isolator", feeder).setting == "open"
-                                for feeder in feeders_for(ident)):
-                            raise PhysicsError("Physically inspect and isolate machine first")
-                        d["fault_cases"] = begin_verified_work(cases, ident, isolated=True)
+                        if case is not None:
+                            if case["stage"] != "isolated" or not all(
+                                    state("isolator", feeder).setting == "open"
+                                    for feeder in feeders_for(ident)):
+                                raise PhysicsError("Signed fault case needs full feeder isolation")
+                            d["fault_cases"] = begin_verified_work(
+                                cases, ident, isolated=True)
                     r = begin_repair(
                         r, target=target, room=room,
                         actor_dbref=actor.dbref, condition=unit.condition)
