@@ -192,7 +192,8 @@ def _fill_cassette(water, category, mass, hardware):
     return mass
 
 
-def step_water(water, seconds, *, stocks, hardware, crew_count=40):
+def step_water(water, seconds, *, stocks, hardware, crew_count=40,
+               cultivation_demand_kg=None):
     """Process coupled potable use, dirty-water buffers, recovery and waste.
 
     hardware is the *current*, tested graph/condition/power evidence:
@@ -208,6 +209,14 @@ def step_water(water, seconds, *, stocks, hardware, crew_count=40):
         raise WaterError("Unbounded water physics step")
     if not isinstance(crew_count, int) or not 0 <= crew_count <= 40:
         raise WaterError("Crew demand outside installed 40-person contract")
+    if cultivation_demand_kg is not None:
+        if (type(cultivation_demand_kg) not in (int, float)
+                or not math.isfinite(cultivation_demand_kg)
+                or cultivation_demand_kg < 0
+                or cultivation_demand_kg >
+                    MAINTENANCE_AND_FOOD_KG_DAY["cultivation"] *
+                    seconds / DAY * crew_count / 40 + EPS):
+            raise WaterError("Crop water claim exceeds this tick's real allocation")
     validate_water(water, stocks)
     import copy
     w = copy.deepcopy(water)
@@ -219,7 +228,8 @@ def step_water(water, seconds, *, stocks, hardware, crew_count=40):
         "processed_kg": 0.0, "recovered_kg": 0.0, "reject_kg": 0.0,
         "sanitary_kg": 0.0, "makeup_kg": 0.0,
         "oxygen_kg": 0.0, "hydrogen_kg": 0.0,
-        "technical_kg": 0.0, "rationed_nonessential_kg": 0.0,
+        "technical_kg": 0.0, "cultivation_water_kg": 0.0,
+        "rationed_nonessential_kg": 0.0,
         "decontaminated_kg": 0.0,
         "power_required": False,
     }
@@ -394,12 +404,16 @@ def step_water(water, seconds, *, stocks, hardware, crew_count=40):
     # operational consequence, not a hidden disappearance of crew demand.
     if potable_ready:
         for name, rate in MAINTENANCE_AND_FOOD_KG_DAY.items():
-            request = rate * daily * scale
+            request = (cultivation_demand_kg
+                       if name == "cultivation" and cultivation_demand_kg is not None
+                       else rate * daily * scale)
             restricted = w["reserve_released"] and name in {
                 "cultivation", "servicing"}
             moved = 0.0 if restricted else min(request, w["working_kg"])
             w["working_kg"] -= moved
             report["technical_kg"] += moved
+            if name == "cultivation":
+                report["cultivation_water_kg"] = moved
             w["cumulative"]["technical_unserved_kg"] += request - moved
             if restricted:
                 report["rationed_nonessential_kg"] += request
