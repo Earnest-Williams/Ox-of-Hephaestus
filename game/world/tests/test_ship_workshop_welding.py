@@ -10,7 +10,7 @@ from world.ship_workshop_fabrication import credit_repair_parts
 from world.ship_workshop_welding import (
     WeldError, CELLS, ARC_KW, initial_welding, validate_welding,
     certify_filler, issue_filler, start_weld, step_welds,
-    take_slag, deposit_slag,
+    take_slag, deposit_slag, welded_output_confirmed,
 )
 
 
@@ -104,6 +104,30 @@ class OriginalWeldingTests(unittest.TestCase):
         self.assertAlmostEqual(water["cassettes"]["industrial"]["A"], .15)
         self.assertAlmostEqual(w["slag_deposited_kg"], .15)
         self.assertTrue(validate_welding(w))
+
+    def test_live_welding_output_cannot_be_proved_from_old_or_dark_gauge(self):
+        machine = {
+            "physics_commanded_on": True, "physics_online": True,
+            "physics_startup_s": 0,
+            "physics_weld_arc_gauge": {
+                "last_arc_kj": 150,
+                "cumulative_arc_kj": 300,
+                "sample_game_time_s": 1010,
+            },
+        }
+        self.assertTrue(welded_output_confirmed(
+            "WELD-CELL-A", machine, observed_s=1010, operating=True))
+        self.assertFalse(welded_output_confirmed(
+            "WELD-CELL-A", machine, observed_s=1020, operating=True))
+        self.assertFalse(welded_output_confirmed(
+            "WELD-CELL-A", machine, observed_s=1010, operating=False))
+        machine["physics_weld_arc_gauge"]["last_arc_kj"] = 0
+        self.assertFalse(welded_output_confirmed(
+            "WELD-CELL-A", machine, observed_s=1010, operating=True))
+        machine["physics_weld_arc_gauge"]["last_arc_kj"] = -10
+        with self.assertRaises(WeldError):
+            welded_output_confirmed(
+                "WELD-CELL-A", machine, observed_s=1010, operating=True)
 
     def test_two_cells_independent_and_critical_mass_tamper_rejected(self):
         w, repairs = prepared()
