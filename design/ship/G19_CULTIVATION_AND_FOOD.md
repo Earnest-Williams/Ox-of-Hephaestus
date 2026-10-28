@@ -1,3 +1,5 @@
+> **Recovery note (28 October 2026):** This document describes the initial growing-bay slice. The integrated phase is now documented in [G19_FOOD_OPERATIONS_AND_ACCEPTANCE.md](G19_FOOD_OPERATIONS_AND_ACCEPTANCE.md), including finite provisioning, kitchens, sanitation, assisted feeding, all originally wired grow rooms and the full eight-job CI acceptance gate. Do not treat the older “remaining food-system work” paragraph as current status.
+
 # G19 — original three-bay hydroponic cultivation (28 October 2026)
 
 ## Built operational slice

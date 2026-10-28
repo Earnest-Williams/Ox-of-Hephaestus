@@ -255,8 +255,9 @@ class InstalledFoodTests(EvenniaTestCase):
 
     def test_named_helper_can_feed_patient_in_original_cabin_only(self):
         patient = build_ship()["captain"]
-        cabin = "HAB-02-CAB-01"
-        patient.move_to(find_ship_space(cabin), quiet=True)
+        cabin = "HAB-01-CAB-01"
+        self.assertIsNotNone(find_ship_space(cabin))
+        self.assertTrue(patient.move_to(find_ship_space(cabin), quiet=True))
         commission_g19_crew_physiology(
             actor_dbrefs=[patient.dbref], operator_approved=True)
         commission_g19_food(operator_approved=True)

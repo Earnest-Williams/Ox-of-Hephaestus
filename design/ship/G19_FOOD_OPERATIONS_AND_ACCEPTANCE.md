@@ -46,17 +46,17 @@ All `oxplant` operations require a unique 32-character lowercase hex request ID,
 
 ## Test matrix and acceptance boundary
 
-The new `.github/workflows/ox-g19-food.yml` includes three **unconditionally executed** jobs, including on the draft integration PR:
+The new `.github/workflows/ox-g19-food.yml` includes eight **unconditionally executed** jobs in three acceptance families, including on the draft integration PR:
 
 1. Pure mass, calorie, crop, spoilage, nutrient, 730-day water and seeded food-operation fuzz regressions, using no fabricated ship crew or route.
 2. Full installed Evennia original-room commissioning, pantry transport, B-bus galley, recipe water, mess eating, receipts, spoilage and spares-to-cultivation transport.
 3. Prior installed G19 electrical, water/waste and crew-physiology regressions, to ensure the new resource account cannot silently break already accepted ships.
 
-**Acceptance requires all three jobs green on the exact final runtime commit.** Older green runs demonstrate their own code only. A failed or skipped gate does not count. The original whole-ship acceptance and prohibited 40-crew voyage remain separate. Merge only after wider G19 completion.
+**Acceptance requires all eight jobs green on the exact final runtime commit.** Older green runs demonstrate their own code only. A failed or skipped gate does not count. The original whole-ship acceptance and prohibited 40-crew voyage remain separate. Merge only after wider G19 completion.
 
 
 ### Casualty nutrition and test partition
 
-A physically present helper may use \`oxplant <uuid> food <patient-room> feed:#patient\` to feed an **already prepared, actually carried** serving to an **enrolled, living character in the same real pressurised room**, including a patient who is too weak to traverse the ship to the mess. A depleted person cannot operate logistics or machinery until fed; rescue therefore does not require teleporting a starving character to the galley. The receipt is once-only and nutrition is credited to the patient, never the helper.
+A physically present helper may use `oxplant <uuid> food <patient-room> feed:#patient` to feed an **already prepared, actually carried** serving to an **enrolled, living character in the same real pressurised room**, including a patient who is too weak to traverse the ship to the mess. A depleted person cannot operate logistics or machinery until fed; rescue therefore does not require teleporting a starving character to the galley. The receipt is once-only and nutrition is credited to the patient, never the helper.
 
 The phase's historical compatibility acceptance executes the same original 42 electrical, 12 water/waste and 4 physiology tests in six separately provisioned, parallel shards (four electrical, one water, one physiology). This cuts wall time without deleting coverage or allowing failures to be hidden by a successful subset. Final phase acceptance requires **all eight jobs** (pure, installed food and six compatibility shards) to succeed on the exact commit.
