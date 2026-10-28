@@ -109,4 +109,27 @@ class CultivationTests(unittest.TestCase):
         self.assertTrue(validate_cultivation(upgraded))
 
 
+    def test_active_cooking_does_not_double_charge_daily_rehydration_budget(self):
+        water = initial_water()
+        stocks = dict(normal=162000.0, reserve=70000.0, sanitary=0.0,
+                      industrial=0.0, hazardous=0.0)
+        plant = dict(potable=True, process={"A": True, "B": True},
+                     fixed={"grey": True, "black": True}, oxygen=True,
+                     bins={k: {"A": True, "B": True}
+                           for k in ("sanitary", "industrial", "hazardous")})
+        old, _, old_report = step_water(
+            water, 10, stocks=stocks, hardware=plant)
+        new, _, new_report = step_water(
+            water, 10, stocks=stocks, hardware=plant,
+            food_rehydration_demand_kg=0.0)
+        self.assertGreater(old_report["technical_kg"],
+                           new_report["technical_kg"])
+        self.assertAlmostEqual(
+            old_report["technical_kg"] - new_report["technical_kg"],
+            (740.0 / 730.0) * 10.0 / DAY, places=8)
+        with self.assertRaises(ValueError):
+            step_water(water, 10, stocks=stocks, hardware=plant,
+                       food_rehydration_demand_kg=500)
+
+
 GROW_BAYS_TO_NAMES = tuple(f"GROW-{n}" for n in GROW_BAYS)
