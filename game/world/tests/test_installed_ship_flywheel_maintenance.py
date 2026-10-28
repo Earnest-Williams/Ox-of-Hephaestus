@@ -35,6 +35,10 @@ class InstalledFlywheelMaintenance(EvenniaTestCase):
         commission_g19_eva(operator_approved=True)
         commission_g19_flywheel_access(operator_approved=True)
         self.worker = build_ship()["watch"]
+        # Legacy bootstrap crew begins in the small prototype room graph;
+        # enrol only after moving the actual character into the canonical ship.
+        self.assertTrue(self.worker.move_to(
+            find_ship_space("CMD-PRIMARY"), quiet=True))
         commission_g19_crew_physiology(
             actor_dbrefs=[self.worker.dbref], operator_approved=True)
         for bay in ("F1-BAY", "F2-BAY"):
