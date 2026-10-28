@@ -219,14 +219,20 @@ def _clearance(actor, exit_obj, dest):
         # clearance or accept PPE without a matched, measured gas register.
         from world.continuous_ship_physics import (
             _clock, _propulsion_bay_ready, _propulsion_bay_worker_ready,
+            _propulsion_bay_retreat_ready,
         )
         clock = _clock()
-        if (door.setting != "open" or
-                not _propulsion_bay_worker_ready(
-                    actor, clock.details, inside=False)
+        if src_id == PROP_BAY and dst_id == "TRUNK-B-AFT":
+            allowed = _propulsion_bay_retreat_ready(actor, clock.details)
+        else:
+            # Forward admission is never permitted on a low-oxygen,
+            # unassigned or otherwise unsafe EVA suit.
+            allowed = _propulsion_bay_worker_ready(
+                actor, clock.details, inside=False)
+        if (door.setting != "open" or not allowed
                 or not _propulsion_bay_ready(clock.details)):
             raise CrewTransitError(
-                "PROP-SVC requires live equalized gas, a sound rated hatch, a genuine issued suit and the owner's safed permit")
+                "PROP-SVC requires matched real gas, sound rated hatch, a safed owner permit and suit-safe inbound admission")
         return door
     indexed = (kind == "indexed_rotary_transfer"
                or link == "ACC-WR-IX-HUB" and kind == "indexer_hatch")
