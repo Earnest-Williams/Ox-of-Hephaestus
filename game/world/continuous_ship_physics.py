@@ -159,7 +159,7 @@ from world.ship_equipment_wear import (
     survey_existing_wear, step_equipment_wear,
 )
 from world.ship_equipment_services import (
-    SERVICE_LOADS, MANUAL_RESTART,
+    SERVICE_LOADS, MANUAL_RESTART, WELD_CELLS,
     install_service_circuits, enrol_service_plant_controls,
     initial_service_operations,
     validate_service_operations, rearm_service_machine,
@@ -191,6 +191,12 @@ from world.ship_process_outputs import (
     AIR_TRAINS, AIR_HANDLERS, SPINE_FANS, WATER_MACHINES, BEARING_PUMPS,
     ProcessOutputError, step_process_output, proves_process_output,
     machine_depressurized, attributed_fire_discharge,
+)
+from world.ship_workshop_welding import (
+    WeldError, CELLS as WELDING_CELLS, ROOM as WELDING_ROOM,
+    ARC_KW as WELD_ARC_KW, initial_welding, validate_welding,
+    certify_filler, issue_filler, start_weld, step_welds,
+    take_slag, deposit_slag,
 )
 from world.ship_workshop_fabrication import (
     FabricationError, WORKROOM as FABRICATION_ROOM,
@@ -2445,6 +2451,68 @@ def commission_g19_fabrication(*, operator_approved=False):
 
 
 @transaction.atomic
+def commission_g19_welding(*, operator_approved=False):
+    """Commission only the two as-fitted rotating-workshop weld cells."""
+    if not operator_approved:
+        raise PermissionError("Only operator commissions installed welding work")
+    clock = _clock(lock=True)
+    if clock.details.get("welding") is not None:
+        validate_welding(clock.details["welding"])
+        return {"commissioned": False}
+    if any(clock.details.get(key) is None for key in (
+            "electrical", "water", "repairs", "service_operations")):
+        raise PhysicsError("Original welding requires power, real source stock and shared repairs")
+    from world.ship_world import find_ship_space
+    if (find_ship_space(WELDING_ROOM) is None or
+            _topology()[0].get(WELDING_ROOM) != "PZ-WR-SHOP"):
+        raise PhysicsError("No original rotating welding room and gas cell")
+    for name in WELDING_CELLS:
+        part = state("equipment", name)
+        feeder = state("isolator", service_ids(name)[2])
+        if (part.space_id != WELDING_ROOM or
+                feeder.space_id != WELDING_ROOM or
+                SERVICE_LOADS[name][0] != WELDING_ROOM):
+            raise PhysicsError("Original welding cell and refitted local feeder mismatch")
+    previous = _snapshot(clock)
+    d = dict(clock.details)
+    d["welding"] = initial_welding()
+    clock.details = d
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "g19_original_two_weld_cells_commissioned", previous)
+    return {"commissioned": True, "original_cells": sorted(WELDING_CELLS)}
+
+
+@transaction.atomic
+def survey_g19_welding_filler(*, operator_approved=False, room_id=None,
+                              verified_kg=None):
+    """Classify only actually surveyed pre-existing INV-SPARES weld rod."""
+    if not operator_approved:
+        raise PermissionError("Only operator may classify existing weld filler")
+    clock = _clock(lock=True)
+    d = dict(clock.details)
+    if d.get("welding") is None or d.get("water") is None:
+        raise PhysicsError("Welding and surveyed materials not commissioned")
+    stock = state("inventory", "INV-SPARES")
+    if room_id not in stock.reference.get("location_ids", ()):
+        raise PhysicsError("Weld wire is not in an original material store")
+    existing = d["water"]["source_surveys"].get("INV-SPARES", {}).get(room_id, 0.0)
+    try:
+        classified = certify_filler(
+            d["welding"], room=room_id, kg=verified_kg,
+            surveyed_available_kg=existing)
+    except WeldError as exc:
+        raise PhysicsError(str(exc)) from exc
+    before = _snapshot(clock)
+    d["welding"] = classified
+    clock.details = d
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "g19_finite_original_weld_filler_certified", before)
+    return {"site": room_id, "filler_kg": classified["certified_kg"][room_id]}
+
+
+@transaction.atomic
 def survey_g19_fabrication_blanks(*, operator_approved=False,
                                   room_id=None, verified_kg=None):
     """Classify existing physically surveyed INV-SPARES blanks, once per store."""
@@ -3360,6 +3428,11 @@ def tick_continuous_physics(*, now_game_time=None):
         validate_fabrication(fabrication)
         if repairs is None or service_operations is None or water_state is None:
             raise PhysicsError("Installed machining has lost its repair, power or raw material ledger")
+    welding = clock.details.get("welding")
+    if welding is not None:
+        validate_welding(welding)
+        if repairs is None or service_operations is None or water_state is None:
+            raise PhysicsError("Fitted welding has lost its spares, power or waste inventory")
     personnel_transfers = clock.details.get("personnel_transfers")
     if personnel_transfers is not None:
         try:
@@ -3603,6 +3676,90 @@ def tick_continuous_physics(*, now_game_time=None):
                                 actor_dbref=worker, game_time=last + duration)
                     except FabricationError as exc:
                         raise PhysicsError(str(exc)) from exc
+                if welding is not None:
+                    # A powered cell isn't a weld. Only a staffed, physically
+                    # loaded arc job can produce a new measurable heat/mass
+                    # output at the real SHOP-WELD pressure cell.
+                    from evennia.objects.models import ObjectDB
+                    workers = {job["worker"] for job in welding["jobs"].values()}
+                    people = {person.dbref: person for person in
+                              ObjectDB.objects.filter(
+                                  id__in=[int(ref[1:]) for ref in workers])}
+                    welded_present = set()
+                    welding_zone = cells.get(zones.get(WELDING_ROOM))
+                    if welding_zone is None:
+                        raise PhysicsError("Original weld bay has no actual pressure-cell gas")
+                    pressure_here = _cell_pressure(welding_zone)
+                    safe_shop = bool(
+                        80000 <= pressure_here <= 120000 and
+                        278.15 <= welding_zone["temperature"] <= 313.15 and
+                        welding_zone["oxygen"] > .17 * welding_zone["mass"] and
+                        welding_zone["co2"] <= .015 * welding_zone["mass"] and
+                        welding_zone["smoke"] <= .00001 * welding_zone["mass"] and
+                        welding_zone["burn"] == 0 and welding_zone["leak"] == 0
+                        and welding_zone["damage"] < .2)
+                    if safe_shop:
+                        for worker, person in people.items():
+                            hp = CanonicalShipState.objects.filter(
+                                pk="crew_health:" + worker, source_model=MODEL).first()
+                            if (getattr(getattr(getattr(person, "location", None),
+                                                "db", None), "ox_space_id", None)
+                                    == WELDING_ROOM and
+                                    not getattr(person.db, "ox_terminal_dead", False) and
+                                    (hp is None or hp.condition in {"fit", "impaired"}) and
+                                    (getattr(person.db, "crew_role", None) in {
+                                        "chief_engineer", "watch_engineer"}
+                                     or person.check_permstring("Developer"))):
+                                welded_present.add(worker)
+                    try:
+                        welding, weld_finished, welding_heat = step_welds(
+                            welding, dt,
+                            active=set(service_operations["last"]["operating"])
+                                   & WELDING_CELLS,
+                            present=welded_present, air_safe=safe_shop,
+                            capacity={
+                                worker: max(0.0, MAX_HAND_PARTS_KG -
+                                      repairs["carried_kg"].get(worker, 0.0))
+                                for worker in workers})
+                        for worker, mass, provenance in weld_finished:
+                            repairs = credit_repair_parts(
+                                repairs, actor=worker, kg=mass)
+                            CanonicalShipEvent.objects.create(
+                                component_key="equipment:" + provenance["machine"],
+                                operation="g19_attended_real_welded_joint_finished",
+                                before={"base_kg": provenance["base_kg"],
+                                        "filler_kg": provenance["filler_kg"],
+                                        "request_id": provenance["request_id"]},
+                                after={"joined_part_kg": mass,
+                                       "retained_slag_kg": provenance["slag_kg"],
+                                       "worker": worker},
+                                actor_dbref=worker, game_time=last + duration)
+                    except WeldError as exc:
+                        raise PhysicsError(str(exc)) from exc
+                    if welding_heat:
+                        welding_zone["energy"] += sum(welding_heat.values())
+                        welding_zone["temperature"] = (
+                            welding_zone["energy"] /
+                            (welding_zone["capacity"] +
+                             welding_zone["mass"] * CP_GAS_KJ_KG_K))
+                    for name in WELDING_CELLS:
+                        machine = equipment.get(name)
+                        if machine is None:
+                            raise PhysicsError("Original weld cell missing from actual installed world")
+                        prior = machine.details.get("physics_weld_arc_gauge")
+                        amount = welding_heat.get(name, 0.0)
+                        if amount > 0 or prior is not None:
+                            details = dict(machine.details)
+                            details["physics_weld_arc_gauge"] = {
+                                "last_arc_kj": amount,
+                                "cumulative_arc_kj": (
+                                    (prior or {}).get("cumulative_arc_kj", 0.0)
+                                    + amount),
+                                "sample_game_time_s": last + duration,
+                            }
+                            machine.details = details
+                            machine.revision += 1
+                            changed_equipment.add(machine.key)
                 if equipment_wear is not None:
                     equipment_wear, wear_events = step_equipment_wear(
                         equipment_wear, service_operations, equipment)
@@ -5579,6 +5736,9 @@ def tick_continuous_physics(*, now_game_time=None):
     if fabrication is not None:
         validate_fabrication(fabrication)
         d["fabrication"] = fabrication
+    if welding is not None:
+        validate_welding(welding)
+        d["welding"] = welding
     if hull is not None:
         d["hull"] = hull
     if personnel_transfers is not None:
@@ -6025,7 +6185,7 @@ def crew_physical_action(actor, request_id, action, target, value):
     """
     if not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
         raise PhysicsError("Expected one 32-character lowercase request UUID")
-    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate"}:
+    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld"}:
         raise PhysicsError("Unknown physical operation")
     if actor is None or getattr(actor.db, "ox_terminal_dead", False):
         raise PermissionError("A deceased or missing character cannot operate machinery")
@@ -6048,8 +6208,8 @@ def crew_physical_action(actor, request_id, action, target, value):
                     "isolator:" if action == "switch"
                     else "pressure:" if action == "mist"
                     else "access:" if action == "hatch"
-                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate"}
-                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate"} else target)
+                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld"}
+                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld"} else target)
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
@@ -7119,6 +7279,138 @@ def crew_physical_action(actor, request_id, action, target, value):
         clock.revision += 1
         clock.save(update_fields=["details", "revision"])
         item = clock
+    elif action == "weld":
+        # An existing powered welding controller is not evidence of a joint:
+        # source stock, actual original part, qualified attending crew and
+        # finite physical arc work must be present.
+        item = _clock(lock=True)
+        before = _snapshot(item)
+        d = dict(item.details)
+        ledger = d.get("welding")
+        water = d.get("water")
+        repairs = d.get("repairs")
+        if ledger is None or water is None or repairs is None:
+            raise PhysicsError("Real welding, material survey and spares not commissioned")
+        room = getattr(getattr(getattr(actor, "location", None), "db", None),
+                       "ox_space_id", None)
+        _crew_at(actor, room)
+        if (getattr(actor.db, "crew_role", None) not in {
+                "chief_engineer", "watch_engineer"} and
+                not actor.check_permstring("Developer")):
+            raise PermissionError("Weldment requires a qualified, physically attending engineer")
+        hp = CanonicalShipState.objects.filter(
+            pk="crew_health:" + actor.dbref, source_model=MODEL).first()
+        if hp is not None and hp.condition not in {"fit", "impaired"}:
+            raise PhysicsError("Incapacitated engineer cannot perform hot welding")
+        zone = _topology()[0].get(room)
+        if not zone or not zone.startswith("PZ-") or not _air_safe(
+                state("pressure", zone)):
+            raise PhysicsError("Actual weld worksite requires safe commissioned gas")
+        import copy
+        try:
+            if target == "filler" and value.startswith("pickup:"):
+                store = state("inventory", "INV-SPARES", lock=True)
+                if room not in store.reference.get("location_ids", ()):
+                    raise PermissionError("Issue welding filler at original machine stores only")
+                mass = float(value.partition(":")[2])
+                ledger, remainder = issue_filler(
+                    ledger, worker=actor.dbref, room=room, kg=mass,
+                    stock_kg=store.quantity * 1000,
+                    surveyed_available_kg=water["source_surveys"].get(
+                        "INV-SPARES", {}).get(room, 0.0))
+                water = copy.deepcopy(water)
+                water["source_surveys"]["INV-SPARES"][room] -= mass
+                validate_water(water, {
+                    key: (remainder if key == "spares" else
+                          state("inventory", ident).quantity*1000)
+                    for key, ident in (
+                        ("normal", "INV-WATER-NORMAL"),
+                        ("reserve", "INV-WATER-RESERVE"),
+                        ("sanitary", "INV-WASTE-RESIDUE"),
+                        ("industrial", "INV-INDUSTRIAL-SCRAP"),
+                        ("hazardous", "INV-HAZARDOUS-RESIDUE"),
+                        ("filter", "INV-DC-CONSUMABLES"),
+                        ("spares", "INV-SPARES"))})
+                old_store = _snapshot(store)
+                store.quantity = remainder / 1000
+                store.revision += 1
+                store.save(update_fields=["quantity", "revision"])
+                _event(store, "g19_welding_filler_issued", old_store, actor=actor)
+            elif target in WELDING_CELLS and value.startswith("start:"):
+                if room != WELDING_ROOM:
+                    raise PermissionError("Actual welding cell in SHOP-WELD only")
+                machine = state("equipment", target, lock=True)
+                if machine.space_id != room or machine.condition in _BROKEN:
+                    raise PhysicsError("Welding equipment damaged or not installed here")
+                machines = {r.source_id: r for r in
+                            CanonicalShipState.objects.filter(category="equipment")}
+                edges = list(CanonicalShipState.objects.filter(category="edge"))
+                contacts = {r.source_id: r for r in
+                            CanonicalShipState.objects.filter(category="isolator")}
+                supply = _power(
+                    machines, edges, contacts, d["load_profile"],
+                    ledger=d.get("electrical"),
+                    moored=contacts_active(d.get("cargo", {})))
+                service = d.get("service_operations")
+                if (service is None or not supply["assured"]
+                        or target not in service["last"]["operating"]
+                        or not service_power(
+                            target, nodes=supply["nodes"], equipment=machines,
+                            edges={row.source_id: row for row in edges},
+                            switches=contacts)):
+                    raise PhysicsError("No actual live weld-cell motor and current local supply")
+                fields = value.split(":")
+                if len(fields) != 3:
+                    raise WeldError("Weld requires start:<base-kg>:<filler-kg>")
+                ledger, repairs = start_weld(
+                    ledger, repairs, worker=actor.dbref, machine=target,
+                    base_kg=float(fields[1]), filler_kg=float(fields[2]),
+                    request_id=request_id)
+            elif target == "slag" and value.startswith("pickup:"):
+                if room != WELDING_ROOM:
+                    raise PermissionError("Weld slag must be collected at SHOP-WELD")
+                ledger = take_slag(
+                    ledger, worker=actor.dbref,
+                    kg=float(value.partition(":")[2]))
+            elif target in {"IND-SCRAP-HOLD-A", "IND-SCRAP-HOLD-B"} and value.startswith("deposit:"):
+                receiver = state("equipment", target, lock=True)
+                if room != receiver.space_id or receiver.condition in _BROKEN:
+                    raise PermissionError("Weld slag must arrive at real industrial waste receiver")
+                if target in water["waste_offload"]["jobs"]:
+                    raise PhysicsError("Original sealed receiver reserved for waste port")
+                store = state("inventory", "INV-INDUSTRIAL-SCRAP", lock=True)
+                balances = {
+                    key: state("inventory", ident).quantity*1000
+                    for key, ident in (
+                        ("normal", "INV-WATER-NORMAL"),
+                        ("reserve", "INV-WATER-RESERVE"),
+                        ("sanitary", "INV-WASTE-RESIDUE"),
+                        ("industrial", "INV-INDUSTRIAL-SCRAP"),
+                        ("hazardous", "INV-HAZARDOUS-RESIDUE"),
+                        ("filter", "INV-DC-CONSUMABLES"),
+                        ("spares", "INV-SPARES"))}
+                ledger, water, new_balances = deposit_slag(
+                    ledger, water, balances, worker=actor.dbref,
+                    kg=float(value.partition(":")[2]), side=target[-1],
+                    receiver_ready=True)
+                old_store = _snapshot(store)
+                store.quantity = new_balances["industrial"]/1000
+                store.revision += 1
+                store.save(update_fields=["quantity", "revision"])
+                _event(store, "g19_real_weld_slag_deposited_to_cassette",
+                       old_store, actor=actor)
+            else:
+                raise PhysicsError("Use weld filler pickup:<kg>, WELD-CELL start:<base>:<filler>, slag pickup:<kg>, or receiver deposit:<kg>")
+        except (WeldError, WaterError, ValueError, TypeError) as exc:
+            raise PhysicsError(str(exc)) from exc
+        validate_welding(ledger)
+        validate_repairs(repairs)
+        d["welding"] = ledger
+        d["water"] = water
+        d["repairs"] = repairs
+        item.details = d
+        item.revision += 1
+        item.save(update_fields=["details", "revision"])
     elif action == "fabricate":
         # No globally accessible fabrication button: the current actor must
         # personally issue surveyed source blanks, operate the original shop,
@@ -9478,6 +9770,29 @@ def local_physics_readout(actor, target):
                 local[patient] = job
         return {"local_orders": local, "active_here": len(local),
                 "scope": "only_own_local_timed_casualty_transport"}
+    if target == "welding":
+        d = _clock().details
+        ledger = d.get("welding")
+        if ledger is None:
+            raise PhysicsError("Original independent welding cells not commissioned")
+        if (room != WELDING_ROOM and room not in
+                state("inventory", "INV-SPARES").reference.get("location_ids", ())):
+            raise PermissionError("Weld stocks and arc meters are local, not remote")
+        validate_welding(ledger)
+        machines = {
+            name: state("equipment", name).details.get("physics_weld_arc_gauge")
+            for name in WELDING_CELLS} if room == WELDING_ROOM else {}
+        return {
+            "room": room,
+            "certified_filler_here_kg": ledger["certified_kg"].get(room),
+            "personal_filler_kg": ledger["filler_carried_kg"].get(actor.dbref, 0),
+            "personal_slag_kg": ledger["slag_carried_kg"].get(actor.dbref, 0),
+            "shop_slag_kg": ledger["slag_shop_kg"] if room == WELDING_ROOM else None,
+            "active_jobs_here": ledger["jobs"] if room == WELDING_ROOM else {},
+            "original_cell_arc_gauges": machines,
+            "completed_weldments": ledger["completed"],
+            "scope": "attended_real_weld_filler_and_thermal_output",
+        }
     if target == "fabrication":
         d = _clock().details
         fab = d.get("fabrication")
