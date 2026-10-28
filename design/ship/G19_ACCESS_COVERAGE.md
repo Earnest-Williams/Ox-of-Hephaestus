@@ -121,6 +121,38 @@ freight-only equipment access gap is **accepted at subsystem level**.
 Vacuum/unsurveyed workspaces and exterior hazards remain separate scopes. Operating contract:
 [G19 freight service access](G19_FREIGHT_SERVICE_ACCESS.md).
 
+## Accepted original six exterior radiator work faces (28 October 2026)
+
+All four `EXT-RAD-LT-1..4` and both `EXT-RAD-HT-1..2`
+are now physically traversable through their **original** EVA
+platform passages, under real individually issued suits, finite oxygen,
+active 150-second carriage time and qualified crew permissions.
+
+The existing LT plant must be stopped and both fitted LT rotary
+manifold valves closed because the ship has no individual LT wing valves.
+The two HT wings use their real independent valves operated from the
+remote-capable `ENG-CONTROL` station, not imagined breathable air
+inside `THERM-HT`. Surveyed skin temperature, thermal cooldown,
+actual coolant valve positions, hardlocked nearby drums and ship
+coast/attitude hold are live prerequisites for an individually
+issued service permit. Reopening valves, restarting LT plant, thrust,
+attitude changes and neighbouring drum motion are inhibited while
+the permit is held. Failed isolation pauses both exterior approach
+and genuine finite-spares repair, and actual personnel occupancy prevents
+premature service release.
+
+[Accepted CI run #40662087586](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40662087586)
+passed **17 pure + 7 installed Evennia tests (24/24)** at
+`58315d7c`. The physically walked LT and HT access and return paths,
+HT part replacement, fault-paused repair and EVA transit, 6-face
+independent permit coverage and ship-motion inhibition were tested.
+See [exterior radiator service contract](G19_EXTERIOR_RADIATOR_SERVICE.md).
+
+Remaining exterior coverage includes the separate `EXT-PROP-AFT`
+plume worksite and other classified/unknown-gas maintenance rooms.
+Whole-ship acceptance and the prohibited 40-crew voyage are not part
+of this radiator subsystem gate.
+
 ## Remaining G19 closure
 
 1. Run the current-code access audit, installed door/EVA route tests,
@@ -131,7 +163,9 @@ Vacuum/unsurveyed workspaces and exterior hazards remain separate scopes. Operat
 3. Complete deliberately rated suited access into the two flywheel bays,
    unpressurised machinery sites and cargo section maintenance stations,
    including gas custody, cycling, finite gear and damage isolation.
-4. Verify the remaining exterior platform sites under radiator/plume and
-   rotating drum restrictions; no false pass from static graph reachability.
+4. The six radiator exterior pads are accepted with live coolant,
+   skin-temperature, suit and work-permit controls. The independent aft
+   propulsion plume station and other unsurveyed/exterior worksites
+   remain separate closure obligations.
 5. Continue the full G19 damage, physiology, electrical, materials and
    operating closure gates. Keep the 40-crew voyage excluded this round.

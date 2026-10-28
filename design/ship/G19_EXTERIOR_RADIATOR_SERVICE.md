@@ -59,5 +59,7 @@ unknown-atmosphere generator rooms, propulsion plume worksite or other
 unsurveyed exterior hazards. The 40-crew voyage is excluded.
 
 **CI:** \`ox-g19-exterior-radiators.yml\` — pure thermal/valve/rotor/permit
-gates plus five installed-world Evennia cases, including both physically
+gates plus seven installed-world Evennia cases, including both physically
 walked LT and HT exterior routes.
+
+**Accepted evidence (28 October 2026):** [CI run #40662087586](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40662087586), 17/17 pure and 7/7 installed Evennia cases at `58315d7c`. All six original pads, both coolant families, interrupted exterior movement and physical repairs are covered. PR #138 stays draft and unmerged.

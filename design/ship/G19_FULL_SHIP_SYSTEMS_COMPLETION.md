@@ -37,6 +37,34 @@ atmosphere; 13 freight-only hardware sites require distinct service access.
 See `G19_ACCESS_COVERAGE.md`. This is bounded access acceptance,
 not permission to merge or run the excluded 40-person voyage.
 
+## Accepted bounded G19 radiator exterior access and maintenance (28 October 2026)
+
+The **six existing** external radiator faces now have real suited entry,
+return and maintenance through their original timebound EVA platform
+passages. F1/F2 flywheel work is separately accepted, and neither
+subsystem constructs extra ship space or air. Distinct LT/HT cooling
+isolation respects the v0.5 installed hardware: four LT radiator wings
+share the two original rotary LT manifold valves and disabled LT plant;
+the two HT radiator wings have their original individually rated valves
+which can be operated from the fitted `ENG-CONTROL` remote station,
+without falsely declaring `THERM-HT` breathable. The original
+coolant/heat budget remains authoritative.
+
+Operator-surveyed radiator-skin temperatures, bounded thermal cooldown,
+EVA gear custody, ship attitude/coast and braked neighbouring drums
+govern permits, platform deployment, active transit and ongoing
+600-second finite-spares repairs. Unsafe isolation suspends work
+and transit rather than resetting machinery or teleporting crew.
+Occupied platforms and active work prevent release. Helm, attitude,
+FTL and rotor start commands respect installed maintenance lockouts.
+
+[Focused acceptance run #40662087586](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40662087586)
+passed **24/24 tests (17 pure, 7 installed Evennia) at `58315d7c`**.
+See [G19 radiator access/repair contract](G19_EXTERIOR_RADIATOR_SERVICE.md).
+The independent aft propulsion maintenance/plume face, unsurveyed
+internal industrial compartments and full integrated acceptance
+remain open. No 40-crew voyage was run.
+
 ## Decision
 
 G19 is one integration branch and one pull request for completing the ship's
