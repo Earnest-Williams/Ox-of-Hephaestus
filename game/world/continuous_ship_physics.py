@@ -165,6 +165,17 @@ from world.ship_food_cultivation import (
     CultivationError, GROW_BAYS, initial_cultivation,
     validate_cultivation, survey_existing_nutrients,
     plan_irrigation, step_cultivation, harvest_cultivation,
+    replenish_nutrients,
+)
+from world.ship_food_logistics import (
+    FoodError, STORES as FOOD_STORES, NUTRIENT_STORES,
+    GALLEY as FOOD_GALLEY, MESS as FOOD_MESS,
+    WASTE_RECEIVERS as FOOD_WASTE_RECEIVERS, RECIPES as FOOD_RECIPES,
+    MAX_CARRY_KG as FOOD_CARRY_KG, initial_food, validate_food,
+    unconsumed_stored_kg, take_stored, collect_crop, deliver_to_galley,
+    prepare_meal, take_meal, set_meal_in_mess, eat_meal, step_food,
+    take_waste, deliver_waste, certify_nutrients, take_nutrients,
+    install_nutrients,
 )
 from world.ship_refuge_media_service import (
     initial_refuge_media_service, validate_refuge_media_service,
@@ -800,6 +811,75 @@ def survey_g19_cultivation_nutrients(*, operator_approved=False,
     clock.save(update_fields=["details", "revision"])
     _event(clock, "operator_original_nutrient_charge_survey", before)
     return {"bay": bay, "surveyed_kg": charge_kg}
+
+
+@transaction.atomic
+def commission_g19_food(*, operator_approved=False):
+    """Commission original 5 food stores and galley without minting inventory."""
+    if not operator_approved:
+        raise PermissionError("Only the operator may activate finite provisions")
+    clock = _clock(lock=True)
+    if clock.details.get("food") is not None:
+        validate_food(clock.details["food"], inventory_kg=(
+            state("inventory", "INV-FOOD-LONG-LEG").quantity * 1000.0))
+        return {"commissioned": False}
+    if (clock.details.get("water") is None or
+            clock.details.get("service_operations") is None):
+        raise PhysicsError("Food operations require actual water and electrical distribution")
+    installed = load_candidate()
+    candidates = {entry["id"]: entry for entry in installed["inventories"]}
+    original = candidates.get("INV-FOOD-LONG-LEG", {})
+    if (original.get("location_allocations_t") != {
+            room: mass / 1000.0 for room, mass in FOOD_STORES.items()}
+            or original.get("dehydrated_fallback_stock_t") != 24.82
+            or original.get("conventional_stock_t") != 31.97):
+        raise PhysicsError("Original five-store food manifest identity drifted")
+    zones = _topology()[0]
+    for room in (*FOOD_STORES, FOOD_GALLEY, FOOD_MESS, *GROW_BAYS.values()):
+        if not zones.get(room, "").startswith("PZ-"):
+            raise PhysicsError("Food worksite has no original real pressure cell")
+    if state("equipment", "HAB-02-GALLEY-LP").space_id != FOOD_GALLEY:
+        raise PhysicsError("Original galley electrical service panel missing")
+    inventory = state("inventory", "INV-FOOD-LONG-LEG", lock=True)
+    food = initial_food(inventory_kg=inventory.quantity * 1000.0)
+    validate_food(food, inventory_kg=inventory.quantity * 1000.0)
+    before = _snapshot(clock)
+    d = dict(clock.details)
+    d["food"] = food
+    clock.details = d
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "g19_food_stores_commissioned", before)
+    return {"commissioned": True, "stores": len(FOOD_STORES),
+            "manifest_kg": inventory.quantity * 1000.0}
+
+
+@transaction.atomic
+def survey_g19_food_nutrient_stock(*, operator_approved=False,
+                                   room_id=None, kg=None):
+    """Classify a REAL, already-located subset of the existing spares stock."""
+    if not operator_approved:
+        raise PermissionError("Only the operator can classify existing spare packs")
+    clock = _clock(lock=True)
+    d = dict(clock.details)
+    food, water = d.get("food"), d.get("water")
+    if food is None or water is None:
+        raise PhysicsError("Food and physical spare custody not commissioned")
+    if room_id not in NUTRIENT_STORES:
+        raise PhysicsError("Nutrient packs not at an original spares rack")
+    available = water["source_surveys"].get("INV-SPARES", {}).get(room_id, 0.0)
+    try:
+        revised = certify_nutrients(food, room=room_id, kg=kg,
+                                    already_surveyed_kg=available)
+    except FoodError as exc:
+        raise PhysicsError(str(exc)) from exc
+    before = _snapshot(clock)
+    d["food"] = revised
+    clock.details = d
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "g19_nutrient_stock_classified", before)
+    return {"store": room_id, "verified_nutrients_kg": kg}
 
 
 @transaction.atomic
