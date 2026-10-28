@@ -266,11 +266,27 @@ def _clearance(actor, exit_obj, dest):
         if kind == "eva_work_platform_transfer":
             if state("equipment", "EVA-WORK-PLATFORM").condition in _BROKEN:
                 raise CrewTransitError("Rated exterior work platform damaged")
-            if not human_exterior_site_safe(
-                    door.reference.get("to"),
-                    _clock().details.get("rotors", {})):
+            from world.ship_exterior_radiators import FACES as RADIATOR_FACES
+            if dst_id in RADIATOR_FACES:
+                from world.continuous_ship_physics import _radiator_worksite_ready
+                from world.models import CanonicalShipState
+                details = _clock().details
+                radiator = RADIATOR_FACES[dst_id]
+                if not _radiator_worksite_ready(
+                        details, radiator,
+                        {row.source_id: row for row in
+                         CanonicalShipState.objects.filter(category="equipment")},
+                        {row.source_id: row for row in
+                         CanonicalShipState.objects.filter(category="isolator")}):
+                    raise CrewTransitError(
+                        "Radiator remains hot, running, unisolated or without an issued work permit")
+            elif src_id not in RADIATOR_FACES and not human_exterior_site_safe(
+                    dst_id, _clock().details.get("rotors", {})):
                 raise CrewTransitError(
-                    "Drum skin must be parked/hardlocked; hot radiators and thrusters remain excluded")
+                    "Rotating skin or unsupported hot exterior worksite")
+            # Retreat from the exterior pad to a fixed rail remains possible
+            # even after insulation/power/valve loss; do not strand a crew
+            # member simply because the equipment just became unsafe.
         return door
     if (not isinstance(za, str) or not isinstance(zb, str)
             or not za.startswith("PZ-") or not zb.startswith("PZ-")):
