@@ -218,7 +218,8 @@ class InstalledInstrumentationTests(EvenniaTestCase):
             act("5", "fault", name, "authorize")
         tick_continuous_physics(now_game_time=1610)
         observed = local_physics_readout(self.worker, name)
-        system = state("meta", "continuous-physics").details
+        system = CanonicalShipState.objects.get(
+            pk="meta:continuous-physics").details
         measured = {
             "circuit": observed,
             "dispatch": system["electrical"]["last"],
