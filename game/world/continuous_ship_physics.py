@@ -165,7 +165,7 @@ from world.ship_food_cultivation import (
     CultivationError, GROW_BAYS, initial_cultivation,
     validate_cultivation, survey_existing_nutrients,
     plan_irrigation, step_cultivation, harvest_cultivation,
-    replenish_nutrients,
+    replenish_nutrients, migrate_cultivation_v1,
 )
 from world.ship_food_logistics import (
     FoodError, STORES as FOOD_STORES, NUTRIENT_STORES,
@@ -773,7 +773,17 @@ def commission_g19_cultivation(*, operator_approved=False):
         raise PermissionError("Original growing beds need operator commissioning")
     clock = _clock(lock=True)
     if clock.details.get("cultivation") is not None:
-        validate_cultivation(clock.details["cultivation"])
+        old = clock.details["cultivation"]
+        revised = migrate_cultivation_v1(old)
+        if revised != old:
+            before = _snapshot(clock)
+            d = dict(clock.details)
+            d["cultivation"] = revised
+            clock.details = d
+            clock.revision += 1
+            clock.save(update_fields=["details", "revision"])
+            _event(clock, "g19_cultivation_nonresetting_migration", before)
+            return {"commissioned": False, "migrated": True}
         return {"commissioned": False}
     if (clock.details.get("service_operations") is None
             or clock.details.get("water") is None):
@@ -3082,6 +3092,8 @@ def tick_continuous_physics(*, now_game_time=None):
         except ElectricalError as exc:
             raise PhysicsError(str(exc)) from exc
     cultivation = clock.details.get("cultivation")
+    if cultivation is not None:
+        cultivation = migrate_cultivation_v1(cultivation)
     if cultivation is not None:
         if service_operations is None or clock.details.get("water") is None:
             raise PhysicsError("Cultivation has no commissioned power/water support")
