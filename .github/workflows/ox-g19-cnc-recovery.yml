@@ -47,4 +47,4 @@ jobs:
       - name: Execute complete physical CNC mill repair and restart
         working-directory: game
         run: |
-          python -m world.test_runner world.tests.test_installed_ship_instrumentation.InstalledInstrumentationTests.test_actual_shop_failure_requires_finite_repair_and_measured_restart world.tests.test_installed_ship_instrumentation.InstalledInstrumentationTests.test_cnc_spindle_coasts_after_power_off_and_blocks_hands_on_isolation --verbosity=2
+          python -m world.test_runner world.tests.test_installed_ship_instrumentation.InstalledInstrumentationTests.test_actual_shop_failure_requires_finite_repair_and_measured_restart world.tests.test_installed_ship_instrumentation.InstalledInstrumentationTests.test_cnc_spindle_coasts_after_power_off_and_blocks_hands_on_isolation world.tests.test_installed_ship_instrumentation.InstalledInstrumentationTests.test_legacy_work_order_cannot_service_coasting_mill_or_reclose_feeder --verbosity=2
