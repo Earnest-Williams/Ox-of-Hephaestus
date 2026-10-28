@@ -186,7 +186,7 @@ from world.ship_fault_recovery import (
     FaultRecoveryError, initial_fault_cases, inspect_fault, isolate_fault,
     begin_verified_work, finished_verified_work, check_repair,
     authorize_restart, verify_restart, feeders_for, verified_open_feeders,
-    validate_fault_cases,
+    verified_restored_feeders, validate_fault_cases,
 )
 from world.ship_instrumentation_world import (
     original_panel_roster, observed_panel_evidence, local_relay_summary,
@@ -5822,8 +5822,15 @@ def crew_physical_action(actor, request_id, action, target, value):
         before = _snapshot(item)
         if item.setting != value:
             item.setting = value
+            fields = ["setting", "revision"]
+            if (value == "closed" and item.reference.get("network") in {
+                    "g19_motor", "g19_motor_protected", "g19_equipment_service"}):
+                info = dict(item.details)
+                info["physics_manual_close_game_s"] = _clock().details["last_game_time"]
+                item.details = info
+                fields.append("details")
             item.revision += 1
-            item.save(update_fields=["setting", "revision"])
+            item.save(update_fields=fields)
     elif action == "plant":
         if target not in PLANTS or value not in {"on", "off"}:
             raise PhysicsError("No approved local plant control for that unit")
@@ -6960,6 +6967,14 @@ def crew_physical_action(actor, request_id, action, target, value):
                     motor_power(target, nodes=power["nodes"], equipment=units,
                         edges=edges, switches=switches)))
                 if value == "authorize":
+                    case = ledger["cases"].get(target)
+                    if case and case["stage"] == "checked" and not (
+                            verified_restored_feeders(
+                                target, feeders, checked_s=case["checked_s"],
+                                last_good_s=p["last_good_s"])):
+                        raise FaultRecoveryError(
+                            "All genuine breakers must be manually reclosed "
+                            "and the local panel sampled after reconnection")
                     ledger = authorize_restart(ledger, target, actor=actor.dbref,
                         now_s=now, sample_count=ins["sample_count"],
                         sound_hardware=(machine.condition == "serviceable"
