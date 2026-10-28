@@ -79,6 +79,33 @@ class OriginalPropulsionServiceBay(EvenniaTestCase):
             oxygen_mass_fraction=.232,
             co2_mass_fraction=.0004, smoke_mass_fraction=0)
 
+    def wear_original_aft_suit(self):
+        """Checkout through the EXISTING EVA-AFT rated inner hatch.
+
+        Test fixtures may position a crew member at the upstream trunk, but
+        not teleport through an operationally gated original airlock.
+        """
+        self.at("ENG-LOCKER")
+        self.action("eva", "INV-DC-CONSUMABLES", "stage:0.75")
+        self.at("TRUNK-B-AFT")
+        self.action("eva", "EVA-AFT", "inner_open")
+        inner = find_world_entity("access:ACC-EVA-AFT:forward")
+        self.assertEqual(
+            traverse_canonical_exit(
+                self.engineer, inner, inner.destination,
+                request_id=self.rid())["status"], "succeeded")
+        self.action("eva", "EVA-AFT", "inner_close")
+        self.action("eva", "EVA-AFT", "checkout")
+        self.action("eva", "EVA-AFT", "inner_open")
+        back = find_world_entity("access:ACC-EVA-AFT:reverse")
+        self.assertEqual(
+            traverse_canonical_exit(
+                self.engineer, back, back.destination,
+                request_id=self.rid())["status"], "succeeded")
+        self.action("eva", "EVA-AFT", "inner_close")
+        self.assertEqual(self.engineer.location.db.ox_space_id,
+                         "TRUNK-B-AFT")
+
     def prepare(self, *, tools=False):
         self.at("PROP-CTRL")
         self.action("drive", "MAIN", "inhibit")
@@ -94,11 +121,7 @@ class OriginalPropulsionServiceBay(EvenniaTestCase):
         self.survey()
         # Real finite suit oxygen is charged once at the original locker,
         # not granted by a boolean field or on entry to the worksite.
-        self.at("ENG-LOCKER")
-        self.action("eva", "INV-DC-CONSUMABLES", "stage:0.75")
-        self.at("EVA-AFT")
-        self.action("eva", "EVA-AFT", "checkout")
-        self.at("TRUNK-B-AFT")
+        self.wear_original_aft_suit()
 
     def enter(self):
         secured = self.action("propulsion_bay", "PROP-SVC", "secure")
@@ -208,11 +231,7 @@ class OriginalPropulsionServiceBay(EvenniaTestCase):
         self.at("TRUNK-B-AFT")
         with self.assertRaises(PhysicsError):
             self.action("propulsion_bay", "PROP-SVC", "secure")
-        self.at("ENG-LOCKER")
-        self.action("eva", "INV-DC-CONSUMABLES", "stage:0.75")
-        self.at("EVA-AFT")
-        self.action("eva", "EVA-AFT", "checkout")
-        self.at("TRUNK-B-AFT")
+        self.wear_original_aft_suit()
         self.enter()
         with self.assertRaises(PhysicsError):
             self.action("switch", "ISO-LP-PROP-SVC", "closed")
