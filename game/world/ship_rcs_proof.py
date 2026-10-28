@@ -81,7 +81,6 @@ def _safed(motion):
         motion.get("command") == "coast" and
         motion.get("attitude_command") == "hold" and
         motion.get("rcs_condition") == "operational" and
-        motion.get("drive_condition") == "operational" and
         not motion.get("drive_firing") and
         not motion.get("attitude_firing") and
         (motion.get("ftl_leg") or {}).get("status") != "engaged")
