@@ -111,7 +111,11 @@ class InstalledWelding(EvenniaTestCase):
             request=start["request_id"]))
         self.assertEqual(_clock().details["repairs"]["carried_kg"][
             self.worker.dbref],0)
-        self.tick(300)
+        self.tick(10)
+        live = local_physics_readout(self.worker, "WELD-CELL-A")
+        self.assertTrue(live["output_proven_at_site"], live)
+        self.assertGreater(live["workshop_arc_output"]["last_arc_kj"], 0)
+        self.tick(290)
         welding = _clock().details["welding"]
         self.assertEqual(welding["completed"],1)
         self.assertFalse(welding["jobs"])
