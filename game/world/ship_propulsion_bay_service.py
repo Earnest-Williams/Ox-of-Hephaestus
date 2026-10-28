@@ -51,7 +51,7 @@ def initial_bay_service():
         "initial_survey_kg": 0.0,
         "trunk_to_bay_kg": 0.0,
         "permit": None, "entries": 0,
-        "finished_services": 0,
+        "inspections": 0,
     }
 
 
@@ -85,8 +85,8 @@ def validate_bay(ledger):
     if (not isinstance(ledger, dict) or set(ledger) !=
             set(initial_bay_service()) or ledger["version"] != 1
             or type(ledger["entries"]) is not int
-            or type(ledger["finished_services"]) is not int
-            or ledger["entries"] < 0 or ledger["finished_services"] < 0):
+            or type(ledger["inspections"]) is not int
+            or ledger["entries"] < 0 or ledger["inspections"] < 0):
         raise BayAccessError("Unknown or corrupted fitted PROP-SVC register")
     for k in ("initial_survey_kg", "trunk_to_bay_kg"):
         _num(ledger[k])
@@ -268,6 +268,17 @@ def finish_entry(ledger, *, worker):
         raise BayAccessError("Unpermitted work party crossing")
     result=copy.deepcopy(ledger)
     result["entries"]+=1
+    validate_bay(result)
+    return result
+
+
+def inspect_bay(ledger, *, worker):
+    """Record an actual physically attended inspection only after outer gates."""
+    validate_bay(ledger)
+    if ledger["permit"] is None or ledger["permit"]["holder"] != worker:
+        raise BayAccessError("An unsuited or unpermitted worker cannot inspect local propulsion")
+    result = copy.deepcopy(ledger)
+    result["inspections"] += 1
     validate_bay(result)
     return result
 
