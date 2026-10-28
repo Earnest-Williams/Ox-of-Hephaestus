@@ -37,6 +37,9 @@ def _health_gate(actor):
         raise CrewTransitError("Crew member is physically unable to travel")
     from world.continuous_ship_physics import _clock
     ship_clock = _clock()
+    food = ship_clock.details.get("food")
+    if food and actor.dbref in food["last"]["incapacitated"]:
+        raise CrewTransitError("Crew member is physically incapacitated by prolonged underfeeding")
     # The casualty and two carriers occupy a timed, physical doorway.
     # No parallel self-walking, freight/EVA or indexed route may silently
     # remove a person before the manual-carry order finishes.
