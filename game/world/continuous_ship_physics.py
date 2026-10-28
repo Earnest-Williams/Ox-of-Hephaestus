@@ -6290,8 +6290,12 @@ def crew_physical_action(actor, request_id, action, target, value):
                 from evennia.objects.models import ObjectDB
                 from world.ship_world import find_ship_space
                 outside = find_ship_space(spec["face"])
-                occupied = bool(outside and ObjectDB.objects.filter(
-                    db_location=outside).exists())
+                # A fitted room contains exit and fixture objects as well
+                # as people. Only actual living crew bodies hold a work face
+                # occupied; an exit object must not permanently lock a valve.
+                occupied = bool(outside and any(
+                    getattr(person.db, "crew_role", None)
+                    for person in ObjectDB.objects.filter(db_location=outside)))
                 active = any(job["room"] == spec["face"] for job in
                              (d.get("repairs") or {"jobs": {}})["jobs"].values())
                 transit = any(job["to"] == spec["face"]
