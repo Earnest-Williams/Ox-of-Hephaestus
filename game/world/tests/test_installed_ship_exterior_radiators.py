@@ -43,7 +43,8 @@ class InstalledRadiatorExteriorTests(EvenniaTestCase):
             operator_approved=True)["commissioned"])
         self.assertFalse(commission_g19_exterior_radiators(
             operator_approved=True)["commissioned"])
-        self.tech = build_ship()["watch"]
+        self.crew = build_ship()
+        self.tech = self.crew["watch"]
         self.at("ENG-CONTROL")
         commission_g19_crew_physiology(
             actor_dbrefs=[self.tech.dbref], operator_approved=True)
@@ -268,10 +269,9 @@ class InstalledRadiatorExteriorTests(EvenniaTestCase):
     def test_real_crew_body_blocks_unsafe_release_and_exterior_motion(self):
         self.ht_isolated()
         self.act("radiator_service", "RAD-HT-1", "secure")
-        from world.bootstrap import build_ship
         # Separate real crew body simulates an already arrived suited
         # mechanic. Test setup places that body at the exact old platform.
-        helper = build_ship()["chief"]
+        helper = self.crew["chief"]
         helper.move_to(find_ship_space("EXT-RAD-HT-1"), quiet=True)
         with self.assertRaisesRegex(PhysicsError, "remains occupied"):
             self.act("radiator_service", "RAD-HT-1", "release")
