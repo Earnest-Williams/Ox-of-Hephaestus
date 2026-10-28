@@ -29,6 +29,8 @@ class OriginalPropulsionServiceBay(EvenniaTestCase):
         arm_continuous_physics(operator_approved=True, now_game_time=1000)
         self.crew = build_ship()
         self.engineer, self.helm = self.crew["watch"], self.crew["officer"]
+        self.assertTrue(self.engineer.move_to(
+            find_ship_space("PROP-CTRL"), quiet=True))
         commission_g19_electrical(operator_approved=True)
         commission_g19_water(operator_approved=True)
         commission_g19_repairs(operator_approved=True)
