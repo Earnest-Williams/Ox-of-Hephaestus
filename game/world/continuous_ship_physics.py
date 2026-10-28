@@ -6760,7 +6760,6 @@ def crew_physical_action(actor, request_id, action, target, value):
             elif parts[0] == "cook" and len(parts) == 2 and target == FOOD_GALLEY:
                 if kitchen_water is None or d.get("electrical") is None:
                     raise FoodError("Kitchen has no commissioned water and electrical services")
-                from world.ship_water_recycling import validate_water
                 machine = state("equipment", "HAB-02-GALLEY-LP")
                 machines = {x.source_id: x for x in CanonicalShipState.objects.filter(
                     category="equipment")}
@@ -6771,7 +6770,6 @@ def crew_physical_action(actor, request_id, action, target, value):
                 grid = _power(machines, feeds, contacts, d["load_profile"],
                               ledger=d["electrical"],
                               moored=contacts_active(d["cargo"]), nodes=nodes)
-                from world.ship_auxiliary_electrical import motor_power
                 auxiliary = {e.source_id: e for e in feeds if
                              e.reference.get("network") in {
                                  "g19_motor", "g19_motor_protected"}}
@@ -6824,8 +6822,7 @@ def crew_physical_action(actor, request_id, action, target, value):
             elif parts[0] == "waste_deposit" and len(parts) == 2:
                 if target not in FOOD_WASTE_RECEIVERS or kitchen_water is None:
                     raise FoodError("No original food-sanitation receiving station")
-                from world.ship_water_recycling import (
-                    _fill_cassette, validate_water)
+                from world.ship_water_recycling import _fill_cassette
                 kg = float(parts[1])
                 food = deliver_waste(food, actor=actor.dbref, kg=kg)
                 machines = {x.source_id: x for x in CanonicalShipState.objects.filter(
