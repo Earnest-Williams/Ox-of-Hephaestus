@@ -5571,6 +5571,10 @@ def crew_physical_action(actor, request_id, action, target, value):
     bay_service = _clock().details.get("bay_access")
     if bay_service is not None and actor.dbref in bay_service["jobs"]:
         raise PermissionError("Worker occupies a sealed flywheel service airlock")
+    food_nutrition = _clock().details.get("food")
+    if (food_nutrition is not None and action != "food"
+            and actor.dbref in food_nutrition["last"]["incapacitated"]):
+        raise PermissionError("Measured severe nutritional depletion prevents physical work")
     if action in {"repair", "wasteport", "hull", "eva", "rescue"}:
         # A worker who has become incapacitated cannot command or advance
         # a physical repair or sealed waste movement. Deduplicated historic
@@ -7945,6 +7949,35 @@ def local_physics_readout(actor, target):
     room = getattr(getattr(location, "db", None), "ox_space_id", None)
     if not room:
         raise PermissionError("Stand at an installed ship compartment")
+    if target in {"food", "nutrition"}:
+        clock = _clock()
+        ledger = clock.details.get("food")
+        if ledger is None:
+            raise PhysicsError("Original ship food stores not commissioned")
+        validate_food(ledger)
+        carried = ledger["carried"].get(actor.dbref)
+        personal = ledger["crew"].get(actor.dbref)
+        if target == "nutrition":
+            return {"crew": actor.dbref,
+                    "personal_nutrition": personal,
+                    "carried_food_and_meal": carried,
+                    "scope": "self_only_local_crew_nutrition"}
+        result = {"room": room, "carried": carried,
+                  "personal_nutrition": personal,
+                  "scope": "own_room_existing_provisions"}
+        if room in ledger["stores"]:
+            result["stored_kg_by_kind"] = ledger["stores"][room]
+        if room == FOOD_GALLEY:
+            result["raw_kg_by_kind"] = ledger["galley_raw"]
+            result["meals_on_rack"] = len(ledger["meals"][FOOD_GALLEY])
+        if room == FOOD_MESS:
+            result["meals_on_rack"] = len(ledger["meals"][FOOD_MESS])
+        if room in ledger["waste"]:
+            result["spoiled_food_pending_kg"] = ledger["waste"][room]
+        if room in ledger["nutrient_certified"]:
+            result["certified_nutrient_spares_kg"] = (
+                ledger["nutrient_certified"][room])
+        return result
     if target.startswith("NODE-") or target in {"PWR-MSB-A", "PWR-MSB-B", "PWR-PROT"}:
         node = CanonicalShipState.objects.filter(pk="node:" + target).first()
         if node and node.reference.get("network") == "power":
