@@ -1,0 +1,45 @@
+name: Ox G19 CNC mill recovery focused acceptance
+on:
+  push:
+    branches: [g19-complete-ship-systems]
+    paths:
+      - "game/world/continuous_ship_physics.py"
+      - "game/world/ship_fault_recovery.py"
+      - "game/world/ship_equipment_services.py"
+      - "game/world/tests/test_installed_ship_instrumentation.py"
+      - ".github/workflows/ox-g19-cnc-recovery.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ox-g19-cnc-focused-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  single-mill-restart:
+    name: Installed CNC mill finite repair and restarted output
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Check Python sources
+        run: |
+          python -m compileall -q game/world/continuous_ship_physics.py game/world/ship_fault_recovery.py game/world/ship_equipment_services.py game/world/tests/test_installed_ship_instrumentation.py
+      - name: Install ship / Evennia runtime
+        run: python -m pip install .
+      - name: Initialize independent canonical ship test DB
+        working-directory: game
+        env:
+          EVENNIA_SUPERUSER_USERNAME: OxCI
+          EVENNIA_SUPERUSER_EMAIL: oxci@example.invalid
+        run: |
+          export EVENNIA_SUPERUSER_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+          evennia migrate --noinput
+      - name: Execute complete physical CNC mill repair and restart
+        working-directory: game
+        run: |
+          python -m world.test_runner world.tests.test_installed_ship_instrumentation.InstalledInstrumentationTests.test_actual_shop_failure_requires_finite_repair_and_measured_restart --verbosity=2
