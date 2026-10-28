@@ -1,6 +1,6 @@
 # G19 — original PROP-SVC rated service hatch, measured gas and real LCS-PROP recovery
 
-**Status:** Implementation committed for focused pure and installed Evennia acceptance. This is a *functionally realistic fictional freighter* and is not a claim of qualified pressure-vessel engineering. No 40-crew voyage is included. The entire G19 integration remains in draft PR #138.
+**Status:** The original rated hatch, source-gas conservation and controller-repair-to-thrust slice passed its two-job pure/installed Evennia acceptance at [run #40787989192](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40787989192). Subsequent low-suit-oxygen safe-retreat coverage is implemented and has a separate pending same-head installed gate. This is a *functionally realistic fictional freighter* and is not a claim of qualified pressure-vessel engineering. No 40-crew voyage is included. The entire G19 integration remains in draft PR #138.
 
 ## As-fitted physical boundary (v0.5)
 
@@ -36,6 +36,29 @@ The crew-operated `LP-PROP-CTRL` is an **original B-bus** load: `GEN-B → EDGE-
 - `world.tests.test_ship_propulsion_bay_service`: installed-layout volume bounds, first-survey discovery and no resurvey material reset, 2 kPa hatch differential, 20 kg maximum source bleed, real mass/O₂ conservation, hazardous-gas rejection, crew-owned permits, no double entry and no release with personnel or ongoing repair.
 - `world.tests.test_installed_ship_propulsion_bay`: real 421-room canonical world, existing 133 pressure cells, real authenticated/physiologically enrolled engineer, physical suit issue and oxygen custody, original `ACC-PROP-SVC` forward/reverse movement, failed controller and 3 kg source spare repair, 600-second attended repair, hatch return, signed permit release, verified resumed positive main thrust, and metered full-ship gas conservation.
 - `.github/workflows/ox-g19-propulsion-bay.yml` runs the independent **pure** and **installed Evennia** regression jobs on every relevant branch push, including draft-PR code, and also reruns established live drive proof and aft exterior plume inspection. This specialist slice is accepted only after both jobs pass at an identical code SHA and cross-system pressure and movement tests remain compatible.
+
+## Low-oxygen escape is deliberately different from new admission
+
+A real engineer whose initially issued suit oxygen subsequently falls below
+the service-entry threshold cannot begin or continue hazardous repairs or
+re-enter the propulsion bay. When physically **inside** `PROP-SVC`,
+however, the same still-mobile permit holder may open and traverse the
+**already measured, pressure-matched and sound original rated hatch in
+reverse** into breathable `TRUNK-B-AFT` without an artificial oxygen
+refill. This is *not* an override of pressure, contamination, propulsion
+safing, owner permission, opposite freight hatch or feeder lockout.
+The ordinary crew physiology gate still prohibits self-walking when
+actually incapacitated/critical/dead; such a casualty needs a separate
+rescue procedure. Once outside, the exhausted suit cannot open the
+hatch again to start a new job, and the qualified engineer must close
+the original door before releasing the maintenance permit.
+
+The dedicated installed acceptance now exercises controlled depletion
+of the **genuinely issued** suit, conserves its existing oxygen-consumption
+tally, rejects further inspection, permits a real reverse Evennia
+traversal, forbids immediate re-entry, and retains the original
+gas/hatch safety checks. Its newest run is independent of the already
+accepted earlier entrance/repair baseline.
 
 ## Explicit boundary
 
