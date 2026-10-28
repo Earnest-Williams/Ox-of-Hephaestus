@@ -103,9 +103,10 @@ class InstrumentationTests(unittest.TestCase):
                 dark, self.a, key, actor="#57", now_s=1020)
 
     def test_broken_sensor_never_issues_healthy_measurement(self):
+        fabricated = self.status(a="damaged")
+        fabricated[self.a]["faults"] = [("MACHINE_FAULT", "WATER-PROC-A")]
         with self.assertRaises(InstrumentError):
-            self.tick(self.ledger, 1010, a="damaged", faults_a=(
-                ("MACHINE_FAULT", "WATER-PROC-A"),))
+            sample_instrumentation(self.ledger, 1010, fabricated)
         readings = self.status(a="dark")
         readings[self.a]["metrics"]["pressure_kpa"] = 101
         with self.assertRaises(InstrumentError):
