@@ -29,6 +29,10 @@ MAX_CASES = 16
 MAX_STEP_S = 10.0
 STABILISE_S = 300.0
 RECOVERY_RATE_PER_S = 0.00001
+# Attended clinical convalescence is separate from emergency stabilisation.
+OBSERVATION_S = 7200.0
+OBSERVATION_HEAL_PER_S = 0.000003
+MAX_OBSERVATIONS = 2
 
 
 class MedicalError(ValueError):
@@ -64,18 +68,22 @@ def initial_medical(*, dressings=0, fluid_kg=0.0):
         "dressings": 0, "fluid_kg": 0.0,
         "carried": {}, "used_dressings": 0, "used_fluid_kg": 0.0,
         "cases": {}, "completed": 0,
+        "observations": {}, "observation_completed": 0,
     }
     validate_medical(result)
     return result
 
 
 def validate_medical(m):
-    if not isinstance(m, dict) or set(m) != {
-            "surveyed_dressings", "surveyed_fluid_kg",
-            "pharmacy_dressings", "pharmacy_fluid_kg",
-            "dressings", "fluid_kg", "carried",
-            "used_dressings", "used_fluid_kg", "cases", "completed"}:
+    original = {"surveyed_dressings", "surveyed_fluid_kg",
+                "pharmacy_dressings", "pharmacy_fluid_kg",
+                "dressings", "fluid_kg", "carried",
+                "used_dressings", "used_fluid_kg", "cases", "completed"}
+    extended = original | {"observations", "observation_completed"}
+    if not isinstance(m, dict) or set(m) not in (original, extended):
         raise MedicalError("Incomplete medical stock and care custody")
+    if set(m) == extended:
+        _nonnegative(m["observation_completed"], integer=True)
     for key in ("surveyed_dressings", "pharmacy_dressings",
                 "dressings", "used_dressings", "completed"):
         _nonnegative(m[key], integer=True)
@@ -118,6 +126,21 @@ def validate_medical(m):
                 or _nonnegative(case["remaining_s"]) > STABILISE_S):
             raise MedicalError("Unstaffed or invalid individual treatment order")
         busy.add(case["caregiver"])
+    observations = m.get("observations", {})
+    if not isinstance(observations, dict) or len(observations) > MAX_OBSERVATIONS:
+        raise MedicalError("Unknown occupied clinical observation capacity")
+    for patient, course in observations.items():
+        if (not _ref(patient) or patient in m["cases"] or
+                not isinstance(course, dict) or
+                set(course) != {"caregiver", "remaining_s", "observed_s"} or
+                not _ref(course["caregiver"]) or patient == course["caregiver"] or
+                course["caregiver"] in busy or
+                _nonnegative(course["remaining_s"]) > OBSERVATION_S or
+                _nonnegative(course["observed_s"]) > OBSERVATION_S or
+                not math.isclose(course["remaining_s"] + course["observed_s"],
+                                 OBSERVATION_S, abs_tol=1e-6, rel_tol=0)):
+            raise MedicalError("Invalid clinical observation assignment")
+        busy.add(course["caregiver"])
     return True
 
 
@@ -167,6 +190,7 @@ def begin_care(m, *, patient, caregiver, health, patient_room,
         raise MedicalError("Injured patient and caregiver must attend powered safe HAB-04 treatment")
     if (patient in m["cases"] or any(
             row["caregiver"] == caregiver for row in m["cases"].values())
+            or caregiver in {row["caregiver"] for row in m.get("observations", {}).values()}
             or len(m["cases"]) >= MAX_CASES
             or m["dressings"] < DRESSING_PER_CASE
             or m["fluid_kg"] < FLUID_PER_CASE_KG):
@@ -182,6 +206,69 @@ def begin_care(m, *, patient, caregiver, health, patient_room,
     return result
 
 
+def _condition_after_care(h):
+    """Keep the same physiologic incapacity thresholds as exposure."""
+    if h["injury"] >= 1.0 or h["hypoxia_s"] >= 1200:
+        return "dead"
+    if h["injury"] >= 0.95 or h["hypoxia_s"] >= 600:
+        return "critical"
+    if h["injury"] >= 0.5 or h["hypoxia_s"] >= 180:
+        return "incapacitated"
+    if (h["injury"] >= 0.15 or h["hypoxia_s"] >= 40 or
+            h["water_deficit_kg"] > 2):
+        return "impaired"
+    return "fit"
+
+
+def begin_observation(m, *, patient, caregiver, health, patient_room,
+                      caregiver_room, equipment_ok, breathable):
+    """Reserve one of two attended HAB-04 clinical slots for finite follow-up.
+
+    A further real treatment kit is spent at enrollment. The patient must
+    be alive, injured, registered and physically present in the powered room.
+    Past courses do not mint free replenishment or erase cumulative exposure.
+    """
+    validate_medical(m)
+    validate_crew_health(health)
+    active = m.get("observations", {})
+    workers = {v["caregiver"] for v in m["cases"].values()}
+    workers.update(v["caregiver"] for v in active.values())
+    if (not _ref(patient) or not _ref(caregiver) or patient == caregiver
+            or health["condition"] in {"dead", "fit"}
+            or health["injury"] <= 0 or patient in m["cases"]
+            or patient in active or caregiver in workers
+            or len(active) >= MAX_OBSERVATIONS
+            or patient_room != TREATMENT_ROOM
+            or caregiver_room != TREATMENT_ROOM
+            or not equipment_ok or not breathable
+            or m["dressings"] < 1 or m["fluid_kg"] < FLUID_PER_CASE_KG):
+        raise MedicalError("Follow-up requires injured patient, qualified attendant, safe clinic and real kit")
+    out = copy.deepcopy(m)
+    out.setdefault("observations", {})
+    out.setdefault("observation_completed", 0)
+    out["dressings"] -= 1
+    out["used_dressings"] += 1
+    out["fluid_kg"] -= FLUID_PER_CASE_KG
+    out["used_fluid_kg"] += FLUID_PER_CASE_KG
+    out["observations"][patient] = {
+        "caregiver": caregiver, "remaining_s": OBSERVATION_S,
+        "observed_s": 0.0}
+    validate_medical(out)
+    return out
+
+
+def discharge_observation(m, *, patient, caregiver):
+    """An early local discharge stops work without returning spent supplies."""
+    validate_medical(m)
+    if (not _ref(patient) or
+            m.get("observations", {}).get(patient, {}).get("caregiver") != caregiver):
+        raise MedicalError("No personally attended ongoing observation to discharge")
+    out = copy.deepcopy(m)
+    del out["observations"][patient]
+    validate_medical(out)
+    return out
+
+
 def step_care(m, health_rows, seconds, *, occupants, equipment_ok, breathable):
     """A staffed five-minute course advances only in a safe local clinic."""
     validate_medical(m)
@@ -189,6 +276,8 @@ def step_care(m, health_rows, seconds, *, occupants, equipment_ok, breathable):
     if dt > MAX_STEP_S:
         raise MedicalError("Unbounded medical time advancement")
     result, health = copy.deepcopy(m), copy.deepcopy(health_rows)
+    result.setdefault("observations", {})
+    result.setdefault("observation_completed", 0)
     completed = []
     for patient, case in sorted(tuple(result["cases"].items())):
         if patient not in health:
@@ -205,18 +294,31 @@ def step_care(m, health_rows, seconds, *, occupants, equipment_ok, breathable):
             h = health[patient]
             h["injury"] = max(0.0, h["injury"] - RECOVERY_RATE_PER_S * STABILISE_S)
             # Stabilisation does not erase measured oxygen debt or old trauma.
-            if h["injury"] >= 0.95 or h["hypoxia_s"] >= 600:
-                h["condition"] = "critical"
-            elif h["injury"] >= 0.5 or h["hypoxia_s"] >= 180:
-                h["condition"] = "incapacitated"
-            elif (h["injury"] >= 0.15 or h["hypoxia_s"] >= 40
-                  or h["water_deficit_kg"] > 2):
-                h["condition"] = "impaired"
-            else:
-                h["condition"] = "fit"
+            h["condition"] = _condition_after_care(h)
             validate_crew_health(h)
             result["completed"] += 1
             completed.append(patient)
             del result["cases"][patient]
+    # Stabilisation never also receives observation credit during the same
+    # interval; a new attended follow-up order is a separate signed action.
+    for patient, course in sorted(tuple(result["observations"].items())):
+        if patient not in health:
+            raise MedicalError("Observed patient lacks registered physiology")
+        h = health[patient]
+        validate_crew_health(h)
+        if h["condition"] == "dead":
+            del result["observations"][patient]
+            continue
+        if not (equipment_ok and breathable and patient in occupants
+                and course["caregiver"] in occupants):
+            continue
+        h["injury"] = max(0.0, h["injury"] - OBSERVATION_HEAL_PER_S * dt)
+        h["condition"] = _condition_after_care(h)
+        course["remaining_s"] = max(0.0, course["remaining_s"] - dt)
+        course["observed_s"] += dt
+        validate_crew_health(h)
+        if course["remaining_s"] <= 1e-9:
+            result["observation_completed"] += 1
+            del result["observations"][patient]
     validate_medical(result)
     return result, health, tuple(completed)
