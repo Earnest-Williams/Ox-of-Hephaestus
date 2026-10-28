@@ -8362,14 +8362,72 @@ def local_physics_readout(actor, target):
             raise PhysicsError("No individually audited machinery feeder")
         machine = state("equipment", name)
         _crew_at(actor, machine.space_id)
-        ledger = _clock().details.get("fault_cases") or initial_fault_cases()
+        d = _clock().details
+        ledger = d.get("fault_cases") or initial_fault_cases()
         validate_fault_cases(ledger)
-        return {"machine": name, "room": machine.space_id,
-                "condition": machine.condition,
-                "case": ledger["cases"].get(name),
-                "feeders": {f: state("isolator", f).setting
-                            for f in feeders_for(name)},
-                "scope": "actual_local_machine_only"}
+        if d.get("electrical") is None:
+            raise PhysicsError("Fitted individual machine distribution is not commissioned")
+        fitted = {key: state("isolator", key) for key in feeders_for(name)}
+        units = {x.source_id: x for x in
+                 CanonicalShipState.objects.filter(category="equipment")}
+        edges = {x.source_id: x for x in
+                 CanonicalShipState.objects.filter(category="edge")}
+        switches = {x.source_id: x for x in
+                    CanonicalShipState.objects.filter(category="isolator")}
+        distribution = _power(
+            units, list(edges.values()), switches, d["load_profile"],
+            ledger=d["electrical"], moored=contacts_active(d["cargo"]))
+        room_id, parent_node = (SERVICE_LOADS[name]
+                                if name in SERVICE_LOADS else MOTORS[name])
+        actual_feed = (service_power(name, nodes=distribution["nodes"],
+                       equipment=units, edges=edges, switches=switches)
+                       if name in SERVICE_LOADS else
+                       motor_power(name, nodes=distribution["nodes"],
+                       equipment=units, edges=edges, switches=switches))
+        instruments = d.get("instrumentation")
+        panel_id = next((p for p, v in instruments["panels"].items()
+                         if v["room"] == room), None) if instruments else None
+        panel = instruments["panels"].get(panel_id) if panel_id else None
+        observed_alarms = {
+            key: {"code": a["code"], "active": a["active"],
+                  "observed_s": a["last_s"]}
+            for key, a in (instruments or {"alarms": {}})["alarms"].items()
+            if a["panel"] == panel_id and a["active"]
+               and (a["subject"] in {name, panel_id})}
+        case = ledger["cases"].get(name)
+        return {
+            "machine": name, "room": machine.space_id,
+            "condition": machine.condition, "case": case,
+            "machine_commanded": machine.details.get("physics_commanded_on"),
+            "machine_running": machine.details.get("physics_online"),
+            "startup_remaining_s": machine.details.get("physics_startup_s"),
+            "real_source_node": parent_node,
+            "upstream_node_energised": parent_node in distribution["nodes"],
+            "dispatch_assured": distribution["assured"],
+            "equipment_feed_conducting": bool(actual_feed),
+            "physically_isolated": verified_open_feeders(name, fitted),
+            "breaker_evidence": {
+                key: {
+                    "condition": row.condition, "setting": row.setting,
+                    "installed_room": row.space_id,
+                    "network": row.reference.get("network"),
+                    "protection_tripped": bool(row.details.get(
+                        "physics_power_trip_latched")),
+                    "manual_reclose_game_s": row.details.get(
+                        "physics_manual_close_game_s"),
+                }
+                for key, row in fitted.items()},
+            "panel": ({"id": panel_id, "status": panel["status"],
+                       "last_good_s": panel["last_good_s"],
+                       "age_s": (d["last_game_time"] - panel["last_good_s"]
+                                 if panel["last_good_s"] is not None else None),
+                       "observed_machine_alarms": observed_alarms}
+                      if panel is not None else None),
+            "active_local_work": (d.get("repairs") or {"jobs": {}})[
+                "jobs"].get("equipment:" + name),
+            "scope": "actually_attended_machine_and_fitted_local_circuits_only",
+            "telemetry_caveat": "power_route_is_modelled_from_installed_switches_not_an_independent_voltmeter",
+        }
     if (target in {"instruments", "alarms", "alarm_bridge"}
             or target.startswith("panel:")
             or target.startswith("diagnose:")):
