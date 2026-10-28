@@ -175,7 +175,7 @@ class InstalledInstrumentationTests(EvenniaTestCase):
 
     def test_sensed_hab_fire_is_not_globally_visible_without_real_relay(self):
         commission_g19_instrumentation(operator_approved=True)
-        self.energize("NODE-LP-HAB-01-FOOD-STORES")
+        self.energize("NODE-HAB-01-FOOD-STORES-LP")
         self.energize("NODE-LP-ENG-CONTROL")
         self.energize("NODE-HAB-01-COMMS-NODE")
         self.energize("NODE-HAB-01-FIRE-DETECT")
@@ -199,7 +199,7 @@ class InstalledInstrumentationTests(EvenniaTestCase):
 
     def test_cleared_hab_fire_requires_two_good_physical_samples(self):
         commission_g19_instrumentation(operator_approved=True)
-        self.energize("NODE-LP-HAB-01-FOOD-STORES")
+        self.energize("NODE-HAB-01-FOOD-STORES-LP")
         self.mutate_gas("PZ-HAB-01", burn=.05, fuel=2.0, smoke=.2)
         tick_continuous_physics(now_game_time=1010)
         key = alarm_key("HAB-01-FOOD-STORES-LP", "FIRE", "PZ-HAB-01")
