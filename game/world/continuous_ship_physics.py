@@ -107,6 +107,14 @@ from world.ship_crew_medical import (
     CLINIC_ZONE, initial_medical, validate_medical, carry_medical_kit,
     begin_care, step_care,
 )
+from world.ship_exterior_radiators import (
+    ExteriorRadiatorError, RADIATORS as EXTERIOR_RADIATORS,
+    FACES as EXTERIOR_RADIATOR_FACES,
+    initial_exterior_radiators, validate_exterior_radiators,
+    survey_skin as survey_exterior_skin, step_skins as step_exterior_skins,
+    work_face_safe as radiator_face_safe, issue_service as secure_radiator,
+    release_service as release_radiator,
+)
 from world.ship_flywheel_maintenance import (
     FlywheelServiceError, MODULES as SERVICE_FLYWHEELS,
     initial_flywheel_service, validate_flywheel_service,
@@ -415,6 +423,8 @@ def _snapshot(item):
             result["bay_access"] = item.details["bay_access"]
         if item.details.get("flywheel_service") is not None:
             result["flywheel_service"] = item.details["flywheel_service"]
+        if item.details.get("exterior_radiators") is not None:
+            result["exterior_radiators"] = item.details["exterior_radiators"]
         if item.details.get("eva") is not None:
             system = item.details["eva"]
             result["eva"] = {
@@ -1663,6 +1673,109 @@ def survey_g19_flywheel_access(*, bay_id, operator_approved=False):
 
 
 
+
+@transaction.atomic
+def commission_g19_exterior_radiators(*, operator_approved=False):
+    """Commission existing four LT and two HT exterior service platforms."""
+    if not operator_approved:
+        raise PermissionError("Exterior radiator hazard survey requires operator approval")
+    clock = _clock(lock=True)
+    if clock.details.get("exterior_radiators") is not None:
+        validate_exterior_radiators(clock.details["exterior_radiators"])
+        return {"commissioned": False}
+    if clock.details.get("eva") is None or clock.details.get("repairs") is None:
+        raise PhysicsError("Fitted EVA and shared maintenance must be commissioned")
+    from world.ship_world import find_ship_space
+    for key, spec in EXTERIOR_RADIATORS.items():
+        wing = state("equipment", key)
+        face = find_ship_space(spec["face"])
+        host = "EXT-CENTRAL" if key.startswith("RAD-LT-") else "EXT-AFT"
+        door = state("access", "ACC-" + host + "-" + spec["face"])
+        if (wing.space_id != spec["station"]
+                or face is None or face.db.ox_frame != "external"
+                or _topology()[0].get(spec["face"]) != "VACUUM"
+                or (door.reference.get("from"), door.reference.get("to"),
+                    door.reference.get("kind")) != (
+                        host, spec["face"], "eva_work_platform_transfer")):
+            raise PhysicsError("Original exterior radiator hardware or access link mismatch")
+        for isolator in spec["isolation"]:
+            if state("isolator", isolator).reference.get("network") not in {
+                    "ht_cooling", "lt_cooling"}:
+                raise PhysicsError("Original coolant isolation valve not fitted")
+    before = _snapshot(clock)
+    d = dict(clock.details)
+    d["exterior_radiators"] = initial_exterior_radiators()
+    clock.details = d
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "g19_six_original_exterior_radiators_commissioned", before)
+    return {"commissioned": True, "fitted_faces": 6}
+
+
+@transaction.atomic
+def survey_g19_radiator_skin(*, operator_approved=False,
+                             radiator_id, temperature_k):
+    """Attest an as-found local temperature; never infer a cool radiator."""
+    if not operator_approved:
+        raise PermissionError("Operator measurement needed for radiator surface")
+    if radiator_id not in EXTERIOR_RADIATORS:
+        raise PhysicsError("Not an authored physical radiator")
+    clock = _clock(lock=True)
+    ledger = clock.details.get("exterior_radiators")
+    if ledger is None:
+        raise PhysicsError("Original exterior thermal sites not commissioned")
+    spec = EXTERIOR_RADIATORS[radiator_id]
+    if state("equipment", radiator_id).space_id != spec["station"]:
+        raise PhysicsError("Radiator no longer installed at its original control room")
+    try:
+        surveyed = survey_exterior_skin(
+            ledger, radiator_id,
+            temp_k=temperature_k, game_time=clock.details["last_game_time"])
+    except ExteriorRadiatorError as exc:
+        raise PhysicsError(str(exc)) from exc
+    before = _snapshot(clock)
+    d = dict(clock.details)
+    d["exterior_radiators"] = surveyed
+    clock.details = d
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "g19_original_radiator_skin_temperature_survey", before)
+    return {"radiator": radiator_id, "measured_skin_k": temperature_k}
+
+
+def _radiator_worksite_ready(details, key, equipment, isolators):
+    """Use ACTUAL room valves, radiator skin, movement, parked nearby drums."""
+    ledger = details.get("exterior_radiators")
+    if ledger is None or key not in EXTERIOR_RADIATORS:
+        return False
+    return radiator_face_safe(
+        ledger, key, isolators=isolators, equipment=equipment,
+        motion=details["motion"], rotors=details["rotors"],
+        require_permit=True)
+
+
+def _radiator_suit_ready(actor, room, details):
+    if actor is None or room not in EXTERIOR_RADIATOR_FACES:
+        return False
+    if (getattr(getattr(getattr(actor, "location", None), "db", None),
+                "ox_space_id", None) != room
+            or getattr(actor.db, "ox_terminal_dead", False)
+            or getattr(actor.db, "crew_role", None) not in AUTHORISED_ROLES):
+        return False
+    hp = CanonicalShipState.objects.filter(
+        pk="crew_health:" + actor.dbref, source_model=MODEL).first()
+    if hp is None or hp.condition not in {"fit", "impaired"}:
+        return False
+    eva = details.get("eva")
+    if eva is None or actor.dbref in eva["transits"]:
+        return False
+    _, suit = suit_of(eva, actor.dbref)
+    return bool(suit is not None and suit["integrity"] >= .8
+                and suit["exposure"]["condition"] not in {
+                    "incapacitated", "critical", "dead"}
+                and suit["exposure"]["suit_oxygen_kg"] > .01)
+
+
 @transaction.atomic
 def commission_g19_flywheel_service(*, operator_approved=False):
     """Commission non-resetting work permits against original measured stores."""
@@ -2759,6 +2872,12 @@ def tick_continuous_physics(*, now_game_time=None):
             raise PhysicsError(str(exc)) from exc
     eva = clock.details.get("eva")
     flywheel_service = clock.details.get("flywheel_service")
+    exterior_radiators = clock.details.get("exterior_radiators")
+    if exterior_radiators is not None:
+        try:
+            validate_exterior_radiators(exterior_radiators)
+        except ExteriorRadiatorError as exc:
+            raise PhysicsError(str(exc)) from exc
     if flywheel_service is not None:
         try:
             flywheel_service = migrate_flywheel_service_v1(flywheel_service)
@@ -3738,10 +3857,44 @@ def tick_continuous_physics(*, now_game_time=None):
                         platform = equipment.get("EVA-WORK-PLATFORM")
                         if not platform or platform.condition in _BROKEN:
                             continue
+                        site = EXTERIOR_RADIATOR_FACES.get(job["to"])
+                        if site is not None and not _radiator_worksite_ready(
+                                {**clock.details,
+                                 "exterior_radiators": exterior_radiators,
+                                 "motion": motion, "rotors": rotors},
+                                site, equipment, isolators):
+                            continue
                     ready_links.add(job["link"])
                 eva, _ = step_eva_transits(eva, delta, ready_links=ready_links)
             except EVAError as exc:
                 raise PhysicsError(str(exc)) from exc
+
+    # The six original radiator faces cool with measured thermal inertia.
+    # Each live branch is derived from actual HT valves or the original
+    # LT plant and twin rotary manifold isolators; this skin telemetry
+    # does not credit a second independent waste-heat sink.
+    if exterior_radiators is not None:
+        radiator_hot = set()
+        for name, spec in EXTERIOR_RADIATORS.items():
+            if name.startswith("RAD-HT-"):
+                valve = isolators.get(spec["isolation"][0])
+                if (valve is not None and valve.condition not in _BROKEN
+                        and valve.setting == "open"
+                        and equipment.get(name) is not None
+                        and equipment[name].condition not in _BROKEN):
+                    radiator_hot.add(name)
+            else:
+                pump = equipment.get("LT-PLANT")
+                if (pump is not None and _on(equipment, "LT-PLANT")
+                        and all(isolators.get(iso) is not None
+                                and isolators[iso].setting == "open"
+                                for iso in spec["isolation"])):
+                    radiator_hot.add(name)
+        try:
+            exterior_radiators = step_exterior_skins(
+                exterior_radiators, seconds, hot_radiators=radiator_hot)
+        except ExteriorRadiatorError as exc:
+            raise PhysicsError(str(exc)) from exc
 
     # Every explicitly enrolled character inhales from their ACTUAL
     # pressure cell. Oxygen becomes equal accounted CO2 mass in that cell;
@@ -4408,6 +4561,12 @@ def tick_continuous_physics(*, now_game_time=None):
                     or worn["exposure"]["condition"] in {
                         "incapacitated", "critical", "dead"}):
                 continue
+            radiator_destination = EXTERIOR_RADIATOR_FACES.get(transit["to"])
+            if radiator_destination is not None and not _radiator_worksite_ready(
+                    {**clock.details, "exterior_radiators": exterior_radiators,
+                     "motion": motion, "rotors": rotors},
+                    radiator_destination, equipment, isolators):
+                continue
             if not traveler.move_to(destination, quiet=True):
                 continue
             eva = finish_eva_transit(
@@ -4523,6 +4682,8 @@ def tick_continuous_physics(*, now_game_time=None):
         d["rescue"] = rescue
     if flywheel_service is not None:
         d["flywheel_service"] = flywheel_service
+    if exterior_radiators is not None:
+        d["exterior_radiators"] = exterior_radiators
     if bay_access is not None:
         d["bay_access"] = bay_access
     if major_damage is not None:
@@ -4549,6 +4710,9 @@ def tick_continuous_physics(*, now_game_time=None):
         } if electrical is not None else None),
         "flywheel_locked_modules": (len(flywheel_service["permits"])
                                     if flywheel_service is not None else None),
+        "radiator_exterior_work_permits": (
+            len(exterior_radiators["permits"])
+            if exterior_radiators is not None else None),
         "flywheel_active_rundowns": (len(flywheel_service["rundowns"])
                                       if flywheel_service is not None else None),
         "flywheel_rundown_delivered_kwh": (
