@@ -182,6 +182,11 @@ from world.ship_instrumentation import (
     sample_instrumentation, acknowledge_alarm, panel_readout, diagnostics,
     panel_selftest,
 )
+from world.ship_fault_recovery import (
+    FaultRecoveryError, initial_fault_cases, inspect_fault, isolate_fault,
+    begin_verified_work, finished_verified_work, check_repair,
+    authorize_restart, verify_restart, feeders_for, validate_fault_cases,
+)
 from world.ship_instrumentation_world import (
     original_panel_roster, observed_panel_evidence, local_relay_summary,
 )
@@ -5018,6 +5023,12 @@ def tick_continuous_physics(*, now_game_time=None):
             item.condition = "serviceable"
             item.revision += 1
             item.save(update_fields=["details", "condition", "revision"])
+            if category == "equipment" and identifier in set(MOTORS) | set(SERVICE_LOADS):
+                cases = d.get("fault_cases") or initial_fault_cases()
+                if cases["cases"].get(identifier, {}).get("stage") == "repairing":
+                    d["fault_cases"] = finished_verified_work(
+                        cases, identifier, stamp=last + seconds,
+                        installed_kg=installed_spares)
             _event(item, "crew_finite_equipment_repair_complete", prior)
     # The eight indexed personnel carriers share the same physical world
     # clock and pressure state. Doors stay shut while a carriage moves.
@@ -5144,6 +5155,8 @@ def tick_continuous_physics(*, now_game_time=None):
     d["water_suppression_kg"] += water
     d["co2_captured_kg"] = captured_co2
     d["motion"] = motion
+    if "fault_cases" in d:
+        validate_fault_cases(d["fault_cases"])
     if instrumentation is not None:
         # Use physical end-of-tick cell/machine/breaker status. The chosen
         # source is an actual installed panel and its current power node,
@@ -5637,7 +5650,7 @@ def crew_physical_action(actor, request_id, action, target, value):
     """
     if not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
         raise PhysicsError("Expected one 32-character lowercase request UUID")
-    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument"}:
+    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault"}:
         raise PhysicsError("Unknown physical operation")
     if actor is None or getattr(actor.db, "ox_terminal_dead", False):
         raise PermissionError("A deceased or missing character cannot operate machinery")
@@ -5660,8 +5673,8 @@ def crew_physical_action(actor, request_id, action, target, value):
                     "isolator:" if action == "switch"
                     else "pressure:" if action == "mist"
                     else "access:" if action == "hatch"
-                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument"}
-                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument"} else target)
+                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault"}
+                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault"} else target)
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
@@ -6837,6 +6850,99 @@ def crew_physical_action(actor, request_id, action, target, value):
 
 
 
+    elif action == "fault":
+        if target not in set(MOTORS) | set(SERVICE_LOADS):
+            raise PhysicsError("No individually fitted machine circuit")
+        machine = state("equipment", target, lock=True)
+        _crew_at(actor, machine.space_id)
+        _food_at(actor, machine.space_id)
+        clock = _clock(lock=True)
+        before = _snapshot(clock)
+        d = dict(clock.details)
+        ledger = d.get("fault_cases") or initial_fault_cases()
+        validate_fault_cases(ledger)
+        feeders = [state("isolator", key, lock=True)
+                   for key in feeders_for(target)]
+        opened = all(x.setting == "open" and x.condition not in _BROKEN
+                     for x in feeders)
+        tripped = any(x.details.get("physics_power_trip_latched") for x in feeders)
+        stopped = not any(machine.details.get(k) for k in (
+            "physics_online", "physics_commanded_on", "physics_startup_s"))
+        active = "equipment:" + target in (d.get("repairs") or {"jobs": {}})["jobs"]
+        now = d["last_game_time"]
+        stamp = machine.details.get("repair_completed_game_time")
+        stock = machine.details.get("repair_cumulative_kg", 0.0)
+        ins = d.get("instrumentation")
+        panel = next((p for p, row in ins["panels"].items()
+                      if row["room"] == machine.space_id), None) if ins else None
+        alarm = next((k for k, a in ins["alarms"].items()
+                      if a["panel"] == panel and a["subject"] == target
+                      and a["active"]), None) if ins and panel else None
+        try:
+            if value == "inspect":
+                svc = d.get("service_operations")
+                restart = bool(svc and target in SERVICE_LOADS
+                               and svc["units"][target]["restart_latched"])
+                ledger = inspect_fault(ledger, target, room=machine.space_id,
+                    actor=actor.dbref, now_s=now, condition=machine.condition,
+                    revision=machine.revision, repair_stamp=stamp,
+                    cumulative_spares_kg=stock, feeder_tripped=tripped,
+                    restart_latched=restart, alarm=alarm,
+                    panel=panel if alarm else None)
+            elif value == "isolate":
+                ledger = isolate_fault(ledger, target, actor=actor.dbref,
+                    now_s=now, open_feeders=opened, stopped=stopped,
+                    worksite_safe=not active)
+            elif value == "check":
+                ledger = check_repair(ledger, target, actor=actor.dbref,
+                    now_s=now, condition=machine.condition,
+                    open_feeders=opened, stopped=stopped, tripped=tripped,
+                    active_work=active, repair_stamp=stamp,
+                    cumulative_spares_kg=stock)
+            elif value in {"authorize", "verify"}:
+                if not ins or not panel:
+                    raise FaultRecoveryError("Original local sensor panel required")
+                p = ins["panels"][panel]
+                panel_ok = p["status"] == "online" and p["last_good_s"] == now
+                units = {x.source_id: x for x in
+                         CanonicalShipState.objects.filter(category="equipment")}
+                edges = {x.source_id: x for x in
+                         CanonicalShipState.objects.filter(category="edge")}
+                switches = {x.source_id: x for x in
+                            CanonicalShipState.objects.filter(category="isolator")}
+                power = _power(units, list(edges.values()), switches,
+                    d["load_profile"], ledger=d.get("electrical"),
+                    moored=contacts_active(d["cargo"]))
+                live = bool(power["assured"] and (
+                    service_power(target, nodes=power["nodes"], equipment=units,
+                        edges=edges, switches=switches)
+                    if target in SERVICE_LOADS else
+                    motor_power(target, nodes=power["nodes"], equipment=units,
+                        edges=edges, switches=switches)))
+                if value == "authorize":
+                    ledger = authorize_restart(ledger, target, actor=actor.dbref,
+                        now_s=now, sample_count=ins["sample_count"],
+                        sound_hardware=machine.condition == "serviceable" and panel_ok,
+                        live_feeder=live, tripped=tripped, active_work=active)
+                else:
+                    ledger = verify_restart(ledger, target, actor=actor.dbref,
+                        now_s=now, sample_count=ins["sample_count"],
+                        running=bool(machine.details.get("physics_online")),
+                        live_feeder=live, condition=machine.condition,
+                        tripped=tripped, panel_live=panel_ok,
+                        alarm_active=any(a["active"] and a["subject"] == target
+                                         for a in ins["alarms"].values()
+                                         if a["panel"] == panel))
+            else:
+                raise FaultRecoveryError("Inspect, isolate, check, authorize or verify")
+        except FaultRecoveryError as exc:
+            raise PhysicsError(str(exc)) from exc
+        d["fault_cases"] = ledger
+        clock.details = d
+        clock.revision += 1
+        clock.save(update_fields=["details", "revision"])
+        item = clock
+
     elif action == "instrument":
         # Human attention to one real powered panel. This cannot repair,
         # isolate, suppress, energize or falsify the sensed fault.
@@ -7453,6 +7559,14 @@ def crew_physical_action(actor, request_id, action, target, value):
                 raise PhysicsError("Safe local isolation and known repairable damage required")
             try:
                 if value == "start":
+                    if category == "equipment" and ident in set(MOTORS) | set(SERVICE_LOADS):
+                        cases = d.get("fault_cases") or initial_fault_cases()
+                        case = cases["cases"].get(ident)
+                        if not case or case["stage"] != "isolated" or not all(
+                                state("isolator", feeder).setting == "open"
+                                for feeder in feeders_for(ident)):
+                            raise PhysicsError("Physically inspect and isolate machine first")
+                        d["fault_cases"] = begin_verified_work(cases, ident, isolated=True)
                     r = begin_repair(
                         r, target=target, room=room,
                         actor_dbref=actor.dbref, condition=unit.condition)
@@ -8182,7 +8296,21 @@ def local_physics_readout(actor, target):
     room = getattr(getattr(location, "db", None), "ox_space_id", None)
     if not room:
         raise PermissionError("Stand at an installed ship compartment")
-    if (target in {"instruments", "alarms", "alarm_bridge"}
+    if target.startswith("fault:"):
+        name = target[6:]
+        if name not in set(MOTORS) | set(SERVICE_LOADS):
+            raise PhysicsError("No individually audited machinery feeder")
+        machine = state("equipment", name)
+        _crew_at(actor, machine.space_id)
+        ledger = _clock().details.get("fault_cases") or initial_fault_cases()
+        validate_fault_cases(ledger)
+        return {"machine": name, "room": machine.space_id,
+                "condition": machine.condition,
+                "case": ledger["cases"].get(name),
+                "feeders": {f: state("isolator", f).setting
+                            for f in feeders_for(name)},
+                "scope": "actual_local_machine_only"}
+    if (target in {"instruments", "alarms", "alarm_bridge"}'
             or target.startswith("panel:")
             or target.startswith("diagnose:")):
         clock = _clock()
