@@ -295,11 +295,20 @@ def authorize_restart(ledger, name, *, actor, now_s, sample_count,
     case = ledger["cases"].get(name)
     _actor(actor)
     _number(now_s)
-    if (type(sample_count) is not int or sample_count < 0
-            or not case or case["stage"] != "checked"
-            or not sound_hardware or not live_feeder or tripped or active_work
-            or now_s < case["checked_s"]):
-        raise FaultRecoveryError("Live real feeder, successful local test and free worksite required")
+    if type(sample_count) is not int or sample_count < 0:
+        raise FaultRecoveryError("Missing current ship instrument sample count")
+    if not case or case["stage"] != "checked":
+        raise FaultRecoveryError("No completed local post-repair inspection")
+    if now_s < case["checked_s"]:
+        raise FaultRecoveryError("Restart permission precedes inspection")
+    if active_work:
+        raise FaultRecoveryError("An actual maintenance work order is still active")
+    if tripped:
+        raise FaultRecoveryError("A real incoming feeder remains protection-tripped")
+    if not sound_hardware:
+        raise FaultRecoveryError("Machine condition or local instrument sample is unverified")
+    if not live_feeder:
+        raise FaultRecoveryError("No currently conducting, assured physical machine feed")
     result = copy.deepcopy(ledger)
     row = result["cases"][name]
     row["stage"] = "authorized"
