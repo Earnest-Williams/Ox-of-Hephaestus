@@ -13,6 +13,7 @@ from world.continuous_ship_physics import (
     commission_g19_electrical, commission_g19_water, commission_g19_repairs,
     commission_g19_eva, commission_g19_crew_physiology,
     commission_g19_propulsion_bay, survey_g19_propulsion_bay,
+    survey_g19_water_material,
     crew_physical_action, local_physics_readout, tick_continuous_physics,
 )
 from world.models import WorkReceipt
@@ -83,10 +84,7 @@ class OriginalPropulsionServiceBay(EvenniaTestCase):
         if tools:
             self.at("TOOL-CRIB")
             self.action("repair", "TOOL-CRIB", "pickup_toolkit")
-            survey = __import__(
-                "world.continuous_ship_physics",
-                fromlist=["survey_g19_water_material"])
-            survey.survey_g19_water_material(
+            survey_g19_water_material(
                 operator_approved=True, source="INV-SPARES",
                 room_id="SPARES-CENTRAL", verified_kg=3)
             self.at("SPARES-CENTRAL")
@@ -130,7 +128,7 @@ class OriginalPropulsionServiceBay(EvenniaTestCase):
         self.enter()
         at_work = local_physics_readout(
             self.engineer, "propulsion_bay")
-        self.assertFalse(at_work["entry_ready"] is False)
+        self.assertTrue(at_work["entry_ready"])
         self.assertEqual(at_work["real_controller_condition"], "failed")
         self.action("propulsion_bay", "PROP-SVC", "inspect")
         with self.assertRaises(PhysicsError):
@@ -151,6 +149,8 @@ class OriginalPropulsionServiceBay(EvenniaTestCase):
         self.assertIsNone(_clock().details["propulsion_bay"]["permit"])
         self.at("PROP-CTRL")
         self.action("drive", "MAIN", "release")
+        begin = self.action("drive", "MAIN", "prove_start")
+        self.assertEqual(begin["status"], "succeeded")
         self.helm.move_to(find_ship_space("CMD-PRIMARY"), quiet=True)
         self.action("helm", "HELM", "x+", actor=self.helm)
         prior = _clock().details["motion"]["expended_propellant_kg"]
@@ -159,6 +159,12 @@ class OriginalPropulsionServiceBay(EvenniaTestCase):
         self.assertTrue(motion["drive_firing"])
         self.assertGreater(motion["expended_propellant_kg"], prior)
         self.assertGreater(motion["velocity_m_s"][0], 0)
+        self.action("helm", "HELM", "coast", actor=self.helm)
+        self.tick(10)
+        verified = self.action("drive", "MAIN", "prove_verify")
+        self.assertEqual(verified["status"], "succeeded")
+        self.assertEqual(local_physics_readout(
+            self.engineer, "drive_proof")["witness"]["completed"], 1)
         self.assertEqual(WorkReceipt.objects.filter(
             operation="propulsion_bay").count(), 3)
 
