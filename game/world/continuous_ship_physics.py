@@ -102,7 +102,7 @@ from world.ship_crew_physiology import (
 )
 from world.ship_crew_exposure import initial_exposure
 from world.ship_crew_medical import (
-    MedicalError, MEDICAL_ROLES, TREATMENT_ROOM, PHARMACY_ROOM,
+    MedicalError, MEDICAL_ROLES, TREATMENT_ROOM, PHARMACY_ROOM, OBSERVATION_ROOM,
     TREATMENT_PANEL, TREATMENT_FEEDER, TREATMENT_POWER_NODE,
     CLINIC_ZONE, initial_medical, validate_medical, carry_medical_kit,
     begin_care, begin_observation, discharge_observation, step_care,
@@ -1823,13 +1823,18 @@ def commission_g19_medical(*, operator_approved=False, dressings=0, fluid_kg=0.0
         return {"commissioned": False, "medical": clock.details["medical"]}
     from world.ship_world import find_ship_space
     zones = _topology()[0]
-    for room in (TREATMENT_ROOM, PHARMACY_ROOM):
+    for room in (TREATMENT_ROOM, PHARMACY_ROOM, OBSERVATION_ROOM):
         if (find_ship_space(room) is None or zones.get(room) != CLINIC_ZONE):
             raise PhysicsError("Original HAB-04 pharmacy/treatment bay not installed")
     panel = state("equipment", TREATMENT_PANEL)
     breaker = state("isolator", TREATMENT_FEEDER)
+    obs_panel = state("equipment", "HAB-04-MED-OBS-LP")
+    obs_breaker = state("isolator", "ISO-HAB-04-MED-OBS-LP")
     if (panel.space_id != TREATMENT_ROOM or
-            breaker.reference.get("network") != "power"):
+            breaker.reference.get("network") != "power" or
+            obs_panel.space_id != OBSERVATION_ROOM or
+            obs_breaker.space_id != OBSERVATION_ROOM or
+            obs_breaker.reference.get("network") != "power"):
         raise PhysicsError("Original local medical power apparatus mismatched")
     try:
         medical = initial_medical(dressings=dressings, fluid_kg=fluid_kg)
@@ -1845,11 +1850,17 @@ def commission_g19_medical(*, operator_approved=False, dressings=0, fluid_kg=0.0
     return {"commissioned": True, "medical": medical}
 
 
-def _medical_power_and_air(*, clock_details=None):
+def _medical_power_and_air(*, clock_details=None, room=TREATMENT_ROOM):
     """Test live clinic air, original local breaker and energized feeder."""
+    if room not in {TREATMENT_ROOM, OBSERVATION_ROOM}:
+        raise PhysicsError("Only as-installed clinic treatment and observation power")
     cell = state("pressure", CLINIC_ZONE)
-    panel = state("equipment", TREATMENT_PANEL)
-    breaker = state("isolator", TREATMENT_FEEDER)
+    observed = room == OBSERVATION_ROOM
+    panel = state("equipment",
+                  "HAB-04-MED-OBS-LP" if observed else TREATMENT_PANEL)
+    feeder = "ISO-HAB-04-MED-OBS-LP" if observed else TREATMENT_FEEDER
+    node = "NODE-HAB-04-MED-OBS-LP" if observed else TREATMENT_POWER_NODE
+    breaker = state("isolator", feeder)
     d = clock_details if clock_details is not None else _clock().details
     if (panel.condition in _BROKEN or breaker.condition in _BROKEN
             or breaker.setting != "closed"):
@@ -1862,7 +1873,7 @@ def _medical_power_and_air(*, clock_details=None):
         equipment, list(CanonicalShipState.objects.filter(category="edge")),
         isolators, d["load_profile"], ledger=d.get("electrical"),
         moored=contacts_active(d.get("cargo", {})))
-    return bool(power["assured"] and TREATMENT_POWER_NODE in power["nodes"]), _air_safe(cell)
+    return bool(power["assured"] and node in power["nodes"]), _air_safe(cell)
 
 
 @transaction.atomic
@@ -4696,6 +4707,13 @@ def tick_continuous_physics(*, now_game_time=None):
                 and not getattr(a.db, "ox_terminal_dead", False)
                 and ref in health)
         }
+        observed_present = {
+            ref for ref, a in actors.items()
+            if (getattr(getattr(a, "location", None), "db", None) is not None
+                and getattr(a.location.db, "ox_space_id", None) == OBSERVATION_ROOM
+                and not getattr(a.db, "ox_terminal_dead", False)
+                and ref in health)
+        }
         # A caregiver's physiological state and current medical qualification
         # are independently checked on every tick.
         available = {
@@ -4704,6 +4722,17 @@ def tick_continuous_physics(*, now_game_time=None):
         for patient, case in medical["cases"].items():
             if case["caregiver"] not in available:
                 present.discard(case["caregiver"])
+        observed_available = {
+            ref for ref in observed_present if health[ref]["condition"] in {
+                "fit", "impaired"} and
+                getattr(actors[ref].db, "crew_role", None) in MEDICAL_ROLES}
+        for patient, course in medical.get("observations", {}).items():
+            if (course.get("room", TREATMENT_ROOM) == OBSERVATION_ROOM
+                    and course["caregiver"] not in observed_available):
+                observed_present.discard(course["caregiver"])
+            elif (course.get("room", TREATMENT_ROOM) == TREATMENT_ROOM
+                  and course["caregiver"] not in available):
+                present.discard(course["caregiver"])
         powered = bool(power["assured"] and
                        TREATMENT_POWER_NODE in power["nodes"] and
                        TREATMENT_FEEDER in isolators and
@@ -4716,13 +4745,24 @@ def tick_continuous_physics(*, now_game_time=None):
                         cells[CLINIC_ZONE]["damage"] < .2 and
                         cells[CLINIC_ZONE]["burn"] == 0 and
                         cells[CLINIC_ZONE]["leak"] == 0)
+        obs_feeder = isolators.get("ISO-HAB-04-MED-OBS-LP")
+        obs_panel = equipment.get("HAB-04-MED-OBS-LP")
+        obs_powered = bool(
+            obs_feeder is not None and obs_panel is not None
+            and obs_feeder.condition not in _BROKEN
+            and obs_feeder.setting == "closed"
+            and obs_panel.condition not in _BROKEN and power["assured"]
+            and "NODE-HAB-04-MED-OBS-LP" in power["nodes"])
         last_completed = ()
         for _medical_dt in range(int(math.ceil(seconds / STEP_SECONDS))):
             dt = min(STEP_SECONDS, seconds - _medical_dt * STEP_SECONDS)
             try:
                 medical, health, last_done = step_care(
                     medical, health, dt, occupants=present,
-                    equipment_ok=powered, breathable=safe_air)
+                    equipment_ok=powered, breathable=safe_air,
+                    observer_occupants=observed_present,
+                    observer_powered=obs_powered,
+                    observer_breathable=safe_air)
             except MedicalError as exc:
                 raise PhysicsError(str(exc)) from exc
             last_completed += last_done
@@ -7234,10 +7274,11 @@ def crew_physical_action(actor, request_id, action, target, value):
                     medical = carry_medical_kit(
                         medical, actor=actor.dbref, verb="pickup", cases=count)
                 elif value == "deliver":
-                    if room_id != TREATMENT_ROOM:
-                        raise PermissionError("Deliver supplies inside HAB-04 treatment")
+                    if room_id not in {TREATMENT_ROOM, OBSERVATION_ROOM}:
+                        raise PermissionError("Deliver supplies inside real HAB-04 treatment or observation")
                     medical = carry_medical_kit(
-                        medical, actor=actor.dbref, verb="deliver")
+                        medical, actor=actor.dbref, verb="deliver",
+                        destination=room_id)
                 else:
                     raise PhysicsError("Use kit pickup:<cases> or deliver")
             elif target in {"care", "observe", "discharge"}:
@@ -7245,15 +7286,20 @@ def crew_physical_action(actor, request_id, action, target, value):
                     raise PhysicsError("Care target is the patient's real dbref")
                 from evennia.objects.models import ObjectDB
                 patient = ObjectDB.objects.filter(id=int(value[1:])).first()
-                if patient is None or room_id != TREATMENT_ROOM or (
-                        getattr(getattr(patient, "location", None), "db", None)
-                        is None or patient.location.db.ox_space_id != TREATMENT_ROOM):
-                    raise PermissionError("Both people must attend original treatment room")
+                actual_room = (TREATMENT_ROOM if target == "care"
+                               else room_id)
+                if (patient is None or
+                        actual_room not in {TREATMENT_ROOM, OBSERVATION_ROOM}
+                        or (target == "care" and room_id != TREATMENT_ROOM)
+                        or (getattr(getattr(patient, "location", None), "db", None)
+                            is None or patient.location.db.ox_space_id != actual_room)):
+                    raise PermissionError("Patient and attendant must share actual clinical worksite")
                 hp = CanonicalShipState.objects.filter(
                     pk="crew_health:" + value, source_model=MODEL).first()
                 if hp is None:
                     raise PhysicsError("Patient has no registered measured injury")
-                powered, breathable = _medical_power_and_air(clock_details=d)
+                powered, breathable = _medical_power_and_air(
+                    clock_details=d, room=actual_room)
                 if target == "care":
                     medical = begin_care(
                         medical, patient=value, caregiver=actor.dbref,
@@ -7263,10 +7309,13 @@ def crew_physical_action(actor, request_id, action, target, value):
                 elif target == "observe":
                     medical = begin_observation(
                         medical, patient=value, caregiver=actor.dbref,
-                        health=hp.details, patient_room=TREATMENT_ROOM,
+                        health=hp.details, patient_room=actual_room,
                         caregiver_room=room_id, equipment_ok=powered,
                         breathable=breathable)
                 else:
+                    if (medical.get("observations", {}).get(value, {}).get(
+                            "room", TREATMENT_ROOM) != room_id):
+                        raise PermissionError("Discharge requires attendance at this patient's actual room")
                     medical = discharge_observation(
                         medical, patient=value, caregiver=actor.dbref)
             else:
@@ -9453,8 +9502,9 @@ def local_physics_readout(actor, target):
                 "scope": "physically_attended_original_machine_shop"}
     if target == "medical":
         medical = _clock().details.get("medical")
-        if medical is None or room not in {TREATMENT_ROOM, PHARMACY_ROOM}:
-            raise PermissionError("Attend commissioned HAB-04 pharmacy or treatment")
+        if medical is None or room not in {
+                TREATMENT_ROOM, OBSERVATION_ROOM, PHARMACY_ROOM}:
+            raise PermissionError("Attend commissioned HAB-04 pharmacy, treatment or observation")
         validate_medical(medical)
         return {"room": room, "clinic": TREATMENT_ROOM,
                 "pharmacy_dressings": medical["pharmacy_dressings"]
@@ -9465,9 +9515,17 @@ def local_physics_readout(actor, target):
                     if room == TREATMENT_ROOM else None,
                 "treatment_fluid_kg": medical["fluid_kg"]
                     if room == TREATMENT_ROOM else None,
+                "observation_dressings": medical.get("obs_dressings", 0)
+                    if room == OBSERVATION_ROOM else None,
+                "observation_fluid_kg": medical.get("obs_fluid_kg", 0.0)
+                    if room == OBSERVATION_ROOM else None,
                 "personal_kit": medical["carried"].get(actor.dbref),
                 "active_cases": medical["cases"] if room == TREATMENT_ROOM else {},
-                "observations": medical.get("observations", {}) if room == TREATMENT_ROOM else {},
+                "observations": {
+                    patient: course
+                    for patient, course in medical.get("observations", {}).items()
+                    if course.get("room", TREATMENT_ROOM) == room
+                },
                 "completed": medical["completed"],
                 "observations_completed": medical.get("observation_completed", 0),
                 "scope": "locally_attended_finite_HAB04_medical"}
