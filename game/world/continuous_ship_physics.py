@@ -7404,23 +7404,7 @@ def crew_physical_action(actor, request_id, action, target, value):
             item.revision += 1
             item.save(update_fields=["setting", "revision"])
     elif action == "service":
-        if target in {f"GROW-{n}" for n in GROW_BAYS}:
-        name = target
-        room_id = GROW_BAYS[int(name[-1])]
-        if room != room_id:
-            raise PermissionError("Attend the original grow-room process skid")
-        ledger = _clock().details.get("cultivation")
-        if ledger is None:
-            raise PhysicsError("Cultivation not commissioned")
-        validate_cultivation(ledger)
-        return {
-            "bed": name,
-            **dict(ledger["beds"][name]),
-            "last_producing": name in ledger["last"]["productive"],
-            "water_applied_this_step_kg": ledger["last"]["water_applied_kg"],
-            "scope": "physically_attended_growth_and_staged_harvest",
-        }
-    if target in REFUGE_PACKS:
+        if target in REFUGE_PACKS:
             if not isinstance(value, str) or not value.startswith("refill:"):
                 raise PhysicsError("Refuge filter needs refill:<kg> of surveyed local media")
             item = state("equipment", target, lock=True)
@@ -7652,6 +7636,22 @@ def local_physics_readout(actor, target):
             return {"id": target, "path_energised": target in grid["nodes"],
                     "schedule_assured": grid["assured"] and target in grid["nodes"],
                     "scope": "physically_local_actual_power_circuit"}
+    if target in {f"GROW-{n}" for n in GROW_BAYS}:
+        name = target
+        room_id = GROW_BAYS[int(name[-1])]
+        if room != room_id:
+            raise PermissionError("Attend the original grow-room process skid")
+        ledger = _clock().details.get("cultivation")
+        if ledger is None:
+            raise PhysicsError("Cultivation not commissioned")
+        validate_cultivation(ledger)
+        return {
+            "bed": name,
+            **dict(ledger["beds"][name]),
+            "last_producing": name in ledger["last"]["productive"],
+            "water_applied_this_step_kg": ledger["last"]["water_applied_kg"],
+            "scope": "physically_attended_growth_and_staged_harvest",
+        }
     if target in REFUGE_PACKS:
         # The operator may service only the attended fitted package. A
         # remote character cannot query another refuge's sorbent reserve.
