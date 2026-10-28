@@ -5,7 +5,7 @@ import unittest
 from world.ship_instrumentation import (
     InstrumentError, alarm_key, initial_instrumentation, validate_instrumentation,
     sample_instrumentation, acknowledge_alarm, diagnostics, panel_readout,
-    MAX_HISTORY,
+    MAX_HISTORY, panel_selftest,
 )
 from world.ship_instrumentation_world import (
     observed_panel_evidence, local_relay_summary, original_panel_roster,
@@ -180,3 +180,95 @@ class InstrumentationTests(unittest.TestCase):
         with self.assertRaises(InstrumentError):
             validate_instrumentation(
                 self.ledger, panel_rooms={self.a: "OTHER-ROOM"})
+
+
+    def test_fast_decompression_is_detected_before_absolute_pressure_limit(self):
+        first = self.tick(self.ledger, 1010, pressure_a=101)
+        second = self.tick(first, 1020, pressure_a=98)
+        rapid = alarm_key(self.a, "RAPID_DECOMPRESSION", "PZ-TEST-A")
+        static = alarm_key(self.a, "PRESSURE_LOW", "PZ-TEST-A")
+        self.assertTrue(second["alarms"][rapid]["active"])
+        self.assertNotIn(static, second["alarms"])
+        self.assertEqual(
+            diagnostics(second, rapid, panel_id=self.a)["family"], "pressure")
+        third = self.tick(second, 1030, pressure_a=98)
+        self.assertTrue(third["alarms"][rapid]["active"])
+        fourth = self.tick(third, 1040, pressure_a=98)
+        self.assertFalse(fourth["alarms"][rapid]["active"])
+        self.assertTrue(validate_instrumentation(fourth))
+
+    def test_thermal_acceleration_requires_two_consecutive_valid_samples(self):
+        first = self.tick(self.ledger, 1010)
+        higher = self.status()
+        higher[self.a]["metrics"]["temperature_k"] = 298.15
+        hot = sample_instrumentation(first, 1020, higher)
+        key = alarm_key(self.a, "TEMPERATURE_RISE_RATE", "PZ-TEST-A")
+        self.assertTrue(hot["alarms"][key]["active"])
+        dark = self.tick(hot, 1030, a="dark")
+        recovered = sample_instrumentation(dark, 1040, higher)
+        self.assertTrue(recovered["alarms"][key]["active"])
+        self.assertEqual(recovered["alarms"][key]["last_s"], 1020)
+        final = sample_instrumentation(recovered, 1050, higher)
+        self.assertFalse(final["alarms"][key]["active"])
+
+    def test_degraded_panel_fails_closed_and_latches_original_fault(self):
+        first = self.tick(self.ledger, 1010, pressure_a=55)
+        degraded = self.tick(first, 1020, a="degraded")
+        fault = alarm_key(self.a, "PRESSURE_LOW", "PZ-TEST-A")
+        quality = alarm_key(self.a, "INSTRUMENT_UNRELIABLE", self.a)
+        self.assertTrue(degraded["alarms"][fault]["active"])
+        self.assertTrue(degraded["alarms"][quality]["active"])
+        self.assertIsNone(panel_readout(
+            degraded, self.a, now_s=1020)["measurements"])
+        self.assertEqual(degraded["panels"][self.a]["last_good_s"], 1010)
+        with self.assertRaises(InstrumentError):
+            acknowledge_alarm(degraded, self.a, fault, actor="#57", now_s=1020)
+        invalid = self.status(a="degraded")
+        invalid[self.a]["metrics"]["pressure_kpa"] = 101
+        with self.assertRaises(InstrumentError):
+            sample_instrumentation(degraded, 1030, invalid)
+        first_good = self.tick(degraded, 1030)
+        self.assertTrue(first_good["alarms"][quality]["active"])
+        restored = self.tick(first_good, 1040)
+        self.assertFalse(restored["alarms"][quality]["active"])
+        self.assertFalse(restored["alarms"][fault]["active"])
+
+    def test_selftest_proves_local_source_not_sensor_calibration(self):
+        first = self.tick(self.ledger, 1010)
+        healthy = panel_selftest(
+            first, self.a, now_s=1010, condition="serviceable", powered=True)
+        self.assertTrue(healthy["passed_last_known_channel_and_power_check"])
+        self.assertTrue(healthy["does_not_acknowledge_clear_isolate_or_repair"])
+        self.assertIn("not_sensor_calibration", healthy["qualification"])
+        failed = panel_selftest(
+            first, self.a, now_s=1010, condition="degraded", powered=True)
+        self.assertFalse(failed["passed_last_known_channel_and_power_check"])
+        self.assertTrue(failed["requires_physical_service"])
+        dark = panel_selftest(
+            first, self.a, now_s=1010, condition="serviceable", powered=False)
+        self.assertFalse(dark["passed_last_known_channel_and_power_check"])
+        self.assertEqual(first["sequence"], 0)
+        with self.assertRaises(InstrumentError):
+            panel_selftest(first, self.a, now_s=1015,
+                           condition="serviceable", powered=True)
+
+    def test_seeded_panel_quality_pressure_fire_and_sensor_fault_sweep(self):
+        import random
+        rng = random.Random(19273)
+        ledger = self.ledger
+        for tick in range(1, 281):
+            pressure = rng.uniform(75, 109)
+            burning = 0.02 if tick % 19 == 0 else 0.0
+            status = ("degraded" if tick % 23 == 0
+                      else "dark" if tick % 41 == 0
+                      else "online")
+            ledger = self.tick(
+                ledger, 1000 + tick * 10, pressure_a=pressure,
+                burn_a=burning, a=status)
+            self.assertTrue(validate_instrumentation(ledger))
+            if status != "online":
+                self.assertIsNone(panel_readout(
+                    ledger, self.a, now_s=ledger["last_s"])["measurements"])
+        self.assertEqual(ledger["sample_count"], 280)
+        self.assertTrue(all(e["alarm"].startswith(self.a + "|")
+                            for e in ledger["history"]))
