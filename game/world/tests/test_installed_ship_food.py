@@ -209,6 +209,6 @@ class InstalledFoodTests(EvenniaTestCase):
         self.assertGreater(first["food_waste_held_kg"], 0)
         repeat = tick_continuous_physics(now_game_time=1010)
         self.assertFalse(repeat["advanced"])
-        self.assertEqual(
+        self.assertAlmostEqual(
             state("inventory", "INV-FOOD-LONG-LEG").quantity,
             first["food_stored_kg"] / 1000, delta=1e-7)
