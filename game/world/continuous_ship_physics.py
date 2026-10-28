@@ -196,7 +196,7 @@ from world.ship_workshop_welding import (
     WeldError, CELLS as WELDING_CELLS, ROOM as WELDING_ROOM,
     ARC_KW as WELD_ARC_KW, initial_welding, validate_welding,
     certify_filler, issue_filler, start_weld, step_welds,
-    take_slag, deposit_slag,
+    take_slag, deposit_slag, welded_output_confirmed,
 )
 from world.ship_workshop_fabrication import (
     FabricationError, WORKROOM as FABRICATION_ROOM,
@@ -5702,6 +5702,12 @@ def tick_continuous_physics(*, now_game_time=None):
                              observed_s=last + seconds,
                              operating=bool(service_operations and
                                name in service_operations["last"]["operating"])))
+                    and (name not in WELDING_CELLS or
+                         welded_output_confirmed(
+                             name, machine.details,
+                             observed_s=last + seconds,
+                             operating=bool(service_operations and
+                               name in service_operations["last"]["operating"])))
                     and physically_restored and has_real_supply
                     and not known_alarm
                     and not (repairs and "equipment:" + name in repairs["jobs"]))
@@ -9547,6 +9553,9 @@ def local_physics_readout(actor, target):
             "workshop_mechanical_output": (
                 units[target].details.get(GAUGE_FIELD)
                 if target in WORKSHOP_DRIVES else None),
+            "workshop_arc_output": (
+                units[target].details.get("physics_weld_arc_gauge")
+                if target in WELDING_CELLS else None),
             "output_proven_at_site": (
                 machine_output_confirmed(
                     target, units[target].details,
@@ -9554,7 +9563,14 @@ def local_physics_readout(actor, target):
                     operating=bool(
                         power["assured"] and supply and
                         target in running["last"]["operating"]))
-                if target in WORKSHOP_DRIVES else False),
+                if target in WORKSHOP_DRIVES
+                else welded_output_confirmed(
+                    target, units[target].details,
+                    observed_s=clock.details["last_game_time"],
+                    operating=bool(
+                        power["assured"] and supply and
+                        target in running["last"]["operating"]))
+                if target in WELDING_CELLS else False),
             "scope": "attended_secondary_equipment_circuit",
         }
     if target in MOTORS:
