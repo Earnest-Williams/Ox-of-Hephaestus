@@ -3,7 +3,8 @@ import unittest
 from types import SimpleNamespace
 from world.ship_fault_recovery import (
     FaultRecoveryError, initial_fault_cases, validate_fault_cases,
-    feeders_for, verified_open_feeders, inspect_fault, isolate_fault, begin_verified_work,
+    feeders_for, verified_open_feeders, verified_restored_feeders,
+    inspect_fault, isolate_fault, begin_verified_work,
     finished_verified_work, check_repair, authorize_restart, verify_restart,
 )
 
@@ -116,6 +117,41 @@ class FaultRecoveryTests(unittest.TestCase):
             tampered[feeder] = SimpleNamespace(
                 **{**vars(rows[feeder]), "space_id": "SOMEONE-ELSES-ROOM"})
             self.assertFalse(verified_open_feeders(machine, tampered))
+
+    def test_restored_all_98_feeds_need_real_manual_close_and_later_measurement(self):
+        from world.ship_auxiliary_electrical import MOTORS
+        from world.ship_equipment_services import SERVICE_LOADS
+        for name in sorted(set(MOTORS) | set(SERVICE_LOADS)):
+            room = (SERVICE_LOADS[name] if name in SERVICE_LOADS
+                    else MOTORS[name])[0]
+            feeders = {}
+            for key in feeders_for(name):
+                network = ("g19_equipment_service" if name in SERVICE_LOADS
+                           else "g19_motor_protected"
+                           if key.startswith("ISO-G19-PROT-") else "g19_motor")
+                feeders[key] = SimpleNamespace(
+                    source_id=key, category="isolator", space_id=room,
+                    setting="closed", condition="serviceable",
+                    reference={"network": network, "kind": "breaker",
+                               "manual_operation": True},
+                    details={"physics_manual_close_game_s": 205.0})
+            self.assertTrue(verified_restored_feeders(
+                name, feeders, checked_s=205, last_good_s=215), name)
+            self.assertFalse(verified_restored_feeders(
+                name, feeders, checked_s=205, last_good_s=205), name)
+            self.assertFalse(verified_restored_feeders(
+                name, feeders, checked_s=206, last_good_s=215), name)
+            altered = dict(feeders)
+            first = next(iter(altered))
+            altered[first] = SimpleNamespace(
+                **{**vars(feeders[first]), "details": {}})
+            self.assertFalse(verified_restored_feeders(
+                name, altered, checked_s=205, last_good_s=215), name)
+            if len(feeders) > 1:
+                partial = dict(feeders)
+                partial.pop(first)
+                self.assertFalse(verified_restored_feeders(
+                    name, partial, checked_s=205, last_good_s=215), name)
 
     def test_restart_on_breaker_trip_requires_real_cleared_protection(self):
         name = "FIRE-PUMP-FWD"
