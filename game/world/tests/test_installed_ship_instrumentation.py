@@ -211,7 +211,7 @@ class InstalledInstrumentationTests(EvenniaTestCase):
         self.assertEqual(act("f", "repair", "equipment:" + name,
                              "start")["status"], "succeeded")
         with self.assertRaisesRegex(PhysicsError, "padlocks its fitted feeder"):
-            act("g", "switch", breaker, "closed")
+            act("1", "switch", breaker, "closed")
         self.assertEqual(state("isolator", breaker).setting, "open")
         self.assertEqual(state("equipment", name).condition, "failed")
 
