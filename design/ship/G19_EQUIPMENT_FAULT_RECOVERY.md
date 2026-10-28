@@ -127,9 +127,21 @@ commissioned **legacy finite repairs** without signed diagnostic cases:
 active work padlocks all original fitted machine feeders against reconnection,
 and no timed repair advances while the local mechanism is coasting.
 
-The two original `WELD-CELL` service machines have **not** gained fictional
-welding-arc evidence: their real arc production still needs a separately
-implemented consumable/electrode-and-workpiece action. The 72 auxiliary
+**Superseded by the 28 October fitted twin-welding continuation.** Both original
+`WELD-CELL-A/B` now support independently verified physical arc work, using
+finite operator-classified `INV-SPARES` filler and an individually held
+existing base part. A physically attending engineer, real workshop air,
+powered machine, separate original feeder and commissioned time are required
+for measured per-epoch kJ, a finished joined workpiece and retained
+industrial slag. The signed local fault case now requires **two separate
+genuine positive arc-output physics epochs** instead of treating electrical
+continuity as welding performance. The definitive as-built materials,
+energy, source-specific witness and waste contract is
+[`G19_WORKSHOP_WELDING.md`](G19_WORKSHOP_WELDING.md). The initial
+fabrication-and-welding two-job test baseline passed
+[run #40773822827](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40773822827).
+The added arc-gauge repair/restart hardening requires a subsequent
+same-code-head acceptance run before it is marked accepted. The 72 auxiliary
 motors similarly retain their own process-specific verification backlog;
 a new spindle gauge for an unrelated machine would be a fabricated sensor.
 These mechanisms are fictional game-calibrated physical dynamics, not
