@@ -6375,7 +6375,7 @@ def crew_physical_action(actor, request_id, action, target, value):
     """
     if not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
         raise PhysicsError("Expected one 32-character lowercase request UUID")
-    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld"}:
+    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay"}:
         raise PhysicsError("Unknown physical operation")
     if actor is None or getattr(actor.db, "ox_terminal_dead", False):
         raise PermissionError("A deceased or missing character cannot operate machinery")
@@ -6398,8 +6398,8 @@ def crew_physical_action(actor, request_id, action, target, value):
                     "isolator:" if action == "switch"
                     else "pressure:" if action == "mist"
                     else "access:" if action == "hatch"
-                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld"}
-                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld"} else target)
+                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay"}
+                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay"} else target)
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
@@ -6416,6 +6416,15 @@ def crew_physical_action(actor, request_id, action, target, value):
     # stable service attitude. Emergency COAST/HOLD, drive INHIBIT, and
     # rotary STOP/HARDLOCK remain possible after a casualty; no permit
     # blocks actions that make the ship safer.
+    propulsion_bay = _clock().details.get("propulsion_bay")
+    if propulsion_bay is not None and propulsion_bay["permit"] is not None:
+        if (action == "helm" and value != "coast"
+                or action == "attitude" and value != "hold"
+                or action == "drive" and value == "release"
+                or action == "ftl" and value == "engage"
+                or action == "switch" and target == PROP_BAY_FEEDER
+                and value != "open"):
+            raise PhysicsError("PROP-SVC suited work party holds main and RCS safing and physical feeder lockout")
     nozzle_work = _clock().details.get("propulsion_exterior")
     if nozzle_work is not None and nozzle_work["permit"] is not None and (
             action == "helm" and value != "coast"
@@ -8291,6 +8300,95 @@ def crew_physical_action(actor, request_id, action, target, value):
         clock.revision += 1
         clock.save(update_fields=["details", "revision"])
         item = clock
+    elif action == "propulsion_bay":
+        # Dedicated original rated-access operation, not a normal door
+        # bypass or an invented pressure zone. A real source pressure cell
+        # pays every kilogram of hatch bleed.
+        if target != PROP_BAY or not isinstance(value, str):
+            raise PhysicsError("Only the original PROP-SVC service permit exists")
+        item = _clock(lock=True)
+        before = _snapshot(item)
+        d = dict(item.details)
+        bay = d.get("propulsion_bay")
+        if bay is None:
+            raise PhysicsError("Original propulsion bay is not commissioned")
+        validate_bay(bay)
+        room = getattr(getattr(getattr(actor, "location", None), "db", None),
+                       "ox_space_id", None)
+        _crew_at(actor, room)
+        if room not in {PROP_BAY_TRUNK, PROP_BAY}:
+            raise PermissionError("Physical service permit is attended only at original bay hatch")
+        entry = state("access", PROP_BAY_HATCH)
+        peer = state("access", PROP_BAY_FREIGHT)
+        feeder = state("isolator", PROP_BAY_FEEDER)
+        if (entry.condition in _BROKEN or peer.condition in _BROKEN
+                or peer.setting != "closed"):
+            raise PhysicsError("No intact, independent original rated hatch containment")
+        try:
+            if value.startswith("bleed:"):
+                if room != PROP_BAY_TRUNK or entry.setting != "closed":
+                    raise PermissionError("Only original trunk side can meter closed-hatch air")
+                if feeder.setting != "open" or not bay_motion_safed(d["motion"]):
+                    raise PhysicsError("Propulsion must be cold, inhibited and electrically isolated")
+                src_row, source = _propulsion_bay_source()
+                altered, result = equalize_from_trunk(
+                    bay, requested_kg=float(value.partition(":")[2]),
+                    source=source, now_s=d["last_game_time"],
+                    source_safe=_air_safe(src_row), hatch_closed=True,
+                    other_closed=True)
+                previous_gas = _snapshot(src_row)
+                src_details = dict(src_row.details)
+                src_row.quantity = result["mass_kg"]
+                src_details["physics_oxygen_kg"] = result["oxygen_kg"]
+                src_details["physics_co2_kg"] = result["co2_kg"]
+                src_row.details = src_details
+                if not _air_safe(src_row):
+                    raise PhysicsError("Bleeding air would endanger the original crew trunk")
+                src_row.revision += 1
+                src_row.save(update_fields=["quantity", "details", "revision"])
+                _event(src_row, "g19_original_bay_hatch_metered_gas_bled",
+                       previous_gas, actor=actor)
+                bay = altered
+            elif value == "secure":
+                if room != PROP_BAY_TRUNK or entry.setting != "closed":
+                    raise PermissionError("Issue original service entry at the sealed trunk hatch")
+                if not _propulsion_bay_suit_ready(actor, d):
+                    raise PhysicsError("Real issued oxygen suit and enrolled fit engineer needed")
+                if not _propulsion_bay_ready(
+                        d, require_permit=False, hatch_closed=True):
+                    raise PhysicsError("Bay survey, original feeder, equalized gas or propulsion safe state not verified")
+                if (d.get("propulsion_exterior") or {}).get("permit") is not None:
+                    raise PhysicsError("Aft nozzle EVA and enclosed propulsion service cannot overlap")
+                bay = permit_entry(
+                    bay, worker=actor.dbref, now_s=d["last_game_time"])
+            elif value == "inspect":
+                if room != PROP_BAY or entry.setting != "closed":
+                    raise PermissionError("Hands-on propulsion inspection needs shut rated boundary")
+                if not _propulsion_bay_worker_ready(actor, d):
+                    raise PhysicsError("Real individual suited work permit is no longer safe")
+                bay = inspect_bay(bay, worker=actor.dbref)
+            elif value == "release":
+                if room != PROP_BAY_TRUNK:
+                    raise PermissionError("Return to the real trunk before releasing the permit")
+                from world.ship_world import find_ship_space
+                inside = find_ship_space(PROP_BAY)
+                occupied = bool(inside and any(
+                    getattr(person.db, "crew_role", None) for person in inside.contents))
+                bay = release_entry(
+                    bay, worker=actor.dbref, hatch_closed=entry.setting=="closed",
+                    bay_empty=not occupied,
+                    repairs_active=any(
+                        job["room"] == PROP_BAY
+                        for job in (d.get("repairs") or {"jobs": {}})["jobs"].values()))
+            else:
+                raise PhysicsError("Use bleed:<kg>, secure, inspect or release at true PROP-SVC")
+        except (BayAccessError, TypeError, ValueError) as exc:
+            raise PhysicsError(str(exc)) from exc
+        validate_bay(bay)
+        d["propulsion_bay"] = bay
+        item.details = d
+        item.revision += 1
+        item.save(update_fields=["details", "revision"])
     elif action == "propulsion_service":
         # v0.5 has an exterior platform, but no separately identifiable
         # external nozzle machine. Only a suited inspection is admissible.
@@ -9160,15 +9258,22 @@ def crew_physical_action(actor, request_id, action, target, value):
             re.fullmatch(r"ACC-DR-0[1-6]-LOCK-FIX", item.source_id) is not None
             or item.source_id in {"ACC-IX-A-FIX", "ACC-IX-B-FIX",
                                   "ACC-WR-FIXED-IX"})
+        original_bay = item.source_id == PROP_BAY_HATCH
         ordinary_local = (
-            not ordinary_bridge and not fixed_indexer
+            not ordinary_bridge and not fixed_indexer and not original_bay
             and spec.get("kind") in CREW_LOCAL_DOOR_KINDS)
-        if not ordinary_bridge and not fixed_indexer and not ordinary_local:
+        if not ordinary_bridge and not fixed_indexer and not ordinary_local and not original_bay:
             raise PhysicsError("Cargo, EVA and machinery doors require dedicated interlocks")
         if item.condition in _BROKEN:
             raise PhysicsError("Damaged hatch cannot be safely actuated")
         if value == "open" and item.setting != "open":
-            if ordinary_bridge:
+            if original_bay:
+                if (not _propulsion_bay_worker_ready(
+                        actor, _clock().details, inside=False)
+                        or not _propulsion_bay_ready(
+                            _clock().details, hatch_closed=True)):
+                    raise PhysicsError("Original PROP-SVC needs physically suited owner, original equalized gas and isolated drive")
+            elif ordinary_bridge:
                 _hatch_open_preflight(item)
             elif fixed_indexer:
                 _personnel_fixed_hatch_preflight(item)
@@ -9855,6 +9960,33 @@ def local_physics_readout(actor, target):
             "injury": own.details["injury"],
             "scope": "own_physically_measured_crew_health_only",
         }
+    if target == "propulsion_bay":
+        d = _clock().details
+        ledger = d.get("propulsion_bay")
+        if ledger is None or room not in {PROP_BAY_TRUNK, PROP_BAY}:
+            raise PermissionError("Read actual PROP-SVC atmosphere and access at its original hatch")
+        validate_bay(ledger)
+        if room == PROP_BAY and not _propulsion_bay_suit_ready(actor, d):
+            raise PermissionError("Only an issued, functioning suit accesses PROP-SVC local gauges")
+        gas = ledger["gas"]
+        hatch = state("access", PROP_BAY_HATCH)
+        feeder = state("isolator", PROP_BAY_FEEDER)
+        return {
+            "bay": PROP_BAY, "original_pressure_zone": None,
+            "pressure_pa": fitted_bay_pressure(gas) if gas is not None else None,
+            "surveyed_gas_kg": gas["mass_kg"] if gas is not None else None,
+            "sample_game_time": gas["sample_s"] if gas is not None else None,
+            "permit_holder": (ledger["permit"] or {}).get("holder"),
+            "entry_ready": _propulsion_bay_ready(d),
+            "real_hatch_setting": hatch.setting,
+            "real_service_feeder": feeder.setting,
+            "real_controller_condition": state("equipment", PROP_BAY_CONTROLLER).condition,
+            "entries": ledger["entries"],
+            "inspections": ledger["inspections"],
+            "active_local_repairs": {
+                key: job for key, job in (d.get("repairs") or {"jobs": {}})["jobs"].items()
+                if job["room"] == PROP_BAY} if room == PROP_BAY else {},
+            "scope": "physically_attended_rated_original_propulsion_service_bay"}
     if target == "propulsion_service":
         d = _clock().details
         ledger = d.get("propulsion_exterior")
