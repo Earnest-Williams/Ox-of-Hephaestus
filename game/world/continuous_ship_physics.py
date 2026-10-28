@@ -192,6 +192,13 @@ from world.ship_process_outputs import (
     ProcessOutputError, step_process_output, proves_process_output,
     machine_depressurized, attributed_fire_discharge,
 )
+from world.ship_workshop_fabrication import (
+    FabricationError, WORKROOM as FABRICATION_ROOM,
+    MACHINES as FABRICATION_MACHINES, MAX_HAND_PARTS_KG as FABRICATION_HAND_KG,
+    initial_fabrication, validate_fabrication, certify_blanks, pick_blank,
+    start_batch, step_batches, credit_repair_parts,
+    take_offcuts, deposit_offcuts,
+)
 from world.ship_workshop_dynamics import (
     WORKSHOP_DRIVES, GAUGE_FIELD, WorkshopGaugeError,
     step_workshop_gauge, machine_output_confirmed, machine_safely_stopped,
@@ -2392,6 +2399,72 @@ def commission_g19_repairs(*, operator_approved=False):
 
 
 @transaction.atomic
+def commission_g19_fabrication(*, operator_approved=False):
+    """Attach a finite workpiece ledger to existing SHOP-MECH machinery."""
+    if not operator_approved:
+        raise PermissionError("Only the world operator commissions original workshop manufacturing")
+    clock = _clock(lock=True)
+    if clock.details.get("fabrication") is not None:
+        validate_fabrication(clock.details["fabrication"])
+        return {"commissioned": False}
+    if any(clock.details.get(key) is None for key in (
+            "water", "repairs", "electrical", "service_operations")):
+        raise PhysicsError("Workshop needs real surveyed materials, powered machinery and shared repairs")
+    from world.ship_world import find_ship_space
+    if (find_ship_space(FABRICATION_ROOM) is None or
+            not _topology()[0].get(FABRICATION_ROOM, "").startswith("PZ-")):
+        raise PhysicsError("No original breathable machine shop")
+    for name in FABRICATION_MACHINES:
+        machine = state("equipment", name)
+        if (machine.space_id != FABRICATION_ROOM or
+                SERVICE_LOADS.get(name, (None,))[0] != FABRICATION_ROOM
+                or state("isolator", service_ids(name)[2]).space_id != FABRICATION_ROOM):
+            raise PhysicsError("As-built workshop machine and local feeder do not match")
+    stock = state("inventory", "INV-SPARES")
+    if stock.quantity is None or stock.quantity <= 0:
+        raise PhysicsError("Workshop raw blanks require finite pre-existing spare material")
+    old = _snapshot(clock)
+    d = dict(clock.details)
+    d["fabrication"] = initial_fabrication()
+    clock.details = d
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "g19_fitted_workshop_fabrication_commissioned", old)
+    return {"commissioned": True, "machines": sorted(FABRICATION_MACHINES)}
+
+
+@transaction.atomic
+def survey_g19_fabrication_blanks(*, operator_approved=False,
+                                  room_id=None, verified_kg=None):
+    """Classify existing physically surveyed INV-SPARES blanks, once per store."""
+    if not operator_approved:
+        raise PermissionError("World operator must positively attest machinable stock")
+    clock = _clock(lock=True)
+    d = dict(clock.details)
+    ledger = d.get("fabrication")
+    water = d.get("water")
+    if ledger is None or water is None:
+        raise PhysicsError("Workshop and original material survey not commissioned")
+    stock = state("inventory", "INV-SPARES")
+    if room_id not in stock.reference.get("location_ids", ()):
+        raise PhysicsError("This site has no original replacement-stock inventory")
+    observed = water["source_surveys"].get("INV-SPARES", {}).get(room_id, 0.0)
+    try:
+        updated = certify_blanks(
+            ledger, room=room_id, kg=verified_kg,
+            surveyed_available_kg=observed)
+    except FabricationError as exc:
+        raise PhysicsError(str(exc)) from exc
+    before = _snapshot(clock)
+    d["fabrication"] = updated
+    clock.details = d
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "g19_real_machinable_blank_survey", before)
+    return {"site": room_id, "certified_kg": updated["certified_kg"][room_id]}
+
+
+@transaction.atomic
 def survey_g19_repair_site(*, operator_approved=False, room_id=None,
                            work_class=None):
     """Attest an original nonbreathable generator or F1/F2 service bay.
@@ -3271,6 +3344,11 @@ def tick_continuous_physics(*, now_game_time=None):
     repairs = clock.details.get("repairs")
     if repairs is not None:
         validate_repairs(repairs)
+    fabrication = clock.details.get("fabrication")
+    if fabrication is not None:
+        validate_fabrication(fabrication)
+        if repairs is None or service_operations is None or water_state is None:
+            raise PhysicsError("Installed machining has lost its repair, power or raw material ledger")
     personnel_transfers = clock.details.get("personnel_transfers")
     if personnel_transfers is not None:
         try:
@@ -3453,6 +3531,67 @@ def tick_continuous_physics(*, now_game_time=None):
                         tool.details = new_details
                         tool.revision += 1
                         changed_equipment.add(tool.key)
+                if fabrication is not None and fabrication["jobs"]:
+                    from evennia.objects.models import ObjectDB
+                    involved = {
+                        job["worker"] for job in fabrication["jobs"].values()}
+                    live_workers = {
+                        person.dbref: person for person in ObjectDB.objects.filter(
+                            id__in=[int(ref[1:]) for ref in involved])}
+                    ready_people = set()
+                    for worker, person in live_workers.items():
+                        hp = CanonicalShipState.objects.filter(
+                            pk="crew_health:" + worker, source_model=MODEL).first()
+                        if (getattr(getattr(getattr(person, "location", None),
+                                            "db", None), "ox_space_id", None)
+                                != FABRICATION_ROOM or
+                                getattr(person.db, "ox_terminal_dead", False) or
+                                hp is not None and hp.condition not in {"fit", "impaired"} or
+                                getattr(person.db, "crew_role", None)
+                                not in {"chief_engineer", "watch_engineer"}
+                                and not person.check_permstring("Developer")):
+                            continue
+                        zone = zones.get(FABRICATION_ROOM)
+                        shop = cells.get(zone)
+                        if (shop is not None and shop["mass"] > 0 and
+                                shop["damage"] < .2 and shop["burn"] == 0
+                                and shop["leak"] == 0 and
+                                278.15 <= shop["temperature"] <= 313.15
+                                and 80000 <= _cell_pressure(shop) <= 120000):
+                            ready_people.add(worker)
+                    readings = {}
+                    for machine in fabrication["jobs"]:
+                        unit = equipment[machine]
+                        gauge = unit.details.get(GAUGE_FIELD)
+                        readings[machine] = {
+                            "operating": machine_output_confirmed(
+                                machine, unit.details, observed_s=last + duration,
+                                operating=machine in operating_shop),
+                            "cumulative_output": (
+                                gauge["cumulative_output"] if gauge else 0.0),
+                        }
+                    try:
+                        fabrication, newly_made = step_batches(
+                            fabrication, dt, observed=readings,
+                            present=ready_people,
+                            free_part_kg={
+                                worker: max(0.0, FABRICATION_HAND_KG -
+                                            repairs["carried_kg"].get(worker, 0.0))
+                                for worker in involved})
+                        for worker, kg, source in newly_made:
+                            repairs = credit_repair_parts(
+                                repairs, actor=worker, kg=kg)
+                            CanonicalShipEvent.objects.create(
+                                component_key="equipment:" + source["machine"],
+                                operation="g19_real_machine_part_finished",
+                                before={"workpiece_kg": source["input_kg"],
+                                        "request_id": source["request_id"]},
+                                after={"held_repair_part_kg": kg,
+                                       "workshop_offcuts_kg": source["offcuts_kg"],
+                                       "worker": worker},
+                                actor_dbref=worker, game_time=last + duration)
+                    except FabricationError as exc:
+                        raise PhysicsError(str(exc)) from exc
                 if equipment_wear is not None:
                     equipment_wear, wear_events = step_equipment_wear(
                         equipment_wear, service_operations, equipment)
@@ -5397,6 +5536,9 @@ def tick_continuous_physics(*, now_game_time=None):
         d["generator_spent_cartridge_kg"] = cartridge_spent
     if repairs is not None:
         d["repairs"] = repairs
+    if fabrication is not None:
+        validate_fabrication(fabrication)
+        d["fabrication"] = fabrication
     if hull is not None:
         d["hull"] = hull
     if personnel_transfers is not None:
@@ -5843,7 +5985,7 @@ def crew_physical_action(actor, request_id, action, target, value):
     """
     if not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
         raise PhysicsError("Expected one 32-character lowercase request UUID")
-    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault"}:
+    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate"}:
         raise PhysicsError("Unknown physical operation")
     if actor is None or getattr(actor.db, "ox_terminal_dead", False):
         raise PermissionError("A deceased or missing character cannot operate machinery")
@@ -5866,8 +6008,8 @@ def crew_physical_action(actor, request_id, action, target, value):
                     "isolator:" if action == "switch"
                     else "pressure:" if action == "mist"
                     else "access:" if action == "hatch"
-                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault"}
-                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault"} else target)
+                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate"}
+                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate"} else target)
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
@@ -6937,6 +7079,134 @@ def crew_physical_action(actor, request_id, action, target, value):
         clock.revision += 1
         clock.save(update_fields=["details", "revision"])
         item = clock
+    elif action == "fabricate":
+        # No globally accessible fabrication button: the current actor must
+        # personally issue surveyed source blanks, operate the original shop,
+        # or hand-carry offcuts into an authentic sealed waste receiver.
+        item = _clock(lock=True)
+        before = _snapshot(item)
+        d = dict(item.details)
+        fab = d.get("fabrication")
+        wet = d.get("water")
+        repairs = d.get("repairs")
+        if fab is None or wet is None or repairs is None:
+            raise PhysicsError("No commissioned physically stocked workshop")
+        room = getattr(getattr(getattr(actor, "location", None), "db", None),
+                       "ox_space_id", None)
+        _crew_at(actor, room)
+        role = getattr(actor.db, "crew_role", None)
+        if role not in {"chief_engineer", "watch_engineer"} and not actor.check_permstring("Developer"):
+            raise PermissionError("Machining requires trained ship engineers")
+        hp = CanonicalShipState.objects.filter(
+            pk="crew_health:" + actor.dbref, source_model=MODEL).first()
+        if hp is not None and hp.condition not in {"fit", "impaired"}:
+            raise PhysicsError("Physically incapable machine-shop worker")
+        zone = _topology()[0].get(room)
+        if (zone is None or not zone.startswith("PZ-")
+                or not _air_safe(state("pressure", zone))):
+            raise PhysicsError("Workshop crew needs breathable real compartment air")
+        import copy
+        try:
+            if target == "blank" and value.startswith("pickup:"):
+                stock = state("inventory", "INV-SPARES", lock=True)
+                if room not in stock.reference.get("location_ids", ()):
+                    raise PermissionError("Raw workpieces only at original material stores")
+                amount = float(value.partition(":")[2])
+                fab, remaining = pick_blank(
+                    fab, actor=actor.dbref, room=room, kg=amount,
+                    stock_kg=stock.quantity * 1000,
+                    surveyed_available_kg=wet["source_surveys"].get(
+                        "INV-SPARES", {}).get(room, 0.0))
+                wet = copy.deepcopy(wet)
+                wet["source_surveys"]["INV-SPARES"][room] -= amount
+                available = {
+                    "normal": state("inventory", "INV-WATER-NORMAL").quantity * 1000,
+                    "reserve": state("inventory", "INV-WATER-RESERVE").quantity * 1000,
+                    "sanitary": state("inventory", "INV-WASTE-RESIDUE").quantity * 1000,
+                    "industrial": state("inventory", "INV-INDUSTRIAL-SCRAP").quantity * 1000,
+                    "hazardous": state("inventory", "INV-HAZARDOUS-RESIDUE").quantity * 1000,
+                    "filter": state("inventory", "INV-DC-CONSUMABLES").quantity * 1000,
+                    "spares": remaining}
+                validate_water(wet, available)
+                old_stock = _snapshot(stock)
+                stock.quantity = remaining / 1000.0
+                stock.revision += 1
+                stock.save(update_fields=["quantity", "revision"])
+                _event(stock, "machinable_blank_hand_issued", old_stock, actor=actor)
+            elif target in FABRICATION_MACHINES and value.startswith("start:"):
+                if room != FABRICATION_ROOM:
+                    raise PermissionError("Machining only at existing SHOP-MECH")
+                machine = state("equipment", target, lock=True)
+                if machine.space_id != room or machine.condition in _BROKEN:
+                    raise PhysicsError("Original spindle machinery is damaged")
+                # The spindle needs genuine running power before productive
+                # work can start. This never overrides the plant start command.
+                units = {row.source_id: row for row in
+                         CanonicalShipState.objects.filter(category="equipment")}
+                edges = list(CanonicalShipState.objects.filter(category="edge"))
+                isolators = {row.source_id: row for row in
+                             CanonicalShipState.objects.filter(category="isolator")}
+                supply = _power(units, edges, isolators,
+                                d["load_profile"], ledger=d.get("electrical"),
+                                moored=contacts_active(d.get("cargo", {})))
+                svc = d.get("service_operations")
+                if (not supply["assured"] or svc is None or
+                        target not in svc["last"]["operating"] or
+                        not service_power(
+                            target, nodes=supply["nodes"], equipment=units,
+                            edges={edge.source_id: edge for edge in edges},
+                            switches=isolators)):
+                    raise PhysicsError("Spindle must have real operating service and dedicated live feeder")
+                gauge = machine.details.get(GAUGE_FIELD) or {}
+                fab = start_batch(
+                    fab, actor=actor.dbref, machine=target,
+                    kg=float(value.partition(":")[2]),
+                    request_id=request_id,
+                    previous_output=gauge.get("cumulative_output", 0.0),
+                    current_repair_kg=repairs["carried_kg"].get(actor.dbref, 0.0))
+            elif target == "offcuts" and value.startswith("pickup:"):
+                if room != FABRICATION_ROOM:
+                    raise PermissionError("Collect chips at the actual workshop")
+                fab = take_offcuts(
+                    fab, actor=actor.dbref,
+                    kg=float(value.partition(":")[2]))
+            elif target in {"IND-SCRAP-HOLD-A", "IND-SCRAP-HOLD-B"} and value.startswith("deposit:"):
+                receiver = state("equipment", target, lock=True)
+                if room != receiver.space_id or receiver.condition in _BROKEN:
+                    raise PermissionError("Carry chips to the real sound industrial receiver")
+                if target in wet["waste_offload"]["jobs"]:
+                    raise PhysicsError("Receiver currently reserved for port offload")
+                stock = state("inventory", "INV-INDUSTRIAL-SCRAP", lock=True)
+                balances = {
+                    "normal": state("inventory", "INV-WATER-NORMAL").quantity * 1000,
+                    "reserve": state("inventory", "INV-WATER-RESERVE").quantity * 1000,
+                    "sanitary": state("inventory", "INV-WASTE-RESIDUE").quantity * 1000,
+                    "industrial": stock.quantity * 1000,
+                    "hazardous": state("inventory", "INV-HAZARDOUS-RESIDUE").quantity * 1000,
+                    "filter": state("inventory", "INV-DC-CONSUMABLES").quantity * 1000,
+                    "spares": state("inventory", "INV-SPARES").quantity * 1000,
+                }
+                fab, wet, new_stocks = deposit_offcuts(
+                    fab, wet, balances, actor=actor.dbref,
+                    kg=float(value.partition(":")[2]), side=target[-1],
+                    receiver_ready=(receiver.condition not in _BROKEN))
+                old_stock = _snapshot(stock)
+                stock.quantity = new_stocks["industrial"] / 1000.0
+                stock.revision += 1
+                stock.save(update_fields=["quantity", "revision"])
+                _event(stock, "attended_shop_offcuts_to_real_waste_cassette",
+                       old_stock, actor=actor)
+            else:
+                raise PhysicsError("Use blank pickup:<kg>, machine start:<kg>, offcuts pickup:<kg> or receiver deposit:<kg>")
+        except (FabricationError, WaterError, TypeError, ValueError) as exc:
+            raise PhysicsError(str(exc)) from exc
+        validate_fabrication(fab)
+        validate_repairs(repairs)
+        d["fabrication"] = fab
+        d["water"] = wet
+        item.details = d
+        item.revision += 1
+        item.save(update_fields=["details", "revision"])
     elif action == "medical":
         # Individual medical work order. The pharmacy and treatment rooms
         # are physically distinct, so kit pickup/delivery requires movement.
@@ -9159,6 +9429,28 @@ def local_physics_readout(actor, target):
                 local[patient] = job
         return {"local_orders": local, "active_here": len(local),
                 "scope": "only_own_local_timed_casualty_transport"}
+    if target == "fabrication":
+        d = _clock().details
+        fab = d.get("fabrication")
+        if fab is None:
+            raise PhysicsError("Installed workshop fabrication is not commissioned")
+        validate_fabrication(fab)
+        if room != FABRICATION_ROOM and room not in {
+                "SPARES-CENTRAL", "MATERIAL-STOCK", "STORE-CRIT-SPARES"}:
+            raise PermissionError("Material reports are not available off site")
+        return {"room": room,
+                "certified_blanks_here_kg": fab["certified_kg"].get(room),
+                "personal_blank_kg": fab["raw_carried_kg"].get(actor.dbref, 0.0),
+                "personal_offcuts_kg": fab["offcuts_carried_kg"].get(actor.dbref, 0.0),
+                "active_jobs_here": (fab["jobs"] if room == FABRICATION_ROOM
+                                     else {}),
+                "shop_offcuts_kg": (fab["shop_offcuts_kg"]
+                                     if room == FABRICATION_ROOM else None),
+                "finished_cumulative_kg": fab["finished_kg"],
+                "completed_batches": fab["completed"],
+                "last_local_receipts": (fab["receipts"][-5:]
+                                        if room == FABRICATION_ROOM else []),
+                "scope": "physically_attended_original_machine_shop"}
     if target == "medical":
         medical = _clock().details.get("medical")
         if medical is None or room not in {TREATMENT_ROOM, PHARMACY_ROOM}:
