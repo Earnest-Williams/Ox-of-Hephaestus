@@ -5483,7 +5483,7 @@ def crew_physical_action(actor, request_id, action, target, value):
     """
     if not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
         raise PhysicsError("Expected one 32-character lowercase request UUID")
-    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation"}:
+    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food"}:
         raise PhysicsError("Unknown physical operation")
     if actor is None or getattr(actor.db, "ox_terminal_dead", False):
         raise PermissionError("A deceased or missing character cannot operate machinery")
@@ -5505,8 +5505,8 @@ def crew_physical_action(actor, request_id, action, target, value):
                     "isolator:" if action == "switch"
                     else "pressure:" if action == "mist"
                     else "access:" if action == "hatch"
-                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation"}
-                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation"} else target)
+                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food"}
+                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food"} else target)
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
@@ -6676,6 +6676,189 @@ def crew_physical_action(actor, request_id, action, target, value):
         item.save(update_fields=["details", "revision"])
 
 
+
+    elif action == "food":
+        # Every parcel is picked up, carried through *actual* ship exits and
+        # delivered at a real food/galley/grow/sanitation worksite. No global
+        # inventory teleport, automatic meal production or free nutrient refill.
+        if target not in (
+                set(FOOD_STORES) | set(NUTRIENT_STORES) |
+                set(GROW_BAYS.values()) |
+                {FOOD_GALLEY, FOOD_MESS} | set(FOOD_WASTE_RECEIVERS)):
+            raise PhysicsError("Food operation requires a fitted ship worksite")
+        _crew_at(actor, target)
+        zone = _topology()[0].get(target)
+        if not zone or not _air_safe(state("pressure", zone, lock=True)):
+            raise PhysicsError("Food handling requires safe surveyed local air")
+        item = _clock(lock=True)
+        before = _snapshot(item)
+        import copy
+        d = dict(item.details)
+        food = d.get("food")
+        if food is None:
+            raise PhysicsError("Original finite food stores not commissioned")
+        manifest = state("inventory", "INV-FOOD-LONG-LEG", lock=True)
+        try:
+            validate_food(food, inventory_kg=manifest.quantity * 1000.0)
+        except FoodError as exc:
+            raise PhysicsError(str(exc)) from exc
+        food = copy.deepcopy(food)
+        parts = value.split(":") if isinstance(value, str) else []
+        kitchen_water = d.get("water")
+        store_water = None
+        crop = d.get("cultivation")
+        inventories = {}
+        if not parts:
+            raise PhysicsError("Food operation must identify a physical task")
+        try:
+            if parts[0] == "take" and len(parts) == 3:
+                food = take_stored(
+                    food, actor=actor.dbref, room=target,
+                    kind=parts[1], kg=float(parts[2]))
+            elif parts[0] == "crop" and len(parts) == 2:
+                if crop is None:
+                    raise FoodError("Growing beds not commissioned")
+                bay = next((i for i, r in GROW_BAYS.items() if r == target), None)
+                food, crop = collect_crop(
+                    food, crop, actor=actor.dbref, bay=bay,
+                    kg=float(parts[1]))
+                d["cultivation"] = crop
+            elif parts == ["deliver"] and target == FOOD_GALLEY:
+                food = deliver_to_galley(food, actor=actor.dbref)
+            elif parts[0] == "cook" and len(parts) == 2 and target == FOOD_GALLEY:
+                if kitchen_water is None or d.get("electrical") is None:
+                    raise FoodError("Kitchen has no commissioned water and electrical services")
+                from world.ship_water_recycling import validate_water
+                machine = state("equipment", "HAB-02-GALLEY-LP")
+                machines = {x.source_id: x for x in CanonicalShipState.objects.filter(
+                    category="equipment")}
+                feeds = list(CanonicalShipState.objects.filter(category="edge"))
+                contacts = {x.source_id: x for x in CanonicalShipState.objects.filter(
+                    category="isolator")}
+                nodes = list(CanonicalShipState.objects.filter(category="node"))
+                grid = _power(machines, feeds, contacts, d["load_profile"],
+                              ledger=d["electrical"],
+                              moored=contacts_active(d["cargo"]), nodes=nodes)
+                from world.ship_auxiliary_electrical import motor_power
+                auxiliary = {e.source_id: e for e in feeds if
+                             e.reference.get("network") in {
+                                 "g19_motor", "g19_motor_protected"}}
+                plant = _water_hardware(
+                    kitchen_water, machines, feeds, contacts, nodes, grid,
+                    motor_ready=lambda name: motor_power(
+                        name, nodes=grid["nodes"], equipment=machines,
+                        edges=auxiliary, switches=contacts))
+                if (machine.condition in _BROKEN or
+                        not grid["assured"] or
+                        "NODE-HAB-02-GALLEY-LP" not in grid["nodes"] or
+                        not plant["potable"] or kitchen_water["potable_quarantined"]):
+                    raise FoodError("Galley loses actual electrical or potable process service")
+                if parts[1] not in FOOD_RECIPES:
+                    raise FoodError("Unknown galley recipe")
+                demanded = FOOD_RECIPES[parts[1]]["water"]
+                if kitchen_water["working_kg"] + 1e-7 < demanded:
+                    raise FoodError("Insufficient measured potable tank water")
+                food = prepare_meal(
+                    food, recipe=parts[1], water_delivered_kg=demanded)
+                w = copy.deepcopy(kitchen_water)
+                w["working_kg"] -= demanded
+                w["cumulative"]["technical_kg"] += demanded
+                water_stocks = {
+                    "normal": "INV-WATER-NORMAL",
+                    "reserve": "INV-WATER-RESERVE",
+                    "filter": "INV-DC-CONSUMABLES",
+                    "spares": "INV-SPARES",
+                    "sanitary": "INV-WASTE-RESIDUE",
+                    "industrial": "INV-INDUSTRIAL-SCRAP",
+                    "hazardous": "INV-HAZARDOUS-RESIDUE",
+                }
+                amounts = {k: state("inventory", v, lock=True).quantity * 1000.0
+                           for k, v in water_stocks.items()}
+                validate_water(w, amounts)
+                d["water"] = w
+            elif parts == ["meal_take"] and target == FOOD_GALLEY:
+                food = take_meal(food, actor=actor.dbref)
+            elif parts == ["meal_serve"] and target == FOOD_MESS:
+                food = set_meal_in_mess(food, actor=actor.dbref)
+            elif parts == ["eat"] and target in {FOOD_GALLEY, FOOD_MESS}:
+                if not CanonicalShipState.objects.filter(
+                        pk="crew_health:" + actor.dbref,
+                        source_model=MODEL).exists():
+                    raise FoodError("Only physically enrolled crew may consume ship provisions")
+                food, _calories = eat_meal(food, actor=actor.dbref, room=target)
+            elif parts[0] == "waste_take" and len(parts) == 2:
+                food = take_waste(food, actor=actor.dbref, room=target,
+                                  kg=float(parts[1]))
+            elif parts[0] == "waste_deposit" and len(parts) == 2:
+                if target not in FOOD_WASTE_RECEIVERS or kitchen_water is None:
+                    raise FoodError("No original food-sanitation receiving station")
+                from world.ship_water_recycling import (
+                    _fill_cassette, validate_water)
+                kg = float(parts[1])
+                food = deliver_waste(food, actor=actor.dbref, kg=kg)
+                machines = {x.source_id: x for x in CanonicalShipState.objects.filter(
+                    category="equipment")}
+                feeds = list(CanonicalShipState.objects.filter(category="edge"))
+                contacts = {x.source_id: x for x in CanonicalShipState.objects.filter(
+                    category="isolator")}
+                nodes = list(CanonicalShipState.objects.filter(category="node"))
+                grid = _power(machines, feeds, contacts, d["load_profile"],
+                              ledger=d.get("electrical"),
+                              moored=contacts_active(d["cargo"]), nodes=nodes)
+                plant = _water_hardware(
+                    kitchen_water, machines, feeds, contacts, nodes, grid)
+                side = FOOD_WASTE_RECEIVERS[target]
+                if not plant["bins"]["sanitary"][side]:
+                    raise FoodError("Original sanitary receiver damaged, unsealed or isolated")
+                receiver = {"sanitary": {"A": False, "B": False}}
+                receiver["sanitary"][side] = True
+                w = copy.deepcopy(kitchen_water)
+                _fill_cassette(w, "sanitary", kg, {"bins": receiver})
+                sanitary = state("inventory", "INV-WASTE-RESIDUE", lock=True)
+                sanitary.quantity += kg / 1000.0
+                sanitary.revision += 1
+                sanitary.save(update_fields=["quantity", "revision"])
+                d["water"] = w
+            elif parts[0] == "nutrient_take" and len(parts) == 2:
+                if target not in NUTRIENT_STORES or kitchen_water is None:
+                    raise FoodError("No original nutrient-compatible spare rack")
+                spares = state("inventory", "INV-SPARES", lock=True)
+                w = copy.deepcopy(kitchen_water)
+                available = w["source_surveys"].get(
+                    "INV-SPARES", {}).get(target, 0.0)
+                kg = float(parts[1])
+                food = take_nutrients(food, actor=actor.dbref,
+                                      room=target, kg=kg,
+                                      available_kg=min(available, spares.quantity * 1000.0))
+                w["source_surveys"]["INV-SPARES"][target] -= kg
+                spares.quantity -= kg / 1000.0
+                spares.revision += 1
+                spares.save(update_fields=["quantity", "revision"])
+                d["water"] = w
+            elif parts[0] == "nutrient_install" and len(parts) == 2:
+                if crop is None:
+                    raise FoodError("No fitted cultivated bed has been commissioned")
+                bay = next((i for i, r in GROW_BAYS.items() if r == target), None)
+                kg = float(parts[1])
+                crop = replenish_nutrients(crop, bay=bay, kg=kg)
+                food = install_nutrients(food, actor=actor.dbref, kg=kg)
+                d["cultivation"] = crop
+            else:
+                raise FoodError("Unknown local food transfer, recipe or waste operation")
+            # Reconcile EVERY food operation against the same source inventory.
+            validate_food(food)
+        except (FoodError, CultivationError, WaterError, TypeError, ValueError) as exc:
+            raise PhysicsError(str(exc)) from exc
+        remaining = unconsumed_stored_kg(food)
+        if abs(remaining - manifest.quantity * 1000.0) > 1e-9:
+            manifest.quantity = remaining / 1000.0
+            manifest.revision += 1
+            manifest.save(update_fields=["quantity", "revision"])
+        validate_food(food, inventory_kg=manifest.quantity * 1000.0)
+        d["food"] = food
+        item.details = d
+        item.revision += 1
+        item.save(update_fields=["details", "revision"])
 
     elif action == "cultivation":
         if target not in {f"GROW-{n}" for n in GROW_BAYS} or value != "harvest":
