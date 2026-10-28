@@ -37,4 +37,13 @@ The world clock, machine gauges, stock locations, waste receiver and repair inve
 - Installed: `world.tests.test_installed_ship_workshop_fabrication` executes live original room/material surveys, correct generator route, CNC startup/360-second machining, offcut transport, real receiver deposit and a real failed water processor repaired with the produced finite 3 kg replacement.
 - Workflow: `.github/workflows/ox-g19-workshop-fabrication.yml` (two independent jobs; branch-push, not skipped by the draft PR policy). **Both jobs must pass at the same exact runtime commit before this workshop manufacturing slice is marked accepted.**
 
-Further machine-shop closure requires genuine welding arcs/electrode/workpiece accounting, fuller work-order material typing/compatibility and wider G19 cross-system casualty campaigns. These are not silently treated as fabricated or complete.
+**Follow-on fitted welding is now separately implemented.** Both original
+`WELD-CELL-A/B` have finite filler/workpiece custody, real arc energy,
+usable joined repair material and retained industrial slag. See
+[`G19_WORKSHOP_WELDING.md`](G19_WORKSHOP_WELDING.md) rather than relying
+on the earlier "no welding arc" scope text. The machine-shop
+CNC-only baseline passed [run #40772270736](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40772270736);
+the combined CNC + welding baseline passed
+[run #40773822827](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40773822827).
+Detailed alloy compatibility, qualified weld geometry, manufacturing QC
+and whole-G19 multi-system campaigns remain separate work.
