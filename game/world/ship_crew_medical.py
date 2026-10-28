@@ -14,6 +14,7 @@ from world.ship_crew_physiology import validate_crew_health
 
 TREATMENT_ROOM = "HAB-04-MED-TREAT"
 PHARMACY_ROOM = "HAB-04-MED-PHARM"
+OBSERVATION_ROOM = "HAB-04-MED-OBS"
 TREATMENT_PANEL = "HAB-04-MED-TREAT-LP"
 TREATMENT_FEEDER = "ISO-HAB-04-MED-TREAT-LP"
 TREATMENT_POWER_NODE = "NODE-HAB-04-MED-TREAT-LP"
@@ -69,6 +70,7 @@ def initial_medical(*, dressings=0, fluid_kg=0.0):
         "carried": {}, "used_dressings": 0, "used_fluid_kg": 0.0,
         "cases": {}, "completed": 0,
         "observations": {}, "observation_completed": 0,
+        "obs_dressings": 0, "obs_fluid_kg": 0.0,
     }
     validate_medical(result)
     return result
@@ -80,15 +82,18 @@ def validate_medical(m):
                 "dressings", "fluid_kg", "carried",
                 "used_dressings", "used_fluid_kg", "cases", "completed"}
     extended = original | {"observations", "observation_completed"}
-    if not isinstance(m, dict) or set(m) not in (original, extended):
+    stationed = extended | {"obs_dressings", "obs_fluid_kg"}
+    if not isinstance(m, dict) or set(m) not in (original, extended, stationed):
         raise MedicalError("Incomplete medical stock and care custody")
     if set(m) == extended:
         _nonnegative(m["observation_completed"], integer=True)
     for key in ("surveyed_dressings", "pharmacy_dressings",
-                "dressings", "used_dressings", "completed"):
+                "dressings", "used_dressings", "completed") + (
+                    ("obs_dressings",) if "obs_dressings" in m else ()):
         _nonnegative(m[key], integer=True)
     for key in ("surveyed_fluid_kg", "pharmacy_fluid_kg",
-                "fluid_kg", "used_fluid_kg"):
+                "fluid_kg", "used_fluid_kg") + (
+                    ("obs_fluid_kg",) if "obs_fluid_kg" in m else ()):
         _nonnegative(m[key])
     if (m["surveyed_dressings"] > MAX_DRESSINGS or
             m["surveyed_fluid_kg"] > MAX_FLUID_KG or
@@ -109,9 +114,11 @@ def validate_medical(m):
         carried_d += d
         carried_f += f
     if (m["pharmacy_dressings"] + m["dressings"]
+            + m.get("obs_dressings", 0)
             + m["used_dressings"] + carried_d != m["surveyed_dressings"] or
             not math.isclose(
                 m["pharmacy_fluid_kg"] + m["fluid_kg"]
+                + m.get("obs_fluid_kg", 0.0)
                 + m["used_fluid_kg"] + carried_f,
                 m["surveyed_fluid_kg"], abs_tol=1e-7, rel_tol=0)):
         raise MedicalError("Medical supplies duplicated or lost")
@@ -132,7 +139,11 @@ def validate_medical(m):
     for patient, course in observations.items():
         if (not _ref(patient) or patient in m["cases"] or
                 not isinstance(course, dict) or
-                set(course) != {"caregiver", "remaining_s", "observed_s"} or
+                set(course) not in (
+                    {"caregiver", "remaining_s", "observed_s"},
+                    {"caregiver", "remaining_s", "observed_s", "room"}) or
+                course.get("room", TREATMENT_ROOM) not in {
+                    TREATMENT_ROOM, OBSERVATION_ROOM} or
                 not _ref(course["caregiver"]) or patient == course["caregiver"] or
                 course["caregiver"] in busy or
                 _nonnegative(course["remaining_s"]) > OBSERVATION_S or
@@ -144,7 +155,7 @@ def validate_medical(m):
     return True
 
 
-def carry_medical_kit(m, *, actor, verb, cases=1):
+def carry_medical_kit(m, *, actor, verb, cases=1, destination=TREATMENT_ROOM):
     """One finite hand-carried kit per case: dressing plus 0.5 kg fluid.
 
     The Evennia adapter must prove pickup at the original pharmacy and
@@ -168,11 +179,18 @@ def carry_medical_kit(m, *, actor, verb, cases=1):
         result["carried"][actor] = {
             "dressings": n, "fluid_kg": n * FLUID_PER_CASE_KG}
     elif verb == "deliver":
-        if actor not in result["carried"]:
-            raise MedicalError("No personally carried supplies to deliver")
+        if actor not in result["carried"] or destination not in {
+                TREATMENT_ROOM, OBSERVATION_ROOM}:
+            raise MedicalError("A real personal kit must be delivered at fitted treatment or observation")
         load = result["carried"].pop(actor)
-        result["dressings"] += load["dressings"]
-        result["fluid_kg"] += load["fluid_kg"]
+        if destination == OBSERVATION_ROOM:
+            result.setdefault("obs_dressings", 0)
+            result.setdefault("obs_fluid_kg", 0.0)
+            result["obs_dressings"] += load["dressings"]
+            result["obs_fluid_kg"] += load["fluid_kg"]
+        else:
+            result["dressings"] += load["dressings"]
+            result["fluid_kg"] += load["fluid_kg"]
     else:
         raise MedicalError("Only pharmacy pickup or treatment delivery")
     validate_medical(result)
@@ -233,26 +251,31 @@ def begin_observation(m, *, patient, caregiver, health, patient_room,
     active = m.get("observations", {})
     workers = {v["caregiver"] for v in m["cases"].values()}
     workers.update(v["caregiver"] for v in active.values())
+    attended_room = patient_room in {TREATMENT_ROOM, OBSERVATION_ROOM}
+    bedside_dressings = ("obs_dressings" if patient_room == OBSERVATION_ROOM
+                          else "dressings")
+    bedside_fluid = ("obs_fluid_kg" if patient_room == OBSERVATION_ROOM
+                     else "fluid_kg")
     if (not _ref(patient) or not _ref(caregiver) or patient == caregiver
             or health["condition"] in {"dead", "fit"}
             or health["injury"] <= 0 or patient in m["cases"]
             or patient in active or caregiver in workers
             or len(active) >= MAX_OBSERVATIONS
-            or patient_room != TREATMENT_ROOM
-            or caregiver_room != TREATMENT_ROOM
+            or not attended_room or caregiver_room != patient_room
             or not equipment_ok or not breathable
-            or m["dressings"] < 1 or m["fluid_kg"] < FLUID_PER_CASE_KG):
+            or m.get(bedside_dressings, 0) < 1
+            or m.get(bedside_fluid, 0.0) < FLUID_PER_CASE_KG):
         raise MedicalError("Follow-up requires injured patient, qualified attendant, safe clinic and real kit")
     out = copy.deepcopy(m)
     out.setdefault("observations", {})
     out.setdefault("observation_completed", 0)
-    out["dressings"] -= 1
+    out[bedside_dressings] -= 1
     out["used_dressings"] += 1
-    out["fluid_kg"] -= FLUID_PER_CASE_KG
+    out[bedside_fluid] -= FLUID_PER_CASE_KG
     out["used_fluid_kg"] += FLUID_PER_CASE_KG
     out["observations"][patient] = {
         "caregiver": caregiver, "remaining_s": OBSERVATION_S,
-        "observed_s": 0.0}
+        "observed_s": 0.0, "room": patient_room}
     validate_medical(out)
     return out
 
@@ -269,7 +292,9 @@ def discharge_observation(m, *, patient, caregiver):
     return out
 
 
-def step_care(m, health_rows, seconds, *, occupants, equipment_ok, breathable):
+def step_care(m, health_rows, seconds, *, occupants, equipment_ok, breathable,
+              observer_occupants=None, observer_powered=None,
+              observer_breathable=None):
     """A staffed five-minute course advances only in a safe local clinic."""
     validate_medical(m)
     dt = _nonnegative(seconds)
@@ -309,8 +334,16 @@ def step_care(m, health_rows, seconds, *, occupants, equipment_ok, breathable):
         if h["condition"] == "dead":
             del result["observations"][patient]
             continue
-        if not (equipment_ok and breathable and patient in occupants
-                and course["caregiver"] in occupants):
+        actual_room = course.get("room", TREATMENT_ROOM)
+        at_bedside = (occupants if actual_room == TREATMENT_ROOM
+                      else observer_occupants if observer_occupants is not None
+                      else set())
+        powered_here = (equipment_ok if actual_room == TREATMENT_ROOM
+                        else bool(observer_powered))
+        air_here = (breathable if actual_room == TREATMENT_ROOM
+                    else bool(observer_breathable))
+        if not (powered_here and air_here and patient in at_bedside
+                and course["caregiver"] in at_bedside):
             continue
         h["injury"] = max(0.0, h["injury"] - OBSERVATION_HEAL_PER_S * dt)
         h["condition"] = _condition_after_care(h)
