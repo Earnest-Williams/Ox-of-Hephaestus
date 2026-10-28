@@ -88,10 +88,13 @@ class FabricationTests(unittest.TestCase):
         self.assertEqual(fab["drawn_kg"], 4)
         self.assertEqual(fab["completed"], 1)
         self.assertTrue(validate_fabrication(fab))
-        with self.assertRaises(FabricationError):
-            step_batches(fab, 10, observed={"SHOP-CNC-MILL": {
-                "operating": True, "cumulative_output": -1}},
-                present={"#1"}, free_part_kg={"#1": 12})
+        # A finished machine order cannot consume its output twice.
+        again, repeated = step_batches(
+            fab, 10, observed={"SHOP-CNC-MILL": {
+                "operating": True, "cumulative_output": 999999}},
+            present={"#1"}, free_part_kg={"#1":12})
+        self.assertFalse(repeated)
+        self.assertEqual(again["finished_kg"], 3)
         repairs = move_toolkit(repairs, actor_dbref="#1", verb="pickup_toolkit")
         repairs = begin_repair(
             repairs, target="equipment:WATER-PROC-A",
