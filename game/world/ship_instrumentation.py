@@ -26,6 +26,8 @@ FAULT_CODES = frozenset({
 })
 LEVELS = {
     "FIRE": "critical", "PRESSURE_LOW": "critical",
+    "RAPID_DECOMPRESSION": "critical", "TEMPERATURE_RISE_RATE": "warning",
+    "INSTRUMENT_UNRELIABLE": "warning",
     "PRESSURE_HIGH": "critical", "OXYGEN_LOW": "critical",
     "OXYGEN_HIGH": "warning", "CO2_HIGH": "critical",
     "SMOKE": "critical", "LEAK": "critical",
@@ -49,6 +51,15 @@ GUIDANCE = {
              "cell and operate installed mist and air isolation"),
     "SMOKE": ("fire", "Check the local fire loop, smoke source, dampers "
               "and fitted fire-pump water supply"),
+    "RAPID_DECOMPRESSION": (
+        "pressure", "Two live samples show rapidly falling pressure; "
+        "verify local hull boundary, rated isolation and leaks immediately"),
+    "TEMPERATURE_RISE_RATE": (
+        "thermal", "Two consecutive local samples show rapid heating; "
+        "inspect actually running coolant, power and fire protection"),
+    "INSTRUMENT_UNRELIABLE": (
+        "instrumentation", "Original panel is physically degraded. "
+        "Do not trust old gauges; inspect its feeder and repair the panel"),
     "PRESSURE_LOW": ("pressure", "Verify local pressure boundary, rated "
                      "hatches and existing hull containment work"),
     "PRESSURE_HIGH": ("pressure", "Check local gas admission regulators "
@@ -185,7 +196,7 @@ def validate_instrumentation(ledger, *, panel_rooms=None):
         if (not isinstance(row, dict) or set(row) != {
                 "room", "zone", "status", "last_sample_s", "last_good_s", "metrics"}
                 or not isinstance(row["room"], str) or not row["room"]
-                or row["status"] not in {"unobserved", "online", "dark", "damaged"}
+                or row["status"] not in {"unobserved", "online", "dark", "damaged", "degraded"}
                 or not isinstance(row["metrics"], dict)
                 or set(row["metrics"]) - METRICS):
             raise InstrumentError("Invented or corrupted panel instrumentation")
@@ -266,6 +277,47 @@ def _metric_faults(metrics, subject):
     return alarms
 
 
+def _rate_faults(prior, current, seconds, subject):
+    """Trend ONLY two consecutive credible local samples, never a blackout."""
+    dt = _num(seconds)
+    if dt <= EPS or dt > MAX_SAMPLE_SECONDS + EPS:
+        raise InstrumentError("No independent bounded local sample pair")
+    result = set()
+    if "pressure_kpa" in prior and "pressure_kpa" in current:
+        fall = (prior["pressure_kpa"] - current["pressure_kpa"]) / dt
+        if fall > 0.12:
+            result.add(("RAPID_DECOMPRESSION", subject))
+    if "temperature_k" in prior and "temperature_k" in current:
+        rise = (current["temperature_k"] - prior["temperature_k"]) / dt
+        if rise > 0.30:
+            result.add(("TEMPERATURE_RISE_RATE", subject))
+    return result
+
+
+def panel_selftest(ledger, panel_id, *, now_s, condition, powered):
+    """Live source and last-sample check, NOT sensor calibration or repair."""
+    validate_instrumentation(ledger)
+    now = _num(now_s)
+    if now != ledger["last_s"] or panel_id not in ledger["panels"]:
+        raise InstrumentError("Self-test needs current fitted panel epoch")
+    if not isinstance(powered, bool) or not isinstance(condition, str):
+        raise InstrumentError("Self-test requires physical hardware condition")
+    p = ledger["panels"][panel_id]
+    age = now - p["last_good_s"] if p["last_good_s"] is not None else None
+    passed = bool(powered and condition == "serviceable"
+                  and p["status"] == "online" and age is not None
+                  and age <= MAX_SAMPLE_SECONDS)
+    return {
+        "panel": panel_id, "original_room": p["room"],
+        "current_condition": condition, "current_panel_power": powered,
+        "last_sample_status": p["status"], "last_good_age_s": age,
+        "passed_last_known_channel_and_power_check": passed,
+        "requires_physical_service": condition != "serviceable",
+        "qualification": "source_and_last_measured_data_only_not_sensor_calibration",
+        "does_not_acknowledge_clear_isolate_or_repair": True,
+    }
+
+
 def sample_instrumentation(ledger, now_s, readings):
     """Advance once, from the measured panel->power->sensor evidence.
 
@@ -288,12 +340,15 @@ def sample_instrumentation(ledger, now_s, readings):
     for panel, evidence in sorted(readings.items()):
         if (not isinstance(evidence, dict) or set(evidence) !=
                 {"status", "metrics", "faults"}
-                or evidence["status"] not in {"online", "dark", "damaged"}
+                or evidence["status"] not in {"online", "dark", "damaged", "degraded"}
                 or not isinstance(evidence["metrics"], dict)
                 or set(evidence["metrics"]) - METRICS
                 or not isinstance(evidence["faults"], (list, tuple))):
             raise InstrumentError("Unknown or incomplete fitted panel reading")
         old = out["panels"][panel]
+        previous_status = old["status"]
+        previous_good_s = old["last_good_s"]
+        previous_metrics = dict(old["metrics"])
         status = evidence["status"]
         old["status"] = status
         old["last_sample_s"] = now
@@ -305,6 +360,10 @@ def sample_instrumentation(ledger, now_s, readings):
             old["last_good_s"] = now
             zone = old["zone"] or old["room"]
             active.update(_metric_faults(old["metrics"], zone))
+            if (previous_status == "online" and previous_good_s is not None
+                    and 0 < now - previous_good_s <= MAX_SAMPLE_SECONDS):
+                active.update(_rate_faults(
+                    previous_metrics, old["metrics"], now - previous_good_s, zone))
             for fault in evidence["faults"]:
                 if (not isinstance(fault, (tuple, list)) or len(fault) != 2
                         or fault[0] not in FAULT_CODES):
@@ -313,7 +372,9 @@ def sample_instrumentation(ledger, now_s, readings):
         else:
             if evidence["metrics"] or evidence["faults"]:
                 raise InstrumentError("Unpowered panel cannot report a fresh signal")
-            active.add(("INSTRUMENT_LOST", panel))
+            active.add((
+                "INSTRUMENT_UNRELIABLE" if status == "degraded"
+                else "INSTRUMENT_LOST", panel))
         keys = {alarm_key(panel, code, subject) for code, subject in active}
         signalled[panel] = keys
         for code, subject in sorted(active):
