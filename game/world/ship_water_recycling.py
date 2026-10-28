@@ -193,7 +193,7 @@ def _fill_cassette(water, category, mass, hardware):
 
 
 def step_water(water, seconds, *, stocks, hardware, crew_count=40,
-               cultivation_demand_kg=None):
+               cultivation_demand_kg=None, food_rehydration_demand_kg=None):
     """Process coupled potable use, dirty-water buffers, recovery and waste.
 
     hardware is the *current*, tested graph/condition/power evidence:
@@ -217,6 +217,14 @@ def step_water(water, seconds, *, stocks, hardware, crew_count=40,
                     MAINTENANCE_AND_FOOD_KG_DAY["cultivation"] *
                     seconds / DAY * crew_count / 40 + EPS):
             raise WaterError("Crop water claim exceeds this tick's real allocation")
+    if food_rehydration_demand_kg is not None:
+        if (type(food_rehydration_demand_kg) not in (int, float)
+                or not math.isfinite(food_rehydration_demand_kg)
+                or food_rehydration_demand_kg < 0
+                or food_rehydration_demand_kg >
+                    MAINTENANCE_AND_FOOD_KG_DAY["food_rehydration"] *
+                    seconds / DAY * crew_count / 40 + EPS):
+            raise WaterError("Kitchen cannot declare an uncharged food-water allowance")
     validate_water(water, stocks)
     import copy
     w = copy.deepcopy(water)
@@ -406,6 +414,9 @@ def step_water(water, seconds, *, stocks, hardware, crew_count=40,
         for name, rate in MAINTENANCE_AND_FOOD_KG_DAY.items():
             request = (cultivation_demand_kg
                        if name == "cultivation" and cultivation_demand_kg is not None
+                       else food_rehydration_demand_kg
+                       if name == "food_rehydration"
+                       and food_rehydration_demand_kg is not None
                        else rate * daily * scale)
             restricted = w["reserve_released"] and name in {
                 "cultivation", "servicing"}
