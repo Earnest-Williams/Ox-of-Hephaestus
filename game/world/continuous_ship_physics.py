@@ -423,6 +423,15 @@ def _snapshot(item):
                     "delivered_kg": water["waste_offload"]["delivered_kg"],
                 },
             }
+        if item.details.get("food") is not None:
+            food = item.details["food"]
+            result["food"] = {
+                "remaining_stored_kg": unconsumed_stored_kg(food),
+                "fresh_collected_kg": food["meter"]["fresh_collected_kg"],
+                "meal_count": sum(len(v) for v in food["meals"].values()),
+                "waste_deposited_kg": food["meter"]["waste_deposited_kg"],
+                "crew_nutrition": food["crew"],
+            }
         if item.details.get("repairs"):
             jobs = item.details["repairs"]
             result["repairs"] = {
@@ -2983,6 +2992,10 @@ def tick_continuous_physics(*, now_game_time=None):
     inventory = CanonicalShipState.objects.select_for_update().get(
         pk="inventory:INV-WATER-NORMAL")
     inventory_before = _snapshot(inventory)
+    food_inventory = (
+        state("inventory", "INV-FOOD-LONG-LEG", lock=True)
+        if clock.details.get("food") is not None else None)
+    food_before = _snapshot(food_inventory) if food_inventory is not None else None
     water_stocks = {
         "normal": inventory,
         "filter": state("inventory", "INV-DC-CONSUMABLES", lock=True),
@@ -3075,6 +3088,14 @@ def tick_continuous_physics(*, now_game_time=None):
         try:
             validate_cultivation(cultivation)
         except CultivationError as exc:
+            raise PhysicsError(str(exc)) from exc
+    food = clock.details.get("food")
+    if food is not None:
+        if food_inventory is None:
+            raise PhysicsError("Installed food provisioning lacks real inventory")
+        try:
+            validate_food(food, inventory_kg=food_inventory.quantity * 1000.0)
+        except FoodError as exc:
             raise PhysicsError(str(exc)) from exc
     equipment_wear = clock.details.get("equipment_wear")
     if equipment_wear is not None:
@@ -4280,6 +4301,36 @@ def tick_continuous_physics(*, now_game_time=None):
             if state_now["condition"] in {"incapacitated", "critical", "dead"}:
                 crew_incapacitated += 1
 
+    # Actual nutrition and food spoilage run on the same monotonic ship
+    # clock and real HAB/store temperatures. The original finite provisions
+    # row remains the sole source of stored food and loses exactly spoiled
+    # or eaten edible mass; discarded material remains onboard in food-waste
+    # custody until a fitted sanitary cassette accepts it.
+    if food is not None:
+        temperatures = {
+            room: cells[zones[room]]["temperature"]
+            for room in (*FOOD_STORES, FOOD_GALLEY, FOOD_MESS)
+        }
+        living = tuple(row.source_id for row in crew_rows
+                       if row.condition != "dead")
+        elapsed = 0.0
+        while elapsed < seconds - 1e-9:
+            dt = min(STEP_SECONDS, seconds - elapsed)
+            try:
+                food = step_food(food, dt, temperatures_k=temperatures,
+                                 living_crew=living)
+            except FoodError as exc:
+                raise PhysicsError(str(exc)) from exc
+            elapsed += dt
+        remaining = unconsumed_stored_kg(food)
+        if abs(food_inventory.quantity * 1000.0 - remaining) > 1e-9:
+            food_inventory.quantity = remaining / 1000.0
+            food_inventory.revision += 1
+            food_inventory.save(update_fields=["quantity", "revision"])
+            _event(food_inventory, "g19_spoiled_food_inventory_debit",
+                   food_before)
+        validate_food(food, inventory_kg=food_inventory.quantity * 1000.0)
+
     # Clinical work advances only against the same timed, physically present
     # individuals and the original HAB-04 treatment feed/atmospheric cell.
     medical = clock.details.get("medical")
@@ -4996,6 +5047,9 @@ def tick_continuous_physics(*, now_game_time=None):
     if cultivation is not None:
         validate_cultivation(cultivation)
         d["cultivation"] = cultivation
+    if food is not None:
+        validate_food(food, inventory_kg=food_inventory.quantity * 1000.0)
+        d["food"] = food
     if cargo_climate is not None:
         validate_cargo_environment(cargo_climate, cargo)
         d["cargo_environment"] = cargo_climate
@@ -5094,6 +5148,20 @@ def tick_continuous_physics(*, now_game_time=None):
         "commercial_port_jobs": len(cargo.get("port_jobs", {})),
         "commercial_ports_docked": len(cargo.get("port_contacts", {})),
         "cargo_offship_kg": round(cargo["delivered_offship_kg"], 3),
+        "food_stored_kg": (
+            round(unconsumed_stored_kg(food), 5) if food is not None else None),
+        "food_meals_prepared": (
+            food["meter"]["meals_prepared"] if food is not None else None),
+        "food_meals_consumed": (
+            food["meter"]["meals_consumed"] if food is not None else None),
+        "food_waste_held_kg": (
+            round(sum(food["waste"].values()) +
+                  sum(x["waste_kg"] for x in food["carried"].values()), 4)
+            if food is not None else None),
+        "nutrition_impaired": (
+            len(food["last"]["impaired"]) if food is not None else None),
+        "nutrition_incapacitated": (
+            len(food["last"]["incapacitated"]) if food is not None else None),
         "crop_staged_kg": (
             round(sum(b["staged_kg"] for b in cultivation["beds"].values()), 4)
             if cultivation is not None else None),
