@@ -107,6 +107,10 @@ from world.ship_crew_medical import (
     CLINIC_ZONE, initial_medical, validate_medical, carry_medical_kit,
     begin_care, begin_observation, discharge_observation, step_care,
 )
+from world.ship_propulsion_proof import (
+    DriveProofError, initial_drive_proof, validate_drive_proof,
+    start_drive_proof, verify_drive_proof,
+)
 from world.ship_propulsion_exterior import (
     PlumeAccessError, FACE as PROPULSION_FACE,
     BASE as PROPULSION_BASE, LINK as PROPULSION_LINK,
@@ -8078,7 +8082,7 @@ def crew_physical_action(actor, request_id, action, target, value):
         item.revision += 1
         item.save(update_fields=["details", "revision"])
     elif action == "drive":
-        if target not in {"MAIN", "RCS"} or value not in {"inhibit", "release", "reset"}:
+        if target not in {"MAIN", "RCS"} or value not in {"inhibit", "release", "reset", "prove_start", "prove_verify"}:
             raise PhysicsError("Unknown propulsion safety operation")
         _crew_at(actor, "PROP-CTRL")
         item = _clock(lock=True)
@@ -8087,7 +8091,26 @@ def crew_physical_action(actor, request_id, action, target, value):
         motion = dict(d.get("motion", {}))
         key = "drive_condition" if target == "MAIN" else "rcs_condition"
         current = motion.get(key)
-        if value == "reset":
+        if value in {"prove_start", "prove_verify"}:
+            if target != "MAIN":
+                raise PhysicsError("Installed engine proof is for main thrust only")
+            if (state("equipment", "LCS-PROP").condition in _BROKEN or
+                    state("equipment", "LP-PROP-CTRL").condition in _BROKEN):
+                raise PhysicsError("Damaged physical control cannot certify engine output")
+            record = d.get("drive_proof") or initial_drive_proof()
+            try:
+                if value == "prove_start":
+                    record = start_drive_proof(
+                        record, actor=actor.dbref, motion=motion,
+                        game_time=d["last_game_time"])
+                else:
+                    record = verify_drive_proof(
+                        record, actor=actor.dbref, motion=motion,
+                        game_time=d["last_game_time"])
+            except DriveProofError as exc:
+                raise PhysicsError(str(exc)) from exc
+            d["drive_proof"] = record
+        elif value == "reset":
             if target != "MAIN" or current != "thermal_trip":
                 raise PhysicsError("No local propulsion thermal trip to reset")
             if motion.get("drive_heat_kj", 0) > DRIVE_THERMAL_RESET_KJ:
@@ -9338,6 +9361,11 @@ def local_physics_readout(actor, target):
         _helm_at(actor)
         motion = dict(_clock().details.get("motion", {}))
         return {"motion": motion, "scope": "local_helm_gauge"}
+    if target == "drive_proof":
+        _crew_at(actor, "PROP-CTRL")
+        record = _clock().details.get("drive_proof") or initial_drive_proof()
+        validate_drive_proof(record)
+        return {"witness": record, "scope": "attended_measured_main_propulsion_run"}
     if target == "air":
         zone = _topology()[0].get(room)
         if not zone:
