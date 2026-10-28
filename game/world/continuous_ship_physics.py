@@ -180,6 +180,7 @@ from world.ship_food_logistics import (
 from world.ship_instrumentation import (
     InstrumentError, initial_instrumentation, validate_instrumentation,
     sample_instrumentation, acknowledge_alarm, panel_readout, diagnostics,
+    panel_selftest,
 )
 from world.ship_instrumentation_world import (
     original_panel_roster, observed_panel_evidence, local_relay_summary,
@@ -5641,6 +5642,7 @@ def crew_physical_action(actor, request_id, action, target, value):
     if actor is None or getattr(actor.db, "ox_terminal_dead", False):
         raise PermissionError("A deceased or missing character cannot operate machinery")
     _clock(lock=True)  # serializes physical actions with world ticks
+    selftest_evidence = None
     # The pre-existing world WorkReceipt ledger owns the *global* request-ID
     # namespace across both G18 and legacy social/ship work.
     old = WorkReceipt.objects.select_for_update().filter(pk=request_id).first()
@@ -6848,9 +6850,17 @@ def crew_physical_action(actor, request_id, action, target, value):
         here = getattr(getattr(actor.location, "db", None), "ox_space_id", None)
         _instrument_local_panel(actor, target, here, ledger)
         if value == "test":
-            # Self-test returns proof the actual panel is powered now; real
-            # pressure/fault values remain dated to the next physical tick.
-            pass
+            # Live panel condition/power are checked, but no fresh gas value
+            # or automatic recovery is fabricated by a self-test.
+            current_grid, _ = _instrument_power_grid(d)
+            actual_panel = state("equipment", target, lock=True)
+            try:
+                selftest_evidence = panel_selftest(
+                    ledger, target, now_s=d["last_game_time"],
+                    condition=actual_panel.condition,
+                    powered=("NODE-" + target in current_grid["nodes"]))
+            except InstrumentError as exc:
+                raise PhysicsError(str(exc)) from exc
         elif isinstance(value, str) and value.startswith("ack:"):
             key = value[4:]
             try:
@@ -8150,9 +8160,13 @@ def crew_physical_action(actor, request_id, action, target, value):
     # Store submitted argument in the immutable receipt, not just new state.
     after = dict(event.after)
     after["requested_value"] = value
+    if selftest_evidence is not None:
+        after["selftest_evidence"] = selftest_evidence
     event.after = after
     event.save(update_fields=["after"])
     result = _receipt(event, request_id, actor, action, target)
+    if selftest_evidence is not None:
+        result["selftest"] = selftest_evidence
     WorkReceipt.objects.create(
         request_id=request_id, actor_dbref=actor.dbref,
         target="ship_physics", operation=action,
