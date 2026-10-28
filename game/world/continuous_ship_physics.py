@@ -2001,6 +2001,7 @@ def _propulsion_bay_source():
         "mass_kg": cell.quantity,
         "oxygen_kg": d["physics_oxygen_kg"],
         "co2_kg": d["physics_co2_kg"],
+        "smoke_kg": d["physics_smoke_kg"],
         "temperature_k": d["temperature_k"],
         "volume_m3": d["gas_volume_m3"],
     }
@@ -8383,6 +8384,7 @@ def crew_physical_action(actor, request_id, action, target, value):
                 src_row.quantity = result["mass_kg"]
                 src_details["physics_oxygen_kg"] = result["oxygen_kg"]
                 src_details["physics_co2_kg"] = result["co2_kg"]
+                src_details["physics_smoke_kg"] = result["smoke_kg"]
                 src_row.details = src_details
                 if not _air_safe(src_row):
                     raise PhysicsError("Bleeding air would endanger the original crew trunk")
