@@ -201,8 +201,8 @@ def equalize_from_trunk(ledger, *, requested_kg, source,
     if now < g["sample_s"] or now-g["sample_s"] > SURVEY_FRESH_S:
         raise BayAccessError("Bay gas sample too old for measured equalization")
     src = {k: _num(source[k]) for k in (
-        "mass_kg", "oxygen_kg", "co2_kg", "temperature_k", "volume_m3")}
-    if src["oxygen_kg"]+src["co2_kg"] > src["mass_kg"]+EPS:
+        "mass_kg", "oxygen_kg", "co2_kg", "smoke_kg", "temperature_k", "volume_m3")}
+    if src["oxygen_kg"]+src["co2_kg"]+src["smoke_kg"] > src["mass_kg"]+EPS:
         raise BayAccessError("Source gas composition corrupt")
     before = source_pressure(src)-bay_pressure(g)
     if before <= MAX_DELTA_PA:
@@ -215,6 +215,7 @@ def equalize_from_trunk(ledger, *, requested_kg, source,
         raise BayAccessError("Bleed requested beyond real differential or source charge")
     moved_o2 = kg*src["oxygen_kg"]/src["mass_kg"]
     moved_co2 = kg*src["co2_kg"]/src["mass_kg"]
+    moved_smoke = kg*src["smoke_kg"]/src["mass_kg"]
     moved = copy.deepcopy(ledger)
     gas = moved["gas"]
     new_mass = gas["mass_kg"]+kg
@@ -224,11 +225,13 @@ def equalize_from_trunk(ledger, *, requested_kg, source,
     gas["mass_kg"] = new_mass
     gas["oxygen_kg"] += moved_o2
     gas["co2_kg"] += moved_co2
+    gas["smoke_kg"] += moved_smoke
     gas["sample_s"] = now
     moved["trunk_to_bay_kg"] += kg
     src["mass_kg"] -= kg
     src["oxygen_kg"] -= moved_o2
     src["co2_kg"] -= moved_co2
+    src["smoke_kg"] -= moved_smoke
     validate_bay(moved)
     return moved, src
 
