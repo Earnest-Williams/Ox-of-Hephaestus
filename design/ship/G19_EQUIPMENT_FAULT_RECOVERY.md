@@ -135,8 +135,25 @@ a new spindle gauge for an unrelated machine would be a fabricated sensor.
 These mechanisms are fictional game-calibrated physical dynamics, not
 manufacturer speed ratings or workshop qualification specifications.
 
-Tested [focused CNC recovery #40742623886](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40742623886):
-four pure seeded/range/inertia tests and two installed Evennia scenarios
-passed. A third installed regression proving the **unsigned legacy repair
-padlock** is included in the following workflow revision; its acceptance
-remains subject to CI. The broader 14-job G19 compatibility gate is separate.
+Accepted in [focused CNC recovery #40743631612](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40743631612):
+**4/4 pure workshop dynamical tests and 3/3 installed Evennia scenarios**.
+The verified installed scenarios are full signed CNC repair/restart,
+spindle coast-down before diagnostic isolation, and **legacy work-order
+inhibition before coast-down and against unsafe breaker reclose**.
+The earlier [2-scenario run #40742623886](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40742623886)
+also passed. The larger 14-job G19 compatibility gate remains separate.
+
+## Shared F1/F2 hazardous maintenance access correction
+
+The original two F1/F2 rated service-airlock suites previously failed
+at physical crew traversal, before their actual machinery tests, because
+`_clearance` in `ship_crew_access.py` imported
+`CanonicalShipState` *inside* the unrelated exterior radiator/nozzle
+branches. Python therefore treated that name as an uninitialized local
+variable at the earlier F1/F2 physiological-enrolment check. The module
+already imports the authoritative model at top level, so both duplicate
+branch-local imports were removed. No suit, pressure, hatch, repair, or
+isolation interlock was bypassed. The flywheel maintenance workflow now
+includes crew-access changes in its trigger and compilation test set.
+[Measured-energy maintenance #40743495129](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40743495129)
+has passed its pure and installed jobs after the correction.
