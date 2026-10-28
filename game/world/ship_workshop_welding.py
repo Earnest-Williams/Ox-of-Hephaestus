@@ -231,6 +231,33 @@ def step_welds(w, seconds, *, active, present, air_safe, capacity):
     return result, tuple(finished), heat
 
 
+def welded_output_confirmed(name, details, *, observed_s, operating):
+    """A healthy contactor alone does not prove the arc consumed real energy.
+
+    The world writes this gauge only from a physically loaded, attended and
+    powered weld order. No inherited energized-only status can count.
+    """
+    if name not in CELLS or not isinstance(details, dict) or type(operating) is not bool:
+        return False
+    gauge = details.get("physics_weld_arc_gauge")
+    if gauge is None:
+        return False
+    if (not isinstance(gauge, dict) or
+            set(gauge) != {"last_arc_kj", "cumulative_arc_kj",
+                          "sample_game_time_s"}):
+        raise WeldError("Unrecognized physical welding heat/arc receipt")
+    last = _num(gauge["last_arc_kj"])
+    total = _num(gauge["cumulative_arc_kj"])
+    sample = _num(gauge["sample_game_time_s"])
+    now = _num(observed_s)
+    return bool(operating and details.get("physics_online") is True
+                and details.get("physics_commanded_on") is True
+                and details.get("physics_startup_s", 0.0) == 0
+                and abs(sample - now) < 1e-7
+                and 0 < last <= total + EPS)
+
+
+
 def take_slag(w, *, worker, kg):
     validate_welding(w)
     mass = _num(kg)
