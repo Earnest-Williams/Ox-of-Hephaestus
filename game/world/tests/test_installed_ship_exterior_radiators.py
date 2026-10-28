@@ -241,6 +241,53 @@ class InstalledRadiatorExteriorTests(EvenniaTestCase):
         self.tick(540)
         self.assertEqual(state("equipment", "RAD-HT-1").condition, "serviceable")
 
+    def test_isolated_ht_valve_failure_pauses_physical_eva_approach(self):
+        self.ht_isolated()
+        self.act("radiator_service", "RAD-HT-1", "secure")
+        self.suit_and_exit_fwd()
+        self.to_rail("EXT-AFT")
+        self.act("eva", "ACC-EXT-AFT-EXT-RAD-HT-1", "deploy")
+        self.assertEqual(
+            self.pass_link("ACC-EXT-AFT-EXT-RAD-HT-1")["status"], "queued")
+        self.tick(60)
+        self.assertEqual(self.tech.location.db.ox_space_id, "EXT-AFT")
+        remaining = _clock().details["eva"]["transits"][
+            self.tech.dbref]["remaining_s"]
+        self.assertEqual(remaining, 90)
+        # Operator-injected subsequent valve failure bypasses a normal
+        # padlock but MUST NOT complete the traveller into a hot work face.
+        set_isolator("ISO-RAD-HT-1", "open", operator=True)
+        self.tick(120)
+        self.assertEqual(_clock().details["eva"]["transits"][
+            self.tech.dbref]["remaining_s"], remaining)
+        self.assertEqual(self.tech.location.db.ox_space_id, "EXT-AFT")
+        set_isolator("ISO-RAD-HT-1", "closed", operator=True)
+        self.tick(90)
+        self.assertEqual(self.tech.location.db.ox_space_id, "EXT-RAD-HT-1")
+
+    def test_real_crew_body_blocks_unsafe_release_and_exterior_motion(self):
+        self.ht_isolated()
+        self.act("radiator_service", "RAD-HT-1", "secure")
+        from world.bootstrap import build_ship
+        # Separate real crew body simulates an already arrived suited
+        # mechanic. Test setup places that body at the exact old platform.
+        helper = build_ship()["chief"]
+        helper.move_to(find_ship_space("EXT-RAD-HT-1"), quiet=True)
+        with self.assertRaisesRegex(PhysicsError, "remains occupied"):
+            self.act("radiator_service", "RAD-HT-1", "release")
+        self.at("PROP-CTRL")
+        from world.continuous_ship_physics import HELM_DIRECTIONS
+        thrust = next(direction for direction in HELM_DIRECTIONS
+                      if direction != "coast")
+        with self.assertRaisesRegex(PhysicsError, "Attended exterior radiator"):
+            self.act("helm", "HELM", thrust)
+        with self.assertRaisesRegex(PhysicsError, "Attended exterior radiator"):
+            self.act("drive", "MAIN", "release")
+        helper.move_to(find_ship_space("ENG-CONTROL"), quiet=True)
+        self.at("ENG-CONTROL")
+        self.act("radiator_service", "RAD-HT-1", "release")
+
+
     def test_six_fitted_faces_are_distinct_under_one_operator_ledger(self):
         self.lt_isolated()
         for key in ("RAD-LT-2", "RAD-LT-3", "RAD-LT-4"):
