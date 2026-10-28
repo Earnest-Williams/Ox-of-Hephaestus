@@ -134,7 +134,7 @@ def initial_instrumentation(panel_rooms, panel_zones, *, start_s):
         raise InstrumentError("Unfitted instrument room")
     for ident in panel_rooms:
         _panel_name(ident)
-        if not ident.startswith("LP-"):
+        if not (ident.startswith("LP-") or ident.endswith("-LP")):
             raise InstrumentError("Survey uses only original powered local panels")
         if panel_zones[ident] is not None and not isinstance(panel_zones[ident], str):
             raise InstrumentError("Unidentified physical pressure zone")
