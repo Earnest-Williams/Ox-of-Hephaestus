@@ -11,7 +11,7 @@ from world.continuous_ship_physics import (
     PhysicsError, arm_continuous_physics, crew_physical_action,
     tick_continuous_physics, local_physics_readout, _clock,
 )
-from world.models import WorkReceipt
+from world.models import WorkReceipt, CanonicalShipEvent
 
 
 class InstalledRCSTorqueProof(EvenniaTestCase):
@@ -69,6 +69,11 @@ class InstalledRCSTorqueProof(EvenniaTestCase):
         self.assertEqual(WorkReceipt.objects.filter(
             operation="drive",arguments__value="prove_verify",
             arguments__target="RCS").count(),1)
+        event = CanonicalShipEvent.objects.filter(
+            operation="crew_drive").order_by("-sequence").first()
+        self.assertIsNotNone(event)
+        self.assertEqual(event.after["rcs_proof"]["completed"],1)
+        self.assertIsNone(event.after["rcs_proof"]["pending"])
         with self.assertRaises(PhysicsError):
             self.action(self.engineer,"drive","RCS","prove_verify")
 
