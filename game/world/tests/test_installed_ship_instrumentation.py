@@ -226,3 +226,75 @@ class InstalledInstrumentationTests(EvenniaTestCase):
                                 operator=True)
         commission_g19_instrumentation(operator_approved=True)
         self.assertEqual(state("equipment", "LP-ENG-CONTROL").condition, "failed")
+
+
+    def test_degraded_original_panel_stays_stale_and_selftest_does_not_repair(self):
+        commission_g19_instrumentation(operator_approved=True)
+        self.energize("NODE-LP-SHOP-MECH")
+        set_component_condition(
+            "equipment", "SHOP-CNC-MILL", "failed", operator=True)
+        self.at("SHOP-MECH")
+        tick_continuous_physics(now_game_time=1010)
+        fault = alarm_key("LP-SHOP-MECH", "MACHINE_FAULT", "SHOP-CNC-MILL")
+        self.assertTrue(self.ledger()["alarms"][fault]["active"])
+        set_component_condition(
+            "equipment", "LP-SHOP-MECH", "degraded", operator=True)
+        tick_continuous_physics(now_game_time=1020)
+        face = local_physics_readout(self.worker, "panel:LP-SHOP-MECH")
+        self.assertEqual(face["status"], "degraded")
+        self.assertIsNone(face["measurements"])
+        self.assertEqual(face["last_good_s"], 1010)
+        uncertainty = alarm_key(
+            "LP-SHOP-MECH", "INSTRUMENT_UNRELIABLE", "LP-SHOP-MECH")
+        self.assertTrue(self.ledger()["alarms"][uncertainty]["active"])
+        self.assertTrue(self.ledger()["alarms"][fault]["active"])
+        first = crew_physical_action(
+            self.worker, "a" * 32, "instrument", "LP-SHOP-MECH", "test")
+        self.assertEqual(first["status"], "succeeded")
+        self.assertFalse(
+            first["selftest"]["passed_last_known_channel_and_power_check"])
+        self.assertTrue(first["selftest"]["requires_physical_service"])
+        self.assertEqual(crew_physical_action(
+            self.worker, "a" * 32, "instrument", "LP-SHOP-MECH", "test"), first)
+        self.assertEqual(
+            state("equipment", "LP-SHOP-MECH").condition, "degraded")
+        with self.assertRaises(PhysicsError):
+            crew_physical_action(
+                self.worker, "b" * 32, "instrument", "LP-SHOP-MECH",
+                "ack:" + fault)
+        set_component_condition(
+            "equipment", "LP-SHOP-MECH", "serviceable", operator=True)
+        tick_continuous_physics(now_game_time=1030)
+        self.assertTrue(self.ledger()["alarms"][uncertainty]["active"])
+        tick_continuous_physics(now_game_time=1040)
+        self.assertFalse(self.ledger()["alarms"][uncertainty]["active"])
+        self.assertTrue(self.ledger()["alarms"][fault]["active"])
+        restored = crew_physical_action(
+            self.worker, "c" * 32, "instrument", "LP-SHOP-MECH", "test")
+        self.assertTrue(
+            restored["selftest"]["passed_last_known_channel_and_power_check"])
+        self.assertEqual(
+            state("equipment", "SHOP-CNC-MILL").condition, "failed")
+        self.assertTrue(WorkReceipt.objects.filter(pk="c" * 32).exists())
+
+    def test_bridge_marks_live_protected_link_without_any_local_telemetry(self):
+        commission_g19_instrumentation(operator_approved=True)
+        self.energize("NODE-LP-ENG-CONTROL")
+        self.energize("NODE-HAB-01-FIRE-DETECT")
+        self.energize("NODE-HAB-01-COMMS-NODE")
+        self.at("ENG-CONTROL")
+        tick_continuous_physics(now_game_time=1010)
+        unknown = local_physics_readout(self.worker, "alarm_bridge")
+        self.assertIn("HAB-01", unknown["lost_local_monitoring"])
+        self.assertNotIn("HAB-01", unknown["alerts_by_arc"])
+        self.energize("NODE-HAB-01-FOOD-STORES-LP")
+        tick_continuous_physics(now_game_time=1020)
+        healthy = local_physics_readout(self.worker, "alarm_bridge")
+        self.assertNotIn("HAB-01", healthy["lost_local_monitoring"])
+        self.assertEqual(healthy["alerts_by_arc"]["HAB-01"], [])
+        set_component_condition(
+            "equipment", "HAB-01-FOOD-STORES-LP", "degraded", operator=True)
+        tick_continuous_physics(now_game_time=1030)
+        missing = local_physics_readout(self.worker, "alarm_bridge")
+        self.assertIn("HAB-01", missing["lost_local_monitoring"])
+        self.assertNotIn("HAB-01", missing["alerts_by_arc"])
