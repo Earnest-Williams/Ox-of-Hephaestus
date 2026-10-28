@@ -4990,6 +4990,14 @@ def tick_continuous_physics(*, now_game_time=None):
                             "motion": motion,
                         })):
                 valid_site = False
+            if (valid_site and row is not None
+                    and category == "equipment"
+                    and identifier in WORKSHOP_DRIVES
+                    and not machine_safely_stopped(identifier, row.details)):
+                # The original disconnected spindle can still coast and a
+                # hydraulic press can retain pressure. No timed hands-on
+                # work occurs until its actual local gauge reads zero.
+                continue
             if (valid_site and row.condition == job["condition"] and
                     safe_repair_target(
                         row, pressure_rows=by_pressure, zones=zones,
@@ -5874,6 +5882,18 @@ def crew_physical_action(actor, request_id, action, target, value):
         if value == "closed" and item.details.get("physics_power_trip_latched"):
             raise PhysicsError("Breaker is physically tripped; isolate fault and reset locally")
         if value == "closed":
+            # Older work orders may predate signed fault cases. They still
+            # own a true maintenance padlock on each individually fitted
+            # breaker; nobody can energise machinery around active workers.
+            outstanding = (_clock().details.get("repairs") or
+                           {"jobs": {}})["jobs"]
+            for work_id in outstanding:
+                if work_id.startswith("equipment:"):
+                    affected = work_id.split(":", 1)[1]
+                    if affected in set(MOTORS) | set(SERVICE_LOADS):
+                        if target in feeders_for(affected):
+                            raise PhysicsError(
+                                "Active physical repair job padlocks its fitted feeder")
             fault_cases = (_clock().details.get("fault_cases") or
                            {"cases": {}})["cases"]
             if any(target in case["feeders"] and case["stage"] in {
@@ -7688,6 +7708,10 @@ def crew_physical_action(actor, request_id, action, target, value):
                          CanonicalShipState.objects.filter(category="isolator")}
             equipment = {x.source_id: x for x in
                          CanonicalShipState.objects.filter(category="equipment")}
+            if (category == "equipment" and ident in WORKSHOP_DRIVES
+                    and not machine_safely_stopped(ident, unit.details)):
+                raise PhysicsError(
+                    "Machine rotor or hydraulic accumulator has not physically stopped")
             if not safe_repair_target(
                     unit, pressure_rows=pressure, zones=_topology()[0],
                     rotors=d["rotors"], motion=d["motion"],
