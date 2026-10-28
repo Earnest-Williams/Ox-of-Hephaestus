@@ -2074,6 +2074,25 @@ def _propulsion_bay_worker_ready(actor, details, *, inside=True):
                 _propulsion_bay_ready(details, hatch_closed=inside))
 
 
+def _propulsion_bay_retreat_ready(actor, details):
+    """Fail safely toward known breathable trunk if suit reserve is depleted.
+
+    A lone mobile engineer can retreat through a *measured, equalized* real
+    pressure boundary despite too little EVA oxygen to START another job.
+    Do not allow re-entry, contaminated backflow, power restoration or
+    acceleration of any interrupted maintenance.
+    """
+    room = getattr(getattr(getattr(actor, "location", None), "db", None),
+                   "ox_space_id", None)
+    ledger = details.get("propulsion_bay")
+    return bool(
+        actor is not None and room == PROP_BAY
+        and ledger is not None and ledger["permit"] is not None
+        and ledger["permit"]["holder"] == actor.dbref
+        and not getattr(actor.db, "ox_terminal_dead", False)
+        and _propulsion_bay_ready(details))
+
+
 @transaction.atomic
 def commission_g19_propulsion_bay(*, operator_approved=False):
     """Enroll the existing isolated original propulsion service compartment."""
@@ -9322,11 +9341,20 @@ def crew_physical_action(actor, request_id, action, target, value):
             raise PhysicsError("Damaged hatch cannot be safely actuated")
         if value == "open" and item.setting != "open":
             if original_bay:
-                if (not _propulsion_bay_worker_ready(
-                        actor, _clock().details, inside=False)
-                        or not _propulsion_bay_ready(
-                            _clock().details, hatch_closed=True)):
-                    raise PhysicsError("Original PROP-SVC needs physically suited owner, original equalized gas and isolated drive")
+                details = _clock().details
+                # Opening from an already occupied bay may be essential
+                # emergency egress. A damaged or exhausted suit forbids
+                # a new entry but does not strand a mobile permit holder
+                # when the actual rated receiver remains breathable and
+                # pressure matched.
+                allowed = (
+                    _propulsion_bay_retreat_ready(actor, details)
+                    if room_id == PROP_BAY
+                    else _propulsion_bay_worker_ready(
+                        actor, details, inside=False))
+                if (not allowed or not _propulsion_bay_ready(
+                        details, hatch_closed=True)):
+                    raise PhysicsError("Original PROP-SVC needs equalized gas, owner's rated permit and isolated drive")
             elif ordinary_bridge:
                 _hatch_open_preflight(item)
             elif fixed_indexer:
