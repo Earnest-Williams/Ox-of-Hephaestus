@@ -96,6 +96,48 @@ class InstalledMedical(EvenniaTestCase):
         self.assertFalse(_clock().details["medical"]["observations"])
         self.assertEqual(_clock().details["medical"]["used_dressings"], 1)
 
+    def test_actual_observation_bay_has_independent_power_and_stock(self):
+        commission_g19_medical(operator_approved=True, dressings=4, fluid_kg=2)
+        self.action("kit", "pickup:2")
+        self.medic.move_to(
+            find_ship_space("HAB-04-MED-OBS"), quiet=True)
+        self.patient.move_to(
+            find_ship_space("HAB-04-MED-OBS"), quiet=True)
+        self.action("kit", "deliver")
+        self.assertEqual(_clock().details["medical"]["obs_dressings"], 2)
+        self.assertEqual(_clock().details["medical"]["dressings"], 0)
+        with self.assertRaises(Exception):
+            self.action("observe", self.patient.dbref)
+        set_isolator("ISO-HAB-04-MED-OBS-LP", "closed", operator=True)
+        started = self.action("observe", self.patient.dbref)
+        self.assertEqual(started["status"], "succeeded")
+        self.assertEqual(
+            _clock().details["medical"]["observations"][
+                self.patient.dbref]["room"], "HAB-04-MED-OBS")
+        self.tick(60)
+        before = CanonicalShipState.objects.get(
+            pk="crew_health:" + self.patient.dbref).details["injury"]
+        self.assertLess(before, .30)
+        set_isolator("ISO-HAB-04-MED-OBS-LP", "open", operator=True)
+        remaining = _clock().details["medical"]["observations"][
+            self.patient.dbref]["remaining_s"]
+        self.tick(60)
+        self.assertEqual(_clock().details["medical"]["observations"][
+            self.patient.dbref]["remaining_s"], remaining)
+        self.assertEqual(CanonicalShipState.objects.get(
+            pk="crew_health:" + self.patient.dbref).details["injury"], before)
+        set_isolator("ISO-HAB-04-MED-OBS-LP", "closed", operator=True)
+        self.tick(60)
+        self.assertLess(CanonicalShipState.objects.get(
+            pk="crew_health:" + self.patient.dbref).details["injury"], before)
+        self.medic.move_to(find_ship_space("HAB-04-MED-TREAT"), quiet=True)
+        with self.assertRaises(PermissionError):
+            self.action("discharge", self.patient.dbref)
+        self.medic.move_to(find_ship_space("HAB-04-MED-OBS"), quiet=True)
+        self.action("discharge", self.patient.dbref)
+        self.assertFalse(_clock().details["medical"]["observations"])
+        self.assertEqual(_clock().details["medical"]["used_dressings"], 1)
+
     def test_lost_local_feeder_pauses_work_without_refund(self):
         self.prepare()
         self.action("care", self.patient.dbref)
