@@ -175,7 +175,7 @@ from world.ship_food_logistics import (
     unconsumed_stored_kg, take_stored, collect_crop, deliver_to_galley,
     prepare_meal, take_meal, set_meal_in_mess, eat_meal, step_food,
     take_waste, deliver_waste, certify_nutrients, take_nutrients,
-    install_nutrients,
+    install_nutrients, feed_patient,
 )
 from world.ship_refuge_media_service import (
     initial_refuge_media_service, validate_refuge_media_service,
@@ -5600,8 +5600,9 @@ def crew_physical_action(actor, request_id, action, target, value):
     if bay_service is not None and actor.dbref in bay_service["jobs"]:
         raise PermissionError("Worker occupies a sealed flywheel service airlock")
     food_nutrition = _clock().details.get("food")
-    if (food_nutrition is not None and action != "food"
-            and actor.dbref in food_nutrition["last"]["incapacitated"]):
+    if (food_nutrition is not None
+            and actor.dbref in food_nutrition["last"]["incapacitated"]
+            and (action != "food" or value != "eat")):
         raise PermissionError("Measured severe nutritional depletion prevents physical work")
     if action in {"repair", "wasteport", "hull", "eva", "rescue"}:
         # A worker who has become incapacitated cannot command or advance
@@ -6713,11 +6714,15 @@ def crew_physical_action(actor, request_id, action, target, value):
         # Every parcel is picked up, carried through *actual* ship exits and
         # delivered at a real food/galley/grow/sanitation worksite. No global
         # inventory teleport, automatic meal production or free nutrient refill.
-        if target not in (
-                set(FOOD_STORES) | set(NUTRIENT_STORES) |
-                set(GROW_BAYS.values()) |
-                {FOOD_GALLEY, FOOD_MESS} | set(FOOD_WASTE_RECEIVERS)):
-            raise PhysicsError("Food operation requires a fitted ship worksite")
+        normal_site = target in (
+            set(FOOD_STORES) | set(NUTRIENT_STORES) |
+            set(GROW_BAYS.values()) |
+            {FOOD_GALLEY, FOOD_MESS} | set(FOOD_WASTE_RECEIVERS))
+        feed_site = (isinstance(value, str) and value.startswith("feed:")
+                     and target in _topology()[0]
+                     and _topology()[0][target] not in {None, "VACUUM"})
+        if not (normal_site or feed_site):
+            raise PhysicsError("Food operation requires a real attended ship space")
         _food_at(actor, target)
         zone = _topology()[0].get(target)
         if not zone or not _air_safe(state("pressure", zone, lock=True)):
@@ -6816,6 +6821,25 @@ def crew_physical_action(actor, request_id, action, target, value):
                         source_model=MODEL).exists():
                     raise FoodError("Only physically enrolled crew may consume ship provisions")
                 food, _calories = eat_meal(food, actor=actor.dbref, room=target)
+            elif parts[0] == "feed" and len(parts) == 2:
+                # Feed a real patient at their actual position. The helper
+                # brings a prepared meal, never a remote inventory credit.
+                from evennia.objects.models import ObjectDB as PatientObjectDB
+                patient_ref = parts[1]
+                if re.fullmatch(r"#[0-9]+", patient_ref) is None:
+                    raise FoodError("Assisted feeding requires a real patient dbref")
+                patient = PatientObjectDB.objects.filter(
+                    id=int(patient_ref[1:])).first()
+                patient_health = CanonicalShipState.objects.filter(
+                    pk="crew_health:" + patient_ref,
+                    source_model=MODEL).first()
+                if (patient is None or patient.location != actor.location
+                        or patient_health is None
+                        or patient_health.condition == "dead"
+                        or getattr(patient.db, "ox_terminal_dead", False)):
+                    raise FoodError("Only a living enrolled patient here can be fed")
+                food, _calories = feed_patient(
+                    food, attendant=actor.dbref, patient=patient_ref)
             elif parts[0] == "waste_take" and len(parts) == 2:
                 food = take_waste(food, actor=actor.dbref, room=target,
                                   kg=float(parts[1]))
@@ -6847,6 +6871,19 @@ def crew_physical_action(actor, request_id, action, target, value):
                 sanitary.quantity += kg / 1000.0
                 sanitary.revision += 1
                 sanitary.save(update_fields=["quantity", "revision"])
+                source_stock = {
+                    "normal": "INV-WATER-NORMAL",
+                    "reserve": "INV-WATER-RESERVE",
+                    "filter": "INV-DC-CONSUMABLES",
+                    "spares": "INV-SPARES",
+                    "sanitary": "INV-WASTE-RESIDUE",
+                    "industrial": "INV-INDUSTRIAL-SCRAP",
+                    "hazardous": "INV-HAZARDOUS-RESIDUE",
+                }
+                validate_water(w, {
+                    key: state("inventory", inventory_id, lock=True).quantity * 1000.0
+                    for key, inventory_id in source_stock.items()
+                })
                 d["water"] = w
             elif parts[0] == "nutrient_take" and len(parts) == 2:
                 if target not in NUTRIENT_STORES or kitchen_water is None:

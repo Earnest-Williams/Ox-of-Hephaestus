@@ -282,3 +282,54 @@ class FoodManifestTests(unittest.TestCase):
             unconsumed_stored_kg(food) +
             food["meter"]["stored_eaten_kg"] +
             food["meter"]["stored_wasted_kg"], 56790, places=3)
+
+ 
+    def test_assisted_feeding_consumes_helpers_meal_once_for_real_patient(self):
+        from world.ship_food_logistics import feed_patient
+        food = stocked_galley()
+        food = prepare_meal(
+            food, recipe="stored",
+            water_delivered_kg=RECIPES["stored"]["water"])
+        food = take_meal(food, actor="#17")
+        self.assertIsNotNone(food["carried"]["#17"]["meal"])
+        food["crew"]["#22"] = {
+            "balance_kcal": -8 * CREW_DAILY_KCAL - 350.0,
+            "eaten_kcal": 0.0, "meals": 0,
+        }
+        food["last"]["hungry"] = ["#22"]
+        food["last"]["impaired"] = ["#22"]
+        food["last"]["incapacitated"] = ["#22"]
+        self.assertTrue(validate_food(food))
+        with self.assertRaises(FoodError):
+            feed_patient(food, attendant="#17", patient="#17")
+        updated, kcal = feed_patient(
+            food, attendant="#17", patient="#22")
+        self.assertGreater(kcal, 350.0)
+        self.assertEqual(updated["crew"]["#17"] if "#17" in updated["crew"]
+                         else None, None)
+        self.assertAlmostEqual(updated["crew"]["#22"]["eaten_kcal"], kcal)
+        self.assertNotIn("#22", updated["last"]["incapacitated"])
+        self.assertIsNone(updated["carried"]["#17"]["meal"])
+        self.assertEqual(updated["meter"]["meals_consumed"], 1)
+        self.assertTrue(validate_food(updated))
+        with self.assertRaises(FoodError):
+            feed_patient(updated, attendant="#17", patient="#22")
+
+    def test_work_command_has_no_local_import_shadowing_power_or_water(self):
+        # A previous food-code branch shadowed two module-level helpers
+        # throughout an 8k-line control function and broke six older tests.
+        import ast
+        from pathlib import Path
+        module = Path(__file__).resolve().parents[1] / "continuous_ship_physics.py"
+        parsed = ast.parse(module.read_text(encoding="utf-8"))
+        handler = next(n for n in parsed.body
+                       if isinstance(n, ast.FunctionDef)
+                       and n.name == "crew_physical_action")
+        clobbered = []
+        for node in ast.walk(handler):
+            if isinstance(node, ast.ImportFrom):
+                for alias in node.names:
+                    if (alias.asname or alias.name) in {
+                            "validate_water", "motor_power"}:
+                        clobbered.append(alias.name)
+        self.assertEqual(clobbered, [])

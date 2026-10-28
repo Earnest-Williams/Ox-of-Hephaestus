@@ -428,6 +428,14 @@ def eat_meal(food, *, actor, room):
         meal = out["meals"][room].pop(0)
     else:
         raise FoodError("No prepared meal physically held at this station")
+    _record_consumption(out, meal, actor)
+    validate_food(out)
+    return out, meal["kcal"]
+
+
+def _record_consumption(out, meal, eater):
+    """One common mass-and-calorie receipt, for self-feeding and assisted care."""
+    eater = _actor(eater)
     for kind in KINDS:
         key = "fresh_eaten_kg" if kind == "fresh" else "stored_eaten_kg"
         out["meter"][key] += meal["food"][kind]
@@ -435,7 +443,7 @@ def eat_meal(food, *, actor, room):
     out["meter"]["calories_eaten"] += meal["kcal"]
     out["meter"]["meals_consumed"] += 1
     history = out["crew"].setdefault(
-        _actor(actor), {"balance_kcal": 0.0, "eaten_kcal": 0.0, "meals": 0})
+        eater, {"balance_kcal": 0.0, "eaten_kcal": 0.0, "meals": 0})
     history["balance_kcal"] = min(
         MAX_ENERGY_KCAL, history["balance_kcal"] + meal["kcal"])
     history["eaten_kcal"] += meal["kcal"]
@@ -443,8 +451,29 @@ def eat_meal(food, *, actor, room):
     for key, threshold in (("hungry", -CREW_DAILY_KCAL),
                            ("impaired", -3 * CREW_DAILY_KCAL),
                            ("incapacitated", -8 * CREW_DAILY_KCAL)):
-        if history["balance_kcal"] >= threshold and actor in out["last"][key]:
-            out["last"][key].remove(actor)
+        if history["balance_kcal"] >= threshold and eater in out["last"][key]:
+            out["last"][key].remove(eater)
+
+
+def feed_patient(food, *, attendant, patient):
+    """A present helper gives their own carried meal to a named nearby patient.
+
+    The installed world must verify BOTH participants share the actual room,
+    and that the patient is a living, enrolled crew member. The patient
+    need not be able to walk to the mess or operate a command.
+    """
+    validate_food(food)
+    helper = _actor(attendant)
+    recipient = _actor(patient)
+    if helper == recipient:
+        raise FoodError("Attended feeding requires a separate capable helper")
+    out = copy.deepcopy(food)
+    carrier = _ensure_carrier(out, helper)
+    if carrier["meal"] is None:
+        raise FoodError("Helper holds no physical prepared serving")
+    meal = carrier["meal"]
+    carrier["meal"] = None
+    _record_consumption(out, meal, recipient)
     validate_food(out)
     return out, meal["kcal"]
 

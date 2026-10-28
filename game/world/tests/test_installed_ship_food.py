@@ -252,3 +252,32 @@ class InstalledFoodTests(EvenniaTestCase):
         self.assertAlmostEqual(
             self.food()["waste"]["HAB-02-GALLEY"],
             initial_waste - 0.02, places=7)
+
+    def test_named_helper_can_feed_patient_in_original_cabin_only(self):
+        patient = build_ship()["captain"]
+        cabin = "HAB-02-CAB-01"
+        patient.move_to(find_ship_space(cabin), quiet=True)
+        commission_g19_crew_physiology(
+            actor_dbrefs=[patient.dbref], operator_approved=True)
+        commission_g19_food(operator_approved=True)
+        self.receipt(40, "HAB-01-FOOD-STORES", "take:dry:0.3")
+        self.receipt(41, "HAB-01-FOOD-STORES", "take:conventional:0.6")
+        self.at_room("HAB-02-GALLEY")
+        self.receipt(42, "HAB-02-GALLEY", "deliver")
+        self.prime_plant()
+        self.receipt(43, "HAB-02-GALLEY", "cook:stored")
+        self.receipt(44, "HAB-02-GALLEY", "meal_take")
+        with self.assertRaises(PermissionError):
+            self.receipt(45, cabin, "feed:" + patient.dbref)
+        self.at_room(cabin)
+        first = self.receipt(46, cabin, "feed:" + patient.dbref)
+        self.assertEqual(first["status"], "succeeded")
+        result = self.food()
+        self.assertGreater(result["crew"][patient.dbref]["eaten_kcal"], 700)
+        self.assertNotIn(self.worker.dbref, result["crew"])
+        self.assertEqual(self.receipt(46, cabin, "feed:" + patient.dbref), first)
+        with self.assertRaises(PhysicsError):
+            self.receipt(47, cabin, "feed:" + patient.dbref)
+        with self.assertRaises(PhysicsError):
+            self.receipt(48, cabin, "feed:#99999999")
+        self.assertFalse(WorkReceipt.objects.filter(pk=f"{48:032x}").exists())
