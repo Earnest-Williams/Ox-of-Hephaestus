@@ -161,6 +161,11 @@ from world.ship_equipment_services import (
     validate_service_operations, rearm_service_machine,
     step_service_operations, service_power, service_ids,
 )
+from world.ship_food_cultivation import (
+    CultivationError, GROW_BAYS, initial_cultivation,
+    validate_cultivation, survey_existing_nutrients,
+    plan_irrigation, step_cultivation, harvest_cultivation,
+)
 from world.ship_refuge_media_service import (
     initial_refuge_media_service, validate_refuge_media_service,
     load_refuge_media,
@@ -739,6 +744,62 @@ def commission_g19_electrical(*, operator_approved=False):
             "feeders": len(edge_map), "breakers": len(switch_map),
             "rated_battery_kwh": 0.0, "shore_connected": False}
 
+
+
+@transaction.atomic
+def commission_g19_cultivation(*, operator_approved=False):
+    """Install only real, empty grow beds after electricity and water."""
+    if not operator_approved:
+        raise PermissionError("Original growing beds need operator commissioning")
+    clock = _clock(lock=True)
+    if clock.details.get("cultivation") is not None:
+        validate_cultivation(clock.details["cultivation"])
+        return {"commissioned": False}
+    if (clock.details.get("service_operations") is None
+            or clock.details.get("water") is None):
+        raise PhysicsError("Commission real local grow power and water first")
+    for number, room in GROW_BAYS.items():
+        for suffix in ("CTRL", "NUTRIENT"):
+            machine = state("equipment", f"GROW-{number}-{suffix}")
+            if machine.space_id != room:
+                raise PhysicsError("Source grow skid moved away from original bed")
+        if _topology()[0].get(room) != f"PZ-HAB-{int(room[4:6]):02d}":
+            raise PhysicsError("No original bounded crop-room atmosphere")
+    before = _snapshot(clock)
+    details = dict(clock.details)
+    details["cultivation"] = initial_cultivation()
+    clock.details = details
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "g19_fitted_cultivation_commissioned", before)
+    return {"commissioned": True, "beds": len(GROW_BAYS)}
+
+
+@transaction.atomic
+def survey_g19_cultivation_nutrients(*, operator_approved=False,
+                                    bay=None, charge_kg=None):
+    """One nonrenewable attestation of pre-existing charged skid material."""
+    if not operator_approved:
+        raise PermissionError("Only the operator can attest fitted nutrient inventory")
+    if type(bay) is not int or bay not in GROW_BAYS:
+        raise PhysicsError("No such original crop bed")
+    clock = _clock(lock=True)
+    ledger = clock.details.get("cultivation")
+    if ledger is None:
+        raise PhysicsError("Fitted cultivation plant has not been commissioned")
+    try:
+        revised = survey_existing_nutrients(
+            ledger, bay=bay, charge_kg=charge_kg)
+    except CultivationError as exc:
+        raise PhysicsError(str(exc)) from exc
+    before = _snapshot(clock)
+    details = dict(clock.details)
+    details["cultivation"] = revised
+    clock.details = details
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "operator_original_nutrient_charge_survey", before)
+    return {"bay": bay, "surveyed_kg": charge_kg}
 
 
 @transaction.atomic
@@ -2927,6 +2988,14 @@ def tick_continuous_physics(*, now_game_time=None):
             validate_service_operations(service_operations)
         except ElectricalError as exc:
             raise PhysicsError(str(exc)) from exc
+    cultivation = clock.details.get("cultivation")
+    if cultivation is not None:
+        if service_operations is None or clock.details.get("water") is None:
+            raise PhysicsError("Cultivation has no commissioned power/water support")
+        try:
+            validate_cultivation(cultivation)
+        except CultivationError as exc:
+            raise PhysicsError(str(exc)) from exc
     equipment_wear = clock.details.get("equipment_wear")
     if equipment_wear is not None:
         if service_operations is None:
@@ -3153,6 +3222,40 @@ def tick_continuous_physics(*, now_game_time=None):
                                prior)
             except ElectricalError as exc:
                 raise PhysicsError(str(exc)) from exc
+        irrigation_plan = {}
+        if cultivation is not None:
+            operating = set(service_operations["last"]["operating"])
+            grow_operating = {
+                f"GROW-{number}" for number in GROW_BAYS
+                if all(f"GROW-{number}-{kind}" in operating
+                       for kind in ("CTRL", "NUTRIENT"))
+            }
+            grow_air = set()
+            for number, room in GROW_BAYS.items():
+                zone = zones.get(room)
+                cell = cells.get(zone)
+                if cell is None:
+                    continue
+                pressure_pa = _cell_pressure(cell)
+                oxygen_moles = cell["oxygen"] / 0.032
+                other_moles = max(0.0, cell["mass"] - cell["oxygen"]) / 0.029
+                partial_o2 = (pressure_pa * oxygen_moles /
+                              (oxygen_moles + other_moles)
+                              if oxygen_moles + other_moles else 0.0)
+                if (80000 <= pressure_pa <= 120000
+                        and 16000 <= partial_o2 <= 26000
+                        and 278.15 <= cell["temperature"] <= 313.15
+                        and cell["co2"] <= 0.005 * cell["mass"]
+                        and cell["smoke"] <= 0.00001 * cell["mass"]
+                        and cell["damage"] < 0.20 and cell["leak"] == 0
+                        and cell["burn"] == 0):
+                    grow_air.add(f"GROW-{number}")
+            try:
+                irrigation_plan = plan_irrigation(
+                    cultivation, dt, operating=grow_operating,
+                    air_safe=grow_air)
+            except CultivationError as exc:
+                raise PhysicsError(str(exc)) from exc
         if water_state is not None:
             hardware = _water_hardware(
                 water_state, equipment, edges, isolators,
@@ -3162,11 +3265,20 @@ def tick_continuous_physics(*, now_game_time=None):
                     water_state, dt,
                     stocks={key: item.quantity * 1000.0
                             for key, item in water_stocks.items()},
-                    hardware=hardware, crew_count=40)
+                    hardware=hardware, crew_count=40,
+                    cultivation_demand_kg=(sum(irrigation_plan.values())
+                                           if cultivation is not None else None))
             except WaterError as exc:
                 raise PhysicsError(str(exc)) from exc
             for key, amount in balances.items():
                 water_stocks[key].quantity = amount / 1000.0
+            if cultivation is not None:
+                try:
+                    cultivation = step_cultivation(
+                        cultivation, dt, planned=irrigation_plan,
+                        water_delivered_kg=water_report["cultivation_water_kg"])
+                except CultivationError as exc:
+                    raise PhysicsError(str(exc)) from exc
             if water_tick_report is None:
                 water_tick_report = dict(water_report)
             else:
@@ -3878,6 +3990,8 @@ def tick_continuous_physics(*, now_game_time=None):
                         for kind in ("CARGO-HX", "CARGO-GAS"))
                     for drum in (f"DR-{n:02d}" for n in range(1, 7)))
                 if service_operations is not None else 0),
+            "crop_growth_kg_this_step": (
+                cultivation["last"]["grown_kg"] if cultivation is not None else None),
             "active_cultivation_bays": (
                 sum(all(f"GROW-{n}-{kind}" in
                         service_operations["last"]["operating"]
@@ -4799,6 +4913,9 @@ def tick_continuous_physics(*, now_game_time=None):
         d["refuge_media_service"] = refuge_media
     if service_operations is not None:
         d["service_operations"] = service_operations
+    if cultivation is not None:
+        validate_cultivation(cultivation)
+        d["cultivation"] = cultivation
     if cargo_climate is not None:
         validate_cargo_environment(cargo_climate, cargo)
         d["cargo_environment"] = cargo_climate
@@ -4897,6 +5014,12 @@ def tick_continuous_physics(*, now_game_time=None):
         "commercial_port_jobs": len(cargo.get("port_jobs", {})),
         "commercial_ports_docked": len(cargo.get("port_contacts", {})),
         "cargo_offship_kg": round(cargo["delivered_offship_kg"], 3),
+        "crop_staged_kg": (
+            round(sum(b["staged_kg"] for b in cultivation["beds"].values()), 4)
+            if cultivation is not None else None),
+        "crop_standing_kg": (
+            round(sum(b["standing_kg"] for b in cultivation["beds"].values()), 4)
+            if cultivation is not None else None),
         "waste_exported_this_tick_kg": round(waste_export_kg, 4),
         "waste_exported_total_kg": (dict(water_state["waste_offload"]["delivered_kg"])
                                     if water_state is not None else None),
