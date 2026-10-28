@@ -107,6 +107,10 @@ from world.ship_crew_medical import (
     CLINIC_ZONE, initial_medical, validate_medical, carry_medical_kit,
     begin_care, begin_observation, discharge_observation, step_care,
 )
+from world.ship_rcs_proof import (
+    RCSProofError, initial_rcs_proof, validate_rcs_proof,
+    start_rcs_proof, verify_rcs_proof,
+)
 from world.ship_propulsion_proof import (
     DriveProofError, initial_drive_proof, validate_drive_proof,
     start_drive_proof, verify_drive_proof,
@@ -9064,24 +9068,40 @@ def crew_physical_action(actor, request_id, action, target, value):
         key = "drive_condition" if target == "MAIN" else "rcs_condition"
         current = motion.get(key)
         if value in {"prove_start", "prove_verify"}:
-            if target != "MAIN":
-                raise PhysicsError("Installed engine proof is for main thrust only")
             if (state("equipment", "LCS-PROP").condition in _BROKEN or
                     state("equipment", "LP-PROP-CTRL").condition in _BROKEN):
-                raise PhysicsError("Damaged physical control cannot certify engine output")
-            record = d.get("drive_proof") or initial_drive_proof()
-            try:
-                if value == "prove_start":
-                    record = start_drive_proof(
-                        record, actor=actor.dbref, motion=motion,
-                        game_time=d["last_game_time"])
-                else:
-                    record = verify_drive_proof(
-                        record, actor=actor.dbref, motion=motion,
-                        game_time=d["last_game_time"])
-            except DriveProofError as exc:
-                raise PhysicsError(str(exc)) from exc
-            d["drive_proof"] = record
+                raise PhysicsError("Damaged original PROP-CTRL hardware cannot certify drive or RCS output")
+            if target == "MAIN":
+                record = d.get("drive_proof") or initial_drive_proof()
+                try:
+                    if value == "prove_start":
+                        record = start_drive_proof(
+                            record, actor=actor.dbref, motion=motion,
+                            game_time=d["last_game_time"])
+                    else:
+                        record = verify_drive_proof(
+                            record, actor=actor.dbref, motion=motion,
+                            game_time=d["last_game_time"])
+                except DriveProofError as exc:
+                    raise PhysicsError(str(exc)) from exc
+                d["drive_proof"] = record
+            else:
+                # Attitude thrusters share *actual* reaction propellant but
+                # must prove measured angular torque, not linear thrust
+                # or a panel ON indication. Distinct durable witness.
+                record = d.get("rcs_proof") or initial_rcs_proof()
+                try:
+                    if value == "prove_start":
+                        record = start_rcs_proof(
+                            record, actor=actor.dbref, motion=motion,
+                            game_time=d["last_game_time"])
+                    else:
+                        record = verify_rcs_proof(
+                            record, actor=actor.dbref, motion=motion,
+                            game_time=d["last_game_time"])
+                except RCSProofError as exc:
+                    raise PhysicsError(str(exc)) from exc
+                d["rcs_proof"] = record
         elif value == "reset":
             if target != "MAIN" or current != "thermal_trip":
                 raise PhysicsError("No local propulsion thermal trip to reset")
@@ -10445,6 +10465,12 @@ def local_physics_readout(actor, target):
         record = _clock().details.get("drive_proof") or initial_drive_proof()
         validate_drive_proof(record)
         return {"witness": record, "scope": "attended_measured_main_propulsion_run"}
+    if target == "rcs_proof":
+        _crew_at(actor, "PROP-CTRL")
+        record = _clock().details.get("rcs_proof") or initial_rcs_proof()
+        validate_rcs_proof(record)
+        return {"witness": record,
+                "scope": "attended_measured_original_three_axis_attitude_thrusters"}
     if target == "air":
         zone = _topology()[0].get(room)
         if not zone:
