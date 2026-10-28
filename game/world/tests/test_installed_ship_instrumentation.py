@@ -177,7 +177,11 @@ class InstalledInstrumentationTests(EvenniaTestCase):
         commission_g19_water(operator_approved=True)
         commission_g19_repairs(operator_approved=True)
         commission_g19_instrumentation(operator_approved=True)
+        # Feed the original workshop panel AND an authentic, physically
+        # connected downstream load. Energising a bare distribution board
+        # is not sufficient to satisfy the ship's demand/dispatch gate.
         self.energize("NODE-LP-SHOP-MECH")
+        self.energize("NODE-HAB-03-FIRE-DETECT")
         set_component_condition("equipment", name, "failed", operator=True)
         self.at("SHOP-MECH")
         act = lambda tag, command, target, value: crew_physical_action(
