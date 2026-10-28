@@ -215,3 +215,40 @@ class InstalledFoodTests(EvenniaTestCase):
         self.assertAlmostEqual(
             state("inventory", "INV-FOOD-LONG-LEG").quantity,
             first["food_stored_kg"] / 1000, delta=1e-7)
+
+
+    def test_galley_scraps_reach_original_sealed_sanitary_receiver_once(self):
+        commission_g19_food(operator_approved=True)
+        self.receipt(30, "HAB-01-FOOD-STORES", "take:dry:0.25")
+        self.receipt(31, "HAB-01-FOOD-STORES", "take:conventional:0.75")
+        self.at_room("HAB-02-GALLEY")
+        self.receipt(32, "HAB-02-GALLEY", "deliver")
+        self.prime_plant()
+        self.receipt(33, "HAB-02-GALLEY", "cook:stored")
+        initial_waste = self.food()["waste"]["HAB-02-GALLEY"]
+        self.assertGreater(initial_waste, 0.02)
+        taken = self.receipt(34, "HAB-02-GALLEY", "waste_take:0.02")
+        self.assertEqual(taken["status"], "succeeded")
+        self.at_room("HAB-06-ECLSS-A")
+        before = CanonicalShipState.objects.get(
+            pk="meta:continuous-physics").details["water"][
+            "cassettes"]["sanitary"]["A"]
+        stock_before = state("inventory", "INV-WASTE-RESIDUE").quantity
+        receipt = self.receipt(35, "HAB-06-ECLSS-A", "waste_deposit:0.02")
+        self.assertEqual(receipt["status"], "succeeded")
+        water = CanonicalShipState.objects.get(
+            pk="meta:continuous-physics").details["water"]
+        self.assertAlmostEqual(
+            water["cassettes"]["sanitary"]["A"] - before, 0.02, places=7)
+        self.assertAlmostEqual(
+            state("inventory", "INV-WASTE-RESIDUE").quantity -
+            stock_before, 0.00002, places=9)
+        self.assertAlmostEqual(
+            self.food()["meter"]["waste_deposited_kg"], 0.02, places=7)
+        self.assertEqual(
+            self.receipt(35, "HAB-06-ECLSS-A", "waste_deposit:0.02"), receipt)
+        with self.assertRaises(PhysicsError):
+            self.receipt(36, "HAB-06-ECLSS-A", "waste_deposit:0.02")
+        self.assertAlmostEqual(
+            self.food()["waste"]["HAB-02-GALLEY"],
+            initial_waste - 0.02, places=7)
