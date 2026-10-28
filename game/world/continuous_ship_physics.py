@@ -3594,7 +3594,20 @@ def tick_continuous_physics(*, now_game_time=None):
     captured_co2 = float(clock.details.get("co2_captured_kg", 0.0))
     if not math.isfinite(captured_co2) or not 0 <= captured_co2 <= CO2_CAPTURE_CAPACITY_KG:
         raise PhysicsError("Invalid finite CO2 sorbent inventory")
-    total_before = (sum(c["mass"] + c["fuel"] for c in cells.values())
+    propulsion_bay = clock.details.get("propulsion_bay")
+    if propulsion_bay is not None:
+        validate_bay(propulsion_bay)
+    # The existing, as-found gas behind the original PROP-SVC pressure
+    # boundary was unclassified in the 133-cell reference. Once positively
+    # surveyed it is an additional FINITE measured mass, not a new pressure
+    # cell or refill. A hatch bleed moves real mass from the trunk into it.
+    bay_gas_kg = (propulsion_bay["gas"]["mass_kg"]
+                  if propulsion_bay is not None and
+                  propulsion_bay["gas"] is not None else 0.0)
+    bay_oxygen_kg = (propulsion_bay["gas"]["oxygen_kg"]
+                     if propulsion_bay is not None and
+                     propulsion_bay["gas"] is not None else 0.0)
+    total_before = (bay_gas_kg + sum(c["mass"] + c["fuel"] for c in cells.values())
                     + captured_co2 + refuge_captured_before
                     + retired_refuge_co2)
     lost = burned = water = oxygen_generated = 0.0
@@ -4823,7 +4836,7 @@ def tick_continuous_physics(*, now_game_time=None):
                 for zone, c in cells.items()),
         }
 
-    total_after = (sum(c["mass"] + c["fuel"] for c in cells.values())
+    total_after = (bay_gas_kg + sum(c["mass"] + c["fuel"] for c in cells.values())
                    + captured_co2
                    + (refuge_scrubbers["meter"]["captured_kg"]
                       if refuge_scrubbers is not None else 0.0)
@@ -5509,7 +5522,15 @@ def tick_continuous_physics(*, now_game_time=None):
                             and worn["exposure"]["suit_oxygen_kg"] > 0
                             and worn["exposure"]["condition"] not in {
                                 "incapacitated", "critical", "dead"})
-                        if room_id in {"F1-BAY", "F2-BAY"}:
+                        if room_id == PROP_BAY:
+                            if (repairs["site_surveys"].get(room_id) != "suited_service"
+                                    or not _propulsion_bay_worker_ready(
+                                        actor, {
+                                            **clock.details, "motion": motion,
+                                            "eva": eva, "propulsion_bay": propulsion_bay},
+                                        inside=True)):
+                                continue
+                        elif room_id in {"F1-BAY", "F2-BAY"}:
                             real_suit = _flywheel_suit_ready(
                                 actor, room_id, {
                                     **clock.details, "eva": eva,
@@ -5570,6 +5591,18 @@ def tick_continuous_physics(*, now_game_time=None):
                 EXTERIOR_RADIATOR_FACES.get(job["room"]) == identifier or
                 category == "access" and job["room"] in {
                     row.reference.get("from"), row.reference.get("to")})
+            if valid_site and job["room"] == PROP_BAY:
+                source_cell = cells.get(PROP_BAY_TRUNK_ZONE)
+                if (source_cell is None or propulsion_bay is None
+                        or not _propulsion_bay_ready({
+                            **clock.details, "motion": motion,
+                            "eva": eva, "propulsion_bay": propulsion_bay},
+                            hatch_closed=True)
+                        or abs(_cell_pressure(source_cell) -
+                               fitted_bay_pressure(propulsion_bay["gas"])) > 2000
+                        or source_cell["burn"] > 0 or source_cell["leak"] > 0
+                        or source_cell["damage"] >= .2):
+                    valid_site = False
             if (valid_site and category == "equipment"
                     and identifier in FREIGHT_SERVICE_WORKSITES
                     and not _freight_service_entry_ready(
@@ -5947,6 +5980,9 @@ def tick_continuous_physics(*, now_game_time=None):
         d["exterior_radiators"] = exterior_radiators
     if propulsion_exterior is not None:
         d["propulsion_exterior"] = propulsion_exterior
+    if propulsion_bay is not None:
+        validate_bay(propulsion_bay)
+        d["propulsion_bay"] = propulsion_bay
     if bay_access is not None:
         d["bay_access"] = bay_access
     if major_damage is not None:
@@ -5997,8 +6033,14 @@ def tick_continuous_physics(*, now_game_time=None):
         "crew_incapacitated_or_worse": crew_incapacitated,
         "crew_o2_used_this_tick_kg": round(crew_used_o2, 7),
         "crew_co2_added_this_tick_kg": round(crew_exhaled_co2, 7),
-        "gas_kg": round(sum(c["mass"] for c in cells.values()), 6),
-        "oxygen_kg": round(sum(c["oxygen"] for c in cells.values()), 6),
+        "gas_kg": round(
+            sum(c["mass"] for c in cells.values()) + bay_gas_kg, 6),
+        "oxygen_kg": round(
+            sum(c["oxygen"] for c in cells.values()) + bay_oxygen_kg, 6),
+        "propulsion_bay_gas_kg": round(bay_gas_kg, 6),
+        "propulsion_bay_permit": (
+            propulsion_bay["permit"] is not None
+            if propulsion_bay is not None else None),
         "smoke_kg": round(sum(c["smoke"] for c in cells.values()), 6),
         "fuel_kg": round(sum(c["fuel"] for c in cells.values()), 6),
         "damaged_cells": sum(c["damage"] >= 0.2 for c in cells.values()),
@@ -8684,6 +8726,9 @@ def crew_physical_action(actor, request_id, action, target, value):
                              CanonicalShipState.objects.filter(category="isolator")})):
                     raise PhysicsError("Exterior repair requires issued suit, permit and cool radiator")
             zone = _topology()[0].get(room)
+            if room == PROP_BAY and not _propulsion_bay_worker_ready(
+                    actor, d, inside=True):
+                raise PhysicsError("Original PROP-SVC requires issued suited owner, closed pressure hatch and both drives inhibited")
             if radiator_face:
                 if not _radiator_worksite_ready(
                         d, ident,
