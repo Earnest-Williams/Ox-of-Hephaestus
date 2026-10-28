@@ -85,7 +85,7 @@ def validate_medical(m):
     stationed = extended | {"obs_dressings", "obs_fluid_kg"}
     if not isinstance(m, dict) or set(m) not in (original, extended, stationed):
         raise MedicalError("Incomplete medical stock and care custody")
-    if set(m) == extended:
+    if "observation_completed" in m:
         _nonnegative(m["observation_completed"], integer=True)
     for key in ("surveyed_dressings", "pharmacy_dressings",
                 "dressings", "used_dressings", "completed") + (
