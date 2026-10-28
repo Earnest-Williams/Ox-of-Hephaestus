@@ -883,10 +883,17 @@ class InstalledElectricalTests(EvenniaTestCase):
         tick = tick_continuous_physics(now_game_time=1010)
         self.assertTrue(tick["ventilation_powered"])
         self.assertTrue(tick["power_assured"])
+        from world.ship_process_outputs import FIELD
+        ahu = state("equipment", "HAB-08-AHU").details.get(FIELD)
+        self.assertIsNotNone(ahu)
+        self.assertGreater(ahu["amount"], 0,
+                           "Powered fan must move gas through its actual local duct")
         set_isolator("ISO-G19-MOTOR-HAB-08-AHU", "open", operator=True)
         stopped = tick_continuous_physics(now_game_time=1020)
         self.assertFalse(stopped["ventilation_powered"])
         self.assertTrue(stopped["power_assured"])
+        self.assertEqual(
+            state("equipment", "HAB-08-AHU").details[FIELD]["amount"], 0)
         # The physical atmosphere duct edge remains intact, allowing
         # passive pressure equalisation during an actual hull casualty.
         self.assertEqual(state("edge", "EDGE-ECLSS-B-AIR").setting,
