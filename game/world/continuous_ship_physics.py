@@ -5328,20 +5328,28 @@ def tick_continuous_physics(*, now_game_time=None):
                         checked_s=case["checked_s"],
                         last_good_s=panel["last_good_s"]))
                 has_real_supply = bool(
-                    machine is not None and power["assured"] and (
-                        service_power(name, nodes=power["nodes"],
-                            equipment=equipment, edges=aux_edges,
-                            switches=isolators)
-                        if name in SERVICE_LOADS else
-                        motor_power(name, nodes=power["nodes"],
-                            equipment=equipment, edges=aux_edges,
-                            switches=isolators)))
+                    machine is not None and (
+                        fire_pump_service_ready(
+                            name, nodes=power["nodes"], equipment=equipment,
+                            edges=aux_edges, switches=isolators,
+                            normal_assured=power["assured"],
+                            protected_assured=power["protected_assured"])
+                        if name in PROTECTED_FIRE_MOTORS else
+                        power["assured"] and (
+                            service_power(name, nodes=power["nodes"],
+                                equipment=equipment, edges=aux_edges,
+                                switches=isolators)
+                            if name in SERVICE_LOADS else
+                            motor_power(name, nodes=power["nodes"],
+                                equipment=equipment, edges=aux_edges,
+                                switches=isolators))))
                 observations[name] = bool(
                     machine and machine.space_id == case["room"]
                     and machine.condition == "serviceable"
-                    and machine.details.get("physics_commanded_on") is True
-                    and machine.details.get("physics_online") is True
-                    and machine.details.get("physics_startup_s", 0) == 0
+                    and (name in WATER_MACHINES + BEARING_PUMPS
+                         or (machine.details.get("physics_commanded_on") is True
+                             and machine.details.get("physics_online") is True
+                             and machine.details.get("physics_startup_s", 0) == 0))
                     and not machine.details.get("physics_trip_reason")
                     and (name not in PROCESS_METRICS or
                          proves_process_output(
@@ -7136,12 +7144,19 @@ def crew_physical_action(actor, request_id, action, target, value):
                 power = _power(units, list(edges.values()), switches,
                     d["load_profile"], ledger=d.get("electrical"),
                     moored=contacts_active(d["cargo"]))
-                live = bool(power["assured"] and (
-                    service_power(target, nodes=power["nodes"], equipment=units,
-                        edges=edges, switches=switches)
-                    if target in SERVICE_LOADS else
-                    motor_power(target, nodes=power["nodes"], equipment=units,
-                        edges=edges, switches=switches)))
+                live = (
+                    fire_pump_service_ready(
+                        target, nodes=power["nodes"], equipment=units,
+                        edges=edges, switches=switches,
+                        normal_assured=power["assured"],
+                        protected_assured=power["protected_assured"])
+                    if target in PROTECTED_FIRE_MOTORS else
+                    bool(power["assured"] and (
+                        service_power(target, nodes=power["nodes"],
+                            equipment=units, edges=edges, switches=switches)
+                        if target in SERVICE_LOADS else
+                        motor_power(target, nodes=power["nodes"],
+                            equipment=units, edges=edges, switches=switches))))
                 if value == "authorize":
                     case = ledger["cases"].get(target)
                     if case and case["stage"] == "checked" and not (
@@ -7159,7 +7174,11 @@ def crew_physical_action(actor, request_id, action, target, value):
                 else:
                     ledger = verify_restart(ledger, target, actor=actor.dbref,
                         now_s=now, sample_count=ins["sample_count"],
-                        running=bool(machine.details.get("physics_online")),
+                        running=bool(
+                            machine.details.get("physics_online")
+                            if target not in WATER_MACHINES + BEARING_PUMPS
+                            else proves_process_output(
+                                target, machine.details, observed_s=now)),
                         live_feeder=live, condition=machine.condition,
                         tripped=tripped, panel_live=panel_ok,
                         signal_quality_clear=signal_quality_clear,
