@@ -206,14 +206,25 @@ class InstalledInstrumentationTests(EvenniaTestCase):
         self.assertEqual(case["repaired_spares_kg"], 3.0)
         self.assertEqual(act("3", "fault", name, "check")["status"], "succeeded")
         self.assertEqual(act("4", "switch", breaker, "closed")["status"], "succeeded")
+        # A breaker handle is NOT a new instrument sample. Require a
+        # physics epoch following the real manual reconnection.
+        with self.assertRaisesRegex(PhysicsError, "sampled after reconnection"):
+            act("5", "fault", name, "authorize")
+        tick_continuous_physics(now_game_time=1610)
+        observed = local_physics_readout(self.worker, name)
+        self.assertTrue(observed["schedule_assured"], observed)
+        self.assertTrue(observed["feeder_conducting"], observed)
+        panel = local_physics_readout(self.worker, "panel:LP-SHOP-MECH")
+        self.assertEqual(panel["status"], "online", panel)
+        self.assertEqual(panel["last_good_s"], 1610)
         self.assertEqual(act("5", "fault", name, "authorize")["status"], "succeeded")
         with self.assertRaises(PhysicsError):
             act("6", "fault", name, "verify")
         self.assertEqual(act("7", "plant", name, "on")["status"], "succeeded")
-        tick_continuous_physics(now_game_time=1610)
+        tick_continuous_physics(now_game_time=1620)
         with self.assertRaises(PhysicsError):
             act("8", "fault", name, "verify")
-        tick_continuous_physics(now_game_time=1620)
+        tick_continuous_physics(now_game_time=1630)
         self.assertTrue(state("equipment", name).details["physics_online"])
         self.assertEqual(act("9", "fault", name, "verify")["status"], "succeeded")
         verified = local_physics_readout(self.worker, "fault:" + name)["case"]
