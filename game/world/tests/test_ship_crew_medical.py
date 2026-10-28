@@ -5,7 +5,7 @@ import unittest
 from world.ship_crew_exposure import initial_exposure
 from world.ship_crew_medical import (
     MedicalError, TREATMENT_ROOM, initial_medical, validate_medical,
-    carry_medical_kit, begin_care, step_care,
+    carry_medical_kit, begin_care, begin_observation, discharge_observation, step_care,
 )
 
 
@@ -111,6 +111,67 @@ class MedicalTests(unittest.TestCase):
         self.assertFalse(done)
         self.assertFalse(m["cases"])
         self.assertEqual(m["used_dressings"], 1)
+
+    def test_followup_observation_consumes_stock_and_persists_recovery(self):
+        m = self.staged()
+        m = begin_observation(
+            m, patient="#1", caregiver="#2", health=self.h,
+            patient_room=TREATMENT_ROOM, caregiver_room=TREATMENT_ROOM,
+            equipment_ok=True, breathable=True)
+        self.assertEqual(m["used_dressings"], 1)
+        self.assertEqual(m["observations"]["#1"]["remaining_s"], 7200)
+        before = self.h["injury"]
+        paused, unchanged, _ = step_care(
+            m, {"#1": self.h}, 10, occupants={"#1"},
+            equipment_ok=True, breathable=True)
+        self.assertEqual(unchanged["#1"]["injury"], before)
+        self.assertEqual(paused["observations"]["#1"]["remaining_s"], 7200)
+        progressed, recovered, _ = step_care(
+            m, {"#1": self.h}, 10, occupants={"#1", "#2"},
+            equipment_ok=True, breathable=True)
+        self.assertLess(recovered["#1"]["injury"], before)
+        self.assertEqual(progressed["observations"]["#1"]["observed_s"], 10)
+        self.assertEqual(progressed["used_fluid_kg"], .5)
+
+    def test_observation_rejects_duplicate_attendant_and_replay_stock(self):
+        m = begin_observation(
+            self.staged(), patient="#1", caregiver="#2", health=self.h,
+            patient_room=TREATMENT_ROOM, caregiver_room=TREATMENT_ROOM,
+            equipment_ok=True, breathable=True)
+        with self.assertRaises(MedicalError):
+            begin_observation(m, patient="#1", caregiver="#2",
+                              health=self.h, patient_room=TREATMENT_ROOM,
+                              caregiver_room=TREATMENT_ROOM,
+                              equipment_ok=True, breathable=True)
+        discharged = discharge_observation(m, patient="#1", caregiver="#2")
+        self.assertFalse(discharged["observations"])
+        self.assertEqual(discharged["used_dressings"], 1)
+        with self.assertRaises(MedicalError):
+            discharge_observation(discharged, patient="#1", caregiver="#2")
+
+    def test_observation_completion_and_fatality(self):
+        m = begin_observation(
+            self.staged(), patient="#1", caregiver="#2", health=self.h,
+            patient_room=TREATMENT_ROOM, caregiver_room=TREATMENT_ROOM,
+            equipment_ok=True, breathable=True)
+        rows = {"#1": copy.deepcopy(self.h)}
+        for _ in range(720):
+            m, rows, _ = step_care(
+                m, rows, 10, occupants={"#1", "#2"},
+                equipment_ok=True, breathable=True)
+        self.assertFalse(m["observations"])
+        self.assertEqual(m["observation_completed"], 1)
+        self.assertAlmostEqual(rows["#1"]["injury"], .30 - .000003 * 7200)
+        fatal = begin_observation(
+            self.staged(), patient="#1", caregiver="#2", health=self.h,
+            patient_room=TREATMENT_ROOM, caregiver_room=TREATMENT_ROOM,
+            equipment_ok=True, breathable=True)
+        dead = dict(self.h, injury=1.0, condition="dead")
+        fatal, result, _ = step_care(
+            fatal, {"#1": dead}, 10, occupants={"#1", "#2"},
+            equipment_ok=True, breathable=True)
+        self.assertEqual(result["#1"]["condition"], "dead")
+        self.assertEqual(fatal["observation_completed"], 0)
 
     def test_corrupt_stores_and_unbounded_clock_are_rejected(self):
         damaged = self.staged()
