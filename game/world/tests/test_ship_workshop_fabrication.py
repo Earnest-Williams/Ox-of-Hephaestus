@@ -81,7 +81,7 @@ class FabricationTests(unittest.TestCase):
         self.assertEqual(provenance["request_id"], "1" * 32)
         self.assertEqual((worker, mass), ("#1", 3))
         repairs = credit_repair_parts(repairs, actor=worker, kg=mass)
-        self.assertTrue(validate_repairs(repairs))
+        validate_repairs(repairs)  # Raises on any custody imbalance; returns None on success.
         self.assertEqual(repairs["carried_kg"]["#1"], 3)
         self.assertEqual(fab["finished_kg"], 3)
         self.assertEqual(fab["shop_offcuts_kg"], 1)
