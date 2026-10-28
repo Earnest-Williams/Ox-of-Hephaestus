@@ -82,5 +82,24 @@ for ECLSS CO2, HAB fan airflow, A/B wastewater, bearing pressure and
 single-source fire delivery. The existing large G19 instrumentation workflow
 also includes the new pure tests. Neither runs the 40-person voyage.
 
-Focused and full-suite CI must both be green before declaring this slice
-fully accepted.
+### Focused acceptance — 28 October 2026
+
+[Run #40764736704](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40764736704)
+passed **38/38 pure tests** and **5/5 installed Evennia scenarios** at
+runtime commit `8d2899f4`. The five installed cases directly demonstrated:
+ECLSS-A/B capture debited from real gas, independent A/B water treatment
+and A-source loss with B failover, physical HAB-08 air movement ending at
+its breaker, fire pump FWD discharge accounted against actual finite water,
+and separate BE-01 N/S pressure and flow with actual one-fuse loss.
+
+The first version of the pure tests caught and corrected a serious
+attribution error: a single active fire pump's discharge was mistakenly
+also credited to the *inactive* partner. The fixed source credits **only
+the actual lone active source**. A separate false expectation that both
+water trains always work equally was replaced by the real A-preferred
+scheduler: B is correctly idle while A carries demand and begins producing
+measurable flow when A is isolated.
+
+The larger 14-job G19 instrumentation and subsystem regression matrix
+runs separately, and its acceptance is not implied by this focused result.
+
