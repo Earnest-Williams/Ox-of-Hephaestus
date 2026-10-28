@@ -218,7 +218,21 @@ class InstalledInstrumentationTests(EvenniaTestCase):
             act("5", "fault", name, "authorize")
         tick_continuous_physics(now_game_time=1610)
         observed = local_physics_readout(self.worker, name)
-        self.assertTrue(observed["schedule_assured"], observed)
+        system = state("meta", "continuous-physics").details
+        measured = {
+            "circuit": observed,
+            "dispatch": system["electrical"]["last"],
+            "summary": system.get("summary"),
+            "load_profile": system["load_profile"],
+            "sources": {ident: {
+                "condition": state("equipment", ident).condition,
+                "running": state("equipment", ident).details.get("physics_online"),
+                "commanded": state("equipment", ident).details.get("physics_commanded_on"),
+                "feeder": state("isolator", "ISO-" + ident).setting,
+            } for ident in ("GEN-M", "GEN-A", "GEN-B")},
+            "cartridges_kg": state("inventory", "INV-GEN-CART").quantity * 1000,
+        }
+        self.assertTrue(observed["schedule_assured"], measured)
         self.assertTrue(observed["feeder_conducting"], observed)
         panel = local_physics_readout(self.worker, "panel:LP-SHOP-MECH")
         self.assertEqual(panel["status"], "online", panel)
