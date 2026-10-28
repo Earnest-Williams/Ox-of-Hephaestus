@@ -519,6 +519,12 @@ def _snapshot(item):
             result["exterior_radiators"] = item.details["exterior_radiators"]
         if item.details.get("propulsion_exterior") is not None:
             result["propulsion_exterior"] = item.details["propulsion_exterior"]
+        if item.details.get("propulsion_bay") is not None:
+            result["propulsion_bay"] = item.details["propulsion_bay"]
+        if item.details.get("drive_proof") is not None:
+            result["drive_proof"] = item.details["drive_proof"]
+        if item.details.get("rcs_proof") is not None:
+            result["rcs_proof"] = item.details["rcs_proof"]
         if item.details.get("eva") is not None:
             system = item.details["eva"]
             result["eva"] = {
