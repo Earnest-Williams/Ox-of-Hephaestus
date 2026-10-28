@@ -18,3 +18,43 @@ Record transitions are structured and validated; no optimistic alarm acknowledge
 ## Verification
 
 Pure tests in `world.tests.test_ship_fault_recovery` exercise complete ordering, dual-feed locks, material provenance, counterfeit restoration, live-trip refusal, non-existent equipment and successive instrument-epoch requirements. The installed-world integration must separately prove that crew commands, actual repair ticks, breaker resets, and local machine power obey the same transition contract. The unrelated 40-person voyage remains excluded.
+
+## Local fault evidence (current G19 implementation)
+
+`oxplantread fault:<machine-id>` is a crew-attended worksite report. It identifies the
+original machine room, exact G19 feeder identities, breaker condition and
+latched trips, actual main-panel source node, physically reconstructed
+conduction, powered operating status, existing maintenance job, and the
+quality and age of the *local* instrument panel. Its power result is a
+ship-model reconstruction from fitted switchgear and supplies, **not** a
+fictional independent voltmeter. It does not return unknown foreign-room
+diagnostics to crew or AI agents.
+
+`oxplant <request-id> fault <machine-id> inspect|isolate|check|authorize|verify`
+is receipted in the existing durable global work namespace. The active
+permit keeps its original worksite and physical condition evidence. Actual
+work still uses the six finite reusable toolkits and individually carried
+spares. Isolator closure is blocked during isolated, repairing and repaired
+stages, including both fire-pump supply branches. When the permit is checked,
+the engineer must manually reclose every genuinely fitted feeder; each
+operation stamps that breaker at the authoritative ship game time.
+Authorization requires a new credible local instrument sample strictly
+**after the final reconnection**.
+
+An energized breaker is not running-equipment proof. After a permitted
+local startup, each real physics epoch independently checks the machine's
+serviceable body, active command, `physics_online`, zero remaining startup
+delay, live individually wired feed, current local powered panel, absent
+relevant alarms, still valid reconnection evidence and no active maintenance
+work. Only **two consecutive qualified epochs** allow signed verification.
+Dark panels, altered breaker states, tripped equipment and stopped machines
+reset the count; an epoch cannot be replayed to generate another sample.
+
+**Coverage distinction:** all 98 fitted circuits now have exact physical
+diagnosis, isolation and feed-reconnection validation. End-to-end
+running-output verification is currently available only where a continuous
+operating-state model exists for that machine. Some original auxiliary
+motors have no `physics_online` output or direct flow sensor. They remain
+unverified rather than being declared repaired on electrical continuity
+alone. Their next construction task is an authentic motor-output observation
+via the existing linked process or rotor state, without inventing sensors.
