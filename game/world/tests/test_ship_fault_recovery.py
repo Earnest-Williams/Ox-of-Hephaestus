@@ -6,6 +6,7 @@ from world.ship_fault_recovery import (
     feeders_for, verified_open_feeders, verified_restored_feeders,
     inspect_fault, isolate_fault, begin_verified_work,
     finished_verified_work, check_repair, authorize_restart, verify_restart,
+    advance_restart_evidence,
 )
 
 
@@ -53,15 +54,19 @@ class FaultRecoveryTests(unittest.TestCase):
                     sample_count=count, running=True, live_feeder=True,
                     condition="serviceable", tripped=False,
                     alarm_active=False, panel_live=True, signal_quality_clear=True)
+        fresh_1 = advance_restart_evidence(
+            allowed, now_s=413, observed_good={self.name: True})
+        fresh_2 = advance_restart_evidence(
+            fresh_1, now_s=420, observed_good={self.name: True})
         with self.assertRaises(FaultRecoveryError):
             verify_restart(
-                allowed, self.name, actor="#12", now_s=424,
+                fresh_2, self.name, actor="#12", now_s=424,
                 sample_count=23, running=True, live_feeder=True,
                 condition="serviceable", tripped=False,
                 alarm_active=False, panel_live=True,
                 signal_quality_clear=False)
         verified = verify_restart(
-            allowed, self.name, actor="#12", now_s=424,
+            fresh_2, self.name, actor="#12", now_s=424,
             sample_count=23, running=True, live_feeder=True,
             condition="serviceable", tripped=False,
             alarm_active=False, panel_live=True, signal_quality_clear=True)
@@ -117,6 +122,48 @@ class FaultRecoveryTests(unittest.TestCase):
             tampered[feeder] = SimpleNamespace(
                 **{**vars(rows[feeder]), "space_id": "SOMEONE-ELSES-ROOM"})
             self.assertFalse(verified_open_feeders(machine, tampered))
+
+    def test_blackout_or_failed_output_resets_two_good_samples(self):
+        isolated = isolate_fault(self.first, self.name,
+            actor="#12", now_s=105, open_feeders=True,
+            stopped=True, worksite_safe=True)
+        work = begin_verified_work(isolated, self.name, isolated=True)
+        done = finished_verified_work(work, self.name,
+                                      stamp=400, installed_kg=3)
+        checked = check_repair(
+            done, self.name, actor="#12", now_s=401,
+            condition="serviceable", open_feeders=True, stopped=True,
+            tripped=False, active_work=False, repair_stamp=400,
+            cumulative_spares_kg=3)
+        authorized = authorize_restart(
+            checked, self.name, actor="#12", now_s=402, sample_count=50,
+            sound_hardware=True, live_feeder=True, tripped=False,
+            active_work=False)
+        one = advance_restart_evidence(
+            authorized, now_s=412, observed_good={self.name: True})
+        self.assertEqual(one["cases"][self.name]["restart_consecutive_good"], 1)
+        with self.assertRaises(FaultRecoveryError):
+            advance_restart_evidence(one, now_s=412,
+                                     observed_good={self.name: True})
+        dark = advance_restart_evidence(
+            one, now_s=422, observed_good={self.name: False})
+        self.assertEqual(dark["cases"][self.name]["restart_consecutive_good"], 0)
+        first_after = advance_restart_evidence(
+            dark, now_s=432, observed_good={self.name: True})
+        with self.assertRaises(FaultRecoveryError):
+            verify_restart(first_after, self.name, actor="#12",
+                now_s=432, sample_count=54, running=True,
+                live_feeder=True, condition="serviceable", tripped=False,
+                alarm_active=False, panel_live=True, signal_quality_clear=True)
+        second_after = advance_restart_evidence(
+            first_after, now_s=442, observed_good={self.name: True})
+        self.assertEqual(second_after["cases"][self.name]["restart_consecutive_good"], 2)
+        accepted = verify_restart(second_after, self.name, actor="#12",
+            now_s=442, sample_count=55, running=True,
+            live_feeder=True, condition="serviceable", tripped=False,
+            alarm_active=False, panel_live=True, signal_quality_clear=True)
+        self.assertEqual(accepted["cases"][self.name]["stage"], "verified")
+        self.assertEqual(accepted["verified"], 1)
 
     def test_restored_all_98_feeds_need_real_manual_close_and_later_measurement(self):
         from world.ship_auxiliary_electrical import MOTORS
