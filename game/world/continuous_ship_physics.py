@@ -107,6 +107,16 @@ from world.ship_crew_medical import (
     CLINIC_ZONE, initial_medical, validate_medical, carry_medical_kit,
     begin_care, step_care,
 )
+from world.ship_propulsion_exterior import (
+    PlumeAccessError, FACE as PROPULSION_FACE,
+    BASE as PROPULSION_BASE, LINK as PROPULSION_LINK,
+    STATION as PROPULSION_STATION,
+    GATE_S as PROPULSION_GATE_S,
+    initial_propulsion_exterior, validate_propulsion_exterior,
+    survey_propulsion_exterior, propulsion_face_safe,
+    issue_propulsion_permit, inspect_propulsion,
+    release_propulsion_permit,
+)
 from world.ship_exterior_radiators import (
     ExteriorRadiatorError, RADIATORS as EXTERIOR_RADIATORS,
     FACES as EXTERIOR_RADIATOR_FACES,
@@ -425,6 +435,8 @@ def _snapshot(item):
             result["flywheel_service"] = item.details["flywheel_service"]
         if item.details.get("exterior_radiators") is not None:
             result["exterior_radiators"] = item.details["exterior_radiators"]
+        if item.details.get("propulsion_exterior") is not None:
+            result["propulsion_exterior"] = item.details["propulsion_exterior"]
         if item.details.get("eva") is not None:
             system = item.details["eva"]
             result["eva"] = {
@@ -1674,6 +1686,108 @@ def survey_g19_flywheel_access(*, bay_id, operator_approved=False):
 
 
 
+
+@transaction.atomic
+def commission_g19_propulsion_exterior(*, operator_approved=False):
+    """Commission the actual aft EVA nozzle inspection face without new engine."""
+    if not operator_approved:
+        raise PermissionError("Operator must attest the original nozzle service face")
+    clock = _clock(lock=True)
+    if clock.details.get("propulsion_exterior") is not None:
+        validate_propulsion_exterior(clock.details["propulsion_exterior"])
+        return {"commissioned": False}
+    if clock.details.get("eva") is None:
+        raise PhysicsError("Real EVA system must be commissioned first")
+    from world.ship_world import find_ship_space
+    base, face = find_ship_space(PROPULSION_BASE), find_ship_space(PROPULSION_FACE)
+    door = state("access", PROPULSION_LINK)
+    if (base is None or face is None
+            or base.db.ox_frame != "external" or face.db.ox_frame != "external"
+            or _topology()[0].get(PROPULSION_BASE) != "VACUUM"
+            or _topology()[0].get(PROPULSION_FACE) != "VACUUM"
+            or (door.reference.get("from"), door.reference.get("to"),
+                door.reference.get("kind"),
+                door.reference.get("traverse_time_s")) != (
+                    PROPULSION_BASE, PROPULSION_FACE,
+                    "eva_work_platform_transfer", PROPULSION_GATE_S)):
+        raise PhysicsError("Original aft nozzle platform geometry not fitted")
+    if any(state("equipment", machine).space_id != space for machine, space in (
+            ("LP-PROP-CTRL", PROPULSION_STATION),
+            ("LCS-PROP", "PROP-SVC"))):
+        raise PhysicsError("No original propulsion safety control path")
+    before = _snapshot(clock)
+    d = dict(clock.details)
+    d["propulsion_exterior"] = initial_propulsion_exterior()
+    clock.details = d
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "g19_original_aft_nozzle_inspection_commissioned", before)
+    return {"commissioned": True, "workface": PROPULSION_FACE}
+
+
+@transaction.atomic
+def survey_g19_propulsion_exhaust(*, operator_approved=False,
+                                  temperature_k, plume_clear):
+    """Operator-attest an observed plume/skin after the last propellant use."""
+    if not operator_approved:
+        raise PermissionError("An exhaust clearance needs operator survey authority")
+    clock = _clock(lock=True)
+    d = dict(clock.details)
+    ledger = d.get("propulsion_exterior")
+    if ledger is None:
+        raise PhysicsError("Aft nozzle workface has not been commissioned")
+    if not isinstance(plume_clear, bool):
+        raise PhysicsError("Plume clearance must be a positive Boolean observation")
+    try:
+        surveyed = survey_propulsion_exterior(
+            ledger, temperature_k=temperature_k, plume_clear=plume_clear,
+            motion=d["motion"], game_time=d["last_game_time"])
+    except PlumeAccessError as exc:
+        raise PhysicsError(str(exc)) from exc
+    before = _snapshot(clock)
+    d["propulsion_exterior"] = surveyed
+    clock.details = d
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "g19_aft_exhaust_temperature_and_plume_attested", before)
+    return {"workface": PROPULSION_FACE, "skin_temperature_k": temperature_k,
+            "plume_clear": plume_clear}
+
+
+def _propulsion_exterior_ready(details, equipment):
+    """Require the genuine safety controls and work-platform hardware."""
+    ledger = details.get("propulsion_exterior")
+    if ledger is None:
+        return False
+    hardware = all(
+        machine in equipment and equipment[machine].condition not in _BROKEN
+        for machine in ("LCS-PROP", "LP-PROP-CTRL", "EVA-WORK-PLATFORM"))
+    return bool(hardware and ledger["permit"] is not None
+                and propulsion_face_safe(
+                    ledger, motion=details["motion"],
+                    hardware_ready=hardware))
+
+
+def _propulsion_exterior_suit_ready(actor, details):
+    if (actor is None or getattr(getattr(getattr(actor, "location", None), "db", None),
+                                  "ox_space_id", None) != PROPULSION_FACE
+            or getattr(actor.db, "ox_terminal_dead", False)
+            or getattr(actor.db, "crew_role", None) not in AUTHORISED_ROLES):
+        return False
+    hp = CanonicalShipState.objects.filter(
+        pk="crew_health:" + actor.dbref, source_model=MODEL).first()
+    if hp is None or hp.condition not in {"fit", "impaired"}:
+        return False
+    system = details.get("eva")
+    if system is None or actor.dbref in system["transits"]:
+        return False
+    _, suit = suit_of(system, actor.dbref)
+    return bool(suit is not None and suit["integrity"] >= .8 and
+                suit["exposure"]["suit_oxygen_kg"] > .01 and
+                suit["exposure"]["condition"] not in {
+                    "incapacitated", "critical", "dead"})
+
+
 @transaction.atomic
 def commission_g19_exterior_radiators(*, operator_approved=False):
     """Commission existing four LT and two HT exterior service platforms."""
@@ -2873,6 +2987,12 @@ def tick_continuous_physics(*, now_game_time=None):
     eva = clock.details.get("eva")
     flywheel_service = clock.details.get("flywheel_service")
     exterior_radiators = clock.details.get("exterior_radiators")
+    propulsion_exterior = clock.details.get("propulsion_exterior")
+    if propulsion_exterior is not None:
+        try:
+            validate_propulsion_exterior(propulsion_exterior)
+        except PlumeAccessError as exc:
+            raise PhysicsError(str(exc)) from exc
     if exterior_radiators is not None:
         try:
             validate_exterior_radiators(exterior_radiators)
@@ -3857,6 +3977,12 @@ def tick_continuous_physics(*, now_game_time=None):
                         platform = equipment.get("EVA-WORK-PLATFORM")
                         if not platform or platform.condition in _BROKEN:
                             continue
+                        if job["to"] == PROPULSION_FACE and not _propulsion_exterior_ready(
+                                {**clock.details,
+                                 "propulsion_exterior": propulsion_exterior,
+                                 "motion": motion},
+                                equipment):
+                            continue
                         site = EXTERIOR_RADIATOR_FACES.get(job["to"])
                         if site is not None and not _radiator_worksite_ready(
                                 {**clock.details,
@@ -4571,6 +4697,11 @@ def tick_continuous_physics(*, now_game_time=None):
                     or worn["exposure"]["condition"] in {
                         "incapacitated", "critical", "dead"}):
                 continue
+            if transit["to"] == PROPULSION_FACE and not _propulsion_exterior_ready(
+                    {**clock.details,
+                     "propulsion_exterior": propulsion_exterior,
+                     "motion": motion}, equipment):
+                continue
             radiator_destination = EXTERIOR_RADIATOR_FACES.get(transit["to"])
             if radiator_destination is not None and not _radiator_worksite_ready(
                     {**clock.details, "exterior_radiators": exterior_radiators,
@@ -4694,6 +4825,8 @@ def tick_continuous_physics(*, now_game_time=None):
         d["flywheel_service"] = flywheel_service
     if exterior_radiators is not None:
         d["exterior_radiators"] = exterior_radiators
+    if propulsion_exterior is not None:
+        d["propulsion_exterior"] = propulsion_exterior
     if bay_access is not None:
         d["bay_access"] = bay_access
     if major_damage is not None:
@@ -4723,6 +4856,12 @@ def tick_continuous_physics(*, now_game_time=None):
         "radiator_exterior_work_permits": (
             len(exterior_radiators["permits"])
             if exterior_radiators is not None else None),
+        "aft_nozzle_permit_active": (
+            propulsion_exterior["permit"] is not None
+            if propulsion_exterior is not None else None),
+        "aft_nozzle_inspections": (
+            propulsion_exterior["inspected"]
+            if propulsion_exterior is not None else None),
         "flywheel_active_rundowns": (len(flywheel_service["rundowns"])
                                       if flywheel_service is not None else None),
         "flywheel_rundown_delivered_kwh": (
@@ -5073,7 +5212,7 @@ def crew_physical_action(actor, request_id, action, target, value):
     """
     if not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
         raise PhysicsError("Expected one 32-character lowercase request UUID")
-    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service"}:
+    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service"}:
         raise PhysicsError("Unknown physical operation")
     if actor is None or getattr(actor.db, "ox_terminal_dead", False):
         raise PermissionError("A deceased or missing character cannot operate machinery")
@@ -5095,8 +5234,8 @@ def crew_physical_action(actor, request_id, action, target, value):
                     "isolator:" if action == "switch"
                     else "pressure:" if action == "mist"
                     else "access:" if action == "hatch"
-                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service"}
-                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service"} else target)
+                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service"}
+                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service"} else target)
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
@@ -5113,6 +5252,13 @@ def crew_physical_action(actor, request_id, action, target, value):
     # stable service attitude. Emergency COAST/HOLD, drive INHIBIT, and
     # rotary STOP/HARDLOCK remain possible after a casualty; no permit
     # blocks actions that make the ship safer.
+    nozzle_work = _clock().details.get("propulsion_exterior")
+    if nozzle_work is not None and nozzle_work["permit"] is not None and (
+            action == "helm" and value != "coast"
+            or action == "attitude" and value != "hold"
+            or action == "drive" and value == "release"
+            or action == "ftl" and value == "engage"):
+        raise PhysicsError("Aft nozzle EVA worker inhibits thrust, RCS and FTL release")
     radiator_work = _clock().details.get("exterior_radiators")
     if radiator_work is not None and radiator_work["permits"]:
         if (action == "helm" and value != "coast"
@@ -5997,6 +6143,12 @@ def crew_physical_action(actor, request_id, action, target, value):
             crawler = state("equipment", lock_contract(carried["home"])["crawler"])
             if platform.condition in _BROKEN or crawler.condition in _BROKEN:
                 raise PhysicsError("Unserviceable EVA platform or issued crawler")
+            if (panel.reference["to"] == PROPULSION_FACE
+                    and value == "deploy" and room != PROPULSION_FACE
+                    and not _propulsion_exterior_ready(
+                        d, {row.source_id: row for row in
+                            CanonicalShipState.objects.filter(category="equipment")})):
+                raise PhysicsError("Aft plume is not safed and permitted for EVA entry")
             radiator = EXTERIOR_RADIATOR_FACES.get(panel.reference["to"])
             if radiator is not None and value == "deploy" and room != panel.reference["to"]:
                 if not _radiator_worksite_ready(
@@ -6253,6 +6405,62 @@ def crew_physical_action(actor, request_id, action, target, value):
         item.save(update_fields=["details", "revision"])
 
 
+
+    elif action == "propulsion_service":
+        # v0.5 has an exterior platform, but no separately identifiable
+        # external nozzle machine. Only a suited inspection is admissible.
+        if target != PROPULSION_FACE or value not in {
+                "secure", "inspect", "release"}:
+            raise PhysicsError("Only the original EXT-PROP-AFT inspection face is fitted")
+        item = _clock(lock=True)
+        before = _snapshot(item)
+        d = dict(item.details)
+        ledger = d.get("propulsion_exterior")
+        if ledger is None:
+            raise PhysicsError("Original aft workface not commissioned")
+        equipment_here = {row.source_id: row for row in
+                          CanonicalShipState.objects.filter(category="equipment")}
+        sound = all(name in equipment_here and
+                    equipment_here[name].condition not in _BROKEN
+                    for name in ("LP-PROP-CTRL", "LCS-PROP", "EVA-WORK-PLATFORM"))
+        try:
+            if value == "secure":
+                _crew_at(actor, PROPULSION_STATION)
+                if not sound or not propulsion_face_safe(
+                        ledger, motion=d["motion"], hardware_ready=sound):
+                    raise PhysicsError("Propulsion/RCS not held, exhaust hot or plume unmeasured")
+                ledger = issue_propulsion_permit(
+                    ledger, actor=actor.dbref, game_time=d["last_game_time"],
+                    motion=d["motion"], hardware_ready=sound)
+            elif value == "inspect":
+                _crew_at(actor, PROPULSION_FACE)
+                if (not _propulsion_exterior_suit_ready(actor, d)
+                        or not _propulsion_exterior_ready(d, equipment_here)):
+                    raise PhysicsError("Original nozzle inspection requires a living issued-suit worker")
+                ledger = inspect_propulsion(
+                    ledger, actor=actor.dbref,
+                    motion=d["motion"], hardware_ready=sound)
+            else:
+                _crew_at(actor, PROPULSION_STATION)
+                from evennia.objects.models import ObjectDB
+                from world.ship_world import find_ship_space
+                face = find_ship_space(PROPULSION_FACE)
+                occupied = bool(face and any(
+                    getattr(person.db, "crew_role", None) for person in
+                    ObjectDB.objects.filter(db_location=face)))
+                transit = any(
+                    job["to"] == PROPULSION_FACE or job["from"] == PROPULSION_FACE
+                    for job in (d.get("eva") or
+                                {"transits": {}})["transits"].values())
+                ledger = release_propulsion_permit(
+                    ledger, actor=actor.dbref,
+                    occupied=occupied, transit_active=transit)
+        except PlumeAccessError as exc:
+            raise PhysicsError(str(exc)) from exc
+        d["propulsion_exterior"] = ledger
+        item.details = d
+        item.revision += 1
+        item.save(update_fields=["details", "revision"])
     elif action == "radiator_service":
         if target not in EXTERIOR_RADIATORS or value not in {
                 "secure", "release"}:
@@ -7520,6 +7728,24 @@ def local_physics_readout(actor, target):
             "injury": own.details["injury"],
             "scope": "own_physically_measured_crew_health_only",
         }
+    if target == "propulsion_service":
+        d = _clock().details
+        ledger = d.get("propulsion_exterior")
+        if ledger is None:
+            raise PhysicsError("Original exterior nozzle inspection is not commissioned")
+        if room not in {PROPULSION_STATION, PROPULSION_FACE}:
+            raise PermissionError("Read aft nozzle conditions from real control or exterior EVA face")
+        validate_propulsion_exterior(ledger)
+        equipment_here = {row.source_id: row for row in
+                          CanonicalShipState.objects.filter(category="equipment")}
+        if room == PROPULSION_FACE and not _propulsion_exterior_suit_ready(actor, d):
+            raise PermissionError("Only a living issued-suit worker can read the nozzle face")
+        return {"workface": PROPULSION_FACE, "survey": ledger["survey"],
+                "permit_holder": (ledger["permit"] or {}).get("actor"),
+                "ready": _propulsion_exterior_ready(d, equipment_here),
+                "completed_inspections": ledger["inspected"],
+                "access": state("access", PROPULSION_LINK).setting,
+                "scope": "locally_attended_nozzle_inspection_and_plume"}
     if target == "radiator_service":
         d = _clock().details
         ledger = d.get("exterior_radiators")
