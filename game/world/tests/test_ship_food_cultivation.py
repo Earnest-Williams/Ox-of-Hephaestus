@@ -5,6 +5,7 @@ from world.ship_food_cultivation import (
     DAY, CultivationError, GROW_BAYS, initial_cultivation,
     survey_existing_nutrients, plan_irrigation, step_cultivation,
     harvest_cultivation, validate_cultivation, NOMINAL_WATER_KG_DAY,
+    migrate_cultivation_v1,
 )
 from world.ship_water_recycling import initial_water, step_water
 
@@ -86,6 +87,26 @@ class CultivationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             step_water(water, 10, stocks=stocks, hardware=plant,
                        cultivation_demand_kg=1000)
+
+
+    def test_migrate_preexisting_commissioned_beds_without_resetting_harvest(self):
+        old = survey_existing_nutrients(
+            initial_cultivation(), bay=1, charge_kg=4)
+        plan = plan_irrigation(
+            old, 10, operating={"GROW-1"}, air_safe={"GROW-1"})
+        old = step_cultivation(
+            old, 10, planned=plan, water_delivered_kg=sum(plan.values()))
+        expected = old["beds"]["GROW-1"]["grown_kg"]
+        for bed in old["beds"].values():
+            del bed["released_kg"]
+            del bed["replenished_nutrient_kg"]
+        upgraded = migrate_cultivation_v1(old)
+        self.assertAlmostEqual(
+            upgraded["beds"]["GROW-1"]["grown_kg"], expected)
+        self.assertEqual(upgraded["beds"]["GROW-1"]["nutrient_kg"],
+                         old["beds"]["GROW-1"]["nutrient_kg"])
+        self.assertEqual(migrate_cultivation_v1(upgraded), upgraded)
+        self.assertTrue(validate_cultivation(upgraded))
 
 
 GROW_BAYS_TO_NAMES = tuple(f"GROW-{n}" for n in GROW_BAYS)
