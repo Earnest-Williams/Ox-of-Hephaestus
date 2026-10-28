@@ -112,6 +112,8 @@ from world.ship_flywheel_maintenance import (
     initial_flywheel_service, validate_flywheel_service,
     issue_permit, release_permit, permit_live, module_dead,
     module_room, module_breaker, bus_safe, service_pulse,
+    migrate_flywheel_service_v1, begin_rundown, advance_rundowns,
+    halt_rundown,
 )
 from world.ship_hazardous_access import (
     BayAccessError, LOCKS as BAY_SERVICE_LOCKS, CYCLE_S as BAY_SERVICE_CYCLE_S,
@@ -861,8 +863,11 @@ def survey_g19_electrical_source(*, operator_approved=False, source,
     # Every commissioned store has its own real equipment and power port.
     equipment = state("equipment", source, lock=True)
     source_is_flywheel = source in POWER_FLYWHEELS
-    if (source_is_flywheel and source in
-            (d.get("flywheel_service") or {"permits": {}})["permits"]):
+    if (source_is_flywheel and (
+            source in (d.get("flywheel_service") or
+                       {"permits": {}})["permits"]
+            or source in (d.get("flywheel_service") or
+                          {"rundowns": {}}).get("rundowns", {}))):
         raise PhysicsError("An open maintenance lockout prevents source resurvey")
     feeder_id = ("EDGE-PWR-" if source_is_flywheel else "EDGE-") + source
     node_id = ("NODE-PWR-" if source_is_flywheel else "NODE-") + source
@@ -1667,8 +1672,21 @@ def commission_g19_flywheel_service(*, operator_approved=False):
     d = dict(clock.details)
     prior = d.get("flywheel_service")
     if prior is not None:
-        validate_flywheel_service(prior)
-        return {"commissioned": False, "live_permits": len(prior["permits"])}
+        try:
+            upgraded = migrate_flywheel_service_v1(prior)
+        except FlywheelServiceError as exc:
+            raise PhysicsError(str(exc)) from exc
+        if upgraded != prior:
+            before = _snapshot(clock)
+            d["flywheel_service"] = upgraded
+            clock.details = d
+            clock.revision += 1
+            clock.save(update_fields=["details", "revision"])
+            _event(clock, "g19_flywheel_rundown_custody_migrated", before)
+        return {"commissioned": False,
+                "live_permits": len(upgraded["permits"]),
+                "live_rundowns": len(upgraded["rundowns"]),
+                "migrated": upgraded != prior}
     if any(d.get(key) is None for key in (
             "electrical", "repairs", "eva", "bay_access")):
         raise PhysicsError("Commission original electricity, shared repairs, suits and bay locks first")
@@ -2743,7 +2761,7 @@ def tick_continuous_physics(*, now_game_time=None):
     flywheel_service = clock.details.get("flywheel_service")
     if flywheel_service is not None:
         try:
-            validate_flywheel_service(flywheel_service)
+            flywheel_service = migrate_flywheel_service_v1(flywheel_service)
         except FlywheelServiceError as exc:
             raise PhysicsError(str(exc)) from exc
     if eva is not None:
@@ -2791,10 +2809,44 @@ def tick_continuous_physics(*, now_game_time=None):
             electrical["last"]["shore_disconnect_reason"] = "physical_berth_lost"
     summary = {}
     duration = 0.0
+    # Copy measured energy BEFORE its ordinary ship source dispatch ticks.
+    # Finite flywheel rundown may credit only that same physical meter.
+    if flywheel_service is not None and flywheel_service["rundowns"]:
+        import copy
+        original_rundown_electrical = copy.deepcopy(electrical)
+        if original_rundown_electrical is None:
+            raise PhysicsError("Flywheel rundown has no commissioned electrical meter")
+    else:
+        original_rundown_electrical = None
 
     while duration < seconds - 1e-9:
         dt = min(STEP_SECONDS, seconds - duration)
         duration += dt
+        if (flywheel_service is not None and flywheel_service["rundowns"]
+                and electrical is not None):
+            # An attended supervised run-down does not keep spinning when
+            # the operator leaves the vacuum bay, becomes disabled or loses
+            # their actual life-support suit. The original rotor charge
+            # persists; standby is a dispatch command, NOT a spin deletion.
+            from evennia.objects.models import ObjectDB
+            ids = [int(job["worker"][1:]) for job in
+                   flywheel_service["rundowns"].values()]
+            on_watch = {crew.dbref: crew for crew in
+                        ObjectDB.objects.filter(id__in=ids)}
+            import copy
+            electrical = copy.deepcopy(electrical)
+            for name, job in flywheel_service["rundowns"].items():
+                worker = on_watch.get(job["worker"])
+                sound = bool(
+                    worker is not None
+                    and _flywheel_suit_ready(worker, job["room"], {
+                        **clock.details, "eva": eva,
+                        "electrical": electrical, "bay_access": bay_access})
+                    and equipment[name].condition not in _BROKEN
+                    and isolators[module_breaker(name)].condition not in _BROKEN
+                    and isolators[module_breaker(name)].setting == "closed")
+                electrical["flywheels"][name]["mode"] = (
+                    "discharge" if sound else "standby")
         for item in equipment_rows:
             d = item.details
             remaining = d.get("physics_startup_s", 0.0)
@@ -4145,6 +4197,27 @@ def tick_continuous_physics(*, now_game_time=None):
                        "rated_boundaries": major_damage["sites"][zone]["boundaries"],
                        "seconds": 120.0},
                 game_time=last + seconds)
+    if original_rundown_electrical is not None:
+        try:
+            flywheel_service, rundown_completed, rundown_output_kwh = (
+                advance_rundowns(
+                    flywheel_service,
+                    before_electrical=original_rundown_electrical,
+                    after_electrical=electrical))
+        except FlywheelServiceError as exc:
+            raise PhysicsError(str(exc)) from exc
+        for name in rundown_completed:
+            electrical["flywheels"][name]["mode"] = "standby"
+            CanonicalShipEvent.objects.create(
+                component_key="equipment:" + name,
+                operation="g19_flywheel_metered_rundown_complete",
+                before={"measured_charge_kwh": original_rundown_electrical[
+                    "flywheels"][name]["charge_kwh"]},
+                after={"measured_charge_kwh": electrical["flywheels"][
+                    name]["charge_kwh"],
+                       "delivered_kwh": original_rundown_electrical[
+                           "flywheels"][name]["charge_kwh"]},
+                game_time=last + seconds)
     if repairs is not None and repairs["jobs"]:
         from evennia.objects.models import ObjectDB
         refs = {ref for job in repairs["jobs"].values()
@@ -4475,6 +4548,11 @@ def tick_continuous_physics(*, now_game_time=None):
         } if electrical is not None else None),
         "flywheel_locked_modules": (len(flywheel_service["permits"])
                                     if flywheel_service is not None else None),
+        "flywheel_active_rundowns": (len(flywheel_service["rundowns"])
+                                      if flywheel_service is not None else None),
+        "flywheel_rundown_delivered_kwh": (
+            flywheel_service["rundown_delivered_kwh"]
+            if flywheel_service is not None else None),
         "bay_access_active_cycles": (len(bay_access["jobs"]) if bay_access is not None else None),
         "bay_access_completed": (bay_access["completed"] if bay_access is not None else None),
         "rescue_active_transfers": (len(rescue["jobs"]) if rescue is not None else None),
@@ -5150,10 +5228,12 @@ def crew_physical_action(actor, request_id, action, target, value):
                 raise PhysicsError("Unrated, isolated or damaged fitted energy store")
             if value not in {"standby", "charge", "discharge"}:
                 raise PhysicsError("Energy store requires standby|charge|discharge")
-            if (family == "flywheels" and value != "standby" and
-                    target in (d.get("flywheel_service") or
-                               {"permits": {}})["permits"]):
-                raise PhysicsError("Measured flywheel remains under a real maintenance padlock")
+            if family == "flywheels":
+                custody = d.get("flywheel_service") or {}
+                if target in custody.get("rundowns", {}):
+                    raise PhysicsError("Supervised rotor rundown controls the individual source")
+                if value != "standby" and target in custody.get("permits", {}):
+                    raise PhysicsError("Measured flywheel remains under a real maintenance padlock")
             e[family][target]["mode"] = value
         elif target == "SHORE-PWR":
             supply = state("equipment", target, lock=True)
@@ -5953,10 +6033,11 @@ def crew_physical_action(actor, request_id, action, target, value):
         item.save(update_fields=["details", "revision"])
 
     elif action == "flywheel_service":
-        # Independently measured zero rotation is distinct from an open
-        # 64-module bank contact. The permit retains the individual lock.
-        if target not in SERVICE_FLYWHEELS or value not in {"lock", "release"}:
-            raise PhysicsError("Flywheel service requires fitted module and lock|release")
+        # Per-module stored energy is sourced from the original electrical
+        # metering, never inferred from a disconnected module feeder.
+        if target not in SERVICE_FLYWHEELS or value not in {
+                "lock", "release", "rundown", "halt"}:
+            raise PhysicsError("Flywheel service requires fitted module and lock|release|rundown|halt")
         item = _clock(lock=True)
         before = _snapshot(item)
         d = dict(item.details)
@@ -5977,19 +6058,59 @@ def crew_physical_action(actor, request_id, action, target, value):
                 (breaker.space_id, breaker.reference.get("network"),
                  breaker.reference.get("kind")) != (room, "power", "breaker")):
             raise PhysicsError("Actual individual F1/F2 module feeder is mismatched")
+        import copy
+        electrical = copy.deepcopy(d["electrical"])
         try:
             if value == "lock":
                 ledger = issue_permit(
                     ledger, module=target, worker=actor.dbref,
                     game_time=d["last_game_time"],
-                    electrical=d.get("electrical"),
+                    electrical=electrical,
                     switches={module_breaker(target): breaker})
-            else:
+            elif value == "release":
                 ledger = release_permit(
                     ledger, module=target, worker=actor.dbref,
                     repair_active="equipment:" + target in repairs["jobs"])
-        except FlywheelServiceError as exc:
+            elif value == "rundown":
+                store = electrical["flywheels"].get(target)
+                if (module.condition in _BROKEN or breaker.condition in _BROKEN
+                        or breaker.setting != "closed" or store is None
+                        or store["mode"] != "standby"
+                        or "equipment:" + target in repairs["jobs"]):
+                    raise PhysicsError("Rundown needs an undamaged, connected, surveyed standby rotor")
+                from world.ship_flywheel_maintenance import ZERO_KWH
+                if store["charge_kwh"] <= ZERO_KWH:
+                    raise PhysicsError("No stored spin energy: isolate for maintenance instead")
+                # First demonstrate that THIS rotor, not a different
+                # generator or bank, can deliver energy to a fitted live
+                # ship load in the actual switchboard topology.
+                proposed = copy.deepcopy(electrical)
+                proposed["flywheels"][target]["mode"] = "discharge"
+                physical = _power(
+                    {row.source_id: row for row in
+                     CanonicalShipState.objects.filter(category="equipment")},
+                    list(CanonicalShipState.objects.filter(category="edge")),
+                    {row.source_id: row for row in
+                     CanonicalShipState.objects.filter(category="isolator")},
+                    d["load_profile"], ledger=proposed, dt_s=STEP_SECONDS,
+                    moored=contacts_active(d["cargo"]))
+                if (not physical["has_live_load"] or
+                        not any(name == target and mw > 0 for name, mw in
+                                physical["flywheel_sources"])):
+                    raise PhysicsError("No real downstream ship load or independent discharge source path")
+                ledger = begin_rundown(
+                    ledger, module=target, worker=actor.dbref,
+                    charge_kwh=store["charge_kwh"],
+                    game_time=d["last_game_time"])
+                electrical = proposed
+            else:
+                ledger = halt_rundown(
+                    ledger, module=target, worker=actor.dbref)
+                electrical["flywheels"][target]["mode"] = "standby"
+        except (FlywheelServiceError, ElectricalError) as exc:
             raise PhysicsError(str(exc)) from exc
+        validate_electrical(electrical)
+        d["electrical"] = electrical
         d["flywheel_service"] = ledger
         item.details = d
         item.revision += 1
@@ -7113,6 +7234,7 @@ def local_physics_readout(actor, target):
                 "source_mode": e["flywheels"].get(name, {}).get("mode"),
                 "feeder": state("isolator", module_breaker(name)).setting,
                 "lockout_owner": ledger["permits"].get(name, {}).get("worker"),
+                "rundown": ledger["rundowns"].get(name),
                 "isolated_for_service_now": permit_live(
                     ledger, name, e, {
                         module_breaker(name): state(
