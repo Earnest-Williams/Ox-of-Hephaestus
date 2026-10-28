@@ -18,7 +18,9 @@ from world.continuous_ship_physics import (
     configure_g19_electrical_fault, commission_commercial_port,
     commission_ftl_route, survey_g19_refuge_sorbent,
     survey_cargo_lot, survey_g19_cargo_environment,
-    survey_g19_equipment_wear,
+    survey_g19_equipment_wear, commission_g19_eva,
+    commission_g19_crew_physiology, commission_g19_flywheel_access,
+    survey_g19_flywheel_access,
     crew_physical_action, tick_continuous_physics, local_physics_readout,
 )
 
@@ -1332,6 +1334,22 @@ class InstalledElectricalTests(EvenniaTestCase):
             crew_physical_action(
                 self.worker, "b" * 32, "power", "F1-FW-01", "discharge")
         self.worker.db.ox_suit_verified = True
+        with self.assertRaises(PhysicsError):
+            crew_physical_action(
+                self.worker, "c" * 32, "power", "F1-FW-01", "discharge")
+        # The true F1 vacuum-bay controls require a real finite EVA suit.
+        commission_g19_crew_physiology(
+            actor_dbrefs=[self.worker.dbref], operator_approved=True)
+        commission_g19_eva(operator_approved=True)
+        commission_g19_flywheel_access(operator_approved=True)
+        survey_g19_flywheel_access(
+            bay_id="F1-BAY", operator_approved=True)
+        self.crew_at("ENG-LOCKER")
+        crew_physical_action(
+            self.worker, "d" * 32, "eva", "INV-DC-CONSUMABLES", "stage:0.75")
+        self.crew_at("EVA-FWD")
+        crew_physical_action(self.worker, "e" * 32, "eva", "EVA-FWD", "checkout")
+        self.crew_at("F1-BAY")
         self.assertEqual(
             crew_physical_action(self.worker, "c" * 32, "power",
                                  "F1-FW-01", "discharge")["status"],
