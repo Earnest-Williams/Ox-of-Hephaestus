@@ -67,6 +67,44 @@ def verified_open_feeders(name, fitted_breakers):
     return True
 
 
+def verified_restored_feeders(name, fitted_breakers, *, checked_s, last_good_s):
+    """Evidence of real crew reconnection and a *subsequent* live panel sample.
+
+    This is a positive test of the fitted electrical identity and source age;
+    it does not bypass the independent circuit power or alarm interlocks.
+    """
+    _number(checked_s)
+    if last_good_s is None:
+        return False
+    _number(last_good_s)
+    expected = feeders_for(name)
+    if not isinstance(fitted_breakers, dict) or set(fitted_breakers) != set(expected):
+        return False
+    room = (SERVICE_LOADS[name] if name in SERVICE_LOADS else MOTORS[name])[0]
+    for key in expected:
+        row = fitted_breakers[key]
+        net = ("g19_equipment_service" if name in SERVICE_LOADS else
+               "g19_motor_protected" if key.startswith("ISO-G19-PROT-")
+               else "g19_motor")
+        if (row is None or getattr(row, "category", None) != "isolator"
+                or getattr(row, "source_id", None) != key
+                or getattr(row, "space_id", None) != room
+                or getattr(row, "condition", None) != "serviceable"
+                or getattr(row, "setting", None) != "closed"
+                or not isinstance(getattr(row, "reference", None), dict)
+                or row.reference.get("network") != net
+                or row.reference.get("kind") != "breaker"
+                or row.reference.get("manual_operation") is not True
+                or not isinstance(getattr(row, "details", None), dict)
+                or row.details.get("physics_power_trip_latched")):
+            return False
+        closed_s = row.details.get("physics_manual_close_game_s")
+        if (type(closed_s) not in (int, float) or not math.isfinite(closed_s)
+                or closed_s < checked_s or last_good_s <= closed_s):
+            return False
+    return True
+
+
 def initial_fault_cases():
     return {"version": 1, "cases": {}, "verified": 0}
 
