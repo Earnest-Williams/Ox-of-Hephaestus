@@ -104,7 +104,7 @@ class PositiveProcessOutputTests(unittest.TestCase):
             both["processed_A_kg"] + both["processed_B_kg"])
         hardware["process"]["A"] = False
         water, stocks, failover = step_water(
-            water, 86400, stocks=stocks, hardware=hardware)
+            water, 10, stocks=stocks, hardware=hardware)
         self.assertEqual(failover["processed_A_kg"], 0)
         self.assertGreater(failover["processed_B_kg"], 0)
         a = step_process_output(
