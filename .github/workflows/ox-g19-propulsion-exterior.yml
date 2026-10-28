@@ -6,12 +6,15 @@ on:
     paths:
       - "game/world/ship_propulsion_exterior.py"
       - "game/world/ship_propulsion_proof.py"
+      - "game/world/ship_rcs_proof.py"
       - "game/world/ship_crew_access.py"
       - "game/world/continuous_ship_physics.py"
       - "game/world/tests/test_ship_propulsion_exterior.py"
       - "game/world/tests/test_ship_propulsion_proof.py"
+      - "game/world/tests/test_ship_rcs_proof.py"
       - "game/world/tests/test_installed_ship_propulsion_exterior.py"
       - "game/world/tests/test_installed_ship_propulsion_proof.py"
+      - "game/world/tests/test_installed_ship_rcs_proof.py"
       - ".github/workflows/ox-g19-propulsion-exterior.yml"
   workflow_dispatch:
 
@@ -28,10 +31,10 @@ jobs:
         with:
           python-version: "3.12"
       - name: Compile plume controls and suited traversal
-        run: python -m compileall -q game/world/ship_propulsion_exterior.py game/world/ship_propulsion_proof.py game/world/tests/test_ship_propulsion_proof.py game/world/ship_crew_access.py game/world/continuous_ship_physics.py game/world/tests/test_ship_propulsion_exterior.py game/world/tests/test_installed_ship_propulsion_exterior.py game/world/tests/test_installed_ship_propulsion_proof.py
+        run: python -m compileall -q game/world/ship_propulsion_exterior.py game/world/ship_propulsion_proof.py game/world/ship_rcs_proof.py game/world/tests/test_ship_propulsion_proof.py game/world/tests/test_ship_rcs_proof.py game/world/ship_crew_access.py game/world/continuous_ship_physics.py game/world/tests/test_ship_propulsion_exterior.py game/world/tests/test_installed_ship_propulsion_exterior.py game/world/tests/test_installed_ship_propulsion_proof.py game/world/tests/test_installed_ship_rcs_proof.py
       - name: Original plume, radiator and EVA source safety contracts
         working-directory: game
-        run: python -m unittest world.tests.test_ship_propulsion_proof world.tests.test_ship_propulsion_exterior world.tests.test_ship_exterior_radiators world.tests.test_ship_eva_operations -v
+        run: python -m unittest world.tests.test_ship_propulsion_proof world.tests.test_ship_rcs_proof world.tests.test_ship_propulsion_exterior world.tests.test_ship_exterior_radiators world.tests.test_ship_eva_operations -v
 
   installed:
     runs-on: ubuntu-latest
@@ -55,4 +58,4 @@ jobs:
           evennia migrate --noinput
       - name: Real plume inspection, issued suits and attended 120-second EVA
         working-directory: game
-        run: python -m world.test_runner world.tests.test_installed_ship_propulsion_exterior world.tests.test_installed_ship_propulsion_proof --verbosity=2
+        run: python -m world.test_runner world.tests.test_installed_ship_propulsion_exterior world.tests.test_installed_ship_propulsion_proof world.tests.test_installed_ship_rcs_proof --verbosity=2
