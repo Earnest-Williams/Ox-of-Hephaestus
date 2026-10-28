@@ -121,6 +121,46 @@ class InstalledInstrumentationTests(EvenniaTestCase):
             now_game_time=1010)["advanced"])
         self.assertEqual(self.ledger()["sample_count"], 1)
 
+    def test_fitted_shop_fault_requires_local_inspection_and_both_work_gates(self):
+        # The installed mill has its own ORIGINAL equipment identity and
+        # one distinct G19 service breaker; this does not create a new plant.
+        from world.ship_fault_recovery import feeders_for
+        self.assertEqual(feeders_for("SHOP-CNC-MILL"),
+                         ("ISO-G19-SVC-SHOP-CNC-MILL",))
+        set_component_condition("equipment", "SHOP-CNC-MILL", "failed",
+                                operator=True)
+        commission_g19_instrumentation(operator_approved=True)
+        self.at("ENG-CONTROL")
+        with self.assertRaises(PermissionError):
+            crew_physical_action(
+                self.worker, "b" * 32, "fault",
+                "SHOP-CNC-MILL", "inspect")
+        self.at("SHOP-MECH")
+        first = crew_physical_action(
+            self.worker, "b" * 32, "fault",
+            "SHOP-CNC-MILL", "inspect")
+        self.assertEqual(first["status"], "succeeded")
+        self.assertEqual(crew_physical_action(
+            self.worker, "b" * 32, "fault",
+            "SHOP-CNC-MILL", "inspect"), first)
+        self.assertEqual(local_physics_readout(
+            self.worker, "fault:SHOP-CNC-MILL")["case"]["stage"], "inspected")
+        with self.assertRaises(PhysicsError):
+            crew_physical_action(
+                self.worker, "c" * 32, "fault",
+                "SHOP-CNC-MILL", "isolate")
+        set_isolator("ISO-G19-SVC-SHOP-CNC-MILL", "open", operator=True)
+        second = crew_physical_action(
+            self.worker, "c" * 32, "fault", "SHOP-CNC-MILL", "isolate")
+        self.assertEqual(second["status"], "succeeded")
+        self.assertEqual(local_physics_readout(
+            self.worker, "fault:SHOP-CNC-MILL")["case"]["stage"], "isolated")
+        with self.assertRaises(PhysicsError):
+            crew_physical_action(
+                self.worker, "d" * 32, "fault",
+                "SHOP-CNC-MILL", "check")
+        self.assertEqual(state("equipment", "SHOP-CNC-MILL").condition, "failed")
+
     def test_real_machine_fault_acknowledgement_never_repairs_machine(self):
         commission_g19_instrumentation(operator_approved=True)
         self.energize("NODE-LP-SHOP-MECH")
