@@ -5063,7 +5063,7 @@ def crew_physical_action(actor, request_id, action, target, value):
     """
     if not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
         raise PhysicsError("Expected one 32-character lowercase request UUID")
-    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service"}:
+    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service"}:
         raise PhysicsError("Unknown physical operation")
     if actor is None or getattr(actor.db, "ox_terminal_dead", False):
         raise PermissionError("A deceased or missing character cannot operate machinery")
@@ -5085,8 +5085,8 @@ def crew_physical_action(actor, request_id, action, target, value):
                     "isolator:" if action == "switch"
                     else "pressure:" if action == "mist"
                     else "access:" if action == "hatch"
-                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service"}
-                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service"} else target)
+                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service"}
+                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service"} else target)
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
@@ -5140,7 +5140,16 @@ def crew_physical_action(actor, request_id, action, target, value):
             _health_gate(actor)
     if action == "switch":
         item = state("isolator", target, lock=True)
-        _crew_at(actor, item.space_id)
+        here = getattr(getattr(getattr(actor, "location", None), "db", None),
+                       "ox_space_id", None)
+        if (target in {"ISO-RAD-HT-1", "ISO-RAD-HT-2"}
+                and here == "ENG-CONTROL"
+                and item.reference.get("remote_operable")):
+            _crew_at(actor, "ENG-CONTROL")
+            if state("equipment", "LP-ENG-CONTROL").condition in _BROKEN:
+                raise PhysicsError("Actual engineering remote HT isolation panel is damaged")
+        else:
+            _crew_at(actor, item.space_id)
         if not item.reference.get("manual_operation"):
             raise PermissionError("No local manual operation is installed")
         if value not in {"open", "closed"} or item.condition in _BROKEN:
@@ -5158,6 +5167,11 @@ def crew_physical_action(actor, request_id, action, target, value):
                     "g19_equipment_service"}):
             _electrical_crew_air_gate(
                 actor, item.space_id, _clock().details["electrical"])
+        radiator_ledger = _clock().details.get("exterior_radiators")
+        if value == "open" and radiator_ledger is not None:
+            for wing in radiator_ledger["permits"]:
+                if target in EXTERIOR_RADIATORS[wing]["isolation"]:
+                    raise PhysicsError("Crew holds a radiator coolant isolation padlock")
         if value == "closed" and target.startswith("ISO-PWR-F") and (
                 target.removeprefix("ISO-PWR-") in
                 (_clock().details.get("flywheel_service") or {"permits": {}})["permits"]):
@@ -5180,6 +5194,13 @@ def crew_physical_action(actor, request_id, action, target, value):
             raise PhysicsError("Failed plant cannot be started")
         before = _snapshot(item)
         on = value == "on"
+        thermal_work = _clock().details.get("exterior_radiators")
+        if (on and thermal_work is not None and
+                any(wing.startswith("RAD-LT-") for wing in
+                    thermal_work["permits"]) and
+                target in {"LT-PLANT", "RAD-LT-1", "RAD-LT-2",
+                           "RAD-LT-3", "RAD-LT-4"}):
+            raise PhysicsError("Exterior LT radiator crew inhibits full manifold restart")
         if target in GENERATION_MW:
             electr = _clock().details.get("electrical")
             if electr:
@@ -6197,6 +6218,62 @@ def crew_physical_action(actor, request_id, action, target, value):
         item.revision += 1
         item.save(update_fields=["details", "revision"])
 
+
+    elif action == "radiator_service":
+        if target not in EXTERIOR_RADIATORS or value not in {
+                "secure", "release"}:
+            raise PhysicsError("Only the six fitted radiator work platforms have service permits")
+        item = _clock(lock=True)
+        before = _snapshot(item)
+        d = dict(item.details)
+        ledger = d.get("exterior_radiators")
+        if ledger is None:
+            raise PhysicsError("Original exterior radiator work controller not commissioned")
+        spec = EXTERIOR_RADIATORS[target]
+        # The original HT valves are remotely operable. Their original
+        # THERM-HT machinery room has UNKNOWN breathing atmosphere.
+        # Use the installed engineering console; never teleport inside.
+        console = ("ENG-CONTROL" if target.startswith("RAD-HT-")
+                   else spec["station"])
+        _crew_at(actor, console)
+        if state("equipment", "LP-" + console).condition in _BROKEN:
+            raise PhysicsError("Original radiator control panel unserviceable")
+        equipment_here = {row.source_id: row for row in
+                          CanonicalShipState.objects.filter(category="equipment")}
+        iso_here = {row.source_id: row for row in
+                    CanonicalShipState.objects.filter(category="isolator")}
+        try:
+            if value == "secure":
+                if not radiator_face_safe(
+                        ledger, target, isolators=iso_here,
+                        equipment=equipment_here, motion=d["motion"],
+                        rotors=d["rotors"]):
+                    raise PhysicsError("Radiator still hot, not isolated, or ship not parked")
+                ledger = secure_radiator(
+                    ledger, radiator=target, actor=actor.dbref,
+                    game_time=d["last_game_time"])
+            else:
+                from evennia.objects.models import ObjectDB
+                from world.ship_world import find_ship_space
+                outside = find_ship_space(spec["face"])
+                occupied = bool(outside and ObjectDB.objects.filter(
+                    db_location=outside).exists())
+                active = any(job["room"] == spec["face"] for job in
+                             (d.get("repairs") or {"jobs": {}})["jobs"].values())
+                transit = any(job["to"] == spec["face"]
+                              or job["from"] == spec["face"]
+                              for job in (d.get("eva") or
+                                          {"transits": {}})["transits"].values())
+                ledger = release_radiator(
+                    ledger, radiator=target, actor=actor.dbref,
+                    occupied=occupied, repair_active=active,
+                    transit_active=transit)
+        except ExteriorRadiatorError as exc:
+            raise PhysicsError(str(exc)) from exc
+        d["exterior_radiators"] = ledger
+        item.details = d
+        item.revision += 1
+        item.save(update_fields=["details", "revision"])
     elif action == "flywheel_service":
         # Per-module stored energy is sourced from the original electrical
         # metering, never inferred from a disconnected module feeder.
@@ -7383,6 +7460,38 @@ def local_physics_readout(actor, target):
             "injury": own.details["injury"],
             "scope": "own_physically_measured_crew_health_only",
         }
+    if target == "radiator_service":
+        d = _clock().details
+        ledger = d.get("exterior_radiators")
+        if ledger is None:
+            raise PhysicsError("Fitted radiator worksite controller not commissioned")
+        validate_exterior_radiators(ledger)
+        visible = {}
+        equipment_here = {row.source_id: row for row in
+                          CanonicalShipState.objects.filter(category="equipment")}
+        iso_here = {row.source_id: row for row in
+                    CanonicalShipState.objects.filter(category="isolator")}
+        for wing, spec in EXTERIOR_RADIATORS.items():
+            panel = ("ENG-CONTROL" if wing.startswith("RAD-HT-")
+                     else spec["station"])
+            if room not in {panel, spec["face"]}:
+                continue
+            face = ledger["faces"][wing]
+            visible[wing] = {
+                "face": spec["face"], "skin_temperature_k": face["skin_k"],
+                "measured_game_time": face["sample_game_time"],
+                "permit": ledger["permits"].get(wing),
+                "isolation_valves": {
+                    name: state("isolator", name).setting
+                    for name in spec["isolation"]},
+                "worksite_ready": _radiator_worksite_ready(
+                    d, wing, equipment_here, iso_here),
+                "repair": (d.get("repairs") or {"jobs": {}})["jobs"].get(
+                    "equipment:" + wing),
+            }
+        if not visible:
+            raise PermissionError("Only the attended coolant control or exterior pad has local readings")
+        return {"radiators": visible, "scope": "locally attended real radiator work faces"}
     if target == "flywheel_service":
         d = _clock().details
         ledger = d.get("flywheel_service")
