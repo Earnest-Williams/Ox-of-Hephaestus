@@ -272,7 +272,6 @@ def _clearance(actor, exit_obj, dest):
             from world.ship_exterior_radiators import FACES as RADIATOR_FACES
             if dst_id in RADIATOR_FACES:
                 from world.continuous_ship_physics import _radiator_worksite_ready
-                from world.models import CanonicalShipState
                 details = _clock().details
                 radiator = RADIATOR_FACES[dst_id]
                 if not _radiator_worksite_ready(
@@ -288,7 +287,6 @@ def _clearance(actor, exit_obj, dest):
                 # unsurveyed generic EVA shortcut. Demand the real locally
                 # commissioned plume permit and propulsion/RCS safing.
                 from world.continuous_ship_physics import _propulsion_exterior_ready
-                from world.models import CanonicalShipState
                 details = _clock().details
                 hardware = {row.source_id: row for row in
                             CanonicalShipState.objects.filter(category="equipment")}
