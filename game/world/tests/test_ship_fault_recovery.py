@@ -1,8 +1,9 @@
 """Physical-repair provenance and restart interlock regressions."""
 import unittest
+from types import SimpleNamespace
 from world.ship_fault_recovery import (
     FaultRecoveryError, initial_fault_cases, validate_fault_cases,
-    feeders_for, inspect_fault, isolate_fault, begin_verified_work,
+    feeders_for, verified_open_feeders, inspect_fault, isolate_fault, begin_verified_work,
     finished_verified_work, check_repair, authorize_restart, verify_restart,
 )
 
@@ -50,12 +51,19 @@ class FaultRecoveryTests(unittest.TestCase):
                     allowed, self.name, actor="#12", now_s=410,
                     sample_count=count, running=True, live_feeder=True,
                     condition="serviceable", tripped=False,
-                    alarm_active=False, panel_live=True)
+                    alarm_active=False, panel_live=True, signal_quality_clear=True)
+        with self.assertRaises(FaultRecoveryError):
+            verify_restart(
+                allowed, self.name, actor="#12", now_s=424,
+                sample_count=23, running=True, live_feeder=True,
+                condition="serviceable", tripped=False,
+                alarm_active=False, panel_live=True,
+                signal_quality_clear=False)
         verified = verify_restart(
             allowed, self.name, actor="#12", now_s=424,
             sample_count=23, running=True, live_feeder=True,
             condition="serviceable", tripped=False,
-            alarm_active=False, panel_live=True)
+            alarm_active=False, panel_live=True, signal_quality_clear=True)
         self.assertEqual(verified["verified"], 1)
         self.assertEqual(verified["cases"][self.name]["stage"], "verified")
         self.assertTrue(validate_fault_cases(verified))
@@ -71,6 +79,43 @@ class FaultRecoveryTests(unittest.TestCase):
                           cumulative_spares_kg=0, feeder_tripped=False,
                           restart_latched=False)
         self.assertEqual(len(feeders_for("FIRE-PUMP-FWD")), 2)
+
+    def test_all_real_feeders_require_correct_network_location_and_open_breaker(self):
+        from world.ship_auxiliary_electrical import MOTORS
+        from world.ship_equipment_services import SERVICE_LOADS
+        identities = set(MOTORS) | set(SERVICE_LOADS)
+        self.assertEqual(len(identities), 98)
+        for machine in sorted(identities):
+            room = (SERVICE_LOADS[machine] if machine in SERVICE_LOADS
+                    else MOTORS[machine])[0]
+            rows = {}
+            for feeder in feeders_for(machine):
+                network = ("g19_equipment_service" if machine in SERVICE_LOADS
+                           else "g19_motor_protected"
+                           if feeder.startswith("ISO-G19-PROT-") else "g19_motor")
+                rows[feeder] = SimpleNamespace(
+                    category="isolator", source_id=feeder, space_id=room,
+                    condition="serviceable", setting="open",
+                    reference={"kind": "breaker", "network": network,
+                               "manual_operation": True})
+            self.assertTrue(verified_open_feeders(machine, rows), machine)
+            for wrong in ("closed", "damaged"):
+                feeder = next(iter(rows))
+                original = rows[feeder]
+                if wrong == "closed":
+                    rows[feeder] = SimpleNamespace(**{**vars(original), "setting": wrong})
+                else:
+                    rows[feeder] = SimpleNamespace(**{**vars(original), "condition": wrong})
+                self.assertFalse(verified_open_feeders(machine, rows), (machine,wrong))
+                rows[feeder] = original
+            missing = dict(rows)
+            missing.pop(next(iter(rows)))
+            self.assertFalse(verified_open_feeders(machine, missing))
+            feeder = next(iter(rows))
+            tampered = dict(rows)
+            tampered[feeder] = SimpleNamespace(
+                **{**vars(rows[feeder]), "space_id": "SOMEONE-ELSES-ROOM"})
+            self.assertFalse(verified_open_feeders(machine, tampered))
 
     def test_restart_on_breaker_trip_requires_real_cleared_protection(self):
         name = "FIRE-PUMP-FWD"
