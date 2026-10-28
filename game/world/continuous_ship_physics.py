@@ -5109,6 +5109,21 @@ def crew_physical_action(actor, request_id, action, target, value):
                 raise PhysicsError("Attended freight service inhibits ship and cargo movement")
             if action == "rotor" and value not in {"stop", "hardlock"}:
                 raise PhysicsError("Service work party holds rotary machinery inhibited")
+    # Exterior maintenance requires the physical ship to remain in a
+    # stable service attitude. Emergency COAST/HOLD, drive INHIBIT, and
+    # rotary STOP/HARDLOCK remain possible after a casualty; no permit
+    # blocks actions that make the ship safer.
+    radiator_work = _clock().details.get("exterior_radiators")
+    if radiator_work is not None and radiator_work["permits"]:
+        if (action == "helm" and value != "coast"
+                or action == "attitude" and value != "hold"
+                or action == "drive" and value == "release"
+                or action == "ftl" and value == "engage"
+                or action == "rotor" and value not in {"stop", "hardlock"}
+                and any(target in EXTERIOR_RADIATORS[wing]["near_rotors"]
+                        for wing in radiator_work["permits"])):
+            raise PhysicsError(
+                "Attended exterior radiator work inhibits thrust, attitude or adjacent drum motion")
     # A physically incapacitated engineer cannot operate ANY remote switch,
     # helm or machinery after injury. Previously issued request receipts
     # above stay replayable without executing a new action.
