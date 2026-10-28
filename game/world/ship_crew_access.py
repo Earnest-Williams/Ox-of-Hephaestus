@@ -280,9 +280,23 @@ def _clearance(actor, exit_obj, dest):
                          CanonicalShipState.objects.filter(category="isolator")}):
                     raise CrewTransitError(
                         "Radiator remains hot, running, unisolated or without an issued work permit")
-            elif src_id not in RADIATOR_FACES and not human_exterior_site_safe(
-                    door.reference.get("to"),
-                    _clock().details.get("rotors", {})):
+            elif dst_id == "EXT-PROP-AFT":
+                # The original nozzle face is a hazardous work pad, not an
+                # unsurveyed generic EVA shortcut. Demand the real locally
+                # commissioned plume permit and propulsion/RCS safing.
+                from world.continuous_ship_physics import _propulsion_exterior_ready
+                from world.models import CanonicalShipState
+                details = _clock().details
+                hardware = {row.source_id: row for row in
+                            CanonicalShipState.objects.filter(category="equipment")}
+                if not _propulsion_exterior_ready(details, hardware):
+                    raise CrewTransitError(
+                        "No positively surveyed, inhibited aft plume inspection permit")
+            elif (src_id not in RADIATOR_FACES
+                    and src_id != "EXT-PROP-AFT"
+                    and not human_exterior_site_safe(
+                        door.reference.get("to"),
+                        _clock().details.get("rotors", {}))):
                 raise CrewTransitError(
                     "Rotating skin or unsupported hot exterior worksite")
             # Retreat from the exterior pad to a fixed rail remains possible
