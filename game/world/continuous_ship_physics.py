@@ -4415,6 +4415,12 @@ def tick_continuous_physics(*, now_game_time=None):
                             if not (real_suit and
                                     repairs["site_surveys"].get(room_id) == "suited_service"):
                                 continue
+                        elif room_id in EXTERIOR_RADIATOR_FACES:
+                            if not _radiator_suit_ready(
+                                    actor, room_id, {
+                                        **clock.details, "eva": eva,
+                                        "exterior_radiators": exterior_radiators}):
+                                continue
                         elif not fitted_eva and not (
                                 repairs["site_surveys"].get(room_id) == "suited_service"
                                 and getattr(actor.db, "ox_suit_verified", False)):
@@ -4457,6 +4463,8 @@ def tick_continuous_physics(*, now_game_time=None):
                    by_access.get(identifier))
             valid_site = row is not None and (
                 row.space_id == job["room"] or
+                category == "equipment" and
+                EXTERIOR_RADIATOR_FACES.get(job["room"]) == identifier or
                 category == "access" and job["room"] in {
                     row.reference.get("from"), row.reference.get("to")})
             if (valid_site and category == "equipment"
@@ -4477,9 +4485,11 @@ def tick_continuous_physics(*, now_game_time=None):
                         isolators=isolators, workroom=job["room"],
                         surveyed_suit_work=(
                             repairs["site_surveys"].get(job["room"]) ==
-                            "suited_service"),
+                            "suited_service"
+                            or job["room"] in EXTERIOR_RADIATOR_FACES),
                         flywheel_service=flywheel_service,
-                        electrical=electrical)):
+                        electrical=electrical,
+                        exterior_radiators=exterior_radiators)):
                 safe.add(key)
         try:
             repairs, repair_completed = step_repairs(
@@ -5972,6 +5982,15 @@ def crew_physical_action(actor, request_id, action, target, value):
             crawler = state("equipment", lock_contract(carried["home"])["crawler"])
             if platform.condition in _BROKEN or crawler.condition in _BROKEN:
                 raise PhysicsError("Unserviceable EVA platform or issued crawler")
+            radiator = EXTERIOR_RADIATOR_FACES.get(panel.reference["to"])
+            if radiator is not None and value == "deploy" and room != panel.reference["to"]:
+                if not _radiator_worksite_ready(
+                        d, radiator,
+                        {row.source_id: row for row in
+                         CanonicalShipState.objects.filter(category="equipment")},
+                        {row.source_id: row for row in
+                         CanonicalShipState.objects.filter(category="isolator")}):
+                    raise PhysicsError("Cannot deploy onto an unisolated or hot radiator")
             original_door = _snapshot(panel)
             panel.setting = "open" if value == "deploy" else "closed"
             panel.revision += 1
@@ -6436,14 +6455,34 @@ def crew_physical_action(actor, request_id, action, target, value):
                              FREIGHT_SERVICE_WORKSITES[ident][1],
                              clock_details=d))):
                 raise PhysicsError("Service equipment requires live attended freight lockout")
+            radiator_face = (
+                category == "equipment" and
+                EXTERIOR_RADIATOR_FACES.get(room) == ident)
             if category == "access":
                 if room not in {unit.reference.get("from"),
                                 unit.reference.get("to")}:
                     raise PermissionError("Repairer must stand at the actual hatch endpoint")
-            elif room != unit.space_id:
+            elif room != unit.space_id and not radiator_face:
                 raise PermissionError("Repairer is not at the installed machinery")
+            if radiator_face:
+                if (not _radiator_suit_ready(actor, room, d) or
+                        not _radiator_worksite_ready(
+                            d, ident,
+                            {row.source_id: row for row in
+                             CanonicalShipState.objects.filter(category="equipment")},
+                            {row.source_id: row for row in
+                             CanonicalShipState.objects.filter(category="isolator")})):
+                    raise PhysicsError("Exterior repair requires issued suit, permit and cool radiator")
             zone = _topology()[0].get(room)
-            if room in {"F1-BAY", "F2-BAY"}:
+            if radiator_face:
+                if not _radiator_worksite_ready(
+                        d, ident,
+                        {row.source_id: row for row in
+                         CanonicalShipState.objects.filter(category="equipment")},
+                        {row.source_id: row for row in
+                         CanonicalShipState.objects.filter(category="isolator")}):
+                    raise PhysicsError("Exterior radiator lacks physical safe service permit")
+            elif room in {"F1-BAY", "F2-BAY"}:
                 if (r["site_surveys"].get(room) != "suited_service" or
                         not _flywheel_suit_ready(actor, room, d)):
                     raise PhysicsError("F1/F2 repairs require an actual issued oxygen suit and airlock survey")
@@ -6469,9 +6508,11 @@ def crew_physical_action(actor, request_id, action, target, value):
                     water=water, cargo=d["cargo"], equipment=equipment,
                     isolators=isolators, workroom=room,
                     surveyed_suit_work=(
-                        r["site_surveys"].get(room) == "suited_service"),
+                        r["site_surveys"].get(room) == "suited_service"
+                        or radiator_face),
                     flywheel_service=d.get("flywheel_service"),
-                    electrical=d.get("electrical")):
+                    electrical=d.get("electrical"),
+                    exterior_radiators=d.get("exterior_radiators")):
                 raise PhysicsError("Safe local isolation and known repairable damage required")
             try:
                 if value == "start":

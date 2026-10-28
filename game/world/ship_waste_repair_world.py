@@ -127,7 +127,8 @@ def live_waste_route(route, *, source_room, freight_lock, doors,
 def safe_repair_target(item, *, pressure_rows, zones, rotors, motion,
                        water, cargo, equipment, isolators,
                        workroom=None, surveyed_suit_work=False,
-                       flywheel_service=None, electrical=None):
+                       flywheel_service=None, electrical=None,
+                       exterior_radiators=None):
     """A machinery repair is allowed only when real conditions permit it."""
     from world.continuous_ship_physics import PLANTS, _air_safe
 
@@ -138,7 +139,10 @@ def safe_repair_target(item, *, pressure_rows, zones, rotors, motion,
         if room not in {item.reference.get("from"), item.reference.get("to")}:
             return False
     elif room != item.space_id:
-        return False
+        from world.ship_exterior_radiators import FACES as RADIATOR_FACES
+        if not (item.category == "equipment"
+                and RADIATOR_FACES.get(room) == item.source_id):
+            return False
     zone = zones.get(room)
     if zone in pressure_rows:
         if not _air_safe(pressure_rows[zone]):
@@ -152,6 +156,17 @@ def safe_repair_target(item, *, pressure_rows, zones, rotors, motion,
     # Only the real measured kWh store and its own held padlock prove zero.
     from world.ship_flywheel_maintenance import (
         MODULES as FLYWHEELS, permit_live, bus_safe)
+    from world.ship_exterior_radiators import (
+        RADIATORS, work_face_safe)
+    if item.category == "equipment" and item.source_id in RADIATORS:
+        if (workroom != RADIATORS[item.source_id]["face"]
+                or not surveyed_suit_work or exterior_radiators is None
+                or not work_face_safe(
+                    exterior_radiators, item.source_id,
+                    isolators=isolators, equipment=equipment,
+                    motion=motion, rotors=rotors,
+                    require_permit=True)):
+            return False
     if item.category == "equipment" and item.source_id in FLYWHEELS:
         if (not surveyed_suit_work or flywheel_service is None
                 or electrical is None or not permit_live(
