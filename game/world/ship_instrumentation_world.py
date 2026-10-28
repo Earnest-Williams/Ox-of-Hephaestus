@@ -100,6 +100,9 @@ def observed_panel_evidence(
         if "NODE-" + panel_id not in nodes_energised:
             result[panel_id] = {"status": "dark", "metrics": {}, "faults": []}
             continue
+        if equip.condition == "degraded":
+            result[panel_id] = {"status": "degraded", "metrics": {}, "faults": []}
+            continue
         room = row["room"]
         metrics = _zone_metrics(cells.get(row["zone"])) if row["zone"] else {}
         faults = []
@@ -166,6 +169,7 @@ def local_relay_summary(ledger, *, room, powered_nodes, equipment):
         raise InstrumentError("Original bridge alarm panel has lost real power")
     relayed = {}
     lost = []
+    unmonitored = []
     for arc in range(1, 9):
         prefix = f"HAB-{arc:02d}"
         detector = prefix + "-FIRE-DETECT"
@@ -177,11 +181,19 @@ def local_relay_summary(ledger, *, room, powered_nodes, equipment):
                 or "NODE-" + comms not in powered_nodes):
             lost.append(prefix)
             continue
+        # Powered protected comms can identify missing source heartbeat.
+        # No live local panel cannot be presented as an all-clear.
+        if not any(p["status"] == "online"
+                   for p in ledger["panels"].values()
+                   if p["room"].startswith(prefix + "-")):
+            unmonitored.append(prefix)
+            continue
         zone = f"PZ-{prefix}"
         alerts = [
             entry for entry in ledger["alarms"].values()
             if (entry["active"] and entry["subject"] == zone
-                and entry["code"] in {"FIRE", "SMOKE", "PRESSURE_LOW"})
+                and entry["code"] in {
+                    "FIRE", "SMOKE", "PRESSURE_LOW", "RAPID_DECOMPRESSION"})
         ]
         # Every alarm source must ALSO have a currently reporting
         # powered local sensor panel. Otherwise report COMM LOSS.
@@ -191,5 +203,6 @@ def local_relay_summary(ledger, *, room, powered_nodes, equipment):
     return {
         "relay_scope": "eight_original_HAB_protected_detector_and_comms_pairs",
         "alerts_by_arc": relayed, "lost_protected_links": lost,
+        "lost_local_monitoring": unmonitored,
         "withheld": "unwired_foreign_equipment_and_dark_panel_telemetry",
     }
