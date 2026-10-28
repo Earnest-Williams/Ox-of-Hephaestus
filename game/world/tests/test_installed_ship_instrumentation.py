@@ -161,6 +161,66 @@ class InstalledInstrumentationTests(EvenniaTestCase):
                 "SHOP-CNC-MILL", "check")
         self.assertEqual(state("equipment", "SHOP-CNC-MILL").condition, "failed")
 
+    def test_actual_shop_failure_requires_finite_repair_and_measured_restart(self):
+        from world.continuous_ship_physics import (
+            commission_g19_water, commission_g19_repairs,
+            survey_g19_water_material,
+        )
+        name = "SHOP-CNC-MILL"
+        breaker = "ISO-G19-SVC-" + name
+        commission_g19_water(operator_approved=True)
+        commission_g19_repairs(operator_approved=True)
+        commission_g19_instrumentation(operator_approved=True)
+        self.energize("NODE-LP-SHOP-MECH")
+        set_component_condition("equipment", name, "failed", operator=True)
+        self.at("SHOP-MECH")
+        act = lambda tag, command, target, value: crew_physical_action(
+            self.worker, tag * 32, command, target, value)
+        self.assertEqual(act("a", "fault", name, "inspect")["status"], "succeeded")
+        self.assertEqual(act("b", "switch", breaker, "open")["status"], "succeeded")
+        self.assertEqual(act("c", "fault", name, "isolate")["status"], "succeeded")
+        with self.assertRaises(PhysicsError):
+            act("1", "switch", breaker, "closed")
+        self.at("TOOL-CRIB")
+        self.assertEqual(act("d", "repair", "TOOL-CRIB",
+                             "pickup_toolkit")["status"], "succeeded")
+        survey_g19_water_material(
+            operator_approved=True, source="INV-SPARES",
+            room_id="SPARES-CENTRAL", verified_kg=4)
+        self.at("SPARES-CENTRAL")
+        self.assertEqual(act("e", "repair", "INV-SPARES",
+                             "pickup:3")["status"], "succeeded")
+        self.at("SHOP-MECH")
+        self.assertEqual(act("f", "repair", "equipment:" + name,
+                             "start")["status"], "succeeded")
+        self.assertEqual(local_physics_readout(
+            self.worker, "fault:" + name)["case"]["stage"], "repairing")
+        # A breaker reclose cannot cause work on an energised mill.
+        with self.assertRaises(PhysicsError):
+            act("2", "switch", breaker, "closed")
+        for now in range(1060, 1601, 60):
+            tick_continuous_physics(now_game_time=now)
+        self.assertEqual(state("equipment", name).condition, "serviceable")
+        case = local_physics_readout(self.worker, "fault:" + name)["case"]
+        self.assertEqual(case["stage"], "repaired")
+        self.assertEqual(case["repaired_spares_kg"], 3.0)
+        self.assertEqual(act("3", "fault", name, "check")["status"], "succeeded")
+        self.assertEqual(act("4", "switch", breaker, "closed")["status"], "succeeded")
+        self.assertEqual(act("5", "fault", name, "authorize")["status"], "succeeded")
+        with self.assertRaises(PhysicsError):
+            act("6", "fault", name, "verify")
+        self.assertEqual(act("7", "plant", name, "on")["status"], "succeeded")
+        tick_continuous_physics(now_game_time=1610)
+        with self.assertRaises(PhysicsError):
+            act("8", "fault", name, "verify")
+        tick_continuous_physics(now_game_time=1620)
+        self.assertTrue(state("equipment", name).details["physics_online"])
+        self.assertEqual(act("9", "fault", name, "verify")["status"], "succeeded")
+        verified = local_physics_readout(self.worker, "fault:" + name)["case"]
+        self.assertEqual(verified["stage"], "verified")
+        self.assertEqual(verified["verified_by"], self.worker.dbref)
+        self.assertEqual(act("9", "fault", name, "verify")["status"], "succeeded")
+
     def test_real_machine_fault_acknowledgement_never_repairs_machine(self):
         commission_g19_instrumentation(operator_approved=True)
         self.energize("NODE-LP-SHOP-MECH")
