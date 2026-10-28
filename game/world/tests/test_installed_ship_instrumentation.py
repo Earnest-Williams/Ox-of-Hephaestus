@@ -143,8 +143,13 @@ class InstalledInstrumentationTests(EvenniaTestCase):
         self.assertEqual(crew_physical_action(
             self.worker, "b" * 32, "fault",
             "SHOP-CNC-MILL", "inspect"), first)
-        self.assertEqual(local_physics_readout(
-            self.worker, "fault:SHOP-CNC-MILL")["case"]["stage"], "inspected")
+        site = local_physics_readout(self.worker, "fault:SHOP-CNC-MILL")
+        self.assertEqual(site["case"]["stage"], "inspected")
+        self.assertEqual(site["real_source_node"], "NODE-LP-SHOP-MECH")
+        self.assertEqual(site["panel"]["id"], "LP-SHOP-MECH")
+        self.assertFalse(site["physically_isolated"])
+        self.assertEqual(site["breaker_evidence"][
+            "ISO-G19-SVC-SHOP-CNC-MILL"]["network"], "g19_equipment_service")
         with self.assertRaises(PhysicsError):
             crew_physical_action(
                 self.worker, "c" * 32, "fault",
@@ -153,8 +158,9 @@ class InstalledInstrumentationTests(EvenniaTestCase):
         second = crew_physical_action(
             self.worker, "c" * 32, "fault", "SHOP-CNC-MILL", "isolate")
         self.assertEqual(second["status"], "succeeded")
-        self.assertEqual(local_physics_readout(
-            self.worker, "fault:SHOP-CNC-MILL")["case"]["stage"], "isolated")
+        isolated = local_physics_readout(self.worker, "fault:SHOP-CNC-MILL")
+        self.assertEqual(isolated["case"]["stage"], "isolated")
+        self.assertTrue(isolated["physically_isolated"])
         with self.assertRaises(PhysicsError):
             crew_physical_action(
                 self.worker, "d" * 32, "fault",
