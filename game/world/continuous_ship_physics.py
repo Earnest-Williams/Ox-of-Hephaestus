@@ -5811,6 +5811,11 @@ def crew_physical_action(actor, request_id, action, target, value):
         _crew_at(actor, item.space_id)
         if item.condition in _BROKEN and value == "on":
             raise PhysicsError("Failed plant cannot be started")
+        case = (_clock().details.get("fault_cases") or
+                {"cases": {}})["cases"].get(target)
+        if value == "on" and case is not None and case["stage"] not in {
+                "authorized", "verified"}:
+            raise PhysicsError("Attended fault case requires checked and authorized restart")
         before = _snapshot(item)
         on = value == "on"
         thermal_work = _clock().details.get("exterior_radiators")
