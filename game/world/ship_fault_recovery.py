@@ -39,6 +39,34 @@ def feeders_for(name):
     raise FaultRecoveryError("No audited individually isolatable machinery circuit")
 
 
+def verified_open_feeders(name, fitted_breakers):
+    """Each original retrofit breaker must exist *at its machine's worksite*.
+
+    An open label on a missing/damaged/wrong-network switch does not establish
+    a physical isolation. Fire pumps have two separately routed feeders.
+    """
+    expected = feeders_for(name)
+    if not isinstance(fitted_breakers, dict) or set(fitted_breakers) != set(expected):
+        return False
+    room = (SERVICE_LOADS[name] if name in SERVICE_LOADS else MOTORS[name])[0]
+    for key in expected:
+        row = fitted_breakers[key]
+        net = ("g19_equipment_service" if name in SERVICE_LOADS else
+               "g19_motor_protected" if key.startswith("ISO-G19-PROT-")
+               else "g19_motor")
+        if (row is None or getattr(row, "category", None) != "isolator"
+                or getattr(row, "source_id", None) != key
+                or getattr(row, "space_id", None) != room
+                or getattr(row, "condition", None) != "serviceable"
+                or getattr(row, "setting", None) != "open"
+                or not isinstance(getattr(row, "reference", None), dict)
+                or row.reference.get("network") != net
+                or row.reference.get("kind") != "breaker"
+                or row.reference.get("manual_operation") is not True):
+            return False
+    return True
+
+
 def initial_fault_cases():
     return {"version": 1, "cases": {}, "verified": 0}
 
@@ -284,7 +312,7 @@ def authorize_restart(ledger, name, *, actor, now_s, sample_count,
 
 def verify_restart(ledger, name, *, actor, now_s, sample_count, running,
                    live_feeder, condition, tripped, alarm_active,
-                   panel_live):
+                   panel_live, signal_quality_clear):
     validate_fault_cases(ledger)
     case = ledger["cases"].get(name)
     _actor(actor)
@@ -294,7 +322,8 @@ def verify_restart(ledger, name, *, actor, now_s, sample_count, running,
             or sample_count < case["authorized_samples"] + 2
             or now_s <= case["authorized_s"]
             or not running or not live_feeder or condition != "serviceable"
-            or tripped or alarm_active or not panel_live):
+            or tripped or alarm_active or not panel_live
+            or signal_quality_clear is not True):
         raise FaultRecoveryError(
             "Two real instrument epochs and actual running output required; no remote all-clear")
     result = copy.deepcopy(ledger)
