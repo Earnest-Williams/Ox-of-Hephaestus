@@ -98,7 +98,9 @@ class PositiveProcessOutputTests(unittest.TestCase):
         water, stocks, both = step_water(
             initial_water(), 86400, stocks=stocks, hardware=hardware)
         self.assertGreater(both["processed_A_kg"], 0)
-        self.assertGreater(both["processed_B_kg"], 0)
+        # The A train can treat all 40-crew wastewater alone. Do not
+        # manufacture B-side throughput just because B is powered.
+        self.assertEqual(both["processed_B_kg"], 0)
         self.assertAlmostEqual(
             both["processed_kg"],
             both["processed_A_kg"] + both["processed_B_kg"])
