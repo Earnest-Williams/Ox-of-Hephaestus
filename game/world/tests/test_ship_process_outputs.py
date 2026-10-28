@@ -84,6 +84,40 @@ class PositiveProcessOutputTests(unittest.TestCase):
                 ["FIRE-PUMP-FWD", "FIRE-PUMP-FWD"], 2.5,
                 demand_present=True)
 
+    def test_existing_water_transfers_meter_real_a_b_mass_and_isolate_loss(self):
+        from world.ship_water_recycling import initial_water, step_water
+        stocks = {"normal": 162000.0, "reserve": 70000.0,
+                  "sanitary": 0.0, "industrial": 0.0, "hazardous": 0.0}
+        hardware = {
+            "potable": True, "process": {"A": True, "B": True},
+            "fixed": {"grey": True, "black": True},
+            "oxygen": False,
+            "bins": {name: {"A": True, "B": True}
+                     for name in ("sanitary", "industrial", "hazardous")},
+        }
+        water, stocks, both = step_water(
+            initial_water(), 86400, stocks=stocks, hardware=hardware)
+        self.assertGreater(both["processed_A_kg"], 0)
+        self.assertGreater(both["processed_B_kg"], 0)
+        self.assertAlmostEqual(
+            both["processed_kg"],
+            both["processed_A_kg"] + both["processed_B_kg"])
+        hardware["process"]["A"] = False
+        water, stocks, failover = step_water(
+            water, 86400, stocks=stocks, hardware=hardware)
+        self.assertEqual(failover["processed_A_kg"], 0)
+        self.assertGreater(failover["processed_B_kg"], 0)
+        a = step_process_output(
+            "WATER-PROC-A", None, dt_s=10, now_s=10,
+            delivered_kg=failover["processed_A_kg"])
+        b = step_process_output(
+            "WATER-PROC-B", None, dt_s=10, now_s=10,
+            delivered_kg=failover["processed_B_kg"])
+        self.assertFalse(proves_process_output(
+            "WATER-PROC-A", {FIELD: a}, observed_s=10))
+        self.assertTrue(proves_process_output(
+            "WATER-PROC-B", {FIELD: b}, observed_s=10))
+
     def test_corrupt_receipts_do_not_create_motor_proof(self):
         original = step_process_output(
             "ECLSS-A", None, dt_s=10, now_s=10, delivered_kg=0.04)
