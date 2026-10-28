@@ -281,7 +281,8 @@ def _clearance(actor, exit_obj, dest):
                     raise CrewTransitError(
                         "Radiator remains hot, running, unisolated or without an issued work permit")
             elif src_id not in RADIATOR_FACES and not human_exterior_site_safe(
-                    dst_id, _clock().details.get("rotors", {})):
+                    door.reference.get("to"),
+                    _clock().details.get("rotors", {})):
                 raise CrewTransitError(
                     "Rotating skin or unsupported hot exterior worksite")
             # Retreat from the exterior pad to a fixed rail remains possible
