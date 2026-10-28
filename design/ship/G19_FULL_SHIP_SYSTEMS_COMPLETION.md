@@ -344,12 +344,22 @@ source-material ledgers and authenticated replay-safe worker receipts**.
   proof plus original aft nozzle inspection passed the two-job
   [installed propulsion gate #40772191972](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40772191972).
   Critically, original `LCS-PROP` is physically at `PROP-SVC`,
-  **not** `PROP-CTRL`. The `PROP-SVC` room has an unsurveyed atmosphere
-  and original pressure-boundary service hatch; no crew or repair shortcut
-  has been fabricated. Explicit integrated regression protects against
-  remote physical repair of `LCS-PROP`; rated hazard/entry work remains
-  pending. See
-  [aft nozzle inspection and drive witness](G19_AFT_PROPULSION_EVA_INSPECTION.md).
+  **not** `PROP-CTRL`. A subsequent G19 build now models its existing,
+  separately rated `ACC-PROP-SVC` from `PZ-TRUNK-B-AFT` with **one-time
+  physically measured isolated bay gas**, a finite bounded trunk-to-bay
+  equalization bleed, mutually closed original freight hatch,
+  real individually held EVA suit/oxygen, owner-specific lockout and
+  attended access. The original unclassified bay remains outside the
+  133 previously sized pressure cells: it is **not** silently renamed
+  breathable or vacuum. A genuinely present engineer must traverse the
+  original exit, close the rated hatch, isolate the original room power
+  and consume physically issued repair parts over actual elapsed time
+  before returning through the same hatch to resume a measured
+  propellant-and-delta-v proof. Pure gas/pressure/conservation and permit
+  tests have passed; the installed multi-phase Evennia repair/drive
+  acceptance is being verified in dedicated CI. See
+  [original propulsion bay maintenance contract](G19_PROPULSION_BAY_SERVICE.md)
+  and [aft nozzle inspection and drive witness](G19_AFT_PROPULSION_EVA_INSPECTION.md).
 
 **Integration boundary:** G19 still requires wider equipment-family and
 worksite characterization, remaining unsurveyed machinery zones, full
