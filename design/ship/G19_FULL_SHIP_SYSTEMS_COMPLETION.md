@@ -240,6 +240,22 @@ atmosphere, water, movement and full power compatibility suites.
 The formal completion gate is the **same revision's final run**, not an
 earlier pure-only pass.
 
+## Accepted original aft nozzle workface (28 October 2026)
+
+The installed `EXT-PROP-AFT` exterior work pad now has positive exhaust
+and temperature observation, a fuel-consumption signature, an exclusive
+plume permit, physically disabled MAIN/RCS, and a 120-second original
+EVA passage with real suited crew. Normal ship thrust, attitude
+changes, FTL engagement and drive re-arming remain inhibited until the
+workface is vacated and the permit released. The return EVA path is
+retained after a controller casualty. This is an inspection
+station; the ship's pressure-unknown `PROP-SVC` room and any fictional
+external nozzle replacement remain outside this gate.
+
+[Acceptance run #40665213567](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40665213567)
+passed 17 pure + 4 installed tests (21/21) at `2e474b3f`.
+Details: [Aft propulsion EVA inspection](G19_AFT_PROPULSION_EVA_INSPECTION.md).
+
 ## Completion criteria
 
 1. All installed equipment families and resource networks are inventoried.

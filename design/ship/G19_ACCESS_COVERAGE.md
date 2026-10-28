@@ -148,10 +148,24 @@ HT part replacement, fault-paused repair and EVA transit, 6-face
 independent permit coverage and ship-motion inhibition were tested.
 See [exterior radiator service contract](G19_EXTERIOR_RADIATOR_SERVICE.md).
 
-Remaining exterior coverage includes the separate `EXT-PROP-AFT`
-plume worksite and other classified/unknown-gas maintenance rooms.
+The separate original `EXT-PROP-AFT` plume inspection workface
+now also has a dedicated safe EVA and propulsion shutdown sequence.
+The original 120-second `EXT-AFT` platform permits an actual issued-suit
+worker to enter only after positive exhaust skin/plume survey, both MAIN
+and RCS inhibition, coasting/attitude hold, sound fitted controls and
+an individually held workface permit. Actual crew can inspect and
+retreat even after an unsafe control casualty. No separately fitted
+external engine replacement component is invented.
+
+[Nozzle inspection CI #40665213567](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40665213567)
+passed **17 pure and 4 installed Evennia tests, 21/21 total**, at
+`2e474b3f`. The suite covers the true EVA approach, returned crew,
+nonrepeatable inspection, expired plume safety, occupied-workface
+release refusal, propulsion/attitude/FTL inhibition and fault-paused
+arrival. [Nozzle access contract](G19_AFT_PROPULSION_EVA_INSPECTION.md).
+
 Whole-ship acceptance and the prohibited 40-crew voyage are not part
-of this radiator subsystem gate.
+of either exterior subsystem gate.
 
 ## Remaining G19 closure
 
@@ -163,9 +177,10 @@ of this radiator subsystem gate.
 3. Complete deliberately rated suited access into the two flywheel bays,
    unpressurised machinery sites and cargo section maintenance stations,
    including gas custody, cycling, finite gear and damage isolation.
-4. The six radiator exterior pads are accepted with live coolant,
-   skin-temperature, suit and work-permit controls. The independent aft
-   propulsion plume station and other unsurveyed/exterior worksites
-   remain separate closure obligations.
+4. The six radiator exterior pads and independently surveyed aft
+   nozzle inspection platform now have measured hazards, finite suited
+   access, work permits and propulsion/thermal inhibits. Unknown-atmosphere
+   interior maintenance rooms, actual engine-component repair and other
+   unsurveyed sites remain separate closure obligations.
 5. Continue the full G19 damage, physiology, electrical, materials and
    operating closure gates. Keep the 40-crew voyage excluded this round.
