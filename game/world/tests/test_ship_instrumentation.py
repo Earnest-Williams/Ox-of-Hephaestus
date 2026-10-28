@@ -85,7 +85,13 @@ class InstrumentationTests(unittest.TestCase):
         recurring = self.tick(two, 1040, pressure_a=35)
         self.assertTrue(recurring["alarms"][key]["active"])
         self.assertEqual(recurring["alarms"][key]["occurrences"], 2)
-        self.assertEqual(recurring["history"][-1]["transition"], "reasserted")
+        # A resumed fast pressure drop also creates a *new* rate alarm.
+        # Its later event must not conceal the old low-pressure reassertion.
+        transitions = {entry["alarm"]: entry["transition"]
+                       for entry in recurring["history"][-2:]}
+        self.assertEqual(transitions[key], "reasserted")
+        self.assertEqual(transitions[
+            alarm_key(self.a, "RAPID_DECOMPRESSION", "PZ-TEST-A")], "raised")
 
     def test_dark_panel_keeps_last_known_hazard_and_reports_no_live_metrics(self):
         fault = self.tick(self.ledger, 1010, pressure_a=45)
