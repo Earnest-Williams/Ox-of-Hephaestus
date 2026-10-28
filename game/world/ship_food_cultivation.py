@@ -51,8 +51,10 @@ def initial_cultivation():
         "beds": {
             _bed_id(i): {
                 "surveyed": False, "initial_nutrient_kg": 0.0,
+                "replenished_nutrient_kg": 0.0,
                 "nutrient_kg": 0.0, "nutrient_consumed_kg": 0.0,
                 "standing_kg": 0.0, "staged_kg": 0.0,
+                "released_kg": 0.0,
                 "grown_kg": 0.0, "harvested_kg": 0.0,
                 "water_applied_kg": 0.0,
             } for i in GROW_BAYS
@@ -74,29 +76,35 @@ def validate_cultivation(ledger):
         raise CultivationError("Uncommissioned or incompatible cultivated beds")
     for name, bed in ledger["beds"].items():
         if not isinstance(bed, dict) or set(bed) != {
-                "surveyed", "initial_nutrient_kg", "nutrient_kg",
+                "surveyed", "initial_nutrient_kg", "replenished_nutrient_kg",
+                "nutrient_kg",
                 "nutrient_consumed_kg", "standing_kg", "staged_kg",
+                "released_kg",
                 "grown_kg", "harvested_kg", "water_applied_kg"}:
             raise CultivationError("Missing one installed grow-bed material account")
         if type(bed["surveyed"]) is not bool:
             raise CultivationError("Unknown physical grow-bed survey")
-        for key in ("initial_nutrient_kg", "nutrient_kg",
+        for key in ("initial_nutrient_kg", "replenished_nutrient_kg",
+                    "nutrient_kg",
                     "nutrient_consumed_kg", "standing_kg", "staged_kg",
-                    "grown_kg", "harvested_kg", "water_applied_kg"):
+                    "released_kg", "grown_kg", "harvested_kg", "water_applied_kg"):
             _number(bed[key])
         if (bed["initial_nutrient_kg"] > MAX_COMMISSIONED_NUTRIENT_KG + EPS
+                or bed["nutrient_kg"] > MAX_COMMISSIONED_NUTRIENT_KG + EPS
                 or bed["standing_kg"] > MAX_STANDING_KG + EPS
                 or bed["staged_kg"] > MAX_STAGED_KG + EPS
                 or (not bed["surveyed"] and any(bed[k] > EPS for k in (
                     "initial_nutrient_kg", "nutrient_kg", "grown_kg")))):
             raise CultivationError("Grow bed exceeds its surveyed physical stores")
-        if (not math.isclose(bed["initial_nutrient_kg"],
+        if (not math.isclose(bed["initial_nutrient_kg"] + bed["replenished_nutrient_kg"],
                              bed["nutrient_kg"] + bed["nutrient_consumed_kg"],
                              rel_tol=1e-9, abs_tol=EPS)
                 or not math.isclose(bed["grown_kg"],
-                                    bed["standing_kg"] + bed["staged_kg"],
+                                    bed["standing_kg"] + bed["staged_kg"] +
+                                    bed["released_kg"],
                                     rel_tol=1e-9, abs_tol=EPS)
-                or not math.isclose(bed["harvested_kg"], bed["staged_kg"],
+                or not math.isclose(bed["harvested_kg"],
+                                    bed["staged_kg"] + bed["released_kg"],
                                     rel_tol=1e-9, abs_tol=EPS)
                 or not math.isclose(
                     bed["nutrient_consumed_kg"],
@@ -224,3 +232,24 @@ def harvest_cultivation(ledger, *, bay):
     bed["harvested_kg"] += mass
     validate_cultivation(out)
     return out, mass
+
+
+def replenish_nutrients(ledger, *, bay, kg):
+    """Install an already carried, inventory-debited compatible nutrient pack.
+
+    This is NOT a survey or a free nutrient supply. Outer world action must
+    atomically debit the real spares magazine, carry pack through real exits,
+    and sign the local transfer under the canonical physics clock lock.
+    """
+    validate_cultivation(ledger)
+    name = _bed_id(bay)
+    amount = _number(kg, lower=EPS, upper=MAX_COMMISSIONED_NUTRIENT_KG)
+    out = copy.deepcopy(ledger)
+    bed = out["beds"][name]
+    if not bed["surveyed"] or (
+            bed["nutrient_kg"] + amount > MAX_COMMISSIONED_NUTRIENT_KG + EPS):
+        raise CultivationError("Original dosing skid has no surveyed rack capacity")
+    bed["nutrient_kg"] += amount
+    bed["replenished_nutrient_kg"] += amount
+    validate_cultivation(out)
+    return out
