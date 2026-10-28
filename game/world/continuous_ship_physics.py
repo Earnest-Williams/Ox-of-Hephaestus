@@ -105,7 +105,7 @@ from world.ship_crew_medical import (
     MedicalError, MEDICAL_ROLES, TREATMENT_ROOM, PHARMACY_ROOM,
     TREATMENT_PANEL, TREATMENT_FEEDER, TREATMENT_POWER_NODE,
     CLINIC_ZONE, initial_medical, validate_medical, carry_medical_kit,
-    begin_care, step_care,
+    begin_care, begin_observation, discharge_observation, step_care,
 )
 from world.ship_propulsion_exterior import (
     PlumeAccessError, FACE as PROPULSION_FACE,
@@ -4584,7 +4584,9 @@ def tick_continuous_physics(*, now_game_time=None):
                 raise PhysicsError(str(exc)) from exc
             last_completed += last_done
         for row in crew_rows:
-            if row.source_id in last_completed:
+            if (row.source_id in last_completed or
+                    row.source_id in medical.get("observations", {}) or
+                    row.details != health[row.source_id]):
                 row.details = health[row.source_id]
                 row.condition = row.details["condition"]
                 row.revision += 1
@@ -6964,7 +6966,7 @@ def crew_physical_action(actor, request_id, action, target, value):
                         medical, actor=actor.dbref, verb="deliver")
                 else:
                     raise PhysicsError("Use kit pickup:<cases> or deliver")
-            elif target == "care":
+            elif target in {"care", "observe", "discharge"}:
                 if not re.fullmatch(r"#[0-9]+", value):
                     raise PhysicsError("Care target is the patient's real dbref")
                 from evennia.objects.models import ObjectDB
@@ -6978,13 +6980,23 @@ def crew_physical_action(actor, request_id, action, target, value):
                 if hp is None:
                     raise PhysicsError("Patient has no registered measured injury")
                 powered, breathable = _medical_power_and_air(clock_details=d)
-                medical = begin_care(
-                    medical, patient=value, caregiver=actor.dbref,
-                    health=hp.details, patient_room=TREATMENT_ROOM,
-                    caregiver_room=room_id, equipment_ok=powered,
-                    breathable=breathable)
+                if target == "care":
+                    medical = begin_care(
+                        medical, patient=value, caregiver=actor.dbref,
+                        health=hp.details, patient_room=TREATMENT_ROOM,
+                        caregiver_room=room_id, equipment_ok=powered,
+                        breathable=breathable)
+                elif target == "observe":
+                    medical = begin_observation(
+                        medical, patient=value, caregiver=actor.dbref,
+                        health=hp.details, patient_room=TREATMENT_ROOM,
+                        caregiver_room=room_id, equipment_ok=powered,
+                        breathable=breathable)
+                else:
+                    medical = discharge_observation(
+                        medical, patient=value, caregiver=actor.dbref)
             else:
-                raise PhysicsError("Use physical medical kit or care")
+                raise PhysicsError("Use physical medical kit, care, observe or discharge")
         except (MedicalError, ValueError) as exc:
             raise PhysicsError(str(exc)) from exc
         d["medical"] = medical
@@ -9140,7 +9152,9 @@ def local_physics_readout(actor, target):
                     if room == TREATMENT_ROOM else None,
                 "personal_kit": medical["carried"].get(actor.dbref),
                 "active_cases": medical["cases"] if room == TREATMENT_ROOM else {},
+                "observations": medical.get("observations", {}) if room == TREATMENT_ROOM else {},
                 "completed": medical["completed"],
+                "observations_completed": medical.get("observation_completed", 0),
                 "scope": "locally_attended_finite_HAB04_medical"}
     if target == "eva":
         system = _clock().details.get("eva")
