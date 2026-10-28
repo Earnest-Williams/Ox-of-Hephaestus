@@ -186,7 +186,7 @@ from world.ship_fault_recovery import (
     FaultRecoveryError, initial_fault_cases, inspect_fault, isolate_fault,
     begin_verified_work, finished_verified_work, check_repair,
     authorize_restart, verify_restart, feeders_for, verified_open_feeders,
-    verified_restored_feeders, validate_fault_cases,
+    verified_restored_feeders, advance_restart_evidence, validate_fault_cases,
 )
 from world.ship_instrumentation_world import (
     original_panel_roster, observed_panel_evidence, local_relay_summary,
@@ -5197,6 +5197,60 @@ def tick_continuous_physics(*, now_game_time=None):
         except InstrumentError as exc:
             raise PhysicsError(str(exc)) from exc
         d["instrumentation"] = instrumentation
+    if fault_cases is not None:
+        # A verified restart is not two elapsed global ticks. The actual
+        # installed machine must run with its correctly restored source and
+        # a fresh GOOD local panel sample on each consecutive physics tick.
+        # No remote panel can provide evidence for a different room.
+        pending = {name: case for name, case in fault_cases["cases"].items()
+                   if case["stage"] == "authorized"}
+        if pending:
+            observations = {}
+            for name, case in sorted(pending.items()):
+                machine = equipment.get(name)
+                panel_id = (next((key for key, row in instrumentation["panels"].items()
+                                  if row["room"] == case["room"]), None)
+                            if instrumentation is not None else None)
+                panel = (instrumentation["panels"][panel_id]
+                         if panel_id is not None else None)
+                recent = bool(panel and panel["status"] == "online"
+                              and panel["last_good_s"] == last + seconds)
+                known_alarm = bool(instrumentation and any(
+                    row["active"] and row["panel"] == panel_id
+                    and (row["subject"] == name
+                         or row["subject"] in case["feeders"]
+                         or row["code"] in {
+                             "INSTRUMENT_LOST", "INSTRUMENT_UNRELIABLE"})
+                    for row in instrumentation["alarms"].values()))
+                physically_restored = bool(
+                    recent and verified_restored_feeders(
+                        name, {key: isolators.get(key)
+                               for key in case["feeders"]},
+                        checked_s=case["checked_s"],
+                        last_good_s=panel["last_good_s"]))
+                has_real_supply = bool(
+                    machine is not None and power["assured"] and (
+                        service_power(name, nodes=power["nodes"],
+                            equipment=equipment, edges=aux_edges,
+                            switches=isolators)
+                        if name in SERVICE_LOADS else
+                        motor_power(name, nodes=power["nodes"],
+                            equipment=equipment, edges=aux_edges,
+                            switches=isolators)))
+                observations[name] = bool(
+                    machine and machine.space_id == case["room"]
+                    and machine.condition == "serviceable"
+                    and machine.details.get("physics_commanded_on") is True
+                    and machine.details.get("physics_online") is True
+                    and machine.details.get("physics_startup_s", 0) == 0
+                    and not machine.details.get("physics_trip_reason")
+                    and physically_restored and has_real_supply
+                    and not known_alarm
+                    and not (repairs and "equipment:" + name in repairs["jobs"]))
+            fault_cases = advance_restart_evidence(
+                fault_cases, now_s=last + seconds,
+                observed_good=observations)
+            d["fault_cases"] = fault_cases
     if local_backup is not None:
         d["local_backup"] = local_backup
     if refuge_scrubbers is not None:
