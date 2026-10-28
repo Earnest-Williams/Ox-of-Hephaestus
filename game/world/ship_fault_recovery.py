@@ -135,7 +135,9 @@ def validate_fault_cases(ledger):
         "inspected_s", "inspected_revision", "repair_stamp_before",
         "spares_before_kg", "feeders", "isolation_s", "repair_stamp_s",
         "repaired_spares_kg", "checked_by", "checked_s", "authorized_by",
-        "authorized_s", "authorized_samples", "verified_by", "verified_s",
+        "authorized_s", "authorized_samples",
+        "restart_consecutive_good", "restart_observation_s",
+        "verified_by", "verified_s",
     }
     for name, case in ledger["cases"].items():
         if not isinstance(case, dict) or set(case) != required:
@@ -157,14 +159,19 @@ def validate_fault_cases(ledger):
                 _actor(case[name_field])
         for time_field in ("inspected_s", "isolation_s", "repair_stamp_s",
                            "checked_s", "authorized_s", "verified_s",
-                           "repair_stamp_before", "spares_before_kg", "repaired_spares_kg"):
+                           "repair_stamp_before", "spares_before_kg", "repaired_spares_kg",
+                           "restart_observation_s"):
             if case[time_field] is not None:
                 _number(case[time_field])
         if (type(case["inspected_revision"]) is not int
                 or case["inspected_revision"] < 0
                 or type(case["authorized_samples"]) not in (int, type(None))
                 or case["authorized_samples"] is not None
-                    and case["authorized_samples"] < 0):
+                    and case["authorized_samples"] < 0
+                or type(case["restart_consecutive_good"]) is not int
+                or not 0 <= case["restart_consecutive_good"] <= 2
+                or case["restart_consecutive_good"] and
+                    case["restart_observation_s"] is None):
             raise FaultRecoveryError("Invalid revision or independent sample count")
         if (case["inspected_by"] is None or case["inspected_s"] is None
                 or case["stage"] in {"isolated", "repairing", "repaired", "checked",
@@ -184,8 +191,24 @@ def validate_fault_cases(ledger):
                 or case["authorized_samples"] is None):
             raise FaultRecoveryError("Missing local restart release")
         if case["stage"] == "verified" and (
-                case["verified_s"] is None or case["verified_by"] is None):
+                case["verified_s"] is None or case["verified_by"] is None
+                or case["restart_consecutive_good"] != 2):
             raise FaultRecoveryError("Unverified machine marked operating")
+        for earlier, later in (
+                ("inspected_s", "isolation_s"),
+                ("isolation_s", "repair_stamp_s"),
+                ("isolation_s", "checked_s"),
+                ("checked_s", "authorized_s"),
+                ("authorized_s", "restart_observation_s"),
+                ("authorized_s", "verified_s")):
+            if (case[earlier] is not None and case[later] is not None
+                    and case[later] < case[earlier]):
+                raise FaultRecoveryError("Machine case chronology contradicts physical work")
+        if case["stage"] in {"inspected", "isolated", "repairing",
+                             "repaired", "checked"} and (
+                case["restart_consecutive_good"] != 0
+                or case["restart_observation_s"] is not None):
+            raise FaultRecoveryError("Restart evidence before its authorisation")
     return True
 
 
@@ -241,6 +264,7 @@ def inspect_fault(ledger, name, *, room, actor, now_s, condition,
         "repair_stamp_s": None, "repaired_spares_kg": None,
         "checked_by": None, "checked_s": None, "authorized_by": None,
         "authorized_s": None, "authorized_samples": None,
+        "restart_consecutive_good": 0, "restart_observation_s": None,
         "verified_by": None, "verified_s": None,
     }
     validate_fault_cases(result)
@@ -353,8 +377,40 @@ def authorize_restart(ledger, name, *, actor, now_s, sample_count,
     row["authorized_by"] = actor
     row["authorized_s"] = float(now_s)
     row["authorized_samples"] = sample_count
+    row["restart_consecutive_good"] = 0
+    row["restart_observation_s"] = None
     validate_fault_cases(result)
     return result
+
+
+def advance_restart_evidence(ledger, *, now_s, observed_good):
+    """Count consecutive corroborated *local machine* samples.
+
+    A source blackout, missing panel, stopped rotor/motor, real breaker trip,
+    or local alarm resets the count. A repeat for the same physics epoch
+    cannot manufacture another observation, including across reloads.
+    """
+    validate_fault_cases(ledger)
+    _number(now_s)
+    authorized = {
+        name for name, case in ledger["cases"].items()
+        if case["stage"] == "authorized"}
+    if not isinstance(observed_good, dict) or set(observed_good) != authorized:
+        raise FaultRecoveryError("Incomplete fitted machine observation set")
+    out = copy.deepcopy(ledger)
+    for name, good in sorted(observed_good.items()):
+        if type(good) is not bool:
+            raise FaultRecoveryError("A machine observation must be physical boolean evidence")
+        case = out["cases"][name]
+        if (now_s <= case["authorized_s"]
+                or (case["restart_observation_s"] is not None
+                    and now_s <= case["restart_observation_s"])):
+            raise FaultRecoveryError("Duplicate, stale or reordered machine measurement")
+        case["restart_consecutive_good"] = (
+            min(2, case["restart_consecutive_good"] + 1) if good else 0)
+        case["restart_observation_s"] = float(now_s)
+    validate_fault_cases(out)
+    return out
 
 
 def verify_restart(ledger, name, *, actor, now_s, sample_count, running,
@@ -368,6 +424,7 @@ def verify_restart(ledger, name, *, actor, now_s, sample_count, running,
             or type(sample_count) is not int
             or sample_count < case["authorized_samples"] + 2
             or now_s <= case["authorized_s"]
+            or case["restart_consecutive_good"] < 2
             or not running or not live_feeder or condition != "serviceable"
             or tripped or alarm_active or not panel_live
             or signal_quality_clear is not True):
