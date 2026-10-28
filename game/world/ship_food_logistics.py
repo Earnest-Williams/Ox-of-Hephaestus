@@ -434,6 +434,11 @@ def eat_meal(food, *, actor, room):
         MAX_ENERGY_KCAL, history["balance_kcal"] + meal["kcal"])
     history["eaten_kcal"] += meal["kcal"]
     history["meals"] += 1
+    for key, threshold in (("hungry", -CREW_DAILY_KCAL),
+                           ("impaired", -3 * CREW_DAILY_KCAL),
+                           ("incapacitated", -8 * CREW_DAILY_KCAL)):
+        if history["balance_kcal"] >= threshold and actor in out["last"][key]:
+            out["last"][key].remove(actor)
     validate_food(out)
     return out, meal["kcal"]
 
