@@ -209,6 +209,25 @@ def _clearance(actor, exit_obj, dest):
         if not _air_safe(state("pressure", zone)):
             raise CrewTransitError("Breathing-safe trunk required before sealed cycle")
         return door
+    from world.ship_propulsion_bay_service import (
+        HATCH as PROP_BAY_HATCH, BAY as PROP_BAY, finish_entry,
+        BayAccessError,
+    )
+    if link == PROP_BAY_HATCH:
+        # The original PROP-SVC hatch is a rated pressure boundary to a
+        # formerly unclassified atmosphere. Do not use ordinary-door
+        # clearance or accept PPE without a matched, measured gas register.
+        from world.continuous_ship_physics import (
+            _clock, _propulsion_bay_ready, _propulsion_bay_worker_ready,
+        )
+        clock = _clock()
+        if (door.setting != "open" or
+                not _propulsion_bay_worker_ready(
+                    actor, clock.details, inside=False)
+                or not _propulsion_bay_ready(clock.details)):
+            raise CrewTransitError(
+                "PROP-SVC requires live equalized gas, a sound rated hatch, a genuine issued suit and the owner's safed permit")
+        return door
     indexed = (kind == "indexed_rotary_transfer"
                or link == "ACC-WR-IX-HUB" and kind == "indexer_hatch")
     if (indexed and door.setting != "closed"
@@ -485,6 +504,19 @@ def traverse_canonical_exit(actor, exit_obj, dest, *, request_id=None):
         raise CrewTransitError("Crew cannot leave a moving personnel carriage")
     if not actor.move_to(dest):
         raise CrewTransitError("Crew movement vetoed")
+    if link == PROP_BAY_HATCH and dest.db.ox_space_id == PROP_BAY:
+        from world.continuous_ship_physics import _snapshot, _event
+        entry_before = _snapshot(clock)
+        details = dict(clock.details)
+        try:
+            details["propulsion_bay"] = finish_entry(
+                details["propulsion_bay"], worker=actor.dbref)
+        except BayAccessError as exc:
+            raise CrewTransitError(str(exc)) from exc
+        clock.details = details
+        clock.revision += 1
+        clock.save(update_fields=["details", "revision"])
+        _event(clock, "g19_suited_propulsion_bay_entry", entry_before, actor=actor)
     event = CanonicalShipEvent.objects.create(
         component_key=door.key, operation="crew_traverse",
         before={"space_id": origin}, after={"space_id": dest.db.ox_space_id},
