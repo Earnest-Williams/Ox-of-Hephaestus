@@ -5752,6 +5752,20 @@ def tick_continuous_physics(*, now_game_time=None):
                          "motion": motion, "rotors": rotors},
                         job["room"], hatch_closed=True):
                     valid_site = False
+                if category == "equipment":
+                    # During work, the REAL local panel must stay isolated,
+                    # plus the fitted machine's own dedicated motor breaker.
+                    source_iso = isolators.get(
+                        INDUSTRIAL_SITES[job["room"]]["breaker"])
+                    if (source_iso is None or source_iso.condition in _BROKEN
+                            or source_iso.setting != "open"):
+                        valid_site = False
+                    if identifier in MOTORS and any(
+                            isolators.get(feed) is None
+                            or isolators[feed].condition in _BROKEN
+                            or isolators[feed].setting != "open"
+                            for feed in feeders_for(identifier)):
+                        valid_site = False
             if valid_site and job["room"] in GENERATOR_ROOMS:
                 if not _generator_room_ready(
                         {**clock.details, "generator_bays": generator_bays},
@@ -6684,11 +6698,9 @@ def crew_physical_action(actor, request_id, action, target, value):
                 and any(target == INDUSTRIAL_SITES[room]["breaker"]
                         for room in active_industrial)
                 and any(job["room"] in active_industrial
-                        and (target in job_name
-                             or INDUSTRIAL_SITES[job["room"]]["panel"] in job_name)
-                        for job_name, job in
+                        for job in
                         ((_clock().details.get("repairs") or {"jobs": {}})
-                         ["jobs"]).items())):
+                         ["jobs"]).values())):
             raise PhysicsError("Local panel under active repair cannot be re-energised")
         if ("THERM-HT" in active_industrial and action == "switch"
                 and target in {"ISO-RAD-HT-1", "ISO-RAD-HT-2"}
@@ -8975,9 +8987,19 @@ def crew_physical_action(actor, request_id, action, target, value):
                              CanonicalShipState.objects.filter(category="isolator")})):
                     raise PhysicsError("Exterior repair requires issued suit, permit and cool radiator")
             zone = _topology()[0].get(room)
-            if room in INDUSTRIAL_SITES and not _industrial_worker_ready(
-                    actor, d, room, inside=True):
-                raise PhysicsError("Original industrial equipment repair requires signed issued suit and pressure-safe permit")
+            if room in INDUSTRIAL_SITES:
+                if not _industrial_worker_ready(actor, d, room, inside=True):
+                    raise PhysicsError("Original industrial equipment repair requires signed issued suit and pressure-safe permit")
+                if category == "equipment":
+                    panel_iso = state("isolator", INDUSTRIAL_SITES[room]["breaker"])
+                    if (panel_iso.condition in _BROKEN
+                            or panel_iso.setting != "open"):
+                        raise PhysicsError("Attended equipment repair needs original local panel breaker physically open")
+                    if ident in MOTORS and any(
+                            state("isolator", feed).condition in _BROKEN
+                            or state("isolator", feed).setting != "open"
+                            for feed in feeders_for(ident)):
+                        raise PhysicsError("Original fitted equipment motor feed remains energised")
             if room in GENERATOR_ROOMS and not _generator_room_worker_ready(
                     actor, d, room, inside=True):
                 raise PhysicsError("Original generator requires a live rated permit and issued suit")
