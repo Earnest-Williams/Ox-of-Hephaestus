@@ -211,19 +211,19 @@ class InstalledAttendedFireWaterRecovery(EvenniaTestCase):
         self.assertGreaterEqual(
             source_kg - state("inventory", "INV-WATER-NORMAL").quantity * 1000,
             delivered)
-        self.assertLessEqual(first["burned_fuel_kg"], .15 * .05 * 10 + 1e-6)
+        self.assertLessEqual(_clock().details["burned_fuel_kg"], .15 * .05 * 10 + 1e-6)
         self.assertTrue(_clock().details["water"]["potable_quarantined"])
 
         # Real fuse isolation stops pump output even though the mist
         # command and burning fuel have not disappeared.
         set_isolator("ISO-G19-MOTOR-FIRE-PUMP-FWD", "open", operator=True)
-        burned_before = first["burned_fuel_kg"]
+        burned_before = _clock().details["burned_fuel_kg"]
         second = tick_continuous_physics(now_game_time=1020)
         self.assertTrue(second["advanced"])
         self.assertEqual(
             state("equipment", "FIRE-PUMP-FWD").details[FIELD]["amount"], 0)
         self.assertAlmostEqual(
-            second["burned_fuel_kg"] - burned_before, .05 * 10,
+            _clock().details["burned_fuel_kg"] - burned_before, .05 * 10,
             delta=1e-6)
         set_isolator("ISO-G19-MOTOR-FIRE-PUMP-FWD", "closed", operator=True)
         third = tick_continuous_physics(now_game_time=1030)
