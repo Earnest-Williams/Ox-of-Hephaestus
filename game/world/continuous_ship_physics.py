@@ -327,6 +327,13 @@ from world.ship_electrical_power import (
     audit_topology, source_dispatch, survey_battery, survey_flywheel,
     register_fault, reset_protection, step_protection, step_energy,
 )
+from world.ship_exterior_mobile import (
+    MobileExteriorError, FITTED as ORIGINAL_EXTERIOR_MOBILE,
+    CRAWLERS as MOBILE_CRAWLERS, ROBOTS as MOBILE_ROBOTS,
+    ANCHORS as MOBILE_ANCHORS, original_routes as mobile_original_routes,
+    initial_exterior_mobile, validate_exterior_mobile,
+    survey_exterior_mobile, mobile_move, step_exterior_mobile,
+)
 from world.ship_eva_operations import (
     EVAError, LOCKS as EVA_LOCKS, SUIT_O2_KG, MAX_GAS_BUFFER_KG,
     initial_eva, validate_eva, lock_contract, suit_of, checkout_suit,
@@ -2791,6 +2798,93 @@ def commission_g19_eva(*, operator_approved=False):
 
 
 @transaction.atomic
+def commission_g19_exterior_mobile(*, operator_approved=False):
+    """Enrol two original EVA crawlers and two original inspection robots."""
+    if not operator_approved:
+        raise PermissionError("Original mobile EVA hardware needs operator approval")
+    _require_installed()
+    clock = _clock(lock=True)
+    if clock.details.get("eva") is None:
+        raise PhysicsError("Real rated EVA locks must be commissioned first")
+    source = load_candidate()
+    original = {row["id"]:row for row in source["equipment"]
+                if row["kind"] in {"eva_rail_crawler","inspection_robot"}}
+    if set(original) != set(ORIGINAL_EXTERIOR_MOBILE):
+        raise PhysicsError("Four original mobile exterior hardware identities changed")
+    mobile_original_routes(source)
+    for key,home in ORIGINAL_EXTERIOR_MOBILE.items():
+        if (original[key]["space_id"] != home
+                or state("equipment",key).space_id != home):
+            raise PhysicsError("Original exterior machine or fitted home displaced")
+    prior = clock.details.get("exterior_mobile")
+    if prior is not None:
+        validate_exterior_mobile(prior)
+        return {"commissioned":False,"units":4}
+    before = _snapshot(clock)
+    data = dict(clock.details)
+    data["exterior_mobile"] = initial_exterior_mobile()
+    clock.details = data
+    clock.revision += 1
+    clock.save(update_fields=["details","revision"])
+    _event(clock,"g19_original_four_mobile_exterior_machines_commissioned",before)
+    return {"commissioned":True,"units":4}
+
+
+@transaction.atomic
+def survey_g19_exterior_mobile(*, operator_approved=False, name, battery_kwh):
+    if not operator_approved:
+        raise PermissionError("Existing crawler/robot battery requires as-found survey")
+    clock = _clock(lock=True)
+    previous = clock.details.get("exterior_mobile")
+    if previous is None or name not in ORIGINAL_EXTERIOR_MOBILE:
+        raise PhysicsError("Original exterior mobile hardware not commissioned")
+    original = state("equipment",name)
+    if (original.space_id != ORIGINAL_EXTERIOR_MOBILE[name]
+            or original.condition in _BROKEN):
+        raise PhysicsError("Original exterior unit already unavailable")
+    try:
+        updated = survey_exterior_mobile(previous,name,battery_kwh=battery_kwh)
+    except MobileExteriorError as exc:
+        raise PhysicsError(str(exc)) from exc
+    before = _snapshot(clock)
+    data = dict(clock.details)
+    data["exterior_mobile"] = updated
+    clock.details = data
+    clock.revision += 1
+    clock.save(update_fields=["details","revision"])
+    _event(clock,"g19_as_found_mobile_exterior_battery",before)
+    return {"unit":name,"battery_kwh":battery_kwh}
+
+
+def _exterior_mobile_motion_safe(motion):
+    spin = motion.get("angular_velocity_rad_s")
+    return bool(motion.get("command") == "coast"
+                and motion.get("attitude_command") == "hold"
+                and motion.get("drive_firing") is not True
+                and (motion.get("ftl_leg") or {}).get("status") != "engaged"
+                and isinstance(spin,(list,tuple)) and len(spin)==3
+                and all(type(v) in (float,int) and math.isfinite(v)
+                        and abs(v) < 0.0001 for v in spin))
+
+
+def _exterior_mobile_gates(*, eva, pressure, access, isolators, equipment):
+    if eva is None:
+        return {}
+    return {home:bool(
+        eva["locks"][home]["mode"] == "vacuum"
+        and pressure.get(lock_contract(home)["zone"]) is not None
+        and pressure[lock_contract(home)["zone"]]["mass"] <= .001
+        and access[lock_contract(home)["inner"]].setting == "closed"
+        and access[lock_contract(home)["outer"]].setting == "open"
+        and all(access[ident].condition not in _BROKEN
+                for ident in (lock_contract(home)["inner"],lock_contract(home)["outer"]))
+        and equipment[lock_contract(home)["panel"]].condition not in _BROKEN
+        and isolators[lock_contract(home)["breaker"]].setting == "closed"
+        and isolators[lock_contract(home)["breaker"]].condition not in _BROKEN)
+        for home in MOBILE_ANCHORS}
+
+
+@transaction.atomic
 def commission_g19_major_damage(*, operator_approved=False):
     """Commission real local pressure-bulkhead isolation plus external repairs."""
     if not operator_approved:
@@ -4084,6 +4178,12 @@ def tick_continuous_physics(*, now_game_time=None):
             validate_hab_sync(hab_sync)
         except HabSyncError as exc:
             raise PhysicsError(str(exc)) from exc
+    exterior_mobile = clock.details.get("exterior_mobile")
+    if exterior_mobile is not None:
+        try:
+            validate_exterior_mobile(exterior_mobile)
+        except MobileExteriorError as exc:
+            raise PhysicsError(str(exc)) from exc
     eva = clock.details.get("eva")
     flywheel_service = clock.details.get("flywheel_service")
     exterior_radiators = clock.details.get("exterior_radiators")
@@ -5371,6 +5471,24 @@ def tick_continuous_physics(*, now_game_time=None):
                     machine.details = details
                     machine.revision += 1
                     changed_equipment.add(machine.key)
+        if exterior_mobile is not None:
+            routes = mobile_original_routes(load_candidate())
+            by_access = {row.source_id:row for row in access_rows}
+            live_rails = {link:bool(
+                by_access[link].condition not in _BROKEN
+                and by_access[link].setting in {"open","closed_or_auto"})
+                for link in set(routes.values())}
+            gate = _exterior_mobile_gates(
+                eva=eva,pressure=cells,access=by_access,
+                isolators=isolators,equipment=equipment)
+            try:
+                exterior_mobile = step_exterior_mobile(
+                    exterior_mobile,dt,now_s=last + duration,
+                    equipment=equipment,routes=routes,
+                    rail_access=live_rails,lock_ready=gate,
+                    rotors=rotors,motion_safe=_exterior_mobile_motion_safe(motion))
+            except MobileExteriorError as exc:
+                raise PhysicsError(str(exc)) from exc
         summary = {
             "available_mw": round(power["available_mw"], 4),
             "requested_mw": power["requested_mw"],
@@ -5385,6 +5503,13 @@ def tick_continuous_physics(*, now_game_time=None):
             "cabin_cooling_units": (
                 len(cabin_coils["last"]["operating"])
                 if cabin_coils is not None else None),
+            "exterior_mobile_energy_kwh": (
+                round(exterior_mobile["meter"]["energy_kwh"],6)
+                if exterior_mobile is not None else None),
+            "exterior_mobile_completed_sections": (
+                exterior_mobile["meter"]["sections"] if exterior_mobile is not None else None),
+            "exterior_mobile_inspections": (
+                exterior_mobile["meter"]["scans"] if exterior_mobile is not None else None),
             "portable_pumped_kg": (round(portable_damage["meter"]["pumped_kg"],6) if portable_damage is not None else None),
             "portable_smoke_retained_kg": (round(portable_damage["meter"]["smoke_captured_kg"],6) if portable_damage is not None else None),
             "portable_airflow_m3": (round(portable_damage["meter"]["recirculated_m3"],6) if portable_damage is not None else None),
@@ -6693,6 +6818,9 @@ def tick_continuous_physics(*, now_game_time=None):
         d["personnel_transfers"] = personnel_transfers
     if hab_sync is not None:
         d["hab_sync"] = hab_sync
+    if exterior_mobile is not None:
+        validate_exterior_mobile(exterior_mobile)
+        d["exterior_mobile"] = exterior_mobile
     if eva is not None:
         d["eva"] = eva
     if medical is not None:
@@ -7193,7 +7321,7 @@ def crew_physical_action(actor, request_id, action, target, value):
     """
     if not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
         raise PhysicsError("Expected one 32-character lowercase request UUID")
-    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial", "cargo_sector", "shield_trim", "cabin_air", "rescue_air", "portable_air", "portable_damage"}:
+    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial", "cargo_sector", "shield_trim", "cabin_air", "rescue_air", "portable_air", "portable_damage", "exterior_mobile"}:
         raise PhysicsError("Unknown physical operation")
     if actor is None or getattr(actor.db, "ox_terminal_dead", False):
         raise PermissionError("A deceased or missing character cannot operate machinery")
@@ -7216,8 +7344,8 @@ def crew_physical_action(actor, request_id, action, target, value):
                     "isolator:" if action == "switch"
                     else "pressure:" if action == "mist"
                     else "access:" if action == "hatch"
-                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial", "cargo_sector", "shield_trim", "cabin_air", "rescue_air", "portable_air", "portable_damage"}
-                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial", "cargo_sector", "shield_trim", "cabin_air", "rescue_air", "portable_air", "portable_damage"} else target)
+                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial", "cargo_sector", "shield_trim", "cabin_air", "rescue_air", "portable_air", "portable_damage", "exterior_mobile"}
+                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial", "cargo_sector", "shield_trim", "cabin_air", "rescue_air", "portable_air", "portable_damage", "exterior_mobile"} else target)
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
@@ -7243,6 +7371,22 @@ def crew_physical_action(actor, request_id, action, target, value):
                 or action == "switch" and target == PROP_BAY_FEEDER
                 and value != "open"):
             raise PhysicsError("PROP-SVC suited work party holds main and RCS safing and physical feeder lockout")
+    mobile_service = _clock().details.get("exterior_mobile")
+    if mobile_service is not None:
+        validate_exterior_mobile(mobile_service)
+        on_rails = [entry for entry in mobile_service["units"].values()
+                    if entry["position"] != entry["home"] or entry["job"] is not None]
+        if on_rails and (
+                action == "helm" and value != "coast"
+                or action == "attitude" and value != "hold"
+                or action == "drive" and value == "release"
+                or action == "ftl" and value == "engage"):
+            raise PhysicsError("Real deployed exterior mobile hardware inhibits ship thrust and attitude")
+        if action == "rotor" and value not in {"stop","hardlock"}:
+            if any(("EXT-" + target.replace("DR-","DR") + "-SKIN")
+                   in {entry["position"],(entry["job"] or {}).get("to")}
+                   for entry in on_rails if target.startswith("DR-")):
+                raise PhysicsError("Robot or crawler physically occupies original drum inspection skin")
     unclassified_work = _clock().details.get("unclassified_spaces")
     if unclassified_work is not None:
         validate_unclassified(unclassified_work)
@@ -9193,6 +9337,58 @@ def crew_physical_action(actor, request_id, action, target, value):
         clock.revision += 1
         clock.save(update_fields=["details", "revision"])
         item = clock
+    elif action == "exterior_mobile":
+        if target not in ORIGINAL_EXTERIOR_MOBILE:
+            raise PhysicsError("No such original crawler or drum-inspection robot")
+        home = ORIGINAL_EXTERIOR_MOBILE[target]
+        _crew_at(actor,home)
+        _health = __import__("world.ship_crew_access",fromlist=["_health_gate"])._health_gate
+        _health(actor)
+        panel = state("equipment",lock_contract(home)["panel"])
+        if panel.condition in _BROKEN:
+            raise PhysicsError("Real airlock remote crawler panel unavailable")
+        if state("equipment",target).condition in _BROKEN and value != "hold":
+            raise PhysicsError("Original mobile must be physically repaired before control")
+        clock = _clock(lock=True)
+        eva_state = clock.details.get("eva")
+        if eva_state is None:
+            raise PhysicsError("Original EVA airlock system not commissioned")
+        _,suit=suit_of(eva_state,actor.dbref)
+        if (eva_state["locks"][home]["mode"] == "vacuum"
+                and (not suit or suit["integrity"] < .8
+                     or suit["exposure"]["suit_oxygen_kg"] <= 0)):
+            raise PermissionError("Operator must wear an issued live suit inside evacuated EVA station")
+        ledger = clock.details.get("exterior_mobile")
+        if ledger is None:
+            raise PhysicsError("Original mobile exterior machinery not commissioned")
+        all_access = {x.source_id:x for x in
+                      CanonicalShipState.objects.filter(category="access")}
+        all_switches = {x.source_id:x for x in
+                        CanonicalShipState.objects.filter(category="isolator")}
+        all_equipment = {x.source_id:x for x in
+                         CanonicalShipState.objects.filter(category="equipment")}
+        all_cells = {x.source_id:_load_cell(x) for x in
+                     CanonicalShipState.objects.filter(category="pressure")}
+        routes = mobile_original_routes(load_candidate())
+        links = {key: bool(all_access[key].condition not in _BROKEN
+                           and all_access[key].setting in {"open","closed_or_auto"})
+                 for key in set(routes.values())}
+        gate = _exterior_mobile_gates(
+            eva=eva_state,pressure=all_cells,access=all_access,
+            isolators=all_switches,equipment=all_equipment)
+        before = _snapshot(clock)
+        d = dict(clock.details)
+        try:
+            d["exterior_mobile"] = mobile_move(
+                ledger,target,value,routes=routes,rail_access=links,
+                rotors=d["rotors"],lock_ready=gate,
+                motion_safe=_exterior_mobile_motion_safe(d["motion"]))
+        except MobileExteriorError as exc:
+            raise PhysicsError(str(exc)) from exc
+        clock.details = d
+        clock.revision += 1
+        clock.save(update_fields=["details","revision"])
+        item = clock
     elif action == "portable_damage":
         if target not in PORTABLE_DAMAGE_UNITS:
             raise PhysicsError("Only as-installed portable pumps and smoke fans are available")
@@ -10623,6 +10819,19 @@ def local_physics_readout(actor, target):
     room = getattr(getattr(location, "db", None), "ox_space_id", None)
     if not room:
         raise PermissionError("Stand at an installed ship compartment")
+    if target.startswith("exterior_mobile:"):
+        name = target[len("exterior_mobile:"):]
+        if name not in ORIGINAL_EXTERIOR_MOBILE:
+            raise PhysicsError("Unknown original mobile EVA apparatus")
+        home = ORIGINAL_EXTERIOR_MOBILE[name]
+        _crew_at(actor,home)
+        ledger = _clock().details.get("exterior_mobile")
+        if ledger is None:
+            raise PhysicsError("Mobile exterior machinery not commissioned")
+        validate_exterior_mobile(ledger)
+        return {"unit":name,**dict(ledger["units"][name]),
+                "condition":state("equipment",name).condition,
+                "scope":"original exterior-rail finite-battery remote sensor work"}
     if target.startswith("portable_damage:"):
         name = target[len("portable_damage:"):]
         if name not in PORTABLE_DAMAGE_UNITS:
