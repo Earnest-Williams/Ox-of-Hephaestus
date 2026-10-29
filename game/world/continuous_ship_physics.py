@@ -125,7 +125,7 @@ from world.ship_generator_bay_runtime import (
 )
 from world.ship_generator_bay_service import (
     ROOMS as GENERATOR_ROOMS, DOORS as GENERATOR_DOORS,
-    validate_generator_bays,
+    validate_generator_bays, GeneratorBayError,
 )
 from world.ship_propulsion_bay_service import (
     BayAccessError as PropulsionBayError, HATCH as PROP_BAY_HATCH,
@@ -8425,7 +8425,10 @@ def crew_physical_action(actor, request_id, action, target, value):
         clock.save(update_fields=["details", "revision"])
         item = clock
     elif action == "generator_bay":
-        item, before = _generator_room_action(actor, target, value)
+        try:
+            item, before = _generator_room_action(actor, target, value)
+        except (GeneratorBayError, ValueError, TypeError) as exc:
+            raise PhysicsError(str(exc)) from exc
     elif action == "propulsion_bay":
         # Dedicated original rated-access operation, not a normal door
         # bypass or an invented pressure zone. A real source pressure cell
