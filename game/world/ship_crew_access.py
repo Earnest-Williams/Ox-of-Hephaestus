@@ -150,6 +150,30 @@ def _clearance(actor, exit_obj, dest):
     if (src_id, dst_id) != ends or door.condition in _BROKEN:
         raise CrewTransitError("Access link damaged or not in the approved topology")
     kind = str(door.reference.get("kind", "")).lower()
+    # The original freight rail through a sector is a MASS HANDLER, not
+    # a usable person tunnel. A moored commercial sleeve likewise conveys
+    # no breathable passenger connection to the berth or into a shield.
+    from world.ship_unclassified_spaces import (
+        PERSONNEL_DOORS as SECTOR_DOORS,
+        NONPERSONNEL_LINKS as NONPERSONNEL_UNCLASSIFIED,
+    )
+    if link in NONPERSONNEL_UNCLASSIFIED:
+        raise CrewTransitError("Cargo rail/portal and shield or trim volume is not a crew entrance")
+    if link in SECTOR_DOORS:
+        from world.ship_unclassified_runtime import access_ready
+        from world.continuous_ship_physics import _clock
+        sector=SECTOR_DOORS[link]
+        from_inside=src_id==sector
+        if (door.reference.get("kind")!="cargo_service_door"
+                or door.reference.get("pressure_boundary") is not True
+                or {src_id,dst_id}!={sector,sector[:5]+"-GALLERY"}
+                or door.setting!="open"
+                or not access_ready(actor,_clock().details,sector,
+                    from_inside=from_inside,
+                    allow_small_leak=from_inside)):
+            raise CrewTransitError(
+                "Sector access requires positive whole-drum manifest, safe independent gas, parked rotor and owner's live crew permit")
+        return door
     from world.ship_freight_service import GATES, QUALIFIED_ROLES
     if link in GATES:
         # Maintenance workers must actually secure the original freight
@@ -552,6 +576,10 @@ def traverse_canonical_exit(actor, exit_obj, dest, *, request_id=None):
     if not actor.move_to(dest):
         raise CrewTransitError("Crew movement vetoed")
     from world.ship_industrial_access import DOORS as INDUSTRIAL_DOORS
+    from world.ship_unclassified_spaces import PERSONNEL_DOORS as SECTOR_DOORS
+    if link in SECTOR_DOORS and dest.db.ox_space_id == SECTOR_DOORS[link]:
+        from world.ship_unclassified_runtime import entered as entered_sector
+        entered_sector(clock, SECTOR_DOORS[link], actor)
     if link in INDUSTRIAL_DOORS and dest.db.ox_space_id == INDUSTRIAL_DOORS[link]:
         from world.ship_industrial_runtime import entered as industrial_entered
         industrial_entered(clock, INDUSTRIAL_DOORS[link], actor)
