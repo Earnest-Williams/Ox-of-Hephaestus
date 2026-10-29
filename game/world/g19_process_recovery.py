@@ -51,8 +51,13 @@ def _assert(predicate, message):
 
 
 def _prepare(db, proof):
-    _assert(not db.exists() and not proof.exists(),
-            "Process A requires a fresh disposable database/evidence path")
+    # Django/Evennia setup may create an empty SQLite file simply by
+    # probing the game-time offset before migrations. The security boundary
+    # is an EMPTY SCHEMA and absent proof, not the file's existence.
+    from django.db import connection
+    _assert(not proof.exists()
+            and not connection.introspection.table_names(),
+            "Process A refuses a previously migrated ship or old evidence")
     from django.core.management import call_command
     call_command("migrate", interactive=False, verbosity=0)
 
