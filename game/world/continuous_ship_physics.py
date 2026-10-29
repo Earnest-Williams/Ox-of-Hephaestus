@@ -63,6 +63,12 @@ from world.ship_waste_offload import (
     command as command_waste_offload, step_offload,
     debit_ship_mass_for_waste,
 )
+from world.ship_survival_craft_air import (
+    SurvivalAirError, PACKS as SURVIVAL_AIR_PACKS,
+    initial_survival_air, validate_survival_air,
+    survey_survival_air, command_survival_air,
+    step_survival_air,
+)
 from world.ship_cabin_fancoils import (
     CabinCoilError, FANCOILS as ORIGINAL_CABIN_COILS,
     coil_power_node, coil_coolant_node, initial_cabin_coils,
@@ -956,6 +962,72 @@ def survey_g19_cultivation_nutrients(*, operator_approved=False,
     clock.save(update_fields=["details", "revision"])
     _event(clock, "operator_original_nutrient_charge_survey", before)
     return {"bay": bay, "surveyed_kg": charge_kg}
+
+
+@transaction.atomic
+def commission_g19_survival_air(*, operator_approved=False):
+    """Enrol only two original rescue-bay independent LSS packages."""
+    if not operator_approved:
+        raise PermissionError("Survival-craft LSS commissioning requires operator")
+    _require_installed()
+    clock = _clock(lock=True)
+    model = load_candidate()
+    originals = {row["id"]: row for row in model["equipment"]
+                 if row["kind"] == "survival_craft_life_support"}
+    if set(originals) != set(SURVIVAL_AIR_PACKS):
+        raise PhysicsError("Original two independent craft LSS packages missing")
+    zones = _topology()[0]
+    for name, (room, zone, hatch_id) in SURVIVAL_AIR_PACKS.items():
+        item = state("equipment", name)
+        hatch = state("access", hatch_id)
+        if (originals[name]["space_id"] != room or item.space_id != room
+                or zones.get(room) != zone
+                or not hatch.reference.get("pressure_boundary")
+                or room not in {hatch.reference.get("from"),
+                                hatch.reference.get("to")}
+                or state("pressure", zone).quantity is None):
+            raise PhysicsError("Rescue LSS lacks its fitted bay, air or rated seal")
+    prior = clock.details.get("survival_air")
+    if prior is not None:
+        validate_survival_air(prior)
+        return {"commissioned": False, "packages": 2}
+    before = _snapshot(clock)
+    d = dict(clock.details)
+    d["survival_air"] = initial_survival_air()
+    clock.details = d
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "g19_original_two_survival_craft_lss_commissioned", before)
+    return {"commissioned": True, "packages": 2}
+
+
+@transaction.atomic
+def survey_g19_survival_air(*, operator_approved=False, name,
+                            capacity_kg, runtime_s):
+    """Record remaining as-found cartridge/independent run energy just once."""
+    if not operator_approved:
+        raise PermissionError("Only operator may attest real LSS residual charge")
+    clock = _clock(lock=True)
+    ledger = clock.details.get("survival_air")
+    if ledger is None or name not in SURVIVAL_AIR_PACKS:
+        raise PhysicsError("No commissioned installed survival-craft package")
+    original = state("equipment", name)
+    if (original.space_id != SURVIVAL_AIR_PACKS[name][0]
+            or original.condition in _BROKEN):
+        raise PhysicsError("Unavailable or relocated survival-craft LSS")
+    try:
+        changed = survey_survival_air(
+            ledger, name, capacity_kg=capacity_kg, runtime_s=runtime_s)
+    except SurvivalAirError as exc:
+        raise PhysicsError(str(exc)) from exc
+    before = _snapshot(clock)
+    details = dict(clock.details)
+    details["survival_air"] = changed
+    clock.details = details
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "g19_original_craft_lss_as_found_media_and_power", before)
+    return {"name": name, "capacity_kg": capacity_kg, "runtime_s": runtime_s}
 
 
 @transaction.atomic
@@ -3732,6 +3804,12 @@ def tick_continuous_physics(*, now_game_time=None):
     fault_cases = clock.details.get("fault_cases")
     if fault_cases is not None:
         validate_fault_cases(fault_cases)
+    survival_air = clock.details.get("survival_air")
+    if survival_air is not None:
+        try:
+            validate_survival_air(survival_air)
+        except SurvivalAirError as exc:
+            raise PhysicsError(str(exc)) from exc
     cabin_coils = clock.details.get("cabin_coils")
     if cabin_coils is not None:
         if electrical is None:
@@ -3824,7 +3902,10 @@ def tick_continuous_physics(*, now_game_time=None):
     bay_oxygen_kg = (propulsion_bay["gas"]["oxygen_kg"]
                      if propulsion_bay is not None and
                      propulsion_bay["gas"] is not None else 0.0)
-    total_before = (bay_gas_kg + generator_gas_kg + industrial_gas_before
+    survival_air_kg_before = (
+        survival_air["meter"]["captured_kg"] if survival_air is not None else 0.0)
+    total_before = (survival_air_kg_before
+                    + bay_gas_kg + generator_gas_kg + industrial_gas_before
                     + cargo_sector_gas_before
                     + sum(c["mass"] + c["fuel"] for c in cells.values())
                     + captured_co2 + refuge_captured_before
@@ -5054,6 +5135,19 @@ def tick_continuous_physics(*, now_game_time=None):
                     equipment=equipment, room_zones=zones, cells=cells)
             except RefugeAirError as exc:
                 raise PhysicsError(str(exc)) from exc
+        if survival_air is not None:
+            # Independent fitted rescue packs operate from surveyed internal
+            # runtime, not a fictional generator tie. CO2 actually passes
+            # from each original sealed rescue-bay pressure cell into finite
+            # retained cartridges, preserving the common mass balance.
+            try:
+                survival_air, cells = step_survival_air(
+                    survival_air, dt, now_s=last + duration,
+                    equipment=equipment,
+                    access={door.source_id: door for door in access_rows},
+                    cells=cells)
+            except SurvivalAirError as exc:
+                raise PhysicsError(str(exc)) from exc
         if electrical is not None:
             try:
                 electrical = step_energy(
@@ -5122,6 +5216,12 @@ def tick_continuous_physics(*, now_game_time=None):
             "cabin_cooling_units": (
                 len(cabin_coils["last"]["operating"])
                 if cabin_coils is not None else None),
+            "survival_air_captured_co2_kg": (
+                round(survival_air["meter"]["captured_kg"], 6)
+                if survival_air is not None else None),
+            "survival_air_running": (
+                survival_air["last"]["running"]
+                if survival_air is not None else None),
             "cargo_cooling_kw": round(cargo_cooling_kw, 3),
             "cargo_conditioned_drums": (
                 len(cargo_climate["last"]["cooled_drums"])
@@ -5214,7 +5314,9 @@ def tick_continuous_physics(*, now_game_time=None):
                 after={"room": patched_room, "leak_kg_s": 0.0,
                        "installed_spares_kg": used_kg},
                 actor_dbref=patched_worker, game_time=last + seconds)
-    total_after = (bay_gas_kg + generator_gas_kg + industrial_gas_after
+    total_after = ((survival_air["meter"]["captured_kg"]
+                    if survival_air is not None else 0.0)
+                   + bay_gas_kg + generator_gas_kg + industrial_gas_after
                    + cargo_sector_gas_after
                    + sum(c["mass"] + c["fuel"] for c in cells.values())
                    + captured_co2
@@ -6293,6 +6395,9 @@ def tick_continuous_physics(*, now_game_time=None):
     if cabin_coils is not None:
         validate_cabin_coils(cabin_coils)
         d["cabin_coils"] = cabin_coils
+    if survival_air is not None:
+        validate_survival_air(survival_air)
+        d["survival_air"] = survival_air
     if fault_cases is not None:
         # A verified restart is not two elapsed global ticks. The actual
         # installed machine must run with its correctly restored source and
@@ -6906,7 +7011,7 @@ def crew_physical_action(actor, request_id, action, target, value):
     """
     if not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
         raise PhysicsError("Expected one 32-character lowercase request UUID")
-    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial", "cargo_sector", "shield_trim", "cabin_air"}:
+    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial", "cargo_sector", "shield_trim", "cabin_air", "rescue_air"}:
         raise PhysicsError("Unknown physical operation")
     if actor is None or getattr(actor.db, "ox_terminal_dead", False):
         raise PermissionError("A deceased or missing character cannot operate machinery")
@@ -6929,8 +7034,8 @@ def crew_physical_action(actor, request_id, action, target, value):
                     "isolator:" if action == "switch"
                     else "pressure:" if action == "mist"
                     else "access:" if action == "hatch"
-                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial", "cargo_sector", "shield_trim", "cabin_air"}
-                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial", "cargo_sector", "shield_trim", "cabin_air"} else target)
+                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial", "cargo_sector", "shield_trim", "cabin_air", "rescue_air"}
+                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial", "cargo_sector", "shield_trim", "cabin_air", "rescue_air"} else target)
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
@@ -8906,6 +9011,33 @@ def crew_physical_action(actor, request_id, action, target, value):
         clock.revision += 1
         clock.save(update_fields=["details", "revision"])
         item = clock
+    elif action == "rescue_air":
+        if target not in SURVIVAL_AIR_PACKS or value not in {"scrub", "off"}:
+            raise PhysicsError("Only two original rescue-bay air packages exist")
+        room, zone, hatch_id = SURVIVAL_AIR_PACKS[target]
+        _crew_at(actor, room)
+        item_unit = state("equipment", target)
+        hatch = state("access", hatch_id)
+        if value == "scrub" and (
+                item_unit.condition in _BROKEN
+                or hatch.condition in _BROKEN
+                or hatch.setting != "closed"):
+            raise PhysicsError("Independent survival air needs sound sealed bay")
+        clock = _clock(lock=True)
+        prior = clock.details.get("survival_air")
+        if prior is None:
+            raise PhysicsError("Independent craft LSS not commissioned")
+        before = _snapshot(clock)
+        details = dict(clock.details)
+        try:
+            details["survival_air"] = command_survival_air(
+                prior, target, value)
+        except SurvivalAirError as exc:
+            raise PhysicsError(str(exc)) from exc
+        clock.details = details
+        clock.revision += 1
+        clock.save(update_fields=["details", "revision"])
+        item = clock
     elif action == "cabin_air":
         if target not in ORIGINAL_CABIN_COILS or value not in {"on", "off"}:
             raise PhysicsError("Only a fitted cabin terminal's ON/OFF is available")
@@ -10249,6 +10381,30 @@ def local_physics_readout(actor, target):
     room = getattr(getattr(location, "db", None), "ox_space_id", None)
     if not room:
         raise PermissionError("Stand at an installed ship compartment")
+    if target.startswith("rescue_air:"):
+        name = target[len("rescue_air:"):]
+        if name not in SURVIVAL_AIR_PACKS:
+            raise PhysicsError("No original independent craft air package")
+        bay, zone, hatch_id = SURVIVAL_AIR_PACKS[name]
+        _crew_at(actor, bay)
+        ledger = _clock().details.get("survival_air")
+        if ledger is None:
+            raise PhysicsError("Original survival craft LSS not commissioned")
+        validate_survival_air(ledger)
+        source = state("equipment", name)
+        unit = ledger["units"][name]
+        return {
+            "unit": name, "room": bay, "pressure_zone": zone,
+            "condition": source.condition, "mode": unit["mode"],
+            "charge": unit["charge"],
+            "captured_kg": unit["captured_kg"],
+            "last_captured_kg": unit["last_capture_kg"],
+            "last_sample_s": unit["last_s"],
+            "rated_people": 40,
+            "rated_design_days": 30,
+            "rated_hatch": hatch_id,
+            "scope": "attended_original_rescue_bay_finite_cartridge_only",
+        }
     if target.startswith("cabin:"):
         name = target[6:]
         if name not in ORIGINAL_CABIN_COILS:
