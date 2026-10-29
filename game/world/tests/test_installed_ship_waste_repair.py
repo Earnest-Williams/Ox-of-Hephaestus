@@ -265,36 +265,163 @@ class InstalledWasteAndRepairTests(EvenniaTestCase):
             "equipment:WATER-PROC-A"]["remaining_s"], 540)
 
     def test_failed_generator_needs_isolation_and_never_restarts_after_repair(self):
+        """Generator B repair uses the ORIGINAL rated hatch and issued EVA suit.
+
+        A legacy personnel flag or a repair-site survey is not permission to
+        enter the as-fitted unclassified machinery room. The actual generator
+        must be tripped, the gas positively surveyed, and the suited worker
+        must acquire and retain a personal generator-bay permit throughout
+        finite-parts work. Repair must never silently energize the source.
+        """
+        from world.continuous_ship_physics import (
+            commission_g19_electrical, commission_g19_eva,
+            commission_g19_crew_physiology, commission_g19_generator_bays,
+            survey_g19_generator_room,
+        )
+        from world.ship_generator_bay_service import ROOMS
+        from world.ship_world import find_world_entity
+        from world.ship_crew_access import traverse_canonical_exit
+
         self._toolkit()
-        self.tech.move_to(find_ship_space("GEN-B-ROOM"), quiet=True)
-        self._action(self.tech, "e", "plant", "GEN-B", "off")
-        set_isolator("ISO-GEN-B", "open", operator=True)
+        self.tech.move_to(find_ship_space("ENG-CONTROL"), quiet=True)
+        commission_g19_electrical(operator_approved=True)
+        commission_g19_eva(operator_approved=True)
+        commission_g19_crew_physiology(
+            operator_approved=True, actor_dbrefs=[self.tech.dbref])
+        commission_g19_generator_bays(operator_approved=True)
+
+        serial = 43000
+        def ident():
+            nonlocal serial
+            serial += 1
+            return f"{serial:032x}"
+
+        def act(kind, target, value, request_id=None):
+            return crew_physical_action(
+                self.tech, request_id or ident(), kind, target, value)
+
+        def transit(link, direction):
+            exit_obj = find_world_entity(f"access:{link}:{direction}")
+            self.assertIsNotNone(exit_obj)
+            result = traverse_canonical_exit(
+                self.tech, exit_obj, exit_obj.destination, request_id=ident())
+            self.assertEqual(result["status"], "succeeded")
+            return result
+
+        room, hatch, trunk = "GEN-B-ROOM", "ACC-GEN-B-ROOM", "TRUNK-B-AFT"
+        self.assertEqual(
+            act("generator_bay", room, "trip")["status"], "succeeded")
+        self.assertEqual(state("isolator", "ISO-GEN-B").setting, "open")
+        self.assertFalse(state("equipment", "GEN-B").details["physics_online"])
         set_component_condition("equipment", "GEN-B", "failed", operator=True)
+        self.assertEqual(
+            survey_g19_generator_room(
+                operator_approved=True, room_id=room,
+                volume_m3=ROOMS[room][5] * .75,
+                pressure_pa=101000, temperature_k=293.15,
+                oxygen_mass_fraction=.232, co2_mass_fraction=.0004,
+                smoke_mass_fraction=0, skin_temperature_k=299)["room"],
+            room)
+        # The worksite attestation describes the existing machine and
+        # cannot create a suit, breathing gas or a generator-room permit.
+        self.assertFalse(survey_g19_repair_site(
+            operator_approved=True, room_id=room,
+            work_class="suited_service")["changed"])
+
         survey_g19_water_material(
             operator_approved=True, source="INV-SPARES",
             room_id="STORE-CRIT-SPARES", verified_kg=4)
         self.tech.move_to(find_ship_space("STORE-CRIT-SPARES"), quiet=True)
-        self._action(self.tech, "f", "repair", "INV-SPARES", "pickup:3")
-        self.tech.move_to(find_ship_space("GEN-B-ROOM"), quiet=True)
-        with self.assertRaises(PhysicsError):
-            self._action(self.tech, "1", "repair", "equipment:GEN-B", "start")
-        survey_g19_repair_site(
-            operator_approved=True, room_id="GEN-B-ROOM",
-            work_class="suited_service")
-        with self.assertRaises(PhysicsError):
-            self._action(self.tech, "2", "repair", "equipment:GEN-B", "start")
+        original_stock = state("inventory", "INV-SPARES").quantity
+        self.assertEqual(act(
+            "repair", "INV-SPARES", "pickup:3")["status"], "succeeded")
+        self.assertAlmostEqual(
+            state("inventory", "INV-SPARES").quantity, original_stock - .003,
+            places=7)
+
+        self.tech.move_to(find_ship_space(trunk), quiet=True)
         self.tech.db.ox_suit_verified = True
-        self._action(self.tech, "3", "repair", "equipment:GEN-B", "start")
+        rejected = ident()
+        with self.assertRaises((PhysicsError, PermissionError)):
+            act("repair", "equipment:GEN-B", "start", request_id=rejected)
+        self.assertFalse(WorkReceipt.objects.filter(pk=rejected).exists())
         self.tech.db.ox_suit_verified = False
-        tick_continuous_physics(now_game_time=1060)
+        with self.assertRaises(PhysicsError):
+            act("generator_bay", room, "secure")
+
+        # Check out one of the four real suits, carrying finite issued
+        # oxygen through the original aft EVA pressure boundary.
+        self.tech.move_to(find_ship_space("ENG-LOCKER"), quiet=True)
+        self.assertEqual(act(
+            "eva", "INV-DC-CONSUMABLES", "stage:0.75")["status"],
+            "succeeded")
+        self.tech.move_to(find_ship_space("TRUNK-B-AFT"), quiet=True)
+        self.assertEqual(
+            act("eva", "EVA-AFT", "inner_open")["status"], "succeeded")
+        transit("ACC-EVA-AFT", "forward")
+        self.assertEqual(
+            act("eva", "EVA-AFT", "inner_close")["status"], "succeeded")
+        self.assertEqual(
+            act("eva", "EVA-AFT", "checkout")["status"], "succeeded")
+        self.assertEqual(
+            act("eva", "EVA-AFT", "inner_open")["status"], "succeeded")
+        transit("ACC-EVA-AFT", "reverse")
+        self.assertEqual(
+            act("eva", "EVA-AFT", "inner_close")["status"], "succeeded")
+
+        self.assertEqual(
+            act("generator_bay", room, "secure")["status"], "succeeded")
+        self.assertEqual(
+            act("hatch", hatch, "open")["status"], "succeeded")
+        transit(hatch, "forward")
+        self.assertEqual(
+            act("hatch", hatch, "closed")["status"], "succeeded")
+        self.assertEqual(self.tech.location.db.ox_space_id, room)
+        self.assertEqual(
+            act("generator_bay", room, "inspect")["status"], "succeeded")
+
+        # Even with the old boolean explicitly false, the actual issued
+        # suit and personal rated-room permit permit repair.
+        self.assertFalse(bool(self.tech.db.ox_suit_verified))
+        repair_id = ident()
+        receipt = act("repair", "equipment:GEN-B", "start",
+                      request_id=repair_id)
+        self.assertEqual(receipt["status"], "succeeded")
+        self.assertEqual(
+            act("repair", "equipment:GEN-B", "start",
+                request_id=repair_id), receipt)
         self.assertEqual(_clock().details["repairs"]["jobs"][
             "equipment:GEN-B"]["remaining_s"], 600)
-        self.tech.db.ox_suit_verified = True
-        self._tick(600, start=1060)
+
+        tick_continuous_physics(now_game_time=1060)
+        self.assertEqual(_clock().details["repairs"]["jobs"][
+            "equipment:GEN-B"]["remaining_s"], 540)
+        self._tick(540, start=1060)
         self.assertEqual(state("equipment", "GEN-B").condition, "serviceable")
         self.assertFalse(state("equipment", "GEN-B").details["physics_online"])
         self.assertEqual(state("isolator", "ISO-GEN-B").setting, "open")
-        self.assertFalse(state("equipment", "GEN-B").details["physics_commanded_on"])
+        self.assertFalse(
+            state("equipment", "GEN-B").details["physics_commanded_on"])
+        self.assertAlmostEqual(
+            _clock().details["repairs"]["installed_kg"], 3.0)
+        self.assertFalse(_clock().details["repairs"]["jobs"])
+        self.assertEqual(
+            _clock().details["generator_bays"]["rooms"][room]["entries"], 1)
+        self.assertEqual(WorkReceipt.objects.filter(pk=repair_id).count(), 1)
+
+        # Returning through the real hatch and releasing the exclusive
+        # maintenance permit never silently rearms or reconnects GEN-B.
+        self.assertEqual(
+            act("hatch", hatch, "open")["status"], "succeeded")
+        transit(hatch, "reverse")
+        self.assertEqual(
+            act("hatch", hatch, "closed")["status"], "succeeded")
+        self.assertEqual(
+            act("generator_bay", room, "release")["status"], "succeeded")
+        self.assertIsNone(_clock().details[
+            "generator_bays"]["rooms"][room]["permit"])
+        self.assertFalse(state("equipment", "GEN-B").details["physics_online"])
+        self.assertEqual(state("isolator", "ISO-GEN-B").setting, "open")
 
 
 if __name__ == "__main__":
