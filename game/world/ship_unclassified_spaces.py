@@ -107,10 +107,11 @@ def drum_parked(rotors, drum):
 
 def initial_unclassified():
     return {
-        "version": 1,
+        "version": 2,
         "sectors": {s: {
             "gas": None, "initial_kg": 0.0, "lost_kg": 0.0,
-            "leak_kg_s": 0.0, "class": None, "lot_ids": [],
+            "leak_kg_s": 0.0, "gallery_net_kg": 0.0,
+            "class": None, "lot_ids": [],
             "manifest_digest": None, "permit": None,
             "entries": 0, "inspections": 0, "seal": None,
             "seals_completed": 0
@@ -127,16 +128,25 @@ def initial_unclassified():
 
 def validate_unclassified(ledger):
     template = initial_unclassified()
+    # Original G19 commissioning wrote v1 sealed cargo charges. Accept those
+    # records without rewriting an as-found atmosphere; the first genuine
+    # open-hatch exchange upgrades just that ledger to v2.
+    version = ledger.get("version") if isinstance(ledger, dict) else None
     if (not isinstance(ledger, dict) or set(ledger) != set(template)
-            or ledger.get("version") != 1
+            or type(version) is not int or version not in (1, 2)
             or not all(isinstance(ledger.get(k), dict)
                        and set(ledger[k]) == set(template[k])
                        for k in ("sectors", "portals", "voids"))):
         raise UnclassifiedSpaceError("63 original unclassified spaces not conserved")
     holders = set()
     for site, row in ledger["sectors"].items():
-        if not isinstance(row, dict) or set(row) != set(template["sectors"][site]):
+        expected = set(template["sectors"][site])
+        if version == 1:
+            expected.remove("gallery_net_kg")
+        if not isinstance(row, dict) or set(row) != expected:
             raise UnclassifiedSpaceError("Cargo sector ledger has unexpected fields")
+        gallery_net_kg = (
+            _num(row["gallery_net_kg"], -math.inf) if version == 2 else 0.0)
         for k in ("initial_kg", "lost_kg", "leak_kg_s"):
             _num(row[k], 0, MAX_LEAK_KG_S if k == "leak_kg_s" else math.inf)
         for k in ("entries", "inspections", "seals_completed"):
@@ -149,7 +159,8 @@ def validate_unclassified(ledger):
                     or any(row[k] for k in ("initial_kg", "lost_kg",
                                            "leak_kg_s", "entries",
                                            "inspections", "seals_completed"))
-                    or row["permit"] is not None or row["seal"] is not None):
+                    or row["permit"] is not None or row["seal"] is not None
+                    or gallery_net_kg != 0):
                 raise UnclassifiedSpaceError("Unsampled cargo sector was made breathable")
             continue
         if not isinstance(gas, dict) or set(gas) != {
@@ -164,7 +175,7 @@ def validate_unclassified(ledger):
         _num(gas["temperature_k"], 240, 350)
         _num(gas["sample_s"])
         if (not math.isclose(row["initial_kg"],
-                gas["mass_kg"]+row["lost_kg"],
+                gas["mass_kg"]+row["lost_kg"]-gallery_net_kg,
                 rel_tol=1e-10, abs_tol=1e-5)
                 or sum(gas[k] for k in ("oxygen_kg","co2_kg","smoke_kg")) >
                    gas["mass_kg"]+EPS or bay_pressure(gas) > 150000):
@@ -517,6 +528,99 @@ def inspect_void(ledger,void,now_s):
     updated["voids"][void]["last_control_s"]=_num(now_s)
     validate_unclassified(updated)
     return updated
+
+
+
+def exchange_open_sector_hatch(ledger, sector, gallery, seconds):
+    """Move measured gas through an OPEN original cargo-sector rated door.
+
+    An unmeasured sector remains unknown, not an atmospheric source. Mass,
+    O2, CO2, smoke and sensible enthalpy cross the existing door in exactly
+    opposite ledgers. The sector wall is not a new ship pressure cell.
+    Existing sealed-charge v1 accounts upgrade without resetting the charge.
+    This function is used only for an actually open fitted hatch by the
+    authoritative world clock; it cannot issue a crew access permit.
+    """
+    validate_unclassified(ledger)
+    if sector not in SECTORS:
+        raise UnclassifiedSpaceError("No original sector at the open hatch")
+    elapsed = _num(seconds, 0, MAX_TICK_S)
+    sampled = ledger["sectors"][sector]["gas"]
+    if sampled is None:
+        raise UnclassifiedSpaceError(
+            "An open sector hatch cannot be treated as known breathing air")
+    if not isinstance(gallery, dict) or not all(k in gallery for k in (
+            "mass", "oxygen", "co2", "smoke", "temperature", "volume",
+            "capacity", "energy")):
+        raise UnclassifiedSpaceError("Real gallery gas/thermal ledger is missing")
+    # No-op ticks must not migrate or alter persistent custody.
+    if elapsed == 0:
+        return ledger, gallery
+    updated = copy.deepcopy(ledger)
+    if updated["version"] == 1:
+        updated["version"] = 2
+        for row in updated["sectors"].values():
+            row["gallery_net_kg"] = 0.0
+    gas = updated["sectors"][sector]["gas"]
+    original_mass = gas["mass_kg"]
+    wall_capacity = 1000.0 + 10.0 * gas["volume_m3"]
+    a = copy.deepcopy(gallery)
+    b = {
+        "mass": gas["mass_kg"], "oxygen": gas["oxygen_kg"],
+        "co2": gas["co2_kg"], "smoke": gas["smoke_kg"],
+        "volume": gas["volume_m3"], "temperature": gas["temperature_k"],
+        "capacity": wall_capacity,
+        "energy": (wall_capacity + gas["mass_kg"] * GAS_CP_KJ_KG_K)
+                  * gas["temperature_k"],
+    }
+    for cell in (a, b):
+        for key in ("mass", "oxygen", "co2", "smoke", "volume",
+                    "temperature", "capacity", "energy"):
+            _num(cell[key])
+        if (cell["mass"] <= 0 or cell["volume"] <= 0
+                or cell["capacity"] <= 0 or
+                sum(cell[key] for key in ("oxygen", "co2", "smoke"))
+                > cell["mass"] + EPS):
+            raise UnclassifiedSpaceError("Invalid gallery/sector gas at rated door")
+
+    def parcel(source, destination, requested):
+        amount = min(requested, 0.20 * source["mass"])
+        if amount <= 0:
+            return
+        share = amount / source["mass"]
+        for species in ("oxygen", "co2", "smoke"):
+            moved = source[species] * share
+            source[species] -= moved
+            destination[species] += moved
+        enthalpy = amount * GAS_CP_KJ_KG_K * source["temperature"]
+        source["energy"] -= enthalpy
+        destination["energy"] += enthalpy
+        source["mass"] -= amount
+        destination["mass"] += amount
+        for cell in (source, destination):
+            cell["temperature"] = cell["energy"] / (
+                cell["capacity"] + cell["mass"] * GAS_CP_KJ_KG_K)
+
+    # The same deliberately bounded rates as the ordinary pressure hatch:
+    # ordinary mixing, followed by directionally correct pressure relief.
+    exchange = min(0.25 * elapsed, 0.02 * a["mass"], 0.02 * b["mass"])
+    parcel(a, b, exchange)
+    parcel(b, a, exchange)
+    pa = a["mass"] * R_AIR * a["temperature"] / a["volume"]
+    pb = b["mass"] * R_AIR * b["temperature"] / b["volume"]
+    if abs(pa - pb) > 1:
+        donor, receiver = (a, b) if pa > pb else (b, a)
+        parcel(donor, receiver, min(
+            0.60 * elapsed * abs(pa - pb) / 101325.0,
+            0.10 * donor["mass"]))
+    for species, key in (("oxygen", "oxygen_kg"),
+                         ("co2", "co2_kg"), ("smoke", "smoke_kg")):
+        gas[key] = b[species]
+    gas["mass_kg"] = b["mass"]
+    gas["temperature_k"] = b["temperature"]
+    updated["sectors"][sector]["gallery_net_kg"] += b["mass"] - original_mass
+    validate_unclassified(updated)
+    return updated, a
 
 
 def breathing_sample(ledger,sector):
