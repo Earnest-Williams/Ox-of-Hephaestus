@@ -605,3 +605,32 @@ explicitly **false** during successful issued-suit operation.
 The combined positive recovery scenario is now the 13th selected installed
 compatibility check in the final G19 campaign, whose expanded five-job
 rerun must pass before whole-ship signoff.
+
+
+## Attended G19 fire/mist and GEN-B finite repair — late 29 October 2026
+
+The original HAB fire-mist controls now require an **actually issued EVA suit
+with finite oxygen**, rather than an inherited `ox_suit_verified` flag. The
+crew-operated original fire-main pump and fused motor produce measurable,
+finite water discharge; a lost motor fuse removes this output, and restoring
+it returns the original output. The same installed casualty scenario uses a
+physically carried filter and a powered purifier to clear potable quarantine
+without restoring lost cargo-sector breathing gas. [Attended fire/water
+contract](G19_ATTENDED_FIRE_WATER_RECOVERY_2026-10-29.md).
+
+The old GEN-B maintenance regression has been replaced with an attended
+as-fitted procedure: ENG-CONTROL generator trip, actual GEN-B gas survey,
+finite **3 kg** staged spare issue, genuine aft EVA suit checkout and rated
+hatch transit, signed personally held generator-room permit, **600 seconds**
+of ongoing repair and physical exit. It leaves the completed generator
+**commanded off and isolated**. The [dedicated GEN-B repair evidence](G19_GENERATOR_B_ATTENDED_REPAIR_ACCEPTANCE_2026-10-29.md)
+includes the [6/6 installed waste/repair passing job
+#40958586487](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40958586487).
+
+The companion [revised five-job full integration acceptance
+#40958586524](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40958586524)
+passed **53/53 automated tests plus all three distinct restart phases** at
+runtime `f9f46ad8`, and the [seven-case sustained casualty run
+#40958586472](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40958586472)
+passed. The instrumentation workflow now observes `test_installed_ship_waste_repair.py`
+to prevent stale generator-work compatibility acceptance.

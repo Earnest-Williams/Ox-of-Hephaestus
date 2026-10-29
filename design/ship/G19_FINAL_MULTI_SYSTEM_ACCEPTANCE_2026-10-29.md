@@ -41,3 +41,29 @@ Keep PR #138 in draft until remaining whole-ship closure criteria have explicitl
 The subsequent [seeded sustained casualty campaign](G19_SEEDED_ENDURANCE_ACCEPTANCE_2026-10-29.md) passed **7/7 independent installed Evennia jobs** in [CI #40936113860](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40936113860), tested at code revision `c8b0bb962e17a99d045be0b1ece077822e7a85a0`.
 
 Six separate 24-minute runs cover **all six permutations** of fire, power and water contamination during a true cargo-sector shell casualty. A seventh **180-minute** run retains the same physical faults without time-skipped resources, damaged-hatch repair or automatic inventory restock. Total independently tested game time is **324 minutes**, with minute-by-minute original pressure-cell, gas loss, fuel custody, generator supply, quarantine, instrument time and replay checks. This strengthens the earlier 52-test acceptance without revising its separate tested code revision.
+
+
+## New 13th physical-output witness — green revised integration gate
+
+After the G19 attended HAB fire-water recovery fix, the selected real-world
+compatibility matrix gained its **13th** installed witness. It requires a
+physically issued, finite-oxygen EVA suit to start HAB fire-mist suppression;
+the old `ox_suit_verified` profile flag cannot substitute for gear. It also
+requires actual `FIRE-PUMP-FWD` discharge under motor-fuse interruption,
+a physically carried, consumed chemistry filter, positive original
+`WATER-PROC-A` treatment and attended potable quality clearance, while an
+independent original DR-03 cargo shell remains damaged.
+
+**Current validated code revision:** `f9f46ad8c9ed079fc028520aae4b7c0da22f5759`.
+[CI #40958586524](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40958586524)
+passed **5/5 jobs**: **30 pure**, **7 installed casualty/replay**, **3 adjacent
+installed**, **13 selected live physical-output compatibility tests**, and
+**3 independent-process restart phases**. This updates the earlier 52-test
+snapshot to **53/53 automated tests plus the 3 restart phases**. The earlier
+historical acceptance revisions listed above remain valid as historical
+records, rather than being silently rewritten to describe tests they did not
+contain. [Detailed physical fire and water recovery contract](G19_ATTENDED_FIRE_WATER_RECOVERY_2026-10-29.md).
+
+The same revised test code passed the [seven-case seeded endurance run
+#40958586472](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40958586472)
+and [five-job original waste and generator repair run #40958586487](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40958586487).
