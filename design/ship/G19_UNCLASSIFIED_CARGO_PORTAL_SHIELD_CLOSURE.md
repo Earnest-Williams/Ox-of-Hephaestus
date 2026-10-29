@@ -69,10 +69,18 @@ or remaining crew inside cannot cancel another worker's incomplete job.
 The acceptance matrix now includes an all-48 gas conservation sweep,
 independent revision-bound verification of all 12 commercial portals,
 real crew breathing and long-duration egress, and finite-material
-interrupted-patch tests. The latest tested runtime under review is
-[`01c1e574`](https://github.com/Earnest-Williams/Ox-of-Hephaestus/commit/01c1e5741bc6037afaec4d3b68c22f7c0853c969);
+interrupted-patch tests. CI exposed two previously incorrect acceptance
+fixtures: a cargo manifest cannot start with zero original onboard mass;
+and an already fully loaded ship cannot accept another 1,000 kg simply
+because a loading sleeve passed pressure inspection. The latter case is
+now explicitly checked as an overload rejection, followed by a legitimate
+outbound transfer of 3,000 kg already in the ship's reference freight.
+Both corrections preserve actual onboard mass and existing port interlocks.
+
+The current runtime revision is
+[`15819317`](https://github.com/Earnest-Williams/Ox-of-Hephaestus/commit/15819317063750b4a0f35fb36052618cc1b86a6e);
 its dedicated run is
-[40804385454](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40804385454).
+[40804699570](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40804699570).
 Do not declare the workflow accepted until all three jobs finish green.
 
 ## Acceptance and integration boundaries
