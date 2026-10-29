@@ -286,7 +286,8 @@ def mobile_move(ledger, name, value, *, routes, rail_access, rotors,
                     and to.startswith("EXT-")
                     or other["job"] is not None
                     and other["job"]["kind"] == "move"
-                    and other["job"]["link"] == link)
+                    and (other["job"]["link"] == link
+                         or other["job"]["to"] == to))
                 for other_name, other in out["units"].items()):
             raise MobileExteriorError("Actual rail segment or exterior berth already occupied")
         required_kwh = ((SCAN_KW if value == "scan" else DRIVE_KW[_kind(name)])
