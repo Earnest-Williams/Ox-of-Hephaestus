@@ -177,6 +177,15 @@ class ExteriorMobileTests(unittest.TestCase):
         self.assertEqual(self.state["units"][self.name]["position"],"EXT-BOW")
         self.assertEqual(self.state["units"]["EVA-CRAWLER-1"]["position"],"EVA-FWD")
 
+    def test_true_as_built_first_rail_is_supported_by_test_itinerary(self):
+        from world.ship_model import load_ship_model
+        model=load_ship_model()
+        rail = next(x for x in model.access_links
+                    if x.id=="ACC-EXT-BOW-EXT-DR01")
+        self.assertEqual(
+            (rail.from_id,rail.to_id,rail.kind),
+            ("EXT-BOW","EXT-DR01-SKIN","eva_rail"))
+
     def test_rail_source_must_be_original_vacuum_geometry(self):
         wrong=copy.deepcopy(REFERENCE)
         wrong["spaces"][1]["pressure_zone"]="PZ-DR-01"
