@@ -366,3 +366,56 @@ worksite characterization, remaining unsurveyed machinery zones, full
 multi-system casualty/replay testing and original whole-vessel closure.
 The deferred 40-crew voyage has not been run; PR #138 remains draft
 and unmerged.
+
+
+## G19 as-fitted industrial service continuation (29 October 2026)
+
+A 16-room industrial extension on this same draft branch operationally models
+the four previously unclassified aft machinery galleries (THERM-HT, FTL-SVC,
+FUEL-SVC and REACTION-SVC) plus BE-01..12 bearing rooms, two for each of
+the six original DR-01..06 cargo drums. It preserves all 421 source rooms,
+517 original links and 808 original equipment identities; it does not turn
+these into new pressure cells or assume their original gas is breathable.
+
+The source-frozen worksite register in
+[G19 industrial service and casualty contract](G19_INDUSTRIAL_SERVICE_AND_CASUALTY.md)
+and the world-authoritative runtime provide:
+positive one-time real-gas survey, 20 kg maximum physically sourced clean
+trunk-to-bay equalisation, 2 kPa differential gate, original rated hatch,
+per-person issued finite-oxygen suit, individually signed permit and
+authenticated movement/inspection receipts. Aft machinery and original HT
+valve, FTL, main/RCS drive, and braked cargo-drum isolation are tied directly
+to real plant state. Failed machines require their original local breaker
+OPEN during finite-spares repair; independently fitted motor feeders must
+also be genuinely open. A live work order padlocks re-energisation.
+Small shell leaks draw down the previously enclosed gas and add exactly
+that gas to loss-to-space; a present, suited worker needs an authentic
+assigned toolkit, 2 kg of already issued original spare material and
+180 seconds to seal a bounded leak, with all worksite/isolation checks
+repeated each tick. Larger unsafe leaks have no imagined internal bypass.
+
+A physical breach at FTL/FUEL inhibits translation; THERM/REACTION
+casualties inhibit propulsion; a bearing annulus leak orders the associated
+rotor to coast down under existing continuous dynamics. An active
+high-energy-room permit separately blocks conflicting restart commands.
+These are game-world causal checks, not certification.
+
+**Acceptance accounting:** The initial pure industrial and inherited
+installed generator/PROP-SVC regression jobs passed at
+[run #40793435817](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40793435817),
+while that run's first new industrial installed fixture was corrected after
+it tried to enrol an engineer before physically boarding the real ship.
+The corrected and expanded pure, installed and compatibility suite is
+[run #40794343776](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40794343776).
+The full 3-job gate must be green at the relevant code head before declaring
+the 16-room integration **accepted**. Do not infer acceptance from prior
+green code or this documentation revision.
+
+The other 63 original unclassified spaces are not all similar enclosed
+machine bays: 48 manifest-dependent drum cargo sectors, 12 cargo portals
+and 3 shield/trim geometric spaces require separately tailored access and
+material/thermal safety rules. Original WR-TRIM-TANK-BAY remains a reviewed
+noncrew void. Do not invent an ordinary personnel hatch into it.
+
+PR #138 remains draft and not merged. The excluded 40-crew voyage has
+not been run. The full G19 whole-vessel cross-system closure remains open.
