@@ -161,6 +161,72 @@ class UnclassifiedTaxonomy(unittest.TestCase):
         with self.assertRaises(UnclassifiedSpaceError):
             exchange_open_sector_hatch(legacy, "DR-02-SEC-01", gallery, 10)
 
+    def test_compound_open_hatch_shell_loss_bleeds_finite_gallery(self):
+        ledger, _ = survey_all()
+        sector = "DR-01-SEC-05"
+        sample = ledger["sectors"][sector]["gas"]
+        gallery = {
+            "mass": 61.0, "oxygen": 61.0 * .232,
+            "co2": 61.0 * .0004, "smoke": 0.0,
+            "temperature": 293.15, "volume": 50.0, "capacity": 1500.0}
+        gallery["energy"] = (
+            gallery["capacity"] + gallery["mass"]) * gallery["temperature"]
+        combined_start = sample["mass_kg"] + gallery["mass"]
+        original_gallery = gallery["mass"]
+        ledger = inject_sector_leak(ledger, sector, .7)
+        vented = 0.0
+        for _ in range(6):
+            ledger, gallery = exchange_open_sector_hatch(
+                ledger, sector, gallery, 10.0)
+            ledger, loss, jobs = tick_unclassified(ledger, 10)
+            self.assertEqual(jobs, ())
+            vented += loss
+            self.assertTrue(validate_unclassified(ledger))
+        site = ledger["sectors"][sector]
+        self.assertGreater(vented, 30)
+        self.assertLess(gallery["mass"], original_gallery)
+        self.assertGreater(site["gallery_net_kg"], 0)
+        self.assertAlmostEqual(
+            combined_start, gallery["mass"] + site["gas"]["mass_kg"]
+            + vented, places=5)
+        self.assertAlmostEqual(vented, site["lost_kg"], places=5)
+        # Closing the actual rated hatch means the next shell loss is
+        # debited exclusively from the sector's finite retained charge.
+        closed = copy.deepcopy(gallery)
+        ledger, extra, _ = tick_unclassified(ledger, 10)
+        self.assertEqual(gallery, closed)
+        self.assertAlmostEqual(
+            combined_start, gallery["mass"]
+            + ledger["sectors"][sector]["gas"]["mass_kg"]
+            + vented + extra, places=5)
+
+    def test_vented_empty_sector_does_not_freeze_open_hatch_physics(self):
+        ledger, _ = survey_all()
+        sector = "DR-01-SEC-08"
+        emptied = copy.deepcopy(ledger)
+        site = emptied["sectors"][sector]
+        gas = site["gas"]
+        site["lost_kg"] = gas["mass_kg"]
+        gas["mass_kg"] = 0.0
+        for component in ("oxygen_kg", "co2_kg", "smoke_kg"):
+            gas[component] = 0.0
+        self.assertTrue(validate_unclassified(emptied))
+        gallery = {
+            "mass": 61.0, "oxygen": 14.152, "co2": 0.025,
+            "smoke": 0.0, "temperature": 293.15, "volume": 50.0,
+            "capacity": 1500.0}
+        gallery["energy"] = (
+            gallery["capacity"] + gallery["mass"]) * gallery["temperature"]
+        revised, after = exchange_open_sector_hatch(
+            emptied, sector, gallery, 10)
+        self.assertGreater(revised["sectors"][sector]["gas"]["mass_kg"], 0)
+        self.assertLess(after["mass"], gallery["mass"])
+        self.assertAlmostEqual(
+            after["mass"] + revised["sectors"][sector]["gas"]["mass_kg"],
+            gallery["mass"])
+        self.assertEqual(emptied["sectors"][sector]["gas"]["mass_kg"], 0)
+        self.assertTrue(validate_unclassified(revised))
+
     def test_positive_gas_is_per_sector_and_never_regenerated(self):
         l,m=survey_all()
         self.assertEqual(sum(x["gas"] is not None for x in l["sectors"].values()),8)
