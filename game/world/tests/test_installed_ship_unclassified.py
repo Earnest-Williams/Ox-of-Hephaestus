@@ -259,13 +259,25 @@ class OriginalCargoAndVoidClosure(EvenniaTestCase):
             portal=portal,berth_id="BERTH-A")
         self.assertTrue(local_physics_readout(
             self.worker,"cargo_portals")["portals"][portal]["ready"])
-        self.op("port",portal,"load:EXT-LOT-1")
+        # The original ship leaves berth with its reference cargo aboard;
+        # a valid pressure-sleeve certificate is NOT a grant of extra hold
+        # capacity. Preserve the real 1000 kg overload refusal.
+        with self.assertRaises(PhysicsError):
+            self.op("port",portal,"load:EXT-LOT-1")
+        # Locate an actual portion of that existing onboard reference cargo,
+        # then perform a physically valid outbound transfer instead.
+        survey_cargo_lot(
+            operator_approved=True,operation="declare",lot_id="OUT-LOT-1",
+            mass_kg=3000,drum="DR-01",azimuth_deg=0,radius_m=5,
+            kind="bulk",restrained=True)
+        self.op("port",portal,"unload:OUT-LOT-1")
         self.assertIn(portal,_clock().details["cargo"]["port_jobs"])
         with self.assertRaises(PhysicsError):
             commission_commercial_port(operator_approved=True,
                 operation="undock",portal_id=portal,berth_id="BERTH-A")
-        self.op("port",portal,"abort:EXT-LOT-1")
-        # Do not let a parked, actively recovering job instantly vanish.
+        self.op("port",portal,"abort:OUT-LOT-1")
+        # Abort takes the physical rail reversal path, not a mass-deleting
+        # mutation that makes an occupied berth suddenly disappear.
         self.assertIn(portal,_clock().details["cargo"]["port_jobs"])
 
     def test_bow_water_trim_are_remote_controls_not_walkable_pressure_zones(self):
