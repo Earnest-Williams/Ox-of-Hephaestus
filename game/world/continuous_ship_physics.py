@@ -3899,6 +3899,7 @@ def tick_continuous_physics(*, now_game_time=None):
     else:
         original_rundown_electrical = None
 
+    completed_sector_seals = []
     while duration < seconds - 1e-9:
         dt = min(STEP_SECONDS, seconds - duration)
         duration += dt
@@ -4704,6 +4705,17 @@ def tick_continuous_physics(*, now_game_time=None):
                         unclassified, sector, cells[zone], dt)
                 except UnclassifiedSpaceError as exc:
                     raise PhysicsError(str(exc)) from exc
+            # Leakage and hatch flow operate in the SAME ten-second
+            # integration steps. Previously a whole-minute leak was applied
+            # only after all hatch mixing, delaying decompression feedback
+            # and preventing a continuous gallery-to-shell loss path.
+            unclassified, sector_leak, repairs, seals_this_step = (
+                _unclassified_advance(
+                    clock, unclassified, dt, eva=eva, repair_stock=repairs))
+            lost += sector_leak
+            completed_sector_seals.extend(
+                (site, worker, kg, last + duration)
+                for site, worker, kg in seals_this_step)
         atm_edges = [e for e in edges
                      if e.reference["network"] == "atmosphere"
                      and _live_edge(e, isolators)]
@@ -5054,15 +5066,11 @@ def tick_continuous_physics(*, now_game_time=None):
                 for zone, c in cells.items()),
         }
 
-    # Manifest-dependent cargo sectors each preserve their own previously
-    # measured sealed gas and debit a real shell leak into loss-to-space.
-    # No sector receives a pressure-cell ID or another free air reserve.
+    # Substep-advanced measured cargo gas has already exchanged through
+    # every genuinely open rated hatch and exhausted shell losses. Re-read
+    # persistent totals here without advancing it a second time.
     cargo_sector_gas_after = cargo_sector_oxygen_after = cargo_sector_smoke_after = 0.0
     if unclassified is not None:
-        unclassified, sector_leak, repairs, completed_sector_seals = (
-            _unclassified_advance(clock, unclassified, seconds,
-                                  eva=eva, repair_stock=repairs))
-        lost += sector_leak
         cargo_sector_gas_after = sum(
             row["gas"]["mass_kg"] for row in unclassified["sectors"].values()
             if row["gas"] is not None)
@@ -5072,14 +5080,14 @@ def tick_continuous_physics(*, now_game_time=None):
         cargo_sector_smoke_after = sum(
             row["gas"]["smoke_kg"] for row in unclassified["sectors"].values()
             if row["gas"] is not None)
-        for patched_sector, patched_worker, spare_kg in completed_sector_seals:
+        for patched_sector, patched_worker, spare_kg, finished_s in completed_sector_seals:
             CanonicalShipEvent.objects.create(
                 component_key="access:ACC-" + patched_sector,
                 operation="g19_real_cargo_sector_seal_with_held_material",
                 before={"site": patched_sector, "leak_present": True},
                 after={"site": patched_sector, "leak_kg_s": 0.0,
                        "installed_spares_kg": spare_kg},
-                actor_dbref=patched_worker, game_time=last + seconds)
+                actor_dbref=patched_worker, game_time=finished_s)
     # Leak the existing industrial gas, never the adjacent safe trunk;
     # a completed internal patch consumes physically carried finite spares.
     industrial_gas_after = industrial_oxygen_after = industrial_smoke_after = 0.0
@@ -6378,6 +6386,21 @@ def tick_continuous_physics(*, now_game_time=None):
             + generator_oxygen_kg + industrial_oxygen_after
             + cargo_sector_oxygen_after, 6),
         "cargo_sector_measured_gas_kg": round(cargo_sector_gas_after, 6),
+        "cargo_sector_gallery_net_kg": (
+            round(sum(row.get("gallery_net_kg", 0.0)
+                      for row in unclassified["sectors"].values()), 6)
+            if unclassified is not None else None),
+        "cargo_sector_total_lost_kg": (
+            round(sum(row["lost_kg"] for row in
+                      unclassified["sectors"].values()), 6)
+            if unclassified is not None else None),
+        "cargo_open_breached_hatches": (
+            sorted(door.source_id for door in access_rows
+                   if door.source_id in CARGO_PERSONNEL_DOORS
+                   and door.setting == "open"
+                   and unclassified["sectors"][
+                       CARGO_PERSONNEL_DOORS[door.source_id]]["leak_kg_s"] > 0)
+            if unclassified is not None else None),
         "cargo_sector_active_leaks": (
             sorted(site for site, row in unclassified["sectors"].items()
                    if row["leak_kg_s"]>0) if unclassified is not None else None),
