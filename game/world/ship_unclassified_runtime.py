@@ -128,6 +128,39 @@ def access_ready(actor,details,sector,*,from_inside=False,
         return False
 
 
+def open_hatch_casualty_egress(actor, details, sector):
+    """Allow an ambulatory permit holder to leave through an ALREADY open door.
+
+    This is not permission to open a shut hatch, board the sector, teleport,
+    ignore a broken rated boundary or restart its drum. Once a shell breach
+    or worsening atmosphere occurs, an open passage must not trap living crew
+    because the admission survey, pressure differential or cargo manifest
+    has become unsafe. The caller executes the real reverse Evennia exit.
+    """
+    from world import continuous_ship_physics as p
+    if sector not in SECTORS or not _health_good(actor) or _room(actor) != sector:
+        return False
+    if (getattr(actor.db, "crew_role", None) not in CARGO_CREW_ROLES
+            and not actor.check_permstring("Developer")):
+        return False
+    ledger = details.get("unclassified_spaces")
+    try:
+        validate_unclassified(ledger)
+        row = ledger["sectors"][sector]
+        door = _physical_sector_door(sector)
+        return bool(
+            row["gas"] is not None
+            and (row["permit"] or {}).get("holder") == actor.dbref
+            and door.setting == "open"
+            and p._topology()[0].get(sector[:5] + "-GALLERY")
+                == "PZ-" + sector[:5] + "-SVC"
+            and p.state("pressure", "PZ-" + sector[:5] + "-SVC") is not None
+        )
+    except (UnclassifiedSpaceError, p.PhysicsError, KeyError, TypeError,
+            ValueError):
+        return False
+
+
 def prepare_hatch(actor,door,value):
     from world import continuous_ship_physics as p
     if door.source_id in NONPERSONNEL_LINKS:
@@ -307,8 +340,10 @@ def witness_leak(*,operator_approved=False,sector=None,leak_kg_s=None):
     d=dict(clock.details)
     if d.get("unclassified_spaces") is None:
         raise p.PhysicsError("No surveyed cargo sector to damage")
-    if _physical_sector_door(sector,must_closed=True).setting!="closed":
-        raise p.PhysicsError("Open sector boundary needs gallery damage containment first")
+    # A real shell failure can happen with the rated hatch OPEN. Rejecting
+    # the casualty until somebody closes the door would make the ship immune
+    # to the most dangerous pressure-boundary fault sequence.
+    door = _physical_sector_door(sector)
     try:
         ledger=inject_sector_leak(d["unclassified_spaces"],sector,leak_kg_s)
     except UnclassifiedSpaceError as exc:
@@ -319,7 +354,8 @@ def witness_leak(*,operator_approved=False,sector=None,leak_kg_s=None):
     clock.revision+=1
     clock.save(update_fields=["details","revision"])
     p._event(clock,"operator_real_cargo_sector_shell_casualty",before)
-    return {"sector":sector,"leak_kg_s":leak_kg_s}
+    return {"sector":sector,"leak_kg_s":leak_kg_s,
+            "rated_hatch_at_casualty":door.setting}
 
 
 def action(actor,sector,value):
@@ -510,6 +546,7 @@ def readout(actor,target):
                 "pressure_pa":bay_pressure(gas) if gas is not None else None,
                 "gas_kg":gas["mass_kg"] if gas else None,
                 "lost_to_space_kg":row["lost_kg"],
+                "gallery_net_kg":row.get("gallery_net_kg",0.0),
                 "leak_kg_s":row["leak_kg_s"],
                 "permit":(row["permit"] or {}).get("holder"),
                 "hatch":p.state("access","ACC-"+sector).setting,
