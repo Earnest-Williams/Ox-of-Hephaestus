@@ -234,6 +234,23 @@ def _clearance(actor, exit_obj, dest):
             raise CrewTransitError(
                 "PROP-SVC requires matched real gas, sound rated hatch, a safed owner permit and suit-safe inbound admission")
         return door
+    from world.ship_generator_bay_service import (
+        DOORS as GENERATOR_DOORS, ROOMS as GENERATOR_ROOMS)
+    if link in GENERATOR_DOORS:
+        from world.ship_generator_bay_runtime import (
+            room_ready, worker_ready, retreat_ready)
+        from world.continuous_ship_physics import _clock
+        service_room = GENERATOR_DOORS[link]
+        trunk = GENERATOR_ROOMS[service_room][2]
+        details = _clock().details
+        permitted = (retreat_ready(actor, details, service_room)
+                     if src_id == service_room else
+                     worker_ready(actor, details, service_room, inside=False))
+        if ({src_id, dst_id} != {trunk, service_room}
+                or door.setting != "open" or not permitted
+                or not room_ready(details, service_room)):
+            raise CrewTransitError("Original generator rated-door traversal needs measured gas and a real suited permit")
+        return door
     indexed = (kind == "indexed_rotary_transfer"
                or link == "ACC-WR-IX-HUB" and kind == "indexer_hatch")
     if (indexed and door.setting != "closed"
@@ -514,6 +531,10 @@ def traverse_canonical_exit(actor, exit_obj, dest, *, request_id=None):
         raise CrewTransitError("Crew cannot leave a moving personnel carriage")
     if not actor.move_to(dest):
         raise CrewTransitError("Crew movement vetoed")
+    from world.ship_generator_bay_service import DOORS as GENERATOR_DOORS
+    if link in GENERATOR_DOORS and dest.db.ox_space_id == GENERATOR_DOORS[link]:
+        from world.ship_generator_bay_runtime import entered
+        entered(clock, GENERATOR_DOORS[link], actor)
     if link == PROP_BAY_HATCH and dest.db.ox_space_id == PROP_BAY:
         from world.continuous_ship_physics import _snapshot, _event
         entry_before = _snapshot(clock)

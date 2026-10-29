@@ -115,6 +115,18 @@ from world.ship_propulsion_proof import (
     DriveProofError, initial_drive_proof, validate_drive_proof,
     start_drive_proof, verify_drive_proof,
 )
+from world.ship_generator_bay_runtime import (
+    room_ready as _generator_room_ready, suit_ready as _generator_room_suit_ready,
+    worker_ready as _generator_room_worker_ready,
+    retreat_ready as _generator_room_retreat_ready,
+    commission as commission_g19_generator_bays,
+    survey as survey_g19_generator_room,
+    action as _generator_room_action, readout as _generator_room_readout,
+)
+from world.ship_generator_bay_service import (
+    ROOMS as GENERATOR_ROOMS, DOORS as GENERATOR_DOORS,
+    validate_generator_bays,
+)
 from world.ship_propulsion_bay_service import (
     BayAccessError as PropulsionBayError, HATCH as PROP_BAY_HATCH,
     FREIGHT_HATCH as PROP_BAY_FREIGHT, BAY as PROP_BAY,
@@ -1132,6 +1144,10 @@ def _electrical_crew_air_gate(actor, room, electrical):
     if room in {"F1-BAY", "F2-BAY"}:
         if not _flywheel_suit_ready(actor, room, _clock().details):
             raise PhysicsError("Flywheel work requires a real issued suit and surveyed service airlock")
+        return
+    if room in GENERATOR_ROOMS:
+        if not _generator_room_worker_ready(actor, _clock().details, room):
+            raise PhysicsError("Generator-room switching needs an original service permit and issued suit")
         return
     if (zone not in {None, "VACUUM"}
             or electrical["worksite_surveys"].get(room) != "suited_service"
@@ -3627,6 +3643,14 @@ def tick_continuous_physics(*, now_game_time=None):
     propulsion_bay = clock.details.get("propulsion_bay")
     if propulsion_bay is not None:
         validate_bay(propulsion_bay)
+    generator_bays = clock.details.get("generator_bays")
+    generator_gas_kg = generator_oxygen_kg = 0.0
+    if generator_bays is not None:
+        validate_generator_bays(generator_bays)
+        for sample in generator_bays["rooms"].values():
+            if sample["gas"] is not None:
+                generator_gas_kg += sample["gas"]["mass_kg"]
+                generator_oxygen_kg += sample["gas"]["oxygen_kg"]
     # The existing, as-found gas behind the original PROP-SVC pressure
     # boundary was unclassified in the 133-cell reference. Once positively
     # surveyed it is an additional FINITE measured mass, not a new pressure
@@ -3637,7 +3661,7 @@ def tick_continuous_physics(*, now_game_time=None):
     bay_oxygen_kg = (propulsion_bay["gas"]["oxygen_kg"]
                      if propulsion_bay is not None and
                      propulsion_bay["gas"] is not None else 0.0)
-    total_before = (bay_gas_kg + sum(c["mass"] + c["fuel"] for c in cells.values())
+    total_before = (bay_gas_kg + generator_gas_kg + sum(c["mass"] + c["fuel"] for c in cells.values())
                     + captured_co2 + refuge_captured_before
                     + retired_refuge_co2)
     lost = burned = water = oxygen_generated = 0.0
@@ -4866,7 +4890,7 @@ def tick_continuous_physics(*, now_game_time=None):
                 for zone, c in cells.items()),
         }
 
-    total_after = (bay_gas_kg + sum(c["mass"] + c["fuel"] for c in cells.values())
+    total_after = (bay_gas_kg + generator_gas_kg + sum(c["mass"] + c["fuel"] for c in cells.values())
                    + captured_co2
                    + (refuge_scrubbers["meter"]["captured_kg"]
                       if refuge_scrubbers is not None else 0.0)
@@ -5552,7 +5576,14 @@ def tick_continuous_physics(*, now_game_time=None):
                             and worn["exposure"]["suit_oxygen_kg"] > 0
                             and worn["exposure"]["condition"] not in {
                                 "incapacitated", "critical", "dead"})
-                        if room_id == PROP_BAY:
+                        if room_id in GENERATOR_ROOMS:
+                            if (repairs["site_surveys"].get(room_id) != "suited_service"
+                                    or not _generator_room_worker_ready(
+                                        actor, {**clock.details, "eva": eva,
+                                                "generator_bays": generator_bays},
+                                        room_id, inside=True)):
+                                continue
+                        elif room_id == PROP_BAY:
                             if (repairs["site_surveys"].get(room_id) != "suited_service"
                                     or not _propulsion_bay_worker_ready(
                                         actor, {
@@ -5621,6 +5652,11 @@ def tick_continuous_physics(*, now_game_time=None):
                 EXTERIOR_RADIATOR_FACES.get(job["room"]) == identifier or
                 category == "access" and job["room"] in {
                     row.reference.get("from"), row.reference.get("to")})
+            if valid_site and job["room"] in GENERATOR_ROOMS:
+                if not _generator_room_ready(
+                        {**clock.details, "generator_bays": generator_bays},
+                        job["room"], hatch_closed=True):
+                    valid_site = False
             if valid_site and job["room"] == PROP_BAY:
                 source_cell = cells.get(PROP_BAY_TRUNK_ZONE)
                 if (source_cell is None or propulsion_bay is None
@@ -6013,6 +6049,9 @@ def tick_continuous_physics(*, now_game_time=None):
     if propulsion_bay is not None:
         validate_bay(propulsion_bay)
         d["propulsion_bay"] = propulsion_bay
+    if generator_bays is not None:
+        validate_generator_bays(generator_bays)
+        d["generator_bays"] = generator_bays
     if bay_access is not None:
         d["bay_access"] = bay_access
     if major_damage is not None:
@@ -6064,9 +6103,13 @@ def tick_continuous_physics(*, now_game_time=None):
         "crew_o2_used_this_tick_kg": round(crew_used_o2, 7),
         "crew_co2_added_this_tick_kg": round(crew_exhaled_co2, 7),
         "gas_kg": round(
-            sum(c["mass"] for c in cells.values()) + bay_gas_kg, 6),
+            sum(c["mass"] for c in cells.values()) + bay_gas_kg + generator_gas_kg, 6),
         "oxygen_kg": round(
-            sum(c["oxygen"] for c in cells.values()) + bay_oxygen_kg, 6),
+            sum(c["oxygen"] for c in cells.values()) + bay_oxygen_kg + generator_oxygen_kg, 6),
+        "generator_bays_gas_kg": round(generator_gas_kg, 6),
+        "generator_bay_permits": (sorted(
+            room for room, sample in generator_bays["rooms"].items()
+            if sample["permit"] is not None) if generator_bays else None),
         "propulsion_bay_gas_kg": round(bay_gas_kg, 6),
         "propulsion_bay_permit": (
             propulsion_bay["permit"] is not None
@@ -6447,7 +6490,7 @@ def crew_physical_action(actor, request_id, action, target, value):
     """
     if not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
         raise PhysicsError("Expected one 32-character lowercase request UUID")
-    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay"}:
+    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay"}:
         raise PhysicsError("Unknown physical operation")
     if actor is None or getattr(actor.db, "ox_terminal_dead", False):
         raise PermissionError("A deceased or missing character cannot operate machinery")
@@ -6471,7 +6514,7 @@ def crew_physical_action(actor, request_id, action, target, value):
                     else "pressure:" if action == "mist"
                     else "access:" if action == "hatch"
                     else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay"}
-                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay"} else target)
+                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay"} else target)
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
@@ -6497,6 +6540,15 @@ def crew_physical_action(actor, request_id, action, target, value):
                 or action == "switch" and target == PROP_BAY_FEEDER
                 and value != "open"):
             raise PhysicsError("PROP-SVC suited work party holds main and RCS safing and physical feeder lockout")
+    generator_work = _clock().details.get("generator_bays")
+    if generator_work is not None:
+        validate_generator_bays(generator_work)
+        for generator_room, sample in generator_work["rooms"].items():
+            if sample["permit"] is not None:
+                gen, _, _, _, breaker, _ = GENERATOR_ROOMS[generator_room]
+                if (action == "plant" and target == gen and value == "on"
+                        or action == "switch" and target == breaker and value == "closed"):
+                    raise PhysicsError("Occupied original generator room padlocks source restart")
     nozzle_work = _clock().details.get("propulsion_exterior")
     if nozzle_work is not None and nozzle_work["permit"] is not None and (
             action == "helm" and value != "coast"
@@ -8372,6 +8424,8 @@ def crew_physical_action(actor, request_id, action, target, value):
         clock.revision += 1
         clock.save(update_fields=["details", "revision"])
         item = clock
+    elif action == "generator_bay":
+        item, before = _generator_room_action(actor, target, value)
     elif action == "propulsion_bay":
         # Dedicated original rated-access operation, not a normal door
         # bypass or an invented pressure zone. A real source pressure cell
@@ -8757,6 +8811,9 @@ def crew_physical_action(actor, request_id, action, target, value):
                              CanonicalShipState.objects.filter(category="isolator")})):
                     raise PhysicsError("Exterior repair requires issued suit, permit and cool radiator")
             zone = _topology()[0].get(room)
+            if room in GENERATOR_ROOMS and not _generator_room_worker_ready(
+                    actor, d, room, inside=True):
+                raise PhysicsError("Original generator requires a live rated permit and issued suit")
             if room == PROP_BAY and not _propulsion_bay_worker_ready(
                     actor, d, inside=True):
                 raise PhysicsError("Original PROP-SVC requires issued suited owner, closed pressure hatch and both drives inhibited")
@@ -8779,7 +8836,11 @@ def crew_physical_action(actor, request_id, action, target, value):
                             value == "start" and permit["worker"] != actor.dbref):
                         raise PhysicsError("Individual stopped flywheel requires its owner's padlocked module permit")
             elif not (isinstance(zone, str) and zone.startswith("PZ-")):
-                if room == PROP_BAY:
+                if room in GENERATOR_ROOMS:
+                    if not (_generator_room_worker_ready(actor, d, room, inside=True)
+                            and r["site_surveys"].get(room) == "suited_service"):
+                        raise PhysicsError("Generator work permit or real issued suit missing")
+                elif room == PROP_BAY:
                     # A REAL finite EVA suit and an active signed PROP-SVC
                     # permit supersede the obsolete boolean generator-suit
                     # placeholder. No shortcut through ox_suit_verified.
@@ -9358,15 +9419,27 @@ def crew_physical_action(actor, request_id, action, target, value):
             or item.source_id in {"ACC-IX-A-FIX", "ACC-IX-B-FIX",
                                   "ACC-WR-FIXED-IX"})
         original_bay = item.source_id == PROP_BAY_HATCH
+        original_generator = item.source_id in GENERATOR_DOORS
         ordinary_local = (
             not ordinary_bridge and not fixed_indexer and not original_bay
+            and not original_generator
             and spec.get("kind") in CREW_LOCAL_DOOR_KINDS)
-        if not ordinary_bridge and not fixed_indexer and not ordinary_local and not original_bay:
+        if not ordinary_bridge and not fixed_indexer and not ordinary_local and not original_bay and not original_generator:
             raise PhysicsError("Cargo, EVA and machinery doors require dedicated interlocks")
         if item.condition in _BROKEN:
             raise PhysicsError("Damaged hatch cannot be safely actuated")
         if value == "open" and item.setting != "open":
-            if original_bay:
+            if original_generator:
+                details = _clock().details
+                service_room = GENERATOR_DOORS[item.source_id]
+                ready = (_generator_room_retreat_ready(actor, details, service_room)
+                         if room_id == service_room
+                         else _generator_room_worker_ready(
+                             actor, details, service_room, inside=False))
+                if not ready or not _generator_room_ready(
+                        details, service_room, hatch_closed=True):
+                    raise PhysicsError("Original generator rated door requires matched gas and isolated suited permit")
+            elif original_bay:
                 details = _clock().details
                 # Opening from an already occupied bay may be essential
                 # emergency egress. A damaged or exhausted suit forbids
@@ -10068,6 +10141,8 @@ def local_physics_readout(actor, target):
             "injury": own.details["injury"],
             "scope": "own_physically_measured_crew_health_only",
         }
+    if target == "generator_bay":
+        return _generator_room_readout(actor)
     if target == "propulsion_bay":
         d = _clock().details
         ledger = d.get("propulsion_bay")
