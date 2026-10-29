@@ -14,9 +14,11 @@ accepted on code head **`0ed5f0d3`** via
 [GitHub Actions run #40889821371](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40889821371).
 **All four jobs passed**: pure conservation/fault recovery, installed
 multi-system campaign, existing adjacent-system compatibility, and the
-two-process persistent-world restart. This document accompanies an additional
-small tightening of the probe's exception check; its new runtime head
-must be independently retested before that tightening is accepted.
+two-process persistent-world restart. After the probe's exception handling
+was made specific to the expected rejected pressure reset, the **exact
+updated runtime `32cb309d` also passed all four jobs** in
+[run #40890643600](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40890643600).
+The separate fast PR and documentation checks also passed.
 
 The prior compound cargo-sector and three-crew casualty campaign was green
 on [run #40877870627](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40877870627):

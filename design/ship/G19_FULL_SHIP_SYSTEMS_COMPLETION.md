@@ -498,8 +498,10 @@ It passed on runtime `0ed5f0d3` at
 [run #40889821371](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40889821371),
 with **4/4 jobs green**. The test recorded 18 kg lost before process exit
 and 87 kg cumulative loss after durable restart/catch-up (no material refill).
-The acceptance probe's final exception-precision edit is committed alongside
-this document and must be retested on its new exact runtime head.
+The acceptance probe's exception-precision correction was retested on
+runtime `32cb309d` at
+[run #40890643600](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40890643600),
+with all four jobs green.
 
 This is a bounded integration acceptance, not a full game release or
 NASA-style physical qualification. PR #138 remains draft/unmerged; the
