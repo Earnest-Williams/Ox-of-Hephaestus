@@ -175,6 +175,42 @@ class OriginalCargoAndVoidClosure(EvenniaTestCase):
         self.assertIsNone(
             _clock().details["unclassified_spaces"]["sectors"][sector]["permit"])
 
+    def test_real_aborted_patch_leaves_unsealed_sector_and_unspent_spares(self):
+        sector="DR-01-SEC-06"
+        self.survey_drum()
+        self.at("TOOL-CRIB")
+        self.op("repair","TOOL-CRIB","pickup_toolkit")
+        survey_g19_water_material(
+            operator_approved=True,source="INV-SPARES",
+            room_id="SPARES-CENTRAL",verified_kg=2)
+        self.at("SPARES-CENTRAL")
+        self.op("repair","INV-SPARES","pickup:2")
+        self.suit()
+        self.enter(sector)
+        witness_g19_cargo_sector_leak(
+            operator_approved=True,sector=sector,leak_kg_s=.003)
+        self.op("cargo_sector",sector,"seal")
+        self.tick(60)
+        self.op("hatch","ACC-"+sector,"open")
+        self.walk("ACC-"+sector,"reverse")
+        self.op("hatch","ACC-"+sector,"closed")
+        with self.assertRaises(PhysicsError):
+            self.op("cargo_sector",sector,"release")
+        self.op("cargo_sector",sector,"abort_seal")
+        self.op("cargo_sector",sector,"release")
+        row=_clock().details["unclassified_spaces"]["sectors"][sector]
+        self.assertEqual(row["seals_completed"],0)
+        self.assertEqual(row["leak_kg_s"],.003)
+        self.assertIsNone(row["permit"])
+        self.assertIsNone(row["seal"])
+        self.assertAlmostEqual(row["lost_kg"],.18,places=5)
+        self.assertAlmostEqual(
+            _clock().details["repairs"]["carried_kg"][self.worker.dbref],2)
+        self.tick(60)
+        self.assertAlmostEqual(
+            _clock().details["unclassified_spaces"]["sectors"][sector]["lost_kg"],
+            .36,places=5)
+
     def test_suited_finite_cargo_sector_shell_patch_conserves_gas_and_material(self):
         room="DR-01-SEC-02"
         self.survey_drum()

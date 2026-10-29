@@ -399,6 +399,20 @@ def begin_sector_seal(ledger,sector,holder):
     return updated
 
 
+def cancel_sector_seal(ledger,sector,holder,*,hatch_closed,empty):
+    """Abort unfinished work after real retreat; leave loss and spares intact."""
+    validate_unclassified(ledger)
+    if (sector not in SECTORS or not hatch_closed or not empty
+            or (ledger["sectors"][sector]["permit"] or {}).get("holder")!=holder
+            or (ledger["sectors"][sector]["seal"] or {}).get("holder")!=holder):
+        raise UnclassifiedSpaceError(
+            "Only evacuated original work permit holder may abandon a seal")
+    result=copy.deepcopy(ledger)
+    result["sectors"][sector]["seal"]=None
+    validate_unclassified(result)
+    return result
+
+
 def tick_unclassified(ledger,seconds,*,ready_seals=frozenset()):
     validate_unclassified(ledger)
     seconds=_num(seconds,0,MAX_TICK_S)

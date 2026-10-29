@@ -7,6 +7,7 @@ from world.ship_unclassified_spaces import (
     initial_unclassified, validate_unclassified, cargo_signature,
     complete_manifest, survey_sector, permit_ready, secure_sector,
     note_entry, release_sector, inject_sector_leak, begin_sector_seal,
+    cancel_sector_seal,
     tick_unclassified, certify_portal, invalidate_portal, portal_ready,
     inspect_void, breathing_sample, commit_breathing_sample)
 from world.ship_cargo_manifest import initial_cargo, declare_cargo_lot
@@ -227,6 +228,35 @@ class UnclassifiedTaxonomy(unittest.TestCase):
             release_sector(led,row,"#33",closed=True,empty=True)
         led=release_sector(led,row,"#22",closed=True,empty=True)
         self.assertIsNone(led["sectors"][row]["permit"])
+    def test_abandoned_patch_keeps_leak_and_consumes_no_material(self):
+        ledger,manifest=survey_all()
+        sector="DR-01-SEC-06"
+        ledger=secure_sector(ledger,sector,"#317",1000)
+        ledger=inject_sector_leak(ledger,sector,.003)
+        ledger=begin_sector_seal(ledger,sector,"#317")
+        ledger,escaped,finished=tick_unclassified(
+            ledger,60,ready_seals={(sector,"#317")})
+        self.assertAlmostEqual(escaped,.18)
+        self.assertFalse(finished)
+        self.assertEqual(ledger["sectors"][sector]["seal"]["remaining_s"],120)
+        with self.assertRaises(UnclassifiedSpaceError):
+            cancel_sector_seal(
+                ledger,sector,"#318",hatch_closed=True,empty=True)
+        with self.assertRaises(UnclassifiedSpaceError):
+            cancel_sector_seal(
+                ledger,sector,"#317",hatch_closed=True,empty=False)
+        ledger=cancel_sector_seal(
+            ledger,sector,"#317",hatch_closed=True,empty=True)
+        self.assertIsNone(ledger["sectors"][sector]["seal"])
+        self.assertEqual(ledger["sectors"][sector]["leak_kg_s"],.003)
+        self.assertAlmostEqual(ledger["sectors"][sector]["lost_kg"],.18)
+        self.assertEqual(ledger["sectors"][sector]["seals_completed"],0)
+        ledger=release_sector(ledger,sector,"#317",closed=True,empty=True)
+        self.assertIsNone(ledger["sectors"][sector]["permit"])
+        ledger,again,finished=tick_unclassified(ledger,60)
+        self.assertAlmostEqual(again,.18)
+        self.assertFalse(finished)
+
     def test_large_leak_has_no_internal_magic_patch(self):
         led,m=survey_all()
         row="DR-01-SEC-02"

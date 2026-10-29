@@ -15,6 +15,7 @@ from world.ship_unclassified_spaces import (
     VOIDS, NONPERSONNEL_LINKS, UnclassifiedSpaceError,
     initial_unclassified, validate_unclassified, survey_sector, secure_sector,
     note_entry, release_sector, inject_sector_leak, begin_sector_seal,
+    cancel_sector_seal,
     tick_unclassified, certify_portal, invalidate_portal, portal_ready,
     permit_ready, inspect_void, drum_parked, complete_manifest,
     MINOR_PATCH_KG_S, PATCH_SPARES_KG)
@@ -94,7 +95,12 @@ def _suit_good(actor,details):
 
 
 def access_ready(actor,details,sector,*,from_inside=False,
-                 allow_small_leak=False,hatch_closed=False):
+                 allow_small_leak=False,hatch_closed=False,
+                 retreat_only=False):
+    # The casualty exception is for returning to the existing gallery only;
+    # inspections and new patch jobs still require surveyed locked machinery.
+    if retreat_only and not from_inside:
+        return False
     from world import continuous_ship_physics as p
     if sector not in SECTORS or not _health_good(actor):
         return False
@@ -116,7 +122,7 @@ def access_ready(actor,details,sector,*,from_inside=False,
             source_safe=p._air_safe(gallery),
             now_s=details["last_game_time"],
             allow_minor_leak=allow_small_leak,
-            allow_stale_retreat=from_inside)
+            allow_stale_retreat=retreat_only)
     except (UnclassifiedSpaceError,p.PhysicsError,KeyError,TypeError,
             ValueError):
         return False
@@ -133,7 +139,8 @@ def prepare_hatch(actor,door,value):
         if not access_ready(actor,_clock().details,sector,
                             from_inside=_room(actor)==sector,
                             allow_small_leak=_room(actor)==sector,
-                            hatch_closed=True):
+                            hatch_closed=True,
+                            retreat_only=_room(actor)==sector):
             raise p.PhysicsError("Cargo-sector hatch requires original safe atmosphere, full live manifest and owner permit")
     elif value!="closed":
         raise p.PhysicsError("Unknown cargo-sector rated hatch position")
@@ -351,6 +358,18 @@ def action(actor,sector,value):
             ledger=begin_sector_seal(ledger,sector,actor.dbref)
         except UnclassifiedSpaceError as exc:
             raise p.PhysicsError(str(exc)) from exc
+    elif value=="abort_seal":
+        _at(actor,sector[:5]+"-GALLERY")
+        from world.ship_world import find_ship_space
+        space=find_ship_space(sector)
+        occupied=bool(space and any(
+            getattr(person.db,"crew_role",None) for person in space.contents))
+        try:
+            ledger=cancel_sector_seal(
+                ledger,sector,actor.dbref,
+                hatch_closed=hatch.setting=="closed",empty=not occupied)
+        except UnclassifiedSpaceError as exc:
+            raise p.PhysicsError(str(exc)) from exc
     elif value=="release":
         _at(actor,sector[:5]+"-GALLERY")
         from world.ship_world import find_ship_space
@@ -364,7 +383,7 @@ def action(actor,sector,value):
         except UnclassifiedSpaceError as exc:
             raise p.PhysicsError(str(exc)) from exc
     else:
-        raise p.PhysicsError("Cargo sector operations: secure, inspect, seal, release")
+        raise p.PhysicsError("Cargo sector operations: secure, inspect, seal, abort_seal, release")
     validate_unclassified(ledger)
     details["unclassified_spaces"]=ledger
     clock.details=details

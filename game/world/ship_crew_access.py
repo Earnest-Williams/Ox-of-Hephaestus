@@ -170,7 +170,8 @@ def _clearance(actor, exit_obj, dest):
                 or door.setting!="open"
                 or not access_ready(actor,_clock().details,sector,
                     from_inside=from_inside,
-                    allow_small_leak=from_inside)):
+                    allow_small_leak=from_inside,
+                    retreat_only=from_inside)):
             raise CrewTransitError(
                 "Sector access requires positive whole-drum manifest, safe independent gas, parked rotor and owner's live crew permit")
         return door
