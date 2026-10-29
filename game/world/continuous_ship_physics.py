@@ -135,7 +135,7 @@ from world.ship_unclassified_spaces import (
     NONPERSONNEL_LINKS as NONPERSONNEL_UNCLASSIFIED_LINKS,
     VOIDS as ORIGINAL_SHIELD_VOIDS,
     validate_unclassified, drum_clear_for_freight, portal_ready,
-    invalidate_portal,
+    invalidate_portal, breathing_sample, commit_breathing_sample,
 )
 from world.ship_industrial_runtime import (
     ready as _industrial_room_ready, suit_ready as _industrial_suit_ready,
@@ -5236,10 +5236,18 @@ def tick_continuous_physics(*, now_game_time=None):
                 state_now = copy.deepcopy(worn["exposure"])
             else:
                 zone = zones.get(room)
-                if zone not in cells and zone != "VACUUM":
+                surveyed_cargo = (room in ORIGINAL_CARGO_SECTORS
+                                  and unclassified is not None)
+                if (not surveyed_cargo and zone not in cells
+                        and zone != "VACUUM"):
                     raise PhysicsError("Unknown life-support envelope at crew position")
                 state_now = copy.deepcopy(row.details)
-                cell = cells.get(zone)
+                # Cargo-sector air is measured and finite but is NOT an
+                # ordinary PZ-* crew pressure cell. Convert only that
+                # already surveyed charge to a physiological exposure
+                # sample; unsurveyed sectors supply NO oxygen.
+                cell = (breathing_sample(unclassified,room)
+                        if surveyed_cargo else cells.get(zone))
                 time_sampled = 0.0
                 while time_sampled < seconds - 1e-9:
                     dt = min(STEP_SECONDS, seconds - time_sampled)
@@ -5251,7 +5259,14 @@ def tick_continuous_physics(*, now_game_time=None):
                     crew_used_o2 += breath["o2_used_kg"]
                     crew_exhaled_co2 += breath["co2_added_kg"]
                     time_sampled += dt
-                if zone in cells:
+                if surveyed_cargo:
+                    unclassified = commit_breathing_sample(
+                        unclassified,room,cell)
+                    cargo_sector_oxygen_after = sum(
+                        x["gas"]["oxygen_kg"]
+                        for x in unclassified["sectors"].values()
+                        if x["gas"] is not None)
+                elif zone in cells:
                     cells[zone] = cell
             if getattr(actor.db, "ox_terminal_dead", False):
                 state_now["condition"] = "dead"
