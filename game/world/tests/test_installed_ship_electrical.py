@@ -1058,7 +1058,7 @@ class InstalledElectricalTests(EvenniaTestCase):
     def test_suited_bearing_battery_requires_real_survey(self):
         """Only real issued gear + the original rated service permit opens it."""
         from world.continuous_ship_physics import (
-            survey_g19_electrical_worksite,
+            survey_g19_electrical_worksite, commission_g19_repairs,
             commission_g19_industrial_bays, survey_g19_industrial_bay,
         )
         from world.ship_industrial_access import SITES
@@ -1066,6 +1066,8 @@ class InstalledElectricalTests(EvenniaTestCase):
         from world.ship_crew_access import traverse_canonical_exit
 
         commission_g19_electrical(operator_approved=True)
+        commission_g19_water(operator_approved=True)
+        commission_g19_repairs(operator_approved=True)
         self.crew_at("ENG-CONTROL")
         commission_g19_eva(operator_approved=True)
         commission_g19_crew_physiology(
