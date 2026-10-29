@@ -45,3 +45,10 @@ This establishes a **passing, sustained, deterministic multi-system physical-fai
 It does not prove every possible fault in every one of the fitted original equipment families. Other focused installed acceptance cases remain the evidence for physically verified machining, medical treatment, airlocks, crew access, propulsion, radiator service and EVA repair.
 
 Keep these tests in G19's single integration branch. Preserve the distinction between tested revisions, later documentation revisions, and whole-project merge acceptance.
+
+
+## Broader current-code regression acceptance
+
+The adjacent five-job **final multi-system** regression also completed successfully after the endurance test module was introduced, at code revision `e8182a621f94838114f9d7c88eb3aed902255967`: [run #40936062977](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40936062977).
+
+All five jobs passed: 30 pure conservation/repair tests, seven installed compound-casualty/replay tests, three adjacent installed regressions, 12 positive-output and failure-path compatibility regressions, and three independent fresh-process restart phases. **52/52 executable tests plus the three process-restart phases passed** in that broader gate. The subsequent seed workflow revision `c8b0bb96` only alters workflow configuration; the original clock and ship runtime remain the same as the tested `e8182a62` revision.
