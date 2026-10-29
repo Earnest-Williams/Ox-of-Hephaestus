@@ -63,6 +63,12 @@ from world.ship_waste_offload import (
     command as command_waste_offload, step_offload,
     debit_ship_mass_for_waste,
 )
+from world.ship_cabin_fancoils import (
+    CabinCoilError, FANCOILS as ORIGINAL_CABIN_COILS,
+    coil_power_node, coil_coolant_node, initial_cabin_coils,
+    validate_cabin_coils, command_cabin_coil, step_cabin_coils,
+    MAX_UNIT_KW as CABIN_COIL_MAX_KW,
+)
 from world.ship_equipment_repair import (
     REPAIR_CLASSES, MAX_HAND_PARTS_KG, initial_repairs, validate_repairs,
     take_parts, begin_repair, join_repair, step_repairs, move_toolkit,
@@ -950,6 +956,63 @@ def survey_g19_cultivation_nutrients(*, operator_approved=False,
     clock.save(update_fields=["details", "revision"])
     _event(clock, "operator_original_nutrient_charge_survey", before)
     return {"bay": bay, "surveyed_kg": charge_kg}
+
+
+@transaction.atomic
+def commission_g19_cabin_coils(*, operator_approved=False):
+    """Enrol 40 actual independently wired cabin heat terminals, without reset."""
+    if not operator_approved:
+        raise PermissionError("Only operator may commission fitted cabin LT controls")
+    _require_installed()
+    clock = _clock(lock=True)
+    if clock.details.get("electrical") is None:
+        raise PhysicsError("Original cabin fan-coils require commissioned distribution")
+    original = load_candidate()
+    fitted = {row["id"]: row for row in original["equipment"]
+              if row["kind"] == "fan_coil"}
+    if set(fitted) != set(ORIGINAL_CABIN_COILS):
+        raise PhysicsError("Fitted cabin unit inventory changed without review")
+    authored_nodes = {row["id"]: row for row in original["service_nodes"]}
+    authored_edges = {row["id"]: row for row in original["service_edges"]}
+    for name, (room, zone) in ORIGINAL_CABIN_COILS.items():
+        unit = state("equipment", name)
+        if unit.space_id != room or fitted[name]["space_id"] != room:
+            raise PhysicsError("Original cabin fan coil moved from its fitted worksite")
+        if _topology()[0].get(room) != zone:
+            raise PhysicsError("Cabin has no original shared habitation pressure cell")
+        for node_id, network in ((coil_power_node(name), "power"),
+                                 (coil_coolant_node(name), "lt_cooling")):
+            source = authored_nodes.get(node_id)
+            existing = state("node", node_id)
+            if (source is None or source.get("network") != network
+                    or source.get("owner_id") != name
+                    or existing.reference.get("network") != network
+                    or existing.reference.get("owner_id") != name):
+                raise PhysicsError("No original individually identified cabin service")
+        for edge_id, network, iso_id in (
+                ("EDGE-PWR-" + name, "power", "ISO-PWR-" + name),
+                ("EDGE-LT-" + room, "lt_cooling", "ISO-LT-" + room)):
+            authored = authored_edges.get(edge_id)
+            edge = state("edge", edge_id)
+            isolator = state("isolator", iso_id)
+            if (authored is None or authored.get("network") != network
+                    or iso_id not in authored.get("isolator_ids", [])
+                    or edge.reference.get("network") != network
+                    or iso_id not in edge.reference.get("isolator_ids", [])
+                    or isolator.reference.get("network") != network):
+                raise PhysicsError("Original cabin feeder or coolant valve missing")
+    existing = clock.details.get("cabin_coils")
+    if existing is not None:
+        validate_cabin_coils(existing)
+        return {"commissioned": False, "fitted_units": len(ORIGINAL_CABIN_COILS)}
+    before = _snapshot(clock)
+    details = dict(clock.details)
+    details["cabin_coils"] = initial_cabin_coils()
+    clock.details = details
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "g19_as_fitted_40_independent_cabin_coils_commissioned", before)
+    return {"commissioned": True, "fitted_units": len(ORIGINAL_CABIN_COILS)}
 
 
 @transaction.atomic
@@ -3669,6 +3732,14 @@ def tick_continuous_physics(*, now_game_time=None):
     fault_cases = clock.details.get("fault_cases")
     if fault_cases is not None:
         validate_fault_cases(fault_cases)
+    cabin_coils = clock.details.get("cabin_coils")
+    if cabin_coils is not None:
+        if electrical is None:
+            raise PhysicsError("Cabin LT controls commissioned without power distribution")
+        try:
+            validate_cabin_coils(cabin_coils)
+        except CabinCoilError as exc:
+            raise PhysicsError(str(exc)) from exc
     instrumentation = clock.details.get("instrumentation")
     if instrumentation is not None:
         try:
@@ -4808,6 +4879,26 @@ def tick_continuous_physics(*, now_game_time=None):
         # motor-and-radiator-limited capacity earlier in this tick.
         total_cool_kw = max(
             0.0, lt_budget["environment_kw"] - cargo_cooling_kw)
+        # The forty original residential cabin coils are *independent*
+        # appliances on existing PWR and LT valve nodes. Reserve their
+        # bounded actual load from the SAME common LT radiator allowance;
+        # no fictitious cabin pressure cells or extra cooling plant.
+        cabin_reserved_kw = 0.0
+        cabin_delivered_kw = 0.0
+        if cabin_coils is not None:
+            try:
+                cabin_coils, cells, reserved_kj = step_cabin_coils(
+                    cabin_coils, dt, now_s=last + duration,
+                    powered_nodes=set(power["nodes"]),
+                    coolant_nodes=set(connected_lt),
+                    equipment=equipment, cells=cells,
+                    cooling_budget_kw=total_cool_kw)
+            except CabinCoilError as exc:
+                raise PhysicsError(str(exc)) from exc
+            cabin_reserved_kw = reserved_kj / dt
+            cabin_delivered_kw = (
+                cabin_coils["last"]["removed_kj"] / dt)
+            total_cool_kw = max(0.0, total_cool_kw - cabin_reserved_kw)
         per_zone_kw = total_cool_kw / len(cool_zones) if cool_zones else 0.0
 
         fire_starts = [
@@ -5025,7 +5116,12 @@ def tick_continuous_physics(*, now_game_time=None):
             "dispatched_mw": round(power["dispatched_mw"], 4),
             "shortfall_mw": round(power["shortfall_mw"], 4),
             "ventilation_powered": air_on,
-            "cooling_kw": round(total_cool_kw, 3),
+            "cooling_kw": round(total_cool_kw + cabin_reserved_kw, 3),
+            "cabin_cooling_kw": round(cabin_delivered_kw, 5),
+            "cabin_cooling_reserved_kw": round(cabin_reserved_kw, 5),
+            "cabin_cooling_units": (
+                len(cabin_coils["last"]["operating"])
+                if cabin_coils is not None else None),
             "cargo_cooling_kw": round(cargo_cooling_kw, 3),
             "cargo_conditioned_drums": (
                 len(cargo_climate["last"]["cooled_drums"])
@@ -6194,6 +6290,9 @@ def tick_continuous_physics(*, now_game_time=None):
         except InstrumentError as exc:
             raise PhysicsError(str(exc)) from exc
         d["instrumentation"] = instrumentation
+    if cabin_coils is not None:
+        validate_cabin_coils(cabin_coils)
+        d["cabin_coils"] = cabin_coils
     if fault_cases is not None:
         # A verified restart is not two elapsed global ticks. The actual
         # installed machine must run with its correctly restored source and
@@ -6807,7 +6906,7 @@ def crew_physical_action(actor, request_id, action, target, value):
     """
     if not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
         raise PhysicsError("Expected one 32-character lowercase request UUID")
-    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial", "cargo_sector", "shield_trim"}:
+    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial", "cargo_sector", "shield_trim", "cabin_air"}:
         raise PhysicsError("Unknown physical operation")
     if actor is None or getattr(actor.db, "ox_terminal_dead", False):
         raise PermissionError("A deceased or missing character cannot operate machinery")
@@ -6830,8 +6929,8 @@ def crew_physical_action(actor, request_id, action, target, value):
                     "isolator:" if action == "switch"
                     else "pressure:" if action == "mist"
                     else "access:" if action == "hatch"
-                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial", "cargo_sector", "shield_trim"}
-                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial", "cargo_sector", "shield_trim"} else target)
+                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial", "cargo_sector", "shield_trim", "cabin_air"}
+                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial", "cargo_sector", "shield_trim", "cabin_air"} else target)
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
@@ -8807,6 +8906,32 @@ def crew_physical_action(actor, request_id, action, target, value):
         clock.revision += 1
         clock.save(update_fields=["details", "revision"])
         item = clock
+    elif action == "cabin_air":
+        if target not in ORIGINAL_CABIN_COILS or value not in {"on", "off"}:
+            raise PhysicsError("Only a fitted cabin terminal's ON/OFF is available")
+        room, zone = ORIGINAL_CABIN_COILS[target]
+        _crew_at(actor, room)
+        unit = state("equipment", target)
+        if unit.space_id != room:
+            raise PhysicsError("Missing original cabin fan-coil mechanism")
+        if value == "on" and (
+                unit.condition in _BROKEN or
+                not _air_safe(state("pressure", zone))):
+            raise PhysicsError("Unsafe cabin or failed local fan-coil")
+        clock = _clock(lock=True)
+        ledger = clock.details.get("cabin_coils")
+        if ledger is None:
+            raise PhysicsError("Forty fitted cabin terminals not commissioned")
+        before = _snapshot(clock)
+        d = dict(clock.details)
+        try:
+            d["cabin_coils"] = command_cabin_coil(ledger, target, value)
+        except CabinCoilError as exc:
+            raise PhysicsError(str(exc)) from exc
+        clock.details = d
+        clock.revision += 1
+        clock.save(update_fields=["details", "revision"])
+        item = clock
     elif action == "cargo_sector":
         item, before = _cargo_sector_action(actor, target, value)
     elif action == "shield_trim":
@@ -10124,6 +10249,29 @@ def local_physics_readout(actor, target):
     room = getattr(getattr(location, "db", None), "ox_space_id", None)
     if not room:
         raise PermissionError("Stand at an installed ship compartment")
+    if target.startswith("cabin:"):
+        name = target[6:]
+        if name not in ORIGINAL_CABIN_COILS:
+            raise PhysicsError("Unknown original cabin heat terminal")
+        station, zone = ORIGINAL_CABIN_COILS[name]
+        _crew_at(actor, station)
+        clock = _clock()
+        ledger = clock.details.get("cabin_coils")
+        if ledger is None:
+            raise PhysicsError("Independent cabin LT controls not commissioned")
+        validate_cabin_coils(ledger)
+        unit = state("equipment", name)
+        return {
+            "unit": name, "room": station, "thermal_zone": zone,
+            "condition": unit.condition, "command": ledger["units"][name]["command"],
+            "last_delivered_kj": ledger["units"][name]["last_kj"],
+            "cumulative_delivered_kj": ledger["units"][name]["cumulative_kj"],
+            "last_sample_game_s": ledger["units"][name]["last_s"],
+            "rated_game_cooling_kw": CABIN_COIL_MAX_KW,
+            "power_endpoint": coil_power_node(name),
+            "lt_endpoint": coil_coolant_node(name),
+            "scope": "attended_fitted_cabin_not_independent_air_cell",
+        }
     if target.startswith("fault:"):
         name = target[6:]
         if name not in set(MOTORS) | set(SERVICE_LOADS):
