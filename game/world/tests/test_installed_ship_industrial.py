@@ -197,6 +197,11 @@ class FittedIndustrialMaintenance(EvenniaTestCase):
         set_component_condition("equipment","LCS-FTL","failed",operator=True)
         self.wear_suit("TRUNK-A-AFT")
         self.enter(room)
+        # The fitted ship defaults this original in-room panel feeder OPEN.
+        # Positively energise it BEFORE proving live-tool repair refusal;
+        # do not test an imagined default breaker state.
+        self.act("switch","ISO-LP-FTL-SVC","closed")
+        self.assertEqual(state("isolator","ISO-LP-FTL-SVC").setting,"closed")
         with self.assertRaises(PhysicsError):
             self.act("repair","equipment:LCS-FTL","start")
         self.act("switch","ISO-LP-FTL-SVC","open")
