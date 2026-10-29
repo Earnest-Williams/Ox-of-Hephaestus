@@ -1056,25 +1056,95 @@ class InstalledElectricalTests(EvenniaTestCase):
         self.assertLess(local["charge_kwh"], .1)
 
     def test_suited_bearing_battery_requires_real_survey(self):
-        from world.continuous_ship_physics import survey_g19_electrical_worksite
+        """Only real issued gear + the original rated service permit opens it."""
+        from world.continuous_ship_physics import (
+            survey_g19_electrical_worksite,
+            commission_g19_industrial_bays, survey_g19_industrial_bay,
+        )
+        from world.ship_industrial_access import SITES
+        from world.ship_world import find_world_entity
+        from world.ship_crew_access import traverse_canonical_exit
+
         commission_g19_electrical(operator_approved=True)
-        name = "BE-01-BAT"
+        self.crew_at("ENG-CONTROL")
+        commission_g19_eva(operator_approved=True)
+        commission_g19_crew_physiology(
+            operator_approved=True, actor_dbrefs=[self.worker.dbref])
+        commission_g19_industrial_bays(operator_approved=True)
+        name, room = "BE-01-BAT", "BE-01-SVC"
         survey_g19_electrical_source(
             operator_approved=True, source=name,
             capacity_kwh=1.0, initial_kwh=.5)
-        self.crew_at("BE-01-SVC")
+        self.crew_at(room)
         with self.assertRaises(PhysicsError):
             crew_physical_action(self.worker, "7" * 32, "power", name, "reserve")
+        survey_g19_industrial_bay(
+            operator_approved=True, room_id=room,
+            volume_m3=SITES[room]["max_m3"] * .7,
+            pressure_pa=101000, temperature_k=293.15,
+            oxygen_mass_fraction=.232, co2_mass_fraction=.0004,
+            smoke_mass_fraction=0, skin_k=299)
         survey_g19_electrical_worksite(
-            operator_approved=True, room_id="BE-01-SVC")
+            operator_approved=True, room_id=room)
         with self.assertRaises(PhysicsError):
             crew_physical_action(self.worker, "8" * 32, "power", name, "reserve")
-        self.worker.db.ox_suit_verified = True
+
+        # A 2026 industrial power worker may never rely on the legacy
+        # ox_suit_verified boolean. Stage finite oxygen, check out the
+        # fitted EVA-FWD suit and acquire a real room-specific permit.
+        self.crew_at("ENG-LOCKER")
         self.assertEqual(crew_physical_action(
-            self.worker, "9" * 32, "power", name, "reserve")["status"],
+            self.worker, "1" * 32, "eva", "INV-DC-CONSUMABLES",
+            "stage:0.75")["status"], "succeeded")
+        self.crew_at("EVA-FWD")
+        self.assertEqual(crew_physical_action(
+            self.worker, "2" * 32, "eva", "EVA-FWD", "checkout")["status"],
             "succeeded")
+        self.crew_at(room)
+        with self.assertRaises(PhysicsError):
+            crew_physical_action(self.worker, "9" * 32, "power", name, "reserve")
+
+        self.crew_at(SITES[room]["trunk"])
+        self.assertEqual(crew_physical_action(
+            self.worker, "a" * 32, "industrial", room, "secure")["status"],
+            "succeeded")
+        door = SITES[room]["door"]
+        self.assertEqual(crew_physical_action(
+            self.worker, "b" * 32, "hatch", door, "open")["status"],
+            "succeeded")
+        forward = find_world_entity("access:" + door + ":forward")
+        self.assertIsNotNone(forward)
+        self.assertEqual(traverse_canonical_exit(
+            self.worker, forward, forward.destination,
+            request_id="c" * 32)["status"], "succeeded")
+        self.assertEqual(crew_physical_action(
+            self.worker, "d" * 32, "hatch", door, "closed")["status"],
+            "succeeded")
+
+        result = crew_physical_action(
+            self.worker, "e" * 32, "power", name, "reserve")
+        self.assertEqual(result["status"], "succeeded")
+        self.assertEqual(crew_physical_action(
+            self.worker, "e" * 32, "power", name, "reserve"), result)
         self.assertEqual(local_physics_readout(
             self.worker, name)["mode"], "reserve")
+
+        # An attended switch operation does not revoke the original rated
+        # hatch or steal the engineer's issued suit during safe retreat.
+        self.assertEqual(crew_physical_action(
+            self.worker, "f" * 32, "hatch", door, "open")["status"],
+            "succeeded")
+        reverse = find_world_entity("access:" + door + ":reverse")
+        self.assertIsNotNone(reverse)
+        self.assertEqual(traverse_canonical_exit(
+            self.worker, reverse, reverse.destination,
+            request_id="0" * 32)["status"], "succeeded")
+        self.assertEqual(crew_physical_action(
+            self.worker, "3" * 32, "hatch", door, "closed")["status"],
+            "succeeded")
+        self.assertEqual(crew_physical_action(
+            self.worker, "4" * 32, "industrial", room, "release")["status"],
+            "succeeded")
 
     def test_full_authored_graph_and_nonresetting_commission(self):
         result = commission_g19_electrical(operator_approved=True)
