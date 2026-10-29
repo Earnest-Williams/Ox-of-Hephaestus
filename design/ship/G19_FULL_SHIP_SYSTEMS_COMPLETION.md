@@ -461,3 +461,26 @@ The three-job focused CI is
 Until the actual latest runtime head has all three *pure, installed and
 compatibility* jobs green, this extension is **implemented but not
 accepted**. Draft PR #138 is not merged. No 40-crew voyage has been run.
+
+
+## Coupled cargo decompression and human casualty transport (29 October 2026)
+
+Runtime `f0221bbd` passed the existing three-job G19 original-space
+acceptance on [run #40876903140](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40876903140).
+This revision adds real open-hatch gallery/sector gas mixing with 10-second
+concurrent shell leakage, bounded empty-sector behavior, damaged-open door
+physics and authenticated real survivor return. The installed campaign also
+carries a separately injured patient, with two enrolled crew, from the
+isolated DR-01 rotating service gallery to its original co-rotating hub
+using the actual timed entrance. The cargo drum's coast and restart
+interlocks remain sourced from the same real damage/manifest ledger.
+
+See [G19 unclassified cargo/portal/shield closure]
+(G19_UNCLASSIFIED_CARGO_PORTAL_SHIELD_CLOSURE.md) for accounting invariants,
+roles, casualty and isolation cases, and original 48/12/3 space inventory.
+
+The expanded G19 workflow adds an independent adjacent systems acceptance
+job for existing EVA, major hull damage, casualty transport, hull restoration,
+cargo movement and medical procedures. The earlier three-job runtime
+acceptance is green; the expanded cross-system gate is newly requested.
+No 40-crew voyage has been performed. PR #138 remains a draft.

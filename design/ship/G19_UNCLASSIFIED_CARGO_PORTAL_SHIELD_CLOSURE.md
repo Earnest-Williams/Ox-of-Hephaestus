@@ -53,10 +53,14 @@ After admission the operator cannot resurvey an occupied sector. A later
 ten-minute survey expiry, a bearing casualty that starts an inertial coast,
 or a lost manifest verification therefore cannot by themselves bar the
 **already inside permit holder** from returning to that same co-rotating
-gallery. The return path still requires the original sound hatch, matched
-live gas pressure and chemistry, a present authenticated living holder
-and no large uncontrolled leak. This retreat exception is not available
-for fresh admission, active inspections or internal repair work.
+gallery. If the rated hatch is CLOSED, opening it still requires verified
+safe, pressure-matched air and refuses a large uncontrolled leak. But if
+a casualty happens after the actual sound hatch has ALREADY opened, an
+ambulatory authenticated owner can travel its original reverse Evennia
+exit even during dangerous decompression. That exception never opens a
+hatch, admits new workers, defeats a failed door, re-arms machinery,
+or teleports an incapacitated person; casualties need a real rescue
+procedure.
 
 If a minor leak seal is interrupted, the work does not continue with an
 absent or endangered technician. The holder may return to the gallery
@@ -77,14 +81,55 @@ now explicitly checked as an overload rejection, followed by a legitimate
 outbound transfer of 3,000 kg already in the ship's reference freight.
 Both corrections preserve actual onboard mass and existing port interlocks.
 
-The current runtime revision is
-[`15819317`](https://github.com/Earnest-Williams/Ox-of-Hephaestus/commit/15819317063750b4a0f35fb36052618cc1b86a6e);
-its dedicated run is
-[40804699570](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40804699570).
-Do not declare the workflow accepted until all three jobs finish green.
+The original 63-space revision passed its three focused jobs at
+[run #40804699570](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40804699570).
+The latest compound-casualty runtime `f0221bbd` also passed all three
+jobs at [run #40876903140](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40876903140).
 
 ## Acceptance and integration boundaries
 
 The focused three-job GitHub Actions workflow is .github/workflows/ox-g19-unclassified.yml. It covers pure 48/12/3 source identities and conservation, installed Evennia cargo manifest and original doors, real portal berth and transfer operations, the three non-personnel voids, and existing freight/industrial compatibility. Mark the new phase accepted only if all three jobs pass on the actual latest runtime commit.
 
 The 40-crew voyage remains excluded and PR #138 remains draft/unmerged. Existing G19 whole-ship cross-casualty acceptance is a separate closure gate.
+
+
+## Coupled open-hatch casualty, actual retreat and pressure accounting (29 October 2026)
+
+A physically observed sector hull breach can now begin while the original
+rated personnel door is OPEN or already broken. The clock cannot make an
+observed breach vanish because the hatch is not closed. Soundness still
+governs crew entry and actuation, but a failed OPEN hatch passes physical
+gas, oxygen, carbon dioxide, smoke and heat through its original gallery
+boundary and never halts the whole physics clock.
+
+Every ten-second substep now exchanges finite, surveyed sector/gallery gas
+and subsequently debits the same substep's real shell leak. A persistent
+`gallery_net_kg` account, upgraded from older v1 sealed inventories,
+conserves original measured mass without creating any of the 133 commissioned
+normal pressure cells or gas reserves. A fully vented known sector (0 kg)
+still accepts bounded finite air through an open door without division by zero
+or frozen ticks. Once the rated door shuts, its sector loss persists but
+the independent gallery debit stops. The actual rotating machinery coasts
+down and cannot restart during a sector breach.
+
+Installed tests prove (1) shell casualty with an open rated boundary and
+gallery pressure loss, (2) isolation, continued loss and blocked motor
+restart, (3) living owner egress through the physically open real exit,
+(4) impossible bypass of a shut or failed door, (5) continued simulation
+with a broken-open hatch, and (6) a three-real-person timed casualty
+transfer from DR-01-GALLERY to DR-01-HUB with actual original passage,
+an authenticated qualified leader and helper, and no simulated 40-crew trip.
+The patient's independently evidenced impact injury is an explicit test
+fixture, not a claim that decompression automatically caused that injury.
+
+The **three-job pure / installed / compatibility acceptance passed** on
+runtime `f0221bbd`:
+[focused CI #40876903140](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40876903140).
+The workflow now adds an independently isolated **adjacent_acceptance**
+job covering existing EVA/major hull containment, actual two-carrier rescue,
+finite hull patch, commercial movement and medical work-pausing. This expanded
+cross-system check must pass on its new workflow head before calling the
+wider casualty slice accepted.
+
+G19 remains an unmerged draft integration PR. Full-vessel G19 acceptance
+remains separate; the 40-crew voyage remains excluded.
