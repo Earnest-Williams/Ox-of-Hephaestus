@@ -265,7 +265,7 @@ def action(actor, room, value):
                     or generator.condition in p._BROKEN
                     or not stopped(room)
                     or breaker.details.get("physics_power_trip_latched")
-                    or (d.get("electrical") or {}).get("shore", {}).get("connected")):
+                    or ((d.get("electrical") or {}).get("shore") or {}).get("connected")):
                 raise p.PhysicsError("No remote rearm with worker, active fault or live shore lead")
             old_breaker = p._snapshot(breaker)
             breaker.setting = "closed"
