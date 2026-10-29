@@ -15,13 +15,20 @@ concurrency:
 
 jobs:
   original_installed_ship_seed:
-    name: "Installed 24-minute casualty seed ${{ matrix.seed }}"
+    name: "Installed sustained casualty ${{ matrix.case }}"
     runs-on: ubuntu-latest
     timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
-        seed: [19a1, 19b2, 19c3]
+        case:
+          - test_seed_19a0
+          - test_seed_19a1
+          - test_seed_19a3
+          - test_seed_19a6
+          - test_seed_19a7
+          - test_seed_19c3
+          - test_seed_19d4_long
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -41,9 +48,9 @@ jobs:
         run: |
           export EVENNIA_SUPERUSER_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
           evennia migrate --noinput
-      - name: Exercise and verify deterministic 24-minute casualty sequence
+      - name: Exercise and verify seeded multi-system casualty sequence
         working-directory: game
         run: |
           python -m world.test_runner \
-            world.tests.test_installed_ship_g19_seeded_endurance.InstalledG19SeededEndurance.test_seed_${{ matrix.seed }} \
+            world.tests.test_installed_ship_g19_seeded_endurance.InstalledG19SeededEndurance.${{ matrix.case }} \
             --verbosity=2
