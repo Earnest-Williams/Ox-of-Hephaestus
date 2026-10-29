@@ -7,6 +7,7 @@ from world.full_ship_operations import (
 from world.ship_world import (
     build_canonical_ship, find_ship_space, find_world_entity)
 from world.ship_crew_access import CrewTransitError, traverse_canonical_exit
+from world.models import CanonicalShipState
 from world.ship_unclassified_spaces import (
     SECTORS, FREIGHT_ROUTES, PORTALS, VOIDS)
 from world.continuous_ship_physics import (
@@ -256,6 +257,66 @@ class OriginalCargoAndVoidClosure(EvenniaTestCase):
             "sectors"][sector]["lost_kg"],0)
         self.assertFalse(open_hatch_casualty_egress(
             self.worker,_clock().details,sector))
+
+    def test_compound_breach_isolation_and_three_real_crew_casualty_carry(self):
+        """Real cargo loss, manual isolation, and attended recovery to the hub.
+
+        The patient has a separately recorded handling-impact injury; gas
+        and the other two people's physical transport remain world-owned.
+        This is three crew, never a synthetic forty-person voyage.
+        """
+        from world.continuous_ship_physics import (
+            commission_g19_medical, commission_g19_rescue)
+        crew=build_ship()
+        leader=crew["environment"]
+        patient=crew["cargo"]
+        gallery=find_ship_space("DR-01-GALLERY")
+        hub=find_ship_space("DR-01-HUB")
+        for person in (self.worker, leader, patient):
+            self.assertTrue(person.move_to(gallery,quiet=True))
+        commission_g19_crew_physiology(
+            actor_dbrefs=[leader.dbref,patient.dbref],
+            operator_approved=True)
+        commission_g19_medical(
+            operator_approved=True,dressings=4,fluid_kg=2)
+        commission_g19_rescue(operator_approved=True)
+        self.survey_drum()
+        sector="DR-01-SEC-03"
+        self.op("cargo_sector",sector,"secure")
+        self.op("hatch","ACC-"+sector,"open")
+        witness_g19_cargo_sector_leak(
+            operator_approved=True,sector=sector,leak_kg_s=.7)
+        self.tick(60)
+        vented=_clock().details["unclassified_spaces"][
+            "sectors"][sector]["lost_kg"]
+        self.assertGreater(vented,0)
+        self.op("hatch","ACC-"+sector,"closed")
+        self.op("cargo_sector",sector,"release")
+        # Crew member injured by cargo handling during the casualty; this
+        # fixture uses the existing physiological injury schema, not a
+        # fabricated ship physics or medical intervention.
+        hp=CanonicalShipState.objects.get(
+            pk="crew_health:"+patient.dbref)
+        injury=dict(hp.details)
+        injury.update(injury=.7,condition="incapacitated")
+        hp.details=injury
+        hp.condition="incapacitated"
+        hp.save(update_fields=["details","condition"])
+        self.op("hatch","ACC-DR-01-HUB-GALLERY","open")
+        result=crew_physical_action(
+            leader,self.rid(),"rescue",patient.dbref,
+            f"{self.worker.dbref}:ACC-DR-01-HUB-GALLERY:reverse")
+        self.assertEqual(result["status"],"succeeded")
+        self.assertEqual(patient.location,gallery)
+        self.tick(60)
+        for person in (leader,self.worker,patient):
+            self.assertEqual(person.location,hub)
+        self.assertEqual(_clock().details["rescue"]["completed"],1)
+        self.assertFalse(_clock().details["rescue"]["jobs"])
+        self.assertGreater(_clock().details["unclassified_spaces"][
+            "sectors"][sector]["lost_kg"],vented)
+        self.assertEqual(_clock().details["summary"][
+            "cargo_open_breached_hatches"],[])
 
     def test_closed_breached_hatch_cannot_be_used_as_emergency_teleport(self):
         sector="DR-01-SEC-07"
