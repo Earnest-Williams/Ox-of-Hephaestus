@@ -91,7 +91,8 @@ class InstalledAttendedFireWaterRecovery(EvenniaTestCase):
                 graph[spec["to_node"]].append((spec["from_node"], edge))
         for start, destination in (
                 ("NODE-GEN-B", "NODE-LP-WATER-FWD"),
-                ("NODE-GEN-M", "NODE-HAB-06-ECLSS-A-LP")):
+                ("NODE-GEN-B", "NODE-HAB-06-ECLSS-A-LP"),
+                ("NODE-GEN-M", "NODE-HAB-03-FIRE-DETECT")):
             # The purifier's own A-side panel and motors are electrically
             # independent of the forward fire pump. Powering one does not
             # magically energise the other.
