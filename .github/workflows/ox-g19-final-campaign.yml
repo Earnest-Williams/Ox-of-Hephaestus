@@ -88,7 +88,6 @@ jobs:
     timeout-minutes: 35
     env:
       OX_G19_RESTART_CI: "1"
-      OX_G19_RESTART_DB_PATH: ${{ runner.temp }}/ox-g19-restart.sqlite3
       EVENNIA_SUPERUSER_USERNAME: OxCI
       EVENNIA_SUPERUSER_EMAIL: oxci@example.invalid
     steps:
@@ -103,7 +102,11 @@ jobs:
         run: python -m compileall -q game/world/g19_process_recovery.py
       - name: Process A - commission disposable actual ship, create casualty and exit
         working-directory: game
+        env:
+          OX_G19_RESTART_DB_PATH: ${{ runner.temp }}/ox-g19-restart.sqlite3
         run: python -m world.g19_process_recovery prepare
       - name: Process B - fresh interpreter, same durable database, catch up safely
         working-directory: game
+        env:
+          OX_G19_RESTART_DB_PATH: ${{ runner.temp }}/ox-g19-restart.sqlite3
         run: python -m world.g19_process_recovery resume
