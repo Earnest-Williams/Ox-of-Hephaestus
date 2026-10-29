@@ -9342,8 +9342,8 @@ def crew_physical_action(actor, request_id, action, target, value):
             raise PhysicsError("No such original crawler or drum-inspection robot")
         home = ORIGINAL_EXTERIOR_MOBILE[target]
         _crew_at(actor,home)
-        _health = __import__("world.ship_crew_access",fromlist=["_health_gate"])._health_gate
-        _health(actor)
+        from world.ship_crew_access import _health_gate
+        _health_gate(actor)
         panel = state("equipment",lock_contract(home)["panel"])
         if panel.condition in _BROKEN:
             raise PhysicsError("Real airlock remote crawler panel unavailable")
@@ -9358,6 +9358,18 @@ def crew_physical_action(actor, request_id, action, target, value):
                 and (not suit or suit["integrity"] < .8
                      or suit["exposure"]["suit_oxygen_kg"] <= 0)):
             raise PermissionError("Operator must wear an issued live suit inside evacuated EVA station")
+        if target in MOBILE_CRAWLERS and value not in {"hold","reset"}:
+            # The same fitted rail carriage cannot also serve a crew EVA.
+            from evennia.objects.models import ObjectDB
+            issued = [row["holder"] for row in eva_state["suits"].values()
+                      if row["holder"] is not None]
+            occupants = ObjectDB.objects.filter(
+                id__in=[int(person[1:]) for person in issued])
+            if eva_state["transits"] or any(
+                    str(getattr(getattr(getattr(person,"location",None),
+                                        "db",None),"ox_space_id","")).startswith("EXT-")
+                    for person in occupants):
+                raise PhysicsError("Crew EVA occupies the original crawler service corridor")
         ledger = clock.details.get("exterior_mobile")
         if ledger is None:
             raise PhysicsError("Original mobile exterior machinery not commissioned")
