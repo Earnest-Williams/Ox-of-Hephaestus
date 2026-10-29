@@ -83,6 +83,18 @@ class InstalledG19SeededEndurance(EvenniaTestCase):
         rng = random.Random(seed)
         hazard_order = ["fire", "water", "power"]
         rng.shuffle(hazard_order)
+        # Pin complete fault-order coverage, rather than accidentally
+        # counting two seeds which shuffled to the same permutation.
+        expected_orders = {
+            0x19A0: ("water", "fire", "power"),
+            0x19A1: ("fire", "water", "power"),
+            0x19A3: ("water", "power", "fire"),
+            0x19A6: ("power", "fire", "water"),
+            0x19A7: ("power", "water", "fire"),
+            0x19C3: ("fire", "power", "water"),
+            0x19D4: ("water", "power", "fire"),
+        }
+        self.assertEqual(tuple(hazard_order), expected_orders[seed])
         sector = rng.choice(SECTORS[:8])
         leak_kg_s = .025 + .005 * rng.randrange(6)
         fire_fuel_kg = 5.0 + rng.randrange(5)
@@ -219,6 +231,7 @@ class InstalledG19SeededEndurance(EvenniaTestCase):
         self.assertEqual(applied, {"fire", "water", "power"})
         self.assertGreater(total_lost, 0)
         self.assertGreater(total_burn, 0)
+        self.assertGreater(total_vent, 0)
         self.assertTrue(_clock().details["water"]["potable_quarantined"])
         self.assertEqual(_clock().details["last_game_time"],
                          1000.0 + self.DURATION_MINUTES * self.STEP_S)
@@ -237,11 +250,26 @@ class InstalledG19SeededEndurance(EvenniaTestCase):
             "durable_work_receipts": 1,
         }, sort_keys=True))
 
+    def test_seed_19a0(self):
+        self._campaign(0x19A0)
+
     def test_seed_19a1(self):
         self._campaign(0x19A1)
 
-    def test_seed_19b2(self):
-        self._campaign(0x19B2)
+    def test_seed_19a3(self):
+        self._campaign(0x19A3)
+
+    def test_seed_19a6(self):
+        self._campaign(0x19A6)
+
+    def test_seed_19a7(self):
+        self._campaign(0x19A7)
 
     def test_seed_19c3(self):
         self._campaign(0x19C3)
+
+    def test_seed_19d4_long(self):
+        # Same physically installed ship and casualty rules, held under
+        # prolonged blackout/quarantine and shell leakage for three hours.
+        self.DURATION_MINUTES = 180
+        self._campaign(0x19D4)
