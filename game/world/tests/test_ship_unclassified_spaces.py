@@ -18,7 +18,9 @@ def parked():
         "passenger_indexer":False,"indexing":False} for n in range(1,7)}
 
 def cargo():
-    m=initial_cargo(0)
+    # The canonical manifest always begins with positive unlocated onboard
+    # mass. A sector with no STOWED lots remains genuinely empty.
+    m=initial_cargo(1.0)
     m["verified_drums"]=["DR-01"]
     return m
 
@@ -44,7 +46,7 @@ class UnclassifiedTaxonomy(unittest.TestCase):
             initial_unclassified()["sectors"].values()))
     def test_all_forty_eight_sector_atmospheres_remain_separately_conserved(self):
         """Six real drums, eight independent sectors apiece, zero borrowed air."""
-        manifest=initial_cargo(0)
+        manifest=initial_cargo(1.0)
         manifest["verified_drums"]=sorted({sector[:5] for sector in SECTORS})
         ledger=initial_unclassified()
         for sector in SECTORS:
@@ -87,7 +89,7 @@ class UnclassifiedTaxonomy(unittest.TestCase):
     def test_all_twelve_berth_certificates_are_independent_and_revision_bound(self):
         """A stale P1 seal can never impersonate a different drum's P2."""
         ledger=initial_unclassified()
-        manifest=initial_cargo(0)
+        manifest=initial_cargo(1.0)
         for i,portal in enumerate(PORTALS,1):
             manifest["port_contacts"][portal]={
                 "docked":True,"berth_id":f"BERTH-{i:02d}"}
