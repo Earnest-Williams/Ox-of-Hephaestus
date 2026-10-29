@@ -178,6 +178,24 @@ class UnclassifiedTaxonomy(unittest.TestCase):
             led,manifest,parked(),sector,
             **{**conditions,"source_pressure_pa":110000},
             allow_stale_retreat=True))
+        # A stopped, surveyed crew sector can become an emergency
+        # co-rotating worksite after a bearing casualty. No fixed/rotary
+        # crossing occurs to move back into its own DR-01-GALLERY.
+        drifting=parked()
+        drifting["DR-01"].update(
+            rpm=.5,target_rpm=0,brake=False,hardlock=False)
+        self.assertFalse(permit_ready(
+            led,manifest,drifting,sector,**conditions))
+        self.assertTrue(permit_ready(
+            led,manifest,drifting,sector,**conditions,
+            allow_stale_retreat=True))
+        lost_manifest=copy.deepcopy(manifest)
+        lost_manifest["verified_drums"]=[]
+        self.assertFalse(permit_ready(
+            led,lost_manifest,parked(),sector,**conditions))
+        self.assertTrue(permit_ready(
+            led,lost_manifest,parked(),sector,**conditions,
+            allow_stale_retreat=True))
         with self.assertRaises(UnclassifiedSpaceError):
             permit_ready(led,manifest,parked(),sector,
                 **{**conditions,"permit_required":False},

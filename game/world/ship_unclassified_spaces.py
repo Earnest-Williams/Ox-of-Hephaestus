@@ -302,10 +302,12 @@ def permit_ready(ledger,manifest,rotors,sector, *,
                  source_pressure_pa,source_safe,now_s,
                  permit_required=True,allow_minor_leak=False,
                  allow_stale_retreat=False):
-    """Fresh survey for new admission; owner may leave after time passes.
+    """Strict entry; a held worker may retreat from the same rotating frame.
 
-    Only existing permits may use the retreat exception. Live mixture,
-    differential, hatch and all other physical constraints still apply.
+    A sector and its gallery rotate together. Returning to that gallery is
+    not a fixed-to-rotating transfer and must not demand a newly hardlocked
+    drum or a fresh cargo manifest after a casualty. The original owner,
+    living air sample, pressure differential and rated hatch still apply.
     """
     if type(allow_stale_retreat) is not bool or (
             allow_stale_retreat and not permit_required):
@@ -318,10 +320,12 @@ def permit_ready(ledger,manifest,rotors,sector, *,
     row=ledger["sectors"][sector]
     gas=row["gas"]
     if (gas is None or row["class"] not in {"empty","ordinary_cargo"}
-            or not drum_parked(rotors,drum)
+            or (not allow_stale_retreat
+                and not drum_parked(rotors,drum))
             or manifest.get("jobs",{}).get(drum)
             or any(p.startswith(drum) for p in manifest.get("port_jobs",{}))
-            or not complete_manifest(ledger,manifest,drum)
+            or (not allow_stale_retreat
+                and not complete_manifest(ledger,manifest,drum))
             or not bay_gas_safe(gas)
             or row["leak_kg_s"] > (MINOR_PATCH_KG_S if allow_minor_leak else 0)
             or _num(now_s)<gas["sample_s"]
