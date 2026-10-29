@@ -34,3 +34,10 @@ The final-campaign workflow now triggers on changes under `game/world/**`, inste
 This is an **accepted integrated multi-system casualty and persistence gate** at the stated revision. It is stronger than independent equipment-family classification or a single subsystem-only smoke test, but it is not proof that every one of the 808 fitted devices has passed every possible coupled failure. Preserve the original pressure-cell inventories, the 421 original spaces, the 517 authored undirected passages, and individually located original equipment.
 
 Keep PR #138 in draft until remaining whole-ship closure criteria have explicitly been judged against its current code head. Continue with longer seeded combined-operation sequences and regression compatibility whenever cross-system code changes. Do not silently treat successful registration, source availability or a repaired component as proof of positive output or authorised restart.
+
+
+## Follow-on endurance signoff, same integration branch
+
+The subsequent [seeded sustained casualty campaign](G19_SEEDED_ENDURANCE_ACCEPTANCE_2026-10-29.md) passed **7/7 independent installed Evennia jobs** in [CI #40936113860](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40936113860), tested at code revision `c8b0bb962e17a99d045be0b1ece077822e7a85a0`.
+
+Six separate 24-minute runs cover **all six permutations** of fire, power and water contamination during a true cargo-sector shell casualty. A seventh **180-minute** run retains the same physical faults without time-skipped resources, damaged-hatch repair or automatic inventory restock. Total independently tested game time is **324 minutes**, with minute-by-minute original pressure-cell, gas loss, fuel custody, generator supply, quarantine, instrument time and replay checks. This strengthens the earlier 52-test acceptance without revising its separate tested code revision.
