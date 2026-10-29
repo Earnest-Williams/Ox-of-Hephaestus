@@ -1406,6 +1406,30 @@ def survey_g19_electrical_worksite(*, operator_approved=False, room_id=None):
 
 
 
+def _fire_suit_ready(actor, details):
+    """A real issued and breathable suit, not a legacy profile boolean.
+
+    Fire mist can be initiated only by a crew member protected by finite
+    suit oxygen. A stored ox_suit_verified flag is not physical equipment.
+    """
+    if actor is None or getattr(actor.db, "ox_terminal_dead", False):
+        return False
+    health = CanonicalShipState.objects.filter(
+        pk="crew_health:" + actor.dbref, source_model=MODEL).first()
+    if health is None or health.condition not in {"fit", "impaired"}:
+        return False
+    eva = details.get("eva")
+    if eva is None or actor.dbref in eva["transits"]:
+        return False
+    _, suit = suit_of(eva, actor.dbref)
+    return bool(
+        suit is not None and suit["integrity"] >= .8
+        and suit["exposure"]["suit_oxygen_kg"] > .01
+        and suit["exposure"]["condition"] not in {
+            "incapacitated", "critical", "dead"
+        })
+
+
 def _flywheel_suit_ready(actor, room, details):
     """No legacy suit attestation is accepted in the two vacuum flywheel bays.
 
@@ -10798,8 +10822,8 @@ def crew_physical_action(actor, request_id, action, target, value):
         if value == "start" and (item.details.get("physics_burn_kg_s", 0) <= 0
                                   or item.details.get("physics_mist_kg_s", 0) > 0):
             raise PhysicsError("No active ordinary fire to suppress or mist already running")
-        if value == "start" and not bool(actor.db.ox_suit_verified):
-            raise PermissionError("Verified breathing protection required near an active fire")
+        if value == "start" and not _fire_suit_ready(actor, _clock().details):
+            raise PermissionError("Issued finite-oxygen EVA suit required near an active fire")
         # Delivery/power/water are rechecked every tick; command is not a
         # false assertion that an isolated fire main is delivering water.
         before = _snapshot(item)
