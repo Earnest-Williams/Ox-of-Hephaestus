@@ -2980,7 +2980,8 @@ def _waste_freight_ready(job, water, *, rotors, equipment, access, pressure, zon
         doors=access, zones=zones, pressure_rows=pressure, rotors=rotors)
 
 
-def _waste_port_ready(job, *, rotors, equipment, access, cargo):
+def _waste_port_ready(job, *, rotors, equipment, access, cargo,
+                      unclassified=None):
     portal = job["portal_id"]
     drum = portal[:5]
     r = rotors.get(drum)
@@ -2993,6 +2994,11 @@ def _waste_port_ready(job, *, rotors, equipment, access, cargo):
         and contact.get("docked", False)
         and handler.condition not in _BROKEN
         and seal.condition not in _BROKEN and seal.setting == "closed"
+        and (unclassified is None or portal_ready(
+            unclassified, cargo, portal, hatch_revision=seal.revision,
+            hatch_closed=seal.setting=="closed",
+            hatch_sound=seal.condition not in _BROKEN,
+            handler_sound=handler.condition not in _BROKEN))
         and r["hardlock"] and r["brake"] and r["target_rpm"] == 0
         and abs(r["rpm"]) < 0.001
         and not r["freight_collar"] and not r["passenger_indexer"]
@@ -3213,6 +3219,16 @@ def survey_cargo_lot(*, operator_approved=False, operation, lot_id=None,
     cargo = d.get("cargo")
     if cargo is None:
         raise PhysicsError("Cargo ledger not commissioned")
+    # An operator's new observation cannot rewrite the live manifest under
+    # a worker occupying any of that drum's independently rated sectors.
+    sites = (d.get("unclassified_spaces") or {"sectors": {}})["sectors"]
+    affected_drum = (
+        drum if operation in {"declare", "verify"} else
+        (cargo.get("lots", {}).get(source_id or lot_id) or {}).get("drum"))
+    if affected_drum and any(
+            sector.startswith(affected_drum + "-")
+            and row["permit"] is not None for sector, row in sites.items()):
+        raise PhysicsError("Occupied original sector freezes its drum's verified manifest")
     try:
         if operation == "declare":
             revised = declare_cargo_lot(
@@ -3289,6 +3305,11 @@ def commission_commercial_port(*, operator_approved=False, operation,
         raise PhysicsError("Cannot release berth while sealed-waste transfer is active")
     if operation == "register" and active_waste:
         raise PhysicsError("Commercial handler reserved for sealed waste")
+    if (operation == "dock" and portal_id in PORTALS
+            and d.get("unclassified_spaces") is not None
+            and not drum_clear_for_freight(
+                d["unclassified_spaces"], portal_id[:5])):
+        raise PhysicsError("Breached or occupied cargo sectors block external docking")
     if operation == "dock":
         drum = portal_id[:5] if portal_id in PORTALS else None
         rotor = d["rotors"].get(drum) if drum else None
@@ -3804,6 +3825,19 @@ def tick_continuous_physics(*, now_game_time=None):
     if not motion:
         raise PhysicsError("Ship motion state not initialised")
     rotors = dict(clock.details.get("rotors", {}))
+    # Cargo shell damage can begin during rotation. Coast its actual drum
+    # using existing inertia rather than applying an instantaneous brake.
+    if unclassified is not None:
+        leaking_drums = {
+            sector[:5] for sector, site in unclassified["sectors"].items()
+            if site["leak_kg_s"] > 0}
+        for drum in leaking_drums:
+            rotor = dict(rotors[drum])
+            rotor["target_rpm"] = 0.0
+            if rotor["rpm"] > .001:
+                rotor["brake"] = False
+                rotor["hardlock"] = False
+            rotors[drum] = rotor
     # Do not apply instantaneous brakes to a moving drum after a real
     # bearing-annulus casualty: order coast-down under the normal dynamics.
     industrial_hazard_sites = (_industrial_hazards(industrial_bays)
@@ -4369,7 +4403,8 @@ def tick_continuous_physics(*, now_game_time=None):
                             and motor_ready(job["portal_id"][:5] + "-RADIAL-FREIGHT-HANDLER")
                             and _waste_port_ready(
                                 job, rotors=rotors, equipment=equipment,
-                                access=by_access, cargo=cargo)):
+                                access=by_access, cargo=cargo,
+                                unclassified=unclassified)):
                         waste_ports_ready.add(receiver_id)
                         available -= WASTE_PORT_AUX_MW
             try:
@@ -7555,7 +7590,8 @@ def crew_physical_action(actor, request_id, action, target, value):
                      CanonicalShipState.objects.filter(category="equipment")}
             if not _waste_port_ready(
                     job, rotors=d["rotors"], equipment=equip,
-                    access=access, cargo=d["cargo"]):
+                    access=access, cargo=d["cargo"],
+                    unclassified=d.get("unclassified_spaces")):
                 raise PhysicsError("No verified berth or sealed functioning cargo port")
         try:
             d["water"] = (water if value in {"capture_open", "capture_close"}
