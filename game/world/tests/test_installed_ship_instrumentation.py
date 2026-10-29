@@ -344,6 +344,180 @@ class InstalledInstrumentationTests(EvenniaTestCase):
         self.assertEqual(verified["verified_by"], self.worker.dbref)
         self.assertEqual(act("9", "fault", name, "verify")["status"], "succeeded")
 
+
+    def test_live_cnc_repair_and_restart_survives_compound_ship_casualties(self):
+        """No workshop oracle, automatic restart, replacement air or parts.
+
+        A real installed machinery repair proceeds during independent fire,
+        thermal, potable-water and cargo-shell incidents. A manual breaker
+        interruption after the first restart sample must reset its physical
+        positive-output proof; only later fresh samples can certify repair.
+        """
+        from world.continuous_ship_physics import (
+            _clock, commission_g19_water, commission_g19_repairs,
+            commission_g19_unclassified_spaces, survey_cargo_lot,
+            survey_g19_cargo_sector, survey_g19_water_material,
+            witness_g19_cargo_sector_leak, configure_scenario_casualty,
+            configure_water_casualty)
+        from world.ship_unclassified_spaces import SECTORS
+        from world.models import CanonicalShipEvent
+
+        machine = "SHOP-CNC-MILL"
+        breaker = "ISO-G19-SVC-" + machine
+        act = lambda token, op, target, value: crew_physical_action(
+            self.worker, f"{token:032x}", op, target, value)
+
+        commission_g19_water(operator_approved=True)
+        commission_g19_repairs(operator_approved=True)
+        commission_g19_instrumentation(operator_approved=True)
+        commission_g19_unclassified_spaces(operator_approved=True)
+        self.energize("NODE-LP-SHOP-MECH")
+        self.energize("NODE-HAB-03-FIRE-DETECT")
+
+        # A genuine, independently ventilated rotating cargo shell remains
+        # damaged while the mechanic does precisely the original shop work.
+        drum, sector = "DR-04", "DR-04-SEC-03"
+        survey_cargo_lot(
+            operator_approved=True, operation="verify", drum=drum)
+        for s in (x for x in SECTORS if x.startswith(drum + "-")):
+            survey_g19_cargo_sector(
+                operator_approved=True, sector=s,
+                free_volume_m3=50, pressure_pa=101000,
+                temperature_k=293.15, oxygen_mass_fraction=.232,
+                co2_mass_fraction=.0004, smoke_mass_fraction=0,
+                cargo_class="empty", lot_ids=[])
+        witness_g19_cargo_sector_leak(
+            operator_approved=True, sector=sector, leak_kg_s=.015)
+        initial_gas = _clock().details["unclassified_spaces"][
+            "sectors"][sector]["gas"]["mass_kg"]
+
+        set_component_condition(
+            "equipment", machine, "failed", operator=True)
+        self.at("SHOP-MECH")
+        self.assertEqual(
+            act(1, "fault", machine, "inspect")["status"], "succeeded")
+        self.assertEqual(
+            act(2, "switch", breaker, "open")["status"], "succeeded")
+        self.assertEqual(
+            act(3, "fault", machine, "isolate")["status"], "succeeded")
+        self.at("TOOL-CRIB")
+        self.assertEqual(
+            act(4, "repair", "TOOL-CRIB", "pickup_toolkit")["status"],
+            "succeeded")
+        survey_g19_water_material(
+            operator_approved=True, source="INV-SPARES",
+            room_id="SPARES-CENTRAL", verified_kg=4)
+        self.at("SPARES-CENTRAL")
+        self.assertEqual(
+            act(5, "repair", "INV-SPARES", "pickup:3")["status"],
+            "succeeded")
+        self.at("SHOP-MECH")
+        self.assertEqual(
+            act(6, "repair", "equipment:" + machine, "start")["status"],
+            "succeeded")
+        self.assertEqual(local_physics_readout(
+            self.worker, "fault:" + machine)["case"]["stage"], "repairing")
+
+        prior_temp = state("pressure", "PZ-HAB-01").details["temperature_k"]
+        configure_scenario_casualty(
+            "PZ-HAB-01", operator=True, fire_fuel_kg=8,
+            fire_burn_kg_s=.01, heat_kw=12)
+        configure_water_casualty(operator=True, contaminated_kg=7)
+
+        previous_cargo_loss = 0.0
+        for now in range(1060, 1601, 60):
+            result = tick_continuous_physics(now_game_time=now)
+            self.assertTrue(result["advanced"])
+            d = _clock().details
+            cargo = d["unclassified_spaces"]["sectors"][sector]
+            self.assertGreaterEqual(
+                cargo["lost_kg"] + 1e-7, previous_cargo_loss)
+            self.assertAlmostEqual(
+                cargo["gas"]["mass_kg"] + cargo["lost_kg"]
+                - cargo["gallery_net_kg"],
+                cargo["initial_kg"], delta=1e-5)
+            self.assertTrue(d["water"]["potable_quarantined"])
+            self.assertEqual(state("isolator", breaker).setting, "open")
+            previous_cargo_loss = cargo["lost_kg"]
+        self.assertGreater(previous_cargo_loss, 0)
+        self.assertLess(
+            _clock().details["unclassified_spaces"]["sectors"][sector][
+                "gas"]["mass_kg"], initial_gas)
+        self.assertGreater(_clock().details["burned_fuel_kg"], 0)
+        self.assertGreater(
+            state("pressure", "PZ-HAB-01").details["temperature_k"],
+            prior_temp)
+        self.assertEqual(state("equipment", machine).condition, "serviceable")
+        self.assertEqual(local_physics_readout(
+            self.worker, "fault:" + machine)["case"]["stage"], "repaired")
+        self.assertEqual(_clock().details["repairs"]["installed_kg"], 3.0)
+
+        self.assertEqual(act(7, "fault", machine, "check")["status"],
+                         "succeeded")
+        self.assertEqual(act(8, "switch", breaker, "closed")["status"],
+                         "succeeded")
+        with self.assertRaises(PhysicsError):
+            act(9, "fault", machine, "authorize")
+        self.assertTrue(
+            tick_continuous_physics(now_game_time=1610)["advanced"])
+        self.assertEqual(
+            act(9, "fault", machine, "authorize")["status"], "succeeded")
+        self.assertEqual(
+            act(10, "plant", machine, "on")["status"], "succeeded")
+        self.assertTrue(
+            tick_continuous_physics(now_game_time=1620)["advanced"])
+        with self.assertRaises(PhysicsError):
+            act(11, "fault", machine, "verify")
+
+        # Lose the actual machine feeder between successive measurements.
+        self.assertEqual(
+            act(12, "switch", breaker, "open")["status"], "succeeded")
+        self.assertTrue(
+            tick_continuous_physics(now_game_time=1630)["advanced"])
+        self.assertTrue(local_physics_readout(
+            self.worker, machine)["restart_required"])
+        self.assertFalse(local_physics_readout(
+            self.worker, machine)["output_proven_at_site"])
+        with self.assertRaises(PhysicsError):
+            act(13, "fault", machine, "verify")
+        self.assertTrue(
+            tick_continuous_physics(now_game_time=1640)["advanced"])
+        self.assertEqual(
+            act(14, "switch", breaker, "closed")["status"], "succeeded")
+        self.assertTrue(
+            tick_continuous_physics(now_game_time=1650)["advanced"])
+        self.assertFalse(local_physics_readout(
+            self.worker, machine)["operating"])
+        with self.assertRaises(PhysicsError):
+            act(15, "fault", machine, "verify")
+
+        self.assertEqual(
+            act(16, "plant", machine, "on")["status"], "succeeded")
+        self.assertTrue(
+            tick_continuous_physics(now_game_time=1660)["advanced"])
+        with self.assertRaises(PhysicsError):
+            act(17, "fault", machine, "verify")
+        self.assertTrue(
+            tick_continuous_physics(now_game_time=1670)["advanced"])
+        delivered = local_physics_readout(self.worker, machine)
+        self.assertTrue(delivered["output_proven_at_site"], delivered)
+        self.assertGreaterEqual(
+            delivered["workshop_mechanical_output"]["value"], 300)
+        verified = act(18, "fault", machine, "verify")
+        self.assertEqual(verified["status"], "succeeded")
+        self.assertEqual(local_physics_readout(
+            self.worker, "fault:" + machine)["case"]["stage"], "verified")
+
+        event_count = CanonicalShipEvent.objects.count()
+        before = copy.deepcopy(_clock().details)
+        self.assertEqual(act(18, "fault", machine, "verify"), verified)
+        self.assertEqual(CanonicalShipEvent.objects.count(), event_count)
+        self.assertEqual(_clock().details, before)
+        self.assertTrue(_clock().details["water"]["potable_quarantined"])
+        self.assertGreater(
+            _clock().details["unclassified_spaces"]["sectors"][sector][
+                "lost_kg"], previous_cargo_loss)
+
     def test_real_machine_fault_acknowledgement_never_repairs_machine(self):
         commission_g19_instrumentation(operator_approved=True)
         self.energize("NODE-LP-SHOP-MECH")
