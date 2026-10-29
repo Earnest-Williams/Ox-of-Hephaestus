@@ -49,6 +49,13 @@ class InstalledAttendedFireWaterRecovery(EvenniaTestCase):
         set_isolator("ISO-GEN-M", "closed", operator=True)
         commission_g19_electrical(operator_approved=True)
         commission_g19_water(operator_approved=True)
+        # Line up the original three wet networks. Fresh installations
+        # leave these individual valves isolated by default.
+        for row in CanonicalShipState.objects.filter(category="isolator"):
+            if (row.reference.get("network") in {
+                    "potable_water", "greywater", "blackwater"}
+                    and row.condition in {"serviceable", "degraded"}):
+                set_isolator(row.source_id, "open", operator=True)
         commission_g19_repairs(operator_approved=True)
         commission_g19_eva(operator_approved=True)
         commission_g19_crew_physiology(
