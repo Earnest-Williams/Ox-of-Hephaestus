@@ -40,6 +40,41 @@ A positively observed cargo-sector breach draws gas from its own original survey
 
 Only a minor, still safely accessible inner breach (at most 0.05 kg/s) can receive an internal material patch: one real physically present suited engineer, genuine EVA oxygen, commissioned toolkit, 2 kg finite carried spares, original closed hatch and 180 seconds of continuously verified work. On successful completion the actual 2 kg transfers into the fitted repair account and the leak stops; the lost gas remains missing. A large or unsafe breach has no internal magic repair.
 
+## Emergency return and unfinished internal damage control
+
+The rated cargo-sector personnel hatch connects the compartment and its
+**own co-rotating gallery**. It is not a moving-frame docking indexer.
+Admission is conservative: each of the eight sectors needs a fresh,
+complete verified manifest; the drum must be stationary and hardlocked;
+the destination gas and gallery must be breathing-safe and matched within
+2 kPa, and a living named crew member must hold the permit.
+
+After admission the operator cannot resurvey an occupied sector. A later
+ten-minute survey expiry, a bearing casualty that starts an inertial coast,
+or a lost manifest verification therefore cannot by themselves bar the
+**already inside permit holder** from returning to that same co-rotating
+gallery. The return path still requires the original sound hatch, matched
+live gas pressure and chemistry, a present authenticated living holder
+and no large uncontrolled leak. This retreat exception is not available
+for fresh admission, active inspections or internal repair work.
+
+If a minor leak seal is interrupted, the work does not continue with an
+absent or endangered technician. The holder may return to the gallery
+through the original safe access, close the rated hatch, and use
+`cargo_sector ... abort_seal` before releasing the now-empty worksite.
+The unsolved leak rate and all previously lost gas remain unchanged, and
+no 2 kg replacement stock is debited. A different person, an open hatch
+or remaining crew inside cannot cancel another worker's incomplete job.
+
+The acceptance matrix now includes an all-48 gas conservation sweep,
+independent revision-bound verification of all 12 commercial portals,
+real crew breathing and long-duration egress, and finite-material
+interrupted-patch tests. The latest tested runtime under review is
+[`01c1e574`](https://github.com/Earnest-Williams/Ox-of-Hephaestus/commit/01c1e5741bc6037afaec4d3b68c22f7c0853c969);
+its dedicated run is
+[40804385454](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40804385454).
+Do not declare the workflow accepted until all three jobs finish green.
+
 ## Acceptance and integration boundaries
 
 The focused three-job GitHub Actions workflow is .github/workflows/ox-g19-unclassified.yml. It covers pure 48/12/3 source identities and conservation, installed Evennia cargo manifest and original doors, real portal berth and transfer operations, the three non-personnel voids, and existing freight/industrial compatibility. Mark the new phase accepted only if all three jobs pass on the actual latest runtime commit.
