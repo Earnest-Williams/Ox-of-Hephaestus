@@ -26,6 +26,11 @@ class FittedIndustrialMaintenance(EvenniaTestCase):
         arm_continuous_physics(operator_approved=True, now_game_time=1000)
         self.crew=build_ship()
         self.worker=self.crew["watch"]
+        # Physiology enrolls only characters physically aboard canonical
+        # Evennia ship rooms; the bootstrap watch starts at a separate
+        # scenario staging location.
+        self.assertTrue(self.worker.move_to(
+            find_ship_space("ENG-CONTROL"),quiet=True))
         commission_g19_electrical(operator_approved=True)
         commission_g19_water(operator_approved=True)
         commission_g19_repairs(operator_approved=True)
