@@ -26,9 +26,9 @@ jobs:
       - name: Compile ten fitted portable emergency devices and existing ship clock
         run: |
           python -m compileall -q game/world/ship_portable_damage.py game/world/continuous_ship_physics.py game/world/tests/test_ship_portable_damage.py game/world/tests/test_installed_ship_portable_damage.py
-      - name: Four pumps and six fans: bounded liquid and smoke conservation
+      - name: "Four pumps and six fans - bounded liquid and smoke conservation"
         working-directory: game
-        run: python -m unittest world.tests.test_ship_survival_craft_air -v
+        run: python -m unittest world.tests.test_ship_portable_damage -v
 
   installed:
     runs-on: ubuntu-latest
@@ -51,5 +51,5 @@ jobs:
           evennia migrate --noinput
       - name: Installed finite local pump, smoke fan and crew custody acceptance
         working-directory: game
-        run: python -m world.test_runner world.tests.test_installed_ship_survival_craft_air --verbosity=2
+        run: python -m world.test_runner world.tests.test_installed_ship_portable_damage --verbosity=2
 
