@@ -1358,20 +1358,27 @@ class InstalledElectricalTests(EvenniaTestCase):
             operator_approved=True, actor_dbrefs=[self.worker.dbref])
         commission_g19_generator_bays(operator_approved=True)
         room, hatch, trunk = "GEN-M-ROOM", "ACC-GEN-M-ROOM", "TRUNK-A-AFT"
-        survey_g19_generator_room(
-            operator_approved=True, room_id=room,
-            volume_m3=ROOMS[room][5] * .75,
-            pressure_pa=101000, temperature_k=293.15,
-            oxygen_mass_fraction=.232, co2_mass_fraction=.0004,
-            smoke_mass_fraction=0, skin_temperature_k=299)
-        # The real generator must first be tripped and locked out by the
-        # engineering controller, *not* silently repaired by the test.
+        # Positively surveying a generator is forbidden until it has
+        # actually been tripped, stopped and locally isolated.
+        with self.assertRaises(PhysicsError):
+            survey_g19_generator_room(
+                operator_approved=True, room_id=room,
+                volume_m3=ROOMS[room][5] * .75,
+                pressure_pa=101000, temperature_k=293.15,
+                oxygen_mass_fraction=.232, co2_mass_fraction=.0004,
+                smoke_mass_fraction=0, skin_temperature_k=299)
         assert_trip = crew_physical_action(
             self.worker, "a" * 32, "generator_bay", room, "trip")
         self.assertEqual(assert_trip["status"], "succeeded")
         self.assertEqual(state("isolator", "ISO-GEN-M").setting, "open")
         self.assertTrue(state("isolator", "ISO-GEN-M").details.get(
             "physics_power_trip_latched"))
+        survey_g19_generator_room(
+            operator_approved=True, room_id=room,
+            volume_m3=ROOMS[room][5] * .75,
+            pressure_pa=101000, temperature_k=293.15,
+            oxygen_mass_fraction=.232, co2_mass_fraction=.0004,
+            smoke_mass_fraction=0, skin_temperature_k=299)
         self.crew_at(trunk)
         with self.assertRaises(PhysicsError):
             crew_physical_action(
