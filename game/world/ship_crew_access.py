@@ -340,9 +340,19 @@ def _clearance(actor, exit_obj, dest):
         if not suit or suit["integrity"] < 0.8 or (
                 suit["exposure"]["suit_oxygen_kg"] <= 0):
             raise CrewTransitError("Exterior traversal requires a charged issued suit")
-        crawler = state("equipment", lock_contract(suit["home"])["crawler"])
+        crawler_id = lock_contract(suit["home"])["crawler"]
+        crawler = state("equipment", crawler_id)
         if crawler.condition in _BROKEN:
             raise CrewTransitError("Assigned real EVA crawler is unserviceable")
+        mobile = _clock().details.get("exterior_mobile")
+        if mobile is not None:
+            from world.ship_exterior_mobile import validate_exterior_mobile
+            validate_exterior_mobile(mobile)
+            original = mobile["units"][crawler_id]
+            if (original["position"] != original["home"]
+                    or original["job"] is not None):
+                raise CrewTransitError(
+                    "Original EVA crawler is deployed or moving in a separate rail mission")
         if link in {lock_contract(room)["outer"] for room in EVA_LOCKS}:
             room = next(room for room in EVA_LOCKS
                         if lock_contract(room)["outer"] == link)
