@@ -250,8 +250,13 @@ def mobile_move(ledger, name, value, *, routes, rail_access, rotors,
         elif value.startswith("move:"):
             to = value.partition(":")[2]
             link = routes.get((position, to))
-            if position == home or link is None or not rail_access.get(link):
-                raise MobileExteriorError("Requested hop is not an actual live fitted EVA rail")
+            if position == home or link is None:
+                raise MobileExteriorError(
+                    "Requested endpoints have no original EVA rail: "
+                    + position + " -> " + to)
+            if not rail_access.get(link):
+                raise MobileExteriorError(
+                    "Original EVA rail unavailable: " + link)
             if not _safe_drum(rotors, to):
                 raise MobileExteriorError("Rotating drum or unsecured rotor forbids rail approach")
             seconds = RAIL_TRAVEL_S
