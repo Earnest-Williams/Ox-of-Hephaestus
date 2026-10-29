@@ -93,6 +93,7 @@ class PortableScrubberTests(unittest.TestCase):
                                      equipment=self.equipment,
                                      room_zones=self.zones,cells=self.cells)
         self.assertEqual(state["meter"]["captured_kg"],0)
+        self.assertEqual(state["units"][name]["mode"],"off")
         self.assertEqual(state["units"][name]["survey"]["battery_remaining_s"],30)
         self.equipment[name].condition="serviceable"
         state["units"][name]["room"]="F2-BAY"
