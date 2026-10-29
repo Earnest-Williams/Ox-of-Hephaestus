@@ -5,9 +5,14 @@ on:
     paths:
       - "game/world/**"
       - ".github/workflows/ox-g19-final-campaign.yml"
+      - "!**/*.md"
   workflow_dispatch:
 permissions:
   contents: read
+
+concurrency:
+  group: ox-g19-final-campaign-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   pure:

@@ -5,13 +5,14 @@ on:
     paths:
       - "game/world/**"
       - ".github/workflows/ox-g19-seeded-endurance.yml"
+      - "!**/*.md"
   workflow_dispatch:
 permissions:
   contents: read
 
 concurrency:
   group: ox-g19-seeded-endurance-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   original_installed_ship_seed:
