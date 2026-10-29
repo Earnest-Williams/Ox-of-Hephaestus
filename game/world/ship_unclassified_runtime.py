@@ -62,15 +62,15 @@ def _source(sector):
     return cell,pa
 
 
-def _physical_sector_door(sector,*,must_closed=False):
+def _physical_sector_door(sector,*,must_closed=False,allow_damaged=False):
     from world import continuous_ship_physics as p
     door=p.state("access","ACC-"+sector)
     if (door.reference.get("from")!=sector[:5]+"-GALLERY"
             or door.reference.get("to")!=sector
             or door.reference.get("kind")!="cargo_service_door"
             or door.reference.get("pressure_boundary") is not True
-            or door.condition in p._BROKEN or
-            must_closed and door.setting!="closed"):
+            or (not allow_damaged and door.condition in p._BROKEN)
+            or must_closed and door.setting!="closed"):
         raise p.PhysicsError("Original cargo-sector rated door is unavailable")
     return door
 
@@ -343,7 +343,10 @@ def witness_leak(*,operator_approved=False,sector=None,leak_kg_s=None):
     # A real shell failure can happen with the rated hatch OPEN. Rejecting
     # the casualty until somebody closes the door would make the ship immune
     # to the most dangerous pressure-boundary fault sequence.
-    door = _physical_sector_door(sector)
+    # Observing a hull breach is possible even after its adjacent rated
+    # hatch has physically failed. Failure stops actuation and personnel
+    # admission, not the incident or real airflow through an open doorway.
+    door = _physical_sector_door(sector, allow_damaged=True)
     try:
         ledger=inject_sector_leak(d["unclassified_spaces"],sector,leak_kg_s)
     except UnclassifiedSpaceError as exc:
