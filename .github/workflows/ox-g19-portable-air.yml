@@ -28,7 +28,7 @@ jobs:
           python -m compileall -q game/world/ship_portable_air.py game/world/continuous_ship_physics.py game/world/tests/test_ship_portable_air.py game/world/tests/test_installed_ship_portable_air.py
       - name: Four fitted portable devices, finite charge and real gas transfer
         working-directory: game
-        run: python -m unittest world.tests.test_ship_survival_craft_air -v
+        run: python -m unittest world.tests.test_ship_portable_air -v
 
   installed:
     runs-on: ubuntu-latest
@@ -51,5 +51,5 @@ jobs:
           evennia migrate --noinput
       - name: Actual worker custody, finite cartridge capture and replay acceptance
         working-directory: game
-        run: python -m world.test_runner world.tests.test_installed_ship_survival_craft_air --verbosity=2
+        run: python -m world.test_runner world.tests.test_installed_ship_portable_air --verbosity=2
 
