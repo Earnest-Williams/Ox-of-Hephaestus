@@ -115,6 +115,24 @@ from world.ship_propulsion_proof import (
     DriveProofError, initial_drive_proof, validate_drive_proof,
     start_drive_proof, verify_drive_proof,
 )
+from world.ship_industrial_runtime import (
+    ready as _industrial_room_ready, suit_ready as _industrial_suit_ready,
+    worker_ready as _industrial_worker_ready,
+    retreat_ready as _industrial_retreat_ready,
+    seal_ready as _industrial_seal_ready,
+    commission as commission_g19_industrial_bays,
+    survey as survey_g19_industrial_bay,
+    witness_leak as witness_g19_industrial_leak,
+    action as _industrial_room_action,
+    entered as _industrial_room_entered,
+    advance as _industrial_advance,
+    readout as _industrial_readout,
+    hazards as _industrial_hazards,
+)
+from world.ship_industrial_access import (
+    IndustrialAccessError, SITES as INDUSTRIAL_SITES,
+    DOORS as INDUSTRIAL_DOORS, validate_industrial,
+)
 from world.ship_generator_bay_runtime import (
     room_ready as _generator_room_ready, suit_ready as _generator_room_suit_ready,
     worker_ready as _generator_room_worker_ready,
@@ -533,6 +551,8 @@ def _snapshot(item):
             result["propulsion_exterior"] = item.details["propulsion_exterior"]
         if item.details.get("propulsion_bay") is not None:
             result["propulsion_bay"] = item.details["propulsion_bay"]
+        if item.details.get("industrial_bays") is not None:
+            result["industrial_bays"] = item.details["industrial_bays"]
         if item.details.get("drive_proof") is not None:
             result["drive_proof"] = item.details["drive_proof"]
         if item.details.get("rcs_proof") is not None:
@@ -3643,6 +3663,13 @@ def tick_continuous_physics(*, now_game_time=None):
     propulsion_bay = clock.details.get("propulsion_bay")
     if propulsion_bay is not None:
         validate_bay(propulsion_bay)
+    industrial_bays = clock.details.get("industrial_bays")
+    industrial_gas_before = 0.0
+    if industrial_bays is not None:
+        validate_industrial(industrial_bays)
+        industrial_gas_before = sum(
+            site["gas"]["mass_kg"] for site in industrial_bays["sites"].values()
+            if site["gas"] is not None)
     generator_bays = clock.details.get("generator_bays")
     generator_gas_kg = generator_oxygen_kg = 0.0
     if generator_bays is not None:
@@ -3661,7 +3688,8 @@ def tick_continuous_physics(*, now_game_time=None):
     bay_oxygen_kg = (propulsion_bay["gas"]["oxygen_kg"]
                      if propulsion_bay is not None and
                      propulsion_bay["gas"] is not None else 0.0)
-    total_before = (bay_gas_kg + generator_gas_kg + sum(c["mass"] + c["fuel"] for c in cells.values())
+    total_before = (bay_gas_kg + generator_gas_kg + industrial_gas_before
+                    + sum(c["mass"] + c["fuel"] for c in cells.values())
                     + captured_co2 + refuge_captured_before
                     + retired_refuge_co2)
     lost = burned = water = oxygen_generated = 0.0
@@ -3732,6 +3760,19 @@ def tick_continuous_physics(*, now_game_time=None):
     if not motion:
         raise PhysicsError("Ship motion state not initialised")
     rotors = dict(clock.details.get("rotors", {}))
+    # Do not apply instantaneous brakes to a moving drum after a real
+    # bearing-annulus casualty: order coast-down under the normal dynamics.
+    industrial_hazard_sites = (_industrial_hazards(industrial_bays)
+                               if industrial_bays is not None else set())
+    for room in industrial_hazard_sites:
+        drum = INDUSTRIAL_SITES[room]["drum"]
+        if drum is not None:
+            rotor = dict(rotors[drum])
+            rotor["target_rpm"] = 0.0
+            if rotor["rpm"] > .001:
+                rotor["brake"] = False
+                rotor["hardlock"] = False
+            rotors[drum] = rotor
     cargo = dict(clock.details.get("cargo", {}))
     try:
         validate_cargo(cargo, motion["cargo_mass_kg"])
@@ -4370,7 +4411,9 @@ def tick_continuous_physics(*, now_game_time=None):
                 power["dispatched_mw"] / power["available_mw"])
         ftl_field = equipment.get("FTL-TRANSLATION-FIELD")
         field_healthy = bool(
-            ftl_field and ftl_field.condition not in _BROKEN
+            "FTL-SVC" not in industrial_hazard_sites
+            and "FUEL-SVC" not in industrial_hazard_sites
+            and ftl_field and ftl_field.condition not in _BROKEN
             and equipment.get("LCS-FTL") is not None
             and equipment["LCS-FTL"].condition not in _BROKEN
             and motor_ready("FTL-TRANSLATION-FIELD"))
@@ -4388,10 +4431,13 @@ def tick_continuous_physics(*, now_game_time=None):
                 power["dispatched_mw"] / power["available_mw"])
         motion = _advance_motion(
             motion, dt, power,
-            drive_operational=drive_operational and not ftl_active
-                              and not contacts_active(cargo),
-            rcs_operational=rcs_operational and not ftl_active
-                            and not contacts_active(cargo))
+            drive_operational=(drive_operational and not ftl_active
+                               and not contacts_active(cargo)
+                               and "THERM-HT" not in industrial_hazard_sites
+                               and "REACTION-SVC" not in industrial_hazard_sites),
+            rcs_operational=(rcs_operational and not ftl_active
+                             and not contacts_active(cargo)
+                             and "REACTION-SVC" not in industrial_hazard_sites))
         # Account for propulsion-control auxiliaries, NOT thrust energy, in
         # electrical dispatch and electrical-generator waste heat.
         drive_load = motion["drive_power_mw"]
@@ -4890,7 +4936,34 @@ def tick_continuous_physics(*, now_game_time=None):
                 for zone, c in cells.items()),
         }
 
-    total_after = (bay_gas_kg + generator_gas_kg + sum(c["mass"] + c["fuel"] for c in cells.values())
+    # Leak the existing industrial gas, never the adjacent safe trunk;
+    # a completed internal patch consumes physically carried finite spares.
+    industrial_gas_after = industrial_oxygen_after = industrial_smoke_after = 0.0
+    industrial_seals_finished = ()
+    if industrial_bays is not None:
+        industrial_bays, leaked_industrial, repairs, industrial_seals_finished = (
+            _industrial_advance(clock, industrial_bays, seconds,
+                                eva=eva, repair_stock=repairs))
+        lost += leaked_industrial
+        industrial_gas_after = sum(
+            site["gas"]["mass_kg"] for site in industrial_bays["sites"].values()
+            if site["gas"] is not None)
+        industrial_oxygen_after = sum(
+            site["gas"]["oxygen_kg"] for site in industrial_bays["sites"].values()
+            if site["gas"] is not None)
+        industrial_smoke_after = sum(
+            site["gas"]["smoke_kg"] for site in industrial_bays["sites"].values()
+            if site["gas"] is not None)
+        for patched_room, patched_worker, used_kg in industrial_seals_finished:
+            CanonicalShipEvent.objects.create(
+                component_key="access:" + INDUSTRIAL_SITES[patched_room]["door"],
+                operation="g19_industrial_real_held_spares_leak_sealed",
+                before={"room": patched_room, "leak_present": True},
+                after={"room": patched_room, "leak_kg_s": 0.0,
+                       "installed_spares_kg": used_kg},
+                actor_dbref=patched_worker, game_time=last + seconds)
+    total_after = (bay_gas_kg + generator_gas_kg + industrial_gas_after
+                   + sum(c["mass"] + c["fuel"] for c in cells.values())
                    + captured_co2
                    + (refuge_scrubbers["meter"]["captured_kg"]
                       if refuge_scrubbers is not None else 0.0)
@@ -6052,6 +6125,9 @@ def tick_continuous_physics(*, now_game_time=None):
     if generator_bays is not None:
         validate_generator_bays(generator_bays)
         d["generator_bays"] = generator_bays
+    if industrial_bays is not None:
+        validate_industrial(industrial_bays)
+        d["industrial_bays"] = industrial_bays
     if bay_access is not None:
         d["bay_access"] = bay_access
     if major_damage is not None:
@@ -6103,9 +6179,20 @@ def tick_continuous_physics(*, now_game_time=None):
         "crew_o2_used_this_tick_kg": round(crew_used_o2, 7),
         "crew_co2_added_this_tick_kg": round(crew_exhaled_co2, 7),
         "gas_kg": round(
-            sum(c["mass"] for c in cells.values()) + bay_gas_kg + generator_gas_kg, 6),
+            sum(c["mass"] for c in cells.values()) + bay_gas_kg
+            + generator_gas_kg + industrial_gas_after, 6),
         "oxygen_kg": round(
-            sum(c["oxygen"] for c in cells.values()) + bay_oxygen_kg + generator_oxygen_kg, 6),
+            sum(c["oxygen"] for c in cells.values()) + bay_oxygen_kg
+            + generator_oxygen_kg + industrial_oxygen_after, 6),
+        "industrial_bay_gas_kg": round(industrial_gas_after, 6),
+        "industrial_bay_total_lost_kg": (
+            round(sum(site["lost_kg"] for site in industrial_bays["sites"].values()),6)
+            if industrial_bays is not None else None),
+        "industrial_bay_hazard_sites": sorted(industrial_hazard_sites),
+        "industrial_bay_active_seals": (
+            sorted(room for room, site in industrial_bays["sites"].items()
+                   if site["seal"] is not None)
+            if industrial_bays is not None else None),
         "generator_bays_gas_kg": round(generator_gas_kg, 6),
         "generator_bay_permits": (sorted(
             room for room, sample in generator_bays["rooms"].items()
@@ -6114,7 +6201,8 @@ def tick_continuous_physics(*, now_game_time=None):
         "propulsion_bay_permit": (
             propulsion_bay["permit"] is not None
             if propulsion_bay is not None else None),
-        "smoke_kg": round(sum(c["smoke"] for c in cells.values()), 6),
+        "smoke_kg": round(sum(c["smoke"] for c in cells.values())
+                          + industrial_smoke_after, 6),
         "fuel_kg": round(sum(c["fuel"] for c in cells.values()), 6),
         "damaged_cells": sum(c["damage"] >= 0.2 for c in cells.values()),
         "processed_seconds": seconds,
