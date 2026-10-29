@@ -52,6 +52,44 @@ class InstalledWasteAndRepairTests(EvenniaTestCase):
         self.assertEqual(receipt["status"], "succeeded")
         return receipt
 
+    def _line_up_original_power_path(self, source, load):
+        """Close the installed conductive path; never invent a live consumer.
+
+        Original generator B must supply an authentic room feeder to count
+        as positive delivered power, not merely appear as an online unit.
+        """
+        from collections import defaultdict, deque
+
+        graph = defaultdict(list)
+        for edge in CanonicalShipState.objects.filter(
+                category="edge", reference__network="power"):
+            if edge.setting != "available" or edge.condition in {
+                    "faulted", "failed", "severed", "destroyed", "jammed"}:
+                continue
+            spec = edge.reference
+            graph[spec["from_node"]].append((spec["to_node"], edge))
+            if spec["kind"] in {"bridge_feeder", "cross_tie"}:
+                graph[spec["to_node"]].append((spec["from_node"], edge))
+        visited = {source}
+        previous = {}
+        queue = deque([source])
+        while queue and load not in visited:
+            for following, conductor in graph[queue.popleft()]:
+                if following not in visited:
+                    visited.add(following)
+                    previous[following] = conductor
+                    queue.append(following)
+        self.assertIn(load, visited, "No original conductive generator-to-load route")
+        node = load
+        while node != source:
+            edge = previous[node]
+            for isolator_id in edge.reference["isolator_ids"]:
+                if state("isolator", isolator_id).setting != "closed":
+                    set_isolator(isolator_id, "closed", operator=True)
+            spec = edge.reference
+            node = (spec["from_node"] if node == spec["to_node"]
+                    else spec["to_node"])
+
     def _industrial(self):
         survey_g19_water_material(
             operator_approved=True, source="INV-SPARES",
@@ -422,6 +460,75 @@ class InstalledWasteAndRepairTests(EvenniaTestCase):
             "generator_bays"]["rooms"][room]["permit"])
         self.assertFalse(state("equipment", "GEN-B").details["physics_online"])
         self.assertEqual(state("isolator", "ISO-GEN-B").setting, "open")
+
+        # Repair proves only serviceability, not generation. An operator
+        # now has to rearm GEN-B after the worker has left and released
+        # the rated site. Isolate other sources so B cannot borrow proof.
+        self.tech.move_to(find_ship_space("ENG-CONTROL"), quiet=True)
+        set_isolator("ISO-GEN-M", "open", operator=True)
+        set_isolator("ISO-GEN-A", "open", operator=True)
+        before_stock_kg = state("inventory", "INV-GEN-CART").quantity * 1000.0
+        before_meter = _clock().details["electrical"]["meter"]["generation_kwh"]
+        rearm_id = ident()
+        rearmed = act("generator_bay", room, "rearm", request_id=rearm_id)
+        self.assertEqual(rearmed["status"], "succeeded")
+        self.assertEqual(
+            act("generator_bay", room, "rearm", request_id=rearm_id), rearmed)
+        self.assertEqual(WorkReceipt.objects.filter(pk=rearm_id).count(), 1)
+        self.assertFalse(state("equipment", "GEN-B").details["physics_online"])
+        self.assertEqual(state("equipment", "GEN-B").details["physics_startup_s"], 30)
+        self.assertEqual(state("isolator", "ISO-GEN-B").setting, "closed")
+        self._line_up_original_power_path(
+            "NODE-GEN-B", "NODE-HAB-06-ECLSS-A-LP")
+
+        # An ON request is not a watt. The original 30-second startup
+        # is physically advanced by the same authoritative ship clock.
+        for now in (1610, 1620):
+            dark = tick_continuous_physics(now_game_time=now)
+            self.assertEqual(dark["electrical"]["last"]["sources"], [])
+            self.assertEqual(
+                dark["electrical"]["last"]["generator_delivered_mw"], 0)
+            self.assertAlmostEqual(
+                state("inventory", "INV-GEN-CART").quantity * 1000.0,
+                before_stock_kg, places=6)
+        live = tick_continuous_physics(now_game_time=1630)
+        report = live["electrical"]
+        self.assertEqual(report["last"]["sources"], ["GEN-B"])
+        self.assertTrue(state("equipment", "GEN-B").details["physics_online"])
+        self.assertEqual(state("equipment", "GEN-B").details["physics_startup_s"], 0)
+        self.assertTrue(report["last"]["main_b"])
+        self.assertTrue(report["last"]["live_consumer_circuit"])
+        self.assertGreater(report["last"]["generator_delivered_mw"], 0)
+        delta_kwh = report["meter"]["generation_kwh"] - before_meter
+        self.assertGreater(delta_kwh, 0)
+        self.assertGreater(report["meter"]["served_kwh"], 0)
+        used_kg = before_stock_kg - state(
+            "inventory", "INV-GEN-CART").quantity * 1000.0
+        self.assertGreater(used_kg, 0)
+        self.assertAlmostEqual(used_kg, delta_kwh * .002, delta=1e-5)
+        self.assertAlmostEqual(
+            state("inventory", "INV-GEN-CART").quantity * 1000.0
+            + _clock().details["generator_spent_cartridge_kg"],
+            _clock().details["generator_cartridge_baseline_kg"],
+            delta=1e-4)
+
+        # A subsequent real emergency trip removes B's contribution
+        # without recreating consumed fuel or replaying a signed request.
+        tripped = act("generator_bay", room, "trip")
+        self.assertEqual(tripped["status"], "succeeded")
+        stopped = tick_continuous_physics(now_game_time=1640)
+        self.assertEqual(stopped["electrical"]["last"]["sources"], [])
+        self.assertEqual(
+            stopped["electrical"]["last"]["generator_delivered_mw"], 0)
+        self.assertEqual(
+            stopped["electrical"]["last"]["generator_cartridge_consumed_kg"], 0)
+        final_stock = state("inventory", "INV-GEN-CART").quantity
+        final_clock = _clock().details["last_game_time"]
+        self.assertFalse(tick_continuous_physics(
+            now_game_time=1640)["advanced"])
+        self.assertEqual(state("inventory", "INV-GEN-CART").quantity,
+                         final_stock)
+        self.assertEqual(_clock().details["last_game_time"], final_clock)
 
 
 if __name__ == "__main__":

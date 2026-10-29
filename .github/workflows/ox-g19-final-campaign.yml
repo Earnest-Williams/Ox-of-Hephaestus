@@ -153,4 +153,5 @@ jobs:
             world.tests.test_installed_ship_eva_major.InstalledEVAMajorDamageTests.test_large_breach_isolation_and_suited_exterior_hull_recovery \
             world.tests.test_installed_ship_cabin_fancoils.InstalledCabinFanCoils.test_live_original_power_and_lt_valves_create_positive_cabin_output \
             world.tests.test_installed_ship_g19_attended_fire_water_recovery.InstalledAttendedFireWaterRecovery.test_real_issued_suit_proves_mist_and_potable_recovery \
+            world.tests.test_installed_ship_waste_repair.InstalledWasteAndRepairTests.test_failed_generator_needs_isolation_and_never_restarts_after_repair \
             --verbosity=2
