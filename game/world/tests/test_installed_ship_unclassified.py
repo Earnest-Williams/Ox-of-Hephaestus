@@ -165,6 +165,86 @@ class OriginalCargoAndVoidClosure(EvenniaTestCase):
             closed,places=5)
         self.op("cargo_sector",sector,"release")
 
+    def test_open_hatch_major_shell_breach_gallery_loss_isolation_and_rotor_hold(self):
+        sector="DR-01-SEC-05"
+        self.survey_drum()
+        self.at("DR-01-GALLERY")
+        self.op("cargo_sector",sector,"secure")
+        self.op("hatch","ACC-"+sector,"open")
+        original_gallery=state("pressure","PZ-DR-01-SVC").quantity
+        report=witness_g19_cargo_sector_leak(
+            operator_approved=True,sector=sector,leak_kg_s=.8)
+        self.assertEqual(report["rated_hatch_at_casualty"],"open")
+        self.tick(60)
+        active=_clock().details
+        site=active["unclassified_spaces"]["sectors"][sector]
+        self.assertGreater(site["lost_kg"],0)
+        self.assertGreater(site["gallery_net_kg"],0)
+        self.assertIn("ACC-"+sector,
+            active["summary"]["cargo_open_breached_hatches"])
+        self.assertLess(state("pressure","PZ-DR-01-SVC").quantity,
+                        original_gallery)
+        # Attempted restart must not bypass the real damaged cargo shell.
+        self.at("DR-01-SERVICE-LOCK")
+        with self.assertRaises(PhysicsError):
+            self.op("rotor","DR-01","start")
+        self.at("DR-01-GALLERY")
+        self.op("hatch","ACC-"+sector,"closed")
+        saved_net=site["gallery_net_kg"]
+        saved_loss=site["lost_kg"]
+        self.tick(60)
+        sealed=_clock().details["unclassified_spaces"]["sectors"][sector]
+        self.assertAlmostEqual(sealed["gallery_net_kg"],saved_net,places=6)
+        self.assertGreater(sealed["lost_kg"],saved_loss)
+        self.assertEqual(_clock().details["summary"][
+            "cargo_open_breached_hatches"],[])
+        with self.assertRaises(PhysicsError):
+            self.op("hatch","ACC-"+sector,"open")
+        self.op("cargo_sector",sector,"release")
+
+    def test_ambulatory_suited_owner_escapes_through_already_open_failed_sector(self):
+        from world.ship_unclassified_runtime import (
+            access_ready, open_hatch_casualty_egress)
+        sector="DR-01-SEC-06"
+        self.survey_drum()
+        self.suit()
+        self.enter(sector)
+        self.op("hatch","ACC-"+sector,"open")
+        witness_g19_cargo_sector_leak(
+            operator_approved=True,sector=sector,leak_kg_s=.9)
+        self.tick(60)
+        world=_clock().details
+        self.assertFalse(access_ready(
+            self.worker,world,sector,from_inside=True,
+            allow_small_leak=True,retreat_only=True))
+        self.assertTrue(open_hatch_casualty_egress(
+            self.worker,world,sector))
+        evacuated=self.walk("ACC-"+sector,"reverse")
+        self.assertEqual(evacuated["status"],"succeeded")
+        self.assertEqual(self.worker.location.db.ox_space_id,
+                         "DR-01-GALLERY")
+        self.op("hatch","ACC-"+sector,"closed")
+        self.op("cargo_sector",sector,"release")
+        self.assertIsNone(_clock().details["unclassified_spaces"][
+            "sectors"][sector]["permit"])
+        self.assertGreater(_clock().details["unclassified_spaces"][
+            "sectors"][sector]["lost_kg"],0)
+        self.assertFalse(open_hatch_casualty_egress(
+            self.worker,_clock().details,sector))
+
+    def test_closed_breached_hatch_cannot_be_used_as_emergency_teleport(self):
+        sector="DR-01-SEC-07"
+        self.survey_drum()
+        self.suit()
+        self.enter(sector)
+        witness_g19_cargo_sector_leak(
+            operator_approved=True,sector=sector,leak_kg_s=.9)
+        with self.assertRaises(PhysicsError):
+            self.op("hatch","ACC-"+sector,"open")
+        with self.assertRaises(CrewTransitError):
+            self.walk("ACC-"+sector,"reverse")
+        self.assertEqual(self.worker.location.db.ox_space_id,sector)
+
     def test_unsuited_worker_actually_breathes_measured_sector_air(self):
         room="DR-01-SEC-03"
         self.survey_drum()
