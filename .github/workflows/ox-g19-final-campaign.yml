@@ -3,12 +3,7 @@ on:
   push:
     branches: [g19-complete-ship-systems]
     paths:
-      - "game/world/tests/test_installed_ship_g19_final_campaign.py"
-      - "game/world/g19_process_recovery.py"
-      - "game/world/continuous_ship_physics.py"
-      - "game/world/ship_unclassified_spaces.py"
-      - "game/world/ship_unclassified_runtime.py"
-      - "game/world/ship_crew_access.py"
+      - "game/world/**"
       - ".github/workflows/ox-g19-final-campaign.yml"
   workflow_dispatch:
 permissions:
@@ -115,3 +110,41 @@ jobs:
         env:
           OX_G19_RESTART_DB_PATH: ${{ runner.temp }}/ox-g19-restart.sqlite3
         run: python -m world.g19_process_recovery confirm
+
+
+  cross_system_compatibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - run: python -m pip install .
+      - name: Commission the original ship under the Evennia test database
+        working-directory: game
+        env:
+          EVENNIA_SUPERUSER_USERNAME: OxCI
+          EVENNIA_SUPERUSER_EMAIL: oxci@example.invalid
+        run: |
+          export EVENNIA_SUPERUSER_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+          evennia migrate --noinput
+      - name: Original G18 physics plus finite-output cross-system regressions
+        working-directory: game
+        run: |
+          python -m world.test_runner \
+            world.tests.test_continuous_ship_physics.PhysicsRuntimeTests.test_fire_thermal_and_finite_water \
+            world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_live_eclss_capture_has_current_mass_receipt_not_just_power \
+            world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_bearing_lube_own_flow_pressure_and_actual_fuse_loss \
+            world.tests.test_installed_ship_water_recycling.InstalledWaterRecyclingTests.test_double_treatment_casualty_halts_recovery_not_creating_water \
+            world.tests.test_installed_ship_food.InstalledFoodTests.test_spoilage_debits_live_original_food_inventory \
+            world.tests.test_installed_ship_portable_damage.InstalledPortableEmergencyMachines.test_fitted_fan_at_carried_rescue_site_captures_actual_smoke \
+            world.tests.test_installed_ship_workshop_fabrication.InstalledMachiningTests.test_live_machining_to_real_part_and_final_installed_repair \
+            world.tests.test_installed_ship_propulsion_proof.RealDriveOutputWitness.test_real_propellant_and_inertial_delta_v_prove_drive \
+            world.tests.test_installed_ship_medical.InstalledMedical.test_lost_local_feeder_pauses_work_without_refund \
+            world.tests.test_installed_ship_movement.InstalledMovementTests.test_docked_berth_prevents_helm_ftl_and_drum_release \
+            world.tests.test_installed_ship_eva_major.InstalledEVAMajorDamageTests.test_large_breach_isolation_and_suited_exterior_hull_recovery \
+            world.tests.test_installed_ship_cabin_fancoils.InstalledCabinFanCoils.test_live_original_power_and_lt_valves_create_positive_cabin_output \
+            --verbosity=2
