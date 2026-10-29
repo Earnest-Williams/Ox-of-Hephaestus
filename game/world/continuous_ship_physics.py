@@ -3325,6 +3325,13 @@ def commission_commercial_port(*, operator_approved=False, operation,
     except CargoError as exc:
         raise PhysicsError(str(exc)) from exc
     if revised != d["cargo"]:
+        # A dock contact is not a pressure seal. Each newly secured berth
+        # needs its own positive inspection of the ORIGINAL inner cargo
+        # portal. A previous certificate cannot authenticate a new dock.
+        if (operation in {"dock", "undock"}
+                and d.get("unclassified_spaces") is not None):
+            d["unclassified_spaces"] = invalidate_portal(
+                d["unclassified_spaces"], portal_id)
         d["cargo"] = revised
         clock.details = d
         clock.revision += 1
@@ -4263,6 +4270,8 @@ def tick_continuous_physics(*, now_game_time=None):
             and abs(rotors[name]["rpm"]) < 0.001
             and rotors[name]["target_rpm"] == 0
             and not rotors[name]["passenger_indexer"]
+            and (unclassified is None or
+                 drum_clear_for_freight(unclassified,name))
         }
         open_freight = {
             name for name in CARGO_DRUMS
@@ -4301,6 +4310,8 @@ def tick_continuous_physics(*, now_game_time=None):
                              equipment[drum + "-RADIAL-FREIGHT-HANDLER"].condition
                              not in _BROKEN)
             if (free_mw + 1e-9 >= PORT_AUX_MW and power["assured"]
+                    and (unclassified is None or
+                         portal_ready(unclassified,cargo,portal))
                     and access and access.condition not in _BROKEN
                     and access.setting == "closed" and sound_handler
                     and motor_ready(drum + "-RADIAL-FREIGHT-HANDLER")
@@ -6693,7 +6704,7 @@ def crew_physical_action(actor, request_id, action, target, value):
     """
     if not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
         raise PhysicsError("Expected one 32-character lowercase request UUID")
-    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial"}:
+    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial", "cargo_sector", "shield_trim"}:
         raise PhysicsError("Unknown physical operation")
     if actor is None or getattr(actor.db, "ox_terminal_dead", False):
         raise PermissionError("A deceased or missing character cannot operate machinery")
@@ -6716,8 +6727,8 @@ def crew_physical_action(actor, request_id, action, target, value):
                     "isolator:" if action == "switch"
                     else "pressure:" if action == "mist"
                     else "access:" if action == "hatch"
-                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial"}
-                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial"} else target)
+                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial", "cargo_sector", "shield_trim"}
+                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial", "cargo_sector", "shield_trim"} else target)
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
@@ -6743,6 +6754,23 @@ def crew_physical_action(actor, request_id, action, target, value):
                 or action == "switch" and target == PROP_BAY_FEEDER
                 and value != "open"):
             raise PhysicsError("PROP-SVC suited work party holds main and RCS safing and physical feeder lockout")
+    unclassified_work = _clock().details.get("unclassified_spaces")
+    if unclassified_work is not None:
+        validate_unclassified(unclassified_work)
+        blocked_cargo_drums = {
+            sector[:5] for sector,row in unclassified_work["sectors"].items()
+            if row["permit"] is not None or row["leak_kg_s"]>0}
+        if (action == "rotor" and target in blocked_cargo_drums
+                and value not in {"stop", "hardlock"}):
+            raise PhysicsError("Original crew-rated cargo sector occupied or breached; drum must stay locked")
+        if action == "freight" and (
+                target in _clock().details["cargo"]["lots"] and
+                _clock().details["cargo"]["lots"][target]["drum"] in blocked_cargo_drums):
+            raise PhysicsError("Original cargo sector isolation prevents freight rail operation")
+        if (action == "port" and
+                target[:5] in blocked_cargo_drums and
+                value.split(":")[0] not in {"pause","abort"}):
+            raise PhysicsError("Cargo sector damage or worker possession blocks port start/resume")
     industrial_work = _clock().details.get("industrial_bays")
     if industrial_work is not None:
         validate_industrial(industrial_work)
@@ -8669,6 +8697,10 @@ def crew_physical_action(actor, request_id, action, target, value):
         clock.revision += 1
         clock.save(update_fields=["details", "revision"])
         item = clock
+    elif action == "cargo_sector":
+        item, before = _cargo_sector_action(actor, target, value)
+    elif action == "shield_trim":
+        item, before = _shield_trim_action(actor, target, value)
     elif action == "industrial":
         item, before = _industrial_room_action(actor, target, value)
     elif action == "generator_bay":
@@ -9196,6 +9228,12 @@ def crew_physical_action(actor, request_id, action, target, value):
                 _clock().details.get("water", {}).get(
                     "waste_offload", {}).get("jobs", {}).values()):
             raise PhysicsError("This drum handler is reserved for a sealed waste cassette")
+        if (direction in {"load", "unload", "resume"}
+                and _clock().details.get("unclassified_spaces") is not None
+                and not portal_ready(
+                    _clock().details["unclassified_spaces"],
+                    _clock().details["cargo"], target)):
+            raise PhysicsError("Cargo-only portal requires positive sealed sleeve and exact current berth certificate")
         if direction in {"load", "unload"} and (
                 handler.condition in _BROKEN or inner.condition in _BROKEN):
             raise PhysicsError("Commercial port or cargo-handling machinery damaged")
@@ -9678,7 +9716,10 @@ def crew_physical_action(actor, request_id, action, target, value):
         room_id = getattr(getattr(actor, "location", None).db, "ox_space_id", None) if getattr(actor, "location", None) else None
         if room_id not in {spec["from"], spec["to"]}:
             raise PermissionError("Worker is not at the actual hatch")
-        _crew_at(actor, room_id)
+        if item.source_id in CARGO_PERSONNEL_DOORS:
+            _cargo_sector_hatch(actor,item,value)
+        else:
+            _crew_at(actor, room_id)
         ordinary_bridge = (item.source_id.startswith("ACC-BR-") and
                            "hatch" in str(spec.get("kind", "")).lower())
         fixed_indexer = (
@@ -9688,18 +9729,26 @@ def crew_physical_action(actor, request_id, action, target, value):
         original_bay = item.source_id == PROP_BAY_HATCH
         original_generator = item.source_id in GENERATOR_DOORS
         original_industrial = item.source_id in INDUSTRIAL_DOORS
+        original_sector = item.source_id in CARGO_PERSONNEL_DOORS
+        original_nonperson = item.source_id in NONPERSONNEL_UNCLASSIFIED_LINKS
+        if original_nonperson and value=="open":
+            raise PhysicsError("Original loading route, commercial port or shield is not a walkable hatch")
         ordinary_local = (
             not ordinary_bridge and not fixed_indexer and not original_bay
             and not original_generator and not original_industrial
+            and not original_sector and not original_nonperson
             and spec.get("kind") in CREW_LOCAL_DOOR_KINDS)
         if (not ordinary_bridge and not fixed_indexer and not ordinary_local
                 and not original_bay and not original_generator
-                and not original_industrial):
+                and not original_industrial and not original_sector
+                and not original_nonperson):
             raise PhysicsError("Cargo, EVA and machinery doors require dedicated interlocks")
         if item.condition in _BROKEN:
             raise PhysicsError("Damaged hatch cannot be safely actuated")
         if value == "open" and item.setting != "open":
-            if original_industrial:
+            if original_sector:
+                _cargo_sector_hatch(actor,item,value)
+            elif original_industrial:
                 details = _clock().details
                 room = INDUSTRIAL_DOORS[item.source_id]
                 permitted = (_industrial_retreat_ready(actor, details, room)
@@ -10422,6 +10471,8 @@ def local_physics_readout(actor, target):
             "injury": own.details["injury"],
             "scope": "own_physically_measured_crew_health_only",
         }
+    if target in {"cargo_sectors", "cargo_portals", "shield_trim"}:
+        return _unclassified_readout(actor,target)
     if target == "industrial":
         return _industrial_readout(actor)
     if target == "generator_bay":
