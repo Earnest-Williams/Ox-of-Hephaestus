@@ -1294,6 +1294,22 @@ class InstalledElectricalTests(EvenniaTestCase):
                          "generator_delivered_mw"], 0)
 
     def test_real_breaker_overload_trips_and_requires_reset(self):
+        """A tripped GEN-M feeder is reset only by a suited permit holder.
+
+        The original GEN-M-ROOM is not a breathable pressure cell: neither
+        operator surveying nor a legacy ox_suit_verified flag authorises
+        opening its circuit. The worker must stop the actual generator,
+        survey its finite compartment gas, obtain an issued suit and
+        physically enter through the original rated service hatch.
+        """
+        from world.continuous_ship_physics import (
+            commission_g19_repairs, commission_g19_generator_bays,
+            survey_g19_generator_room, _clock,
+        )
+        from world.ship_generator_bay_service import ROOMS
+        from world.ship_world import find_world_entity
+        from world.ship_crew_access import traverse_canonical_exit
+
         commission_g19_electrical(operator_approved=True)
         breaker = state("isolator", "ISO-GEN-M")
         self.assertEqual(breaker.reference["network"], "power")
@@ -1317,19 +1333,101 @@ class InstalledElectricalTests(EvenniaTestCase):
         configure_g19_electrical_fault(
             operator_approved=True, breaker_id="ISO-GEN-M",
             rating_mw=1.0, measured_mw=0)
-        # The installed generator is in an unpressurised space. The engineer
-        # cannot reset its switchgear without a separate positive site survey
-        # and individually verified protective equipment.
         with self.assertRaises(PhysicsError):
             crew_physical_action(
                 self.worker, "6" * 32, "power", "ISO-GEN-M", "reset")
         surveyed = survey_g19_electrical_worksite(
             operator_approved=True, room_id=opened.space_id)
         self.assertTrue(surveyed["changed"])
+        # An electrical site survey is not a generator-room gas survey
+        # and cannot grant permission to a living engineer.
         with self.assertRaises(PhysicsError):
             crew_physical_action(
                 self.worker, "5" * 32, "power", "ISO-GEN-M", "reset")
         self.worker.db.ox_suit_verified = True
+        with self.assertRaises(PhysicsError):
+            crew_physical_action(
+                self.worker, "4" * 32, "power", "ISO-GEN-M", "reset")
+
+        # Commission only the *fitted* shared support and rated bay system.
+        commission_g19_water(operator_approved=True)
+        commission_g19_repairs(operator_approved=True)
+        self.crew_at("ENG-CONTROL")
+        commission_g19_eva(operator_approved=True)
+        commission_g19_crew_physiology(
+            operator_approved=True, actor_dbrefs=[self.worker.dbref])
+        commission_g19_generator_bays(operator_approved=True)
+        room, hatch, trunk = "GEN-M-ROOM", "ACC-GEN-M-ROOM", "TRUNK-A-AFT"
+        survey_g19_generator_room(
+            operator_approved=True, room_id=room,
+            volume_m3=ROOMS[room][5] * .75,
+            pressure_pa=101000, temperature_k=293.15,
+            oxygen_mass_fraction=.232, co2_mass_fraction=.0004,
+            smoke_mass_fraction=0, skin_temperature_k=299)
+        # The real generator must first be tripped and locked out by the
+        # engineering controller, *not* silently repaired by the test.
+        assert_trip = crew_physical_action(
+            self.worker, "a" * 32, "generator_bay", room, "trip")
+        self.assertEqual(assert_trip["status"], "succeeded")
+        self.assertEqual(state("isolator", "ISO-GEN-M").setting, "open")
+        self.assertTrue(state("isolator", "ISO-GEN-M").details.get(
+            "physics_power_trip_latched"))
+        self.crew_at(trunk)
+        with self.assertRaises(PhysicsError):
+            crew_physical_action(
+                self.worker, "b" * 32, "generator_bay", room, "secure")
+
+        # Actual finite EVA oxygen custody and checkout, including the
+        # existing aft lock's rated pressure hatch and real transitions.
+        self.crew_at("ENG-LOCKER")
+        self.assertEqual(crew_physical_action(
+            self.worker, "c" * 32, "eva", "INV-DC-CONSUMABLES",
+            "stage:0.75")["status"], "succeeded")
+        self.crew_at("TRUNK-B-AFT")
+        self.assertEqual(crew_physical_action(
+            self.worker, "d" * 32, "eva", "EVA-AFT", "inner_open")[
+                "status"], "succeeded")
+        inner = find_world_entity("access:ACC-EVA-AFT:forward")
+        self.assertIsNotNone(inner)
+        self.assertEqual(traverse_canonical_exit(
+            self.worker, inner, inner.destination, request_id="e" * 32)[
+                "status"], "succeeded")
+        self.assertEqual(crew_physical_action(
+            self.worker, "f" * 32, "eva", "EVA-AFT", "inner_close")[
+                "status"], "succeeded")
+        self.assertEqual(crew_physical_action(
+            self.worker, "1" * 32, "eva", "EVA-AFT", "checkout")[
+                "status"], "succeeded")
+        self.assertEqual(crew_physical_action(
+            self.worker, "2" * 32, "eva", "EVA-AFT", "inner_open")[
+                "status"], "succeeded")
+        backward = find_world_entity("access:ACC-EVA-AFT:reverse")
+        self.assertIsNotNone(backward)
+        self.assertEqual(traverse_canonical_exit(
+            self.worker, backward, backward.destination,
+            request_id="3" * 32)["status"], "succeeded")
+        self.assertEqual(crew_physical_action(
+            self.worker, "0" * 32, "eva", "EVA-AFT", "inner_close")[
+                "status"], "succeeded")
+
+        self.crew_at(trunk)
+        self.assertEqual(crew_physical_action(
+            self.worker, "9" * 31 + "a",
+            "generator_bay", room, "secure")["status"], "succeeded")
+        self.assertEqual(crew_physical_action(
+            self.worker, "9" * 31 + "b",
+            "hatch", hatch, "open")["status"], "succeeded")
+        forward = find_world_entity("access:" + hatch + ":forward")
+        self.assertIsNotNone(forward)
+        self.assertEqual(traverse_canonical_exit(
+            self.worker, forward, forward.destination,
+            request_id="9" * 31 + "c")["status"], "succeeded")
+        self.assertEqual(crew_physical_action(
+            self.worker, "9" * 31 + "d",
+            "hatch", hatch, "closed")["status"], "succeeded")
+        self.assertEqual(self.worker.location.db.ox_space_id, room)
+
+        # Only at this point can the original mechanical trip be cleared.
         result = crew_physical_action(
             self.worker, "7" * 32, "power", "ISO-GEN-M", "reset")
         self.assertEqual(result["status"], "succeeded")
@@ -1339,7 +1437,27 @@ class InstalledElectricalTests(EvenniaTestCase):
         self.assertIsNone(state("isolator", "ISO-GEN-M").details.get(
             "physics_power_trip_latched"))
         self.assertEqual(WorkReceipt.objects.get(pk="7" * 32).operation, "power")
-        # Reset releases the latch; it NEVER recloses the actual contacts.
+        # Reset releases the latch; NEVER recloses the protected feeder.
+        self.assertEqual(state("isolator", "ISO-GEN-M").setting, "open")
+
+        # Return by the actual rated generator hatch; do not teleport or
+        # retain exclusive maintenance lockout after an empty enclosure.
+        self.assertEqual(crew_physical_action(
+            self.worker, "9" * 31 + "e",
+            "hatch", hatch, "open")["status"], "succeeded")
+        reverse = find_world_entity("access:" + hatch + ":reverse")
+        self.assertIsNotNone(reverse)
+        self.assertEqual(traverse_canonical_exit(
+            self.worker, reverse, reverse.destination,
+            request_id="9" * 31 + "f")["status"], "succeeded")
+        self.assertEqual(crew_physical_action(
+            self.worker, "8" * 31 + "a",
+            "hatch", hatch, "closed")["status"], "succeeded")
+        self.assertEqual(crew_physical_action(
+            self.worker, "8" * 31 + "b",
+            "generator_bay", room, "release")["status"], "succeeded")
+        self.assertIsNone(
+            _clock().details["generator_bays"]["rooms"][room]["permit"])
         self.assertEqual(state("isolator", "ISO-GEN-M").setting, "open")
 
     def test_meter_advances_once_only_and_persists_exactly(self):
