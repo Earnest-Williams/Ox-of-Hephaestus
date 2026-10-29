@@ -26,6 +26,7 @@ from world.ship_equipment_services import SERVICE_LOADS
 from world.ship_flywheel_maintenance import MODULES as FLYWHEEL_MODULES
 from world.ship_instrumentation_world import original_panel_roster
 from world.ship_refuge_life_support import REFUGE_PACKS
+from world.ship_survival_craft_air import PACKS as SURVIVAL_CRAFT_PACKS
 
 
 class EquipmentFamilyAuditError(ValueError):
@@ -39,7 +40,7 @@ cultivation_controller dehumidifier emergency_life_support environmental_train
 fabrication_cell fan_coil fire_pump flywheel_module ftl_field_system generator
 indexed_drum_personnel_carrier indexer_drive linear_drive local_panel machine_tool
 main_hab_drive oxygen_generation_skid rotor_drive thermal_plant waste_processor
-water_processor
+water_processor survival_craft_life_support
 """.split())
 
 INTERFACE_OR_CUSTODY = frozenset("""
@@ -66,7 +67,6 @@ trim_system workshop_rotor
 
 OPEN_INTERACTION = frozenset("""
 eva_rail_crawler inspection_robot portable_fan portable_pump portable_scrubber
-survival_craft_life_support
 """.split())
 
 DISPOSITIONS = {
@@ -129,7 +129,8 @@ def audit_fitted_equipment(reference):
                 "Original audited direct equipment identity drift: " + name)
     for source, label in ((MOTORS, "fitted_motors"),
                           (SERVICE_LOADS, "secondary_powered_services"),
-                          (REFUGE_PACKS, "finite_refuge_air")):
+                          (REFUGE_PACKS, "finite_refuge_air"),
+                          (SURVIVAL_CRAFT_PACKS, "surveyed_independent_craft_air")):
         for name in source:
             if name not in seen or classifications[name] != "direct_physics":
                 raise EquipmentFamilyAuditError(

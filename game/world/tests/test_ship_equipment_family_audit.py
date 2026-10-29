@@ -24,10 +24,10 @@ class CompleteOriginalEquipmentAuditTests(unittest.TestCase):
         report = audit_fitted_equipment(reference())
         self.assertEqual((report["equipment"],report["families"]),(808,91))
         self.assertEqual(report["dispositions"], {
-            "direct_physics": {"equipment": 323, "families": 28},
+            "direct_physics": {"equipment": 325, "families": 29},
             "interface_or_custody": {"equipment": 159, "families": 26},
             "controlled_hardware": {"equipment": 306, "families": 31},
-            "open_interaction": {"equipment": 20, "families": 6},
+            "open_interaction": {"equipment": 18, "families": 5},
         })
         self.assertEqual(sum(
             row["count"] for row in report["by_kind"].values()), 808)
@@ -43,12 +43,16 @@ class CompleteOriginalEquipmentAuditTests(unittest.TestCase):
         self.assertEqual(dict(open_by_kind),{
             "eva_rail_crawler":2, "inspection_robot":2,
             "portable_fan":6,"portable_pump":4,
-            "portable_scrubber":4,"survival_craft_life_support":2,
+            "portable_scrubber":4,
         })
         self.assertEqual(report["by_kind"]["fan_coil"]["count"],40)
         self.assertEqual(report["by_kind"]["fan_coil"][
             "disposition"],"direct_physics")
         self.assertEqual(set(report["by_kind"]["fan_coil"]["ids"]),set(FANCOILS))
+        self.assertEqual(report["by_kind"][
+            "survival_craft_life_support"]["disposition"],"direct_physics")
+        self.assertEqual(report["by_kind"][
+            "survival_craft_life_support"]["count"],2)
 
     def test_unreviewed_kind_duplicate_and_uninstalled_room_refused(self):
         original=reference()

@@ -506,3 +506,17 @@ with all four jobs green.
 This is a bounded integration acceptance, not a full game release or
 NASA-style physical qualification. PR #138 remains draft/unmerged; the
 40-person voyage is not part of this development round.
+
+## Complete as-fitted equipment-family closure review (29 October 2026)
+
+The 808 original equipment identities across 91 families are now subject to a
+strict installed Evennia audit. Evidence tiers and the remaining named
+portable/exterior machinery obligations are recorded in
+[G19 equipment-family closure audit](G19_EQUIPMENT_FAMILY_CLOSURE_AUDIT.md).
+The forty individual cabin terminal cooling contracts passed three-job
+acceptance [#40894829437](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40894829437);
+the full equipment identity/family audit passed both jobs at
+[#40895961792](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40895961792).
+The two independently fitted rescue-bay scrubbers have now been integrated
+with as-found finite media and operating time; the dedicated installed
+acceptance remains the authority for final confirmation of that slice.
