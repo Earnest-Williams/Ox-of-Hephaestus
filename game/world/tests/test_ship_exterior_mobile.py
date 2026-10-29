@@ -160,6 +160,23 @@ class ExteriorMobileTests(unittest.TestCase):
             self.tick(t)
         self.assertEqual(self.state["units"][self.name]["position"],"EVA-FWD")
 
+    def test_same_real_rail_span_and_outer_anchor_cannot_be_double_booked(self):
+        self.state = survey_exterior_mobile(
+            self.state,"EVA-CRAWLER-1",battery_kwh=2.0)
+        self.action("launch")
+        with self.assertRaises(MobileExteriorError):
+            self.action("launch",name="EVA-CRAWLER-1")
+        for clock in (1010,1020,1030,1040,1050):
+            self.tick(clock)
+        # The inspection robot occupies the original exterior bow berth.
+        with self.assertRaises(MobileExteriorError):
+            self.action("launch",name="EVA-CRAWLER-1")
+        self.action("move:EXT-DR01-SKIN")
+        self.action("launch",name="EVA-CRAWLER-1")
+        self.tick(1060)
+        self.assertEqual(self.state["units"][self.name]["position"],"EXT-BOW")
+        self.assertEqual(self.state["units"]["EVA-CRAWLER-1"]["position"],"EVA-FWD")
+
     def test_rail_source_must_be_original_vacuum_geometry(self):
         wrong=copy.deepcopy(REFERENCE)
         wrong["spaces"][1]["pressure_zone"]="PZ-DR-01"
