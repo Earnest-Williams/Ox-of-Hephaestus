@@ -300,7 +300,17 @@ def complete_manifest(ledger,manifest,drum):
 
 def permit_ready(ledger,manifest,rotors,sector, *,
                  source_pressure_pa,source_safe,now_s,
-                 permit_required=True,allow_minor_leak=False):
+                 permit_required=True,allow_minor_leak=False,
+                 allow_stale_retreat=False):
+    """Fresh survey for new admission; owner may leave after time passes.
+
+    Only existing permits may use the retreat exception. Live mixture,
+    differential, hatch and all other physical constraints still apply.
+    """
+    if type(allow_stale_retreat) is not bool or (
+            allow_stale_retreat and not permit_required):
+        raise UnclassifiedSpaceError(
+            "Expired survey may be bypassed only for an already held permit")
     validate_unclassified(ledger)
     if sector not in SECTORS or not source_safe:
         return False
@@ -315,7 +325,8 @@ def permit_ready(ledger,manifest,rotors,sector, *,
             or not bay_gas_safe(gas)
             or row["leak_kg_s"] > (MINOR_PATCH_KG_S if allow_minor_leak else 0)
             or _num(now_s)<gas["sample_s"]
-            or _num(now_s)-gas["sample_s"]>MAX_SAMPLE_AGE_S
+            or (not allow_stale_retreat
+                and _num(now_s)-gas["sample_s"]>MAX_SAMPLE_AGE_S)
             or abs(_num(source_pressure_pa)-bay_pressure(gas))>MAX_DELTA_PA):
         return False
     return row["permit"] is not None if permit_required else True

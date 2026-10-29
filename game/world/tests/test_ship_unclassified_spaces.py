@@ -84,6 +84,33 @@ class UnclassifiedTaxonomy(unittest.TestCase):
              "mass_kg":100,"kind":"sled","restrained":True,
              "azimuth_rad":0.0,"radius_m":5}
         self.assertFalse(complete_manifest(l,m2,"DR-01"))
+    def test_stale_survey_never_traps_already_admitted_engineer(self):
+        led,manifest=survey_all()
+        sector="DR-01-SEC-02"
+        led=secure_sector(led,sector,"#71",1000)
+        conditions=dict(source_pressure_pa=101000,source_safe=True,
+                        now_s=1650,permit_required=True)
+        # An operator cannot start another admission using a ten-minute-old
+        # survey; existing worker may return using the live conserved gas.
+        self.assertFalse(permit_ready(
+            led,manifest,parked(),sector,**conditions))
+        self.assertTrue(permit_ready(
+            led,manifest,parked(),sector,**conditions,
+            allow_stale_retreat=True))
+        self.assertFalse(permit_ready(
+            led,manifest,parked(),sector,
+            **{**conditions,"source_pressure_pa":110000},
+            allow_stale_retreat=True))
+        with self.assertRaises(UnclassifiedSpaceError):
+            permit_ready(led,manifest,parked(),sector,
+                **{**conditions,"permit_required":False},
+                allow_stale_retreat=True)
+        no_permit=release_sector(
+            led,sector,"#71",closed=True,empty=True)
+        self.assertFalse(permit_ready(
+            no_permit,manifest,parked(),sector,**conditions,
+            allow_stale_retreat=True))
+
     def test_owned_entry_and_finite_patch_without_air_replacement(self):
         led,m=survey_all()
         row="DR-01-SEC-01"

@@ -114,7 +114,9 @@ def access_ready(actor,details,sector,*,from_inside=False,
             details["unclassified_spaces"],details["cargo"],
             details["rotors"],sector,source_pressure_pa=pressure,
             source_safe=p._air_safe(gallery),
-            now_s=details["last_game_time"],allow_minor_leak=allow_small_leak)
+            now_s=details["last_game_time"],
+            allow_minor_leak=allow_small_leak,
+            allow_stale_retreat=from_inside)
     except (UnclassifiedSpaceError,p.PhysicsError,KeyError,TypeError,
             ValueError):
         return False

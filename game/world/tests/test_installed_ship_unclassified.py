@@ -153,6 +153,28 @@ class OriginalCargoAndVoidClosure(EvenniaTestCase):
             _clock().details["summary"]["crew_o2_used_this_tick_kg"] > 0,True)
         self.leave(room)
 
+    def test_time_on_task_over_ten_minutes_allows_measured_safe_retreat(self):
+        sector="DR-01-SEC-04"
+        self.survey_drum()
+        self.enter(sector)
+        self.tick(660)
+        # Admission survey is now stale, but the real model has continued
+        # to account for air and physiology; no instant re-survey is possible
+        # while the maintenance permit is occupied.
+        live=_clock().details["unclassified_spaces"]["sectors"][sector]
+        self.assertGreater(self.now-live["gas"]["sample_s"],600)
+        self.assertIsNotNone(live["permit"])
+        with self.assertRaises(PhysicsError):
+            survey_g19_cargo_sector(
+                operator_approved=True,sector=sector,free_volume_m3=50,
+                pressure_pa=101000,temperature_k=293.15,
+                oxygen_mass_fraction=.232,co2_mass_fraction=.0004,
+                smoke_mass_fraction=0,cargo_class="empty",lot_ids=[])
+        self.leave(sector)
+        self.assertEqual(self.worker.location.db.ox_space_id,"DR-01-GALLERY")
+        self.assertIsNone(
+            _clock().details["unclassified_spaces"]["sectors"][sector]["permit"])
+
     def test_suited_finite_cargo_sector_shell_patch_conserves_gas_and_material(self):
         room="DR-01-SEC-02"
         self.survey_drum()
