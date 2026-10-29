@@ -32,7 +32,7 @@ a live issued EVA suit. Local commands use durable, exactly-once receipts:
 
 \`\`\`
 oxplant <32hex> exterior_mobile DRUM-INSPECT-ROBOT-1 launch
-oxplant <32hex> exterior_mobile DRUM-INSPECT-ROBOT-1 move:EXT-DR01-SKIN
+oxplant <32hex> exterior_mobile DRUM-INSPECT-ROBOT-1 move:EXT-DR01
 oxplant <32hex> exterior_mobile DRUM-INSPECT-ROBOT-1 scan
 oxplant <32hex> exterior_mobile DRUM-INSPECT-ROBOT-1 move:EXT-BOW
 oxplant <32hex> exterior_mobile DRUM-INSPECT-ROBOT-1 dock
@@ -51,8 +51,10 @@ cycle or use the opposite dock.
 \`eva_rail\` link. Only original vacuum-to-vacuum \`EXT-\` vertices and
 existing live/rated rail links qualify. The engine refuses distant
 teleports, damaged rail, occupied rail sections, conflicting exterior
-berths, moving or unlatched drum skins, propulsive acceleration, and
-unsafe ship attitude. It conserves the original independent battery:
+berths, propulsive acceleration and unsafe ship attitude. Drum rotation
+requires stopping before **close inspection**; movement along the fixed
+rail remains possible beside rotating drums. A robot does not silently
+cross the separately fitted, normally closed 180-second skin-platform link. It conserves the original independent battery:
 simulated draw is 12 kW while crawling and 4 kW for a smaller robot,
 times the *actual active seconds*. These are coarse game rates, not
 engineering certification figures or new power circuits.
@@ -60,11 +62,12 @@ engineering certification figures or new power circuits.
 ## Inspection evidence
 
 The installed inspection robot can order a **20-second** \`scan\` only
-while stationary beside an actual \`EXT-DR01..06-SKIN\` location with
+while stationary at an original fixed-rail \`EXT-DR01..06\` station
+adjacent to its separately rated \`EXT-DR01..06-SKIN\` work platform with
 the corresponding original rotor stationary, braked and hardlocked.
 The sample is taken **at job completion** from authoritative rotor
-state and retains the actual target, rotor RPM, condition, brakes,
-hardlock and sample time. It is remote *observational evidence*,
+state and retains the actual rail station, observed but **unentered**
+skin platform, rotor RPM, condition, brakes, hardlock and sample time. It is remote *observational evidence*,
 not arbitrary hull-health revelation, a hidden leak sensor, or a
 powered structural repair. Each exposure consumes separately metered
 2 kW inspection power.
