@@ -29,6 +29,7 @@ from world.ship_refuge_life_support import REFUGE_PACKS
 from world.ship_survival_craft_air import PACKS as SURVIVAL_CRAFT_PACKS
 from world.ship_portable_air import STOWAGE as PORTABLE_CO2_PACKS
 from world.ship_portable_damage import FITTED as PORTABLE_PUMP_FANS
+from world.ship_exterior_mobile import FITTED as ORIGINAL_EXTERIOR_MOBILE
 
 
 class EquipmentFamilyAuditError(ValueError):
@@ -43,7 +44,7 @@ fabrication_cell fan_coil fire_pump flywheel_module ftl_field_system generator
 indexed_drum_personnel_carrier indexer_drive linear_drive local_panel machine_tool
 main_hab_drive oxygen_generation_skid rotor_drive thermal_plant waste_processor
 water_processor survival_craft_life_support portable_pump portable_fan
-portable_scrubber
+portable_scrubber eva_rail_crawler inspection_robot
 """.split())
 
 INTERFACE_OR_CUSTODY = frozenset("""
@@ -68,9 +69,7 @@ rotary_gas_interface rotary_power_interface shore_interface switchboard
 trim_system workshop_rotor
 """.split())
 
-OPEN_INTERACTION = frozenset("""
-eva_rail_crawler inspection_robot
-""".split())
+OPEN_INTERACTION = frozenset())
 
 DISPOSITIONS = {
     "direct_physics": DIRECT_PHYSICS,
@@ -135,7 +134,8 @@ def audit_fitted_equipment(reference):
                           (REFUGE_PACKS, "finite_refuge_air"),
                           (SURVIVAL_CRAFT_PACKS, "surveyed_independent_craft_air"),
                           (PORTABLE_CO2_PACKS, "original_finite_portable_co2"),
-                          (PORTABLE_PUMP_FANS, "original_portable_pumps_and_fans")):
+                          (PORTABLE_PUMP_FANS, "original_portable_pumps_and_fans"),
+                          (ORIGINAL_EXTERIOR_MOBILE, "finite_as_fitted_crawlers_and_robots")):
         for name in source:
             if name not in seen or classifications[name] != "direct_physics":
                 raise EquipmentFamilyAuditError(
