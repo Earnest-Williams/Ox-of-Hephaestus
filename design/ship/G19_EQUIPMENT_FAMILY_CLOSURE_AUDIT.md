@@ -13,10 +13,10 @@ An unreviewed new family cannot silently pass as a generic machine.
 
 | Evidence/disposition | Fitted hardware | Families | Interpretation |
 | --- | ---: | ---: | --- |
-| Direct physics and output/control paths | **325** | 29 | Mapped to individual source/plant/process/telemetry logic, including 40 separately valved cabin fan-coils and the two finite surveyed rescue LSS units. A live contract is not a guarantee of every failure mode. |
+| Direct physics and output/control paths | **339** | 32 | Mapped to individual source/plant/process/telemetry logic, including 40 separately valved cabin fan-coils and the two finite surveyed rescue LSS units. A live contract is not a guarantee of every failure mode. |
 | Interface or material custody | **159** | 26 | Connector, pressure boundary, passive storage, mounting or bulk infrastructure generally exercised through the owning access/cargo/rotor/water subsystem rather than a second invented machine. |
 | Condition/interlock and supply hardware | **306** | 31 | Original equipment whose existence, condition, feeder, valve or receipt can affect the enclosing operation. Individual positive output is not claimed without a dedicated test. |
-| Outstanding independent interactions | **18** | 5 | Real original portable or exterior machinery still requiring independently proved deployment, power/media/traction, sustained output and recovery. |
+| Outstanding independent interactions | **4** | 2 | Real original portable or exterior machinery still requiring independently proved deployment, power/media/traction, sustained output and recovery. |
 | **As-fitted total** | **808** | **91** | Complete identity and location inventory; no fictional additions. |
 
 The category names are deliberately **evidence tiers**, not an assertion
@@ -28,44 +28,28 @@ that 790 units are fully functional or that every interlock is signed off.
 - Full 808/91 inventory identity, room placement and fail-closed unknown family review passed both pure and installed jobs in [CI #40895961792](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40895961792).
 - Both original rescue-craft independent air packages now have a finite as-found survey of cartridge CO2 capacity and onboard operating time, sealed-hatch restrictions, room-local crew controls, measured retained CO2 and no invented breathing oxygen. The original craft rooms retain their pressure cells. Dedicated workflow: `.github/workflows/ox-g19-survival-air.yml`; acceptance must be recorded from its completed runtime results before final subsystem signoff.
 
-## Outstanding eighteen original fitted items
+## Outstanding four original fitted mobile units
 
 | Original equipment ID | Family | As-installed space |
 | --- | --- | --- |
-| `DC-PUMP-01` | `portable_pump` | `TRUNK-A-BOW` |
-| `DC-PUMP-02` | `portable_pump` | `ENG-LOCKER` |
-| `DC-PUMP-03` | `portable_pump` | `F2-BAY` |
-| `DC-PUMP-04` | `portable_pump` | `TRUNK-B-AFT` |
-| `DC-SMOKE-FAN-01` | `portable_fan` | `TRUNK-A-BOW` |
-| `DC-SMOKE-FAN-02` | `portable_fan` | `BE-05-SVC` |
-| `DC-SMOKE-FAN-03` | `portable_fan` | `ENG-LOCKER` |
-| `DC-SMOKE-FAN-04` | `portable_fan` | `F2-BAY` |
-| `DC-SMOKE-FAN-05` | `portable_fan` | `BE-11-SVC` |
-| `DC-SMOKE-FAN-06` | `portable_fan` | `TRUNK-B-AFT` |
-| `PORT-SCRUB-01` | `portable_scrubber` | `TRUNK-A-BOW` |
-| `PORT-SCRUB-02` | `portable_scrubber` | `ENG-LOCKER` |
-| `PORT-SCRUB-03` | `portable_scrubber` | `F2-BAY` |
-| `PORT-SCRUB-04` | `portable_scrubber` | `TRUNK-B-AFT` |
 | `EVA-CRAWLER-1` | `eva_rail_crawler` | `EVA-FWD` |
 | `EVA-CRAWLER-2` | `eva_rail_crawler` | `EVA-AFT` |
 | `DRUM-INSPECT-ROBOT-1` | `inspection_robot` | `EVA-FWD` |
 | `DRUM-INSPECT-ROBOT-2` | `inspection_robot` | `EVA-AFT` |
 
-These are **actual fitted machines**, not missing hull geometry. The open
-work items must preserve the same principles as the accepted installed systems:
+Four original crawlers/robots remain open for their own completed
+installed-world acceptance. The other **14 portable machines** have now passed
+the original finite-output and real crew/source-control test gates:
+[portable pumps/fans #40916094333](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40916094333)
+and [portable CO2 #40916246389](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40916246389).
+Their three fitted families are classified as direct physics, bringing the
+audited source-control tier from 325 to 339 original equipment identities.
 
-- **Four portable pumps:** actual dewatering or fire-main flow from a
-  physically present and compatible liquid inventory, with real delivery
-  routing, local setup, finite operating power and retained effluent custody.
-- **Six portable smoke-control fans and four portable scrubbers:** real carried
-  location/crew access, valid source power or surveyed finite battery charge,
-  independently attributable air movement, filter/sorbent exhaustion, and
-  contamination disposal. Circulation must not silently destroy smoke/CO2;
-  an open duct must not imply permissible vacuum purge.
-- **Two EVA rail crawlers and two drum inspection robots:** authentic exterior
-  rail/rotor restrictions, crew or robot custody, independent drive energy,
-  remote survey evidence, bounded traversal and recovery. A remote visual
-  scan must not claim to be a heavy structural repair.
+The four remaining crawler/robot machines have newly committed separate
+timed autonomous rail and remote drum-inspection logic; they stay open until
+the corrected, as-built installed-world CI is green. The original rail
+stations and *separate*, normally-closed 180-second drum skin platforms must
+not be conflated. The robot inspects from the fixed rail.
 
 ## Integration and signoff policy
 
