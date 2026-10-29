@@ -67,6 +67,23 @@ class InstalledExteriorMobile(EvenniaTestCase):
         self.tick(90)
         self.act("eva","EVA-FWD","outer_open")
 
+    def ready_aft_airlock(self):
+        self.at("ENG-LOCKER")
+        self.act("eva","INV-DC-CONSUMABLES","stage:0.75")
+        self.at("TRUNK-B-AFT")
+        self.act("eva","EVA-AFT","inner_open")
+        link=find_world_entity("access:ACC-EVA-AFT:forward")
+        outcome=traverse_canonical_exit(
+            self.worker,link,link.destination,request_id=self.rid())
+        self.assertEqual(outcome["status"],"succeeded")
+        self.act("eva","EVA-AFT","inner_close")
+        self.act("eva","EVA-AFT","checkout")
+        self.act("switch","ISO-AIR-FIXED-EVA-AFT","closed")
+        self.act("switch","ISO-LP-EVA-AFT","closed")
+        self.act("eva","EVA-AFT","pumpdown")
+        self.tick(90)
+        self.act("eva","EVA-AFT","outer_open")
+
     def mobile(self,key):
         return _clock().details["exterior_mobile"]["units"][key]
 
@@ -140,6 +157,31 @@ class InstalledExteriorMobile(EvenniaTestCase):
         with self.assertRaises(CrewTransitError):
             traverse_canonical_exit(
                 self.worker,outer,outer.destination,request_id=self.rid())
+
+    def test_aft_robot_and_crawler_use_original_dock_with_shared_berth(self):
+        robot="DRUM-INSPECT-ROBOT-2"
+        crawler="EVA-CRAWLER-2"
+        survey_g19_exterior_mobile(operator_approved=True,
+                                   name=robot,battery_kwh=1.5)
+        survey_g19_exterior_mobile(operator_approved=True,
+                                   name=crawler,battery_kwh=3.0)
+        self.ready_aft_airlock()
+        self.act("exterior_mobile",robot,"launch")
+        with self.assertRaises(PhysicsError):
+            self.act("exterior_mobile",crawler,"launch")
+        self.tick(50)
+        self.assertEqual(self.mobile(robot)["position"],"EXT-AFT")
+        with self.assertRaises(PhysicsError):
+            self.act("exterior_mobile",crawler,"launch")
+        self.act("exterior_mobile",robot,"move:EXT-DR06")
+        self.tick(30)
+        self.assertEqual(self.mobile(robot)["position"],"EXT-DR06")
+        self.act("exterior_mobile",crawler,"launch")
+        self.tick(50)
+        self.assertEqual(self.mobile(crawler)["position"],"EXT-AFT")
+        self.assertAlmostEqual(
+            self.mobile(crawler)["used_kwh"] +
+            self.mobile(crawler)["charge"]["remaining_kwh"],3.0,places=6)
 
     def test_unpressurised_outer_hatch_is_not_a_magic_deployment(self):
         name="DRUM-INSPECT-ROBOT-2"
