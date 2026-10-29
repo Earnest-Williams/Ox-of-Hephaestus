@@ -1,6 +1,7 @@
 """G19 seeded sustained multi-system casualties in the *installed* Evennia ship.
 
-Each named seed is an independent commissioned as-fitted world. The scenario
+Each named seed is an independent commissioned as-fitted world. Across six
+seeds the fault scenarios each exercise a DIFFERENT original cargo drum. The scenario
 runs 24 minutes of actual G19 clock time, exercises a crew-operated original
 cargo pressure hatch, and introduces faults only through operator-only world
 injection interfaces. No synthetic ship or separate physics state is created.
@@ -23,6 +24,7 @@ from world.full_ship_operations import (
 )
 from world.models import CanonicalShipEvent, WorkReceipt
 from world.ship_world import build_canonical_ship, find_ship_space
+from world.ship_cargo_manifest import DRUMS
 from world.ship_unclassified_spaces import SECTORS
 from world.continuous_ship_physics import (
     _clock, arm_continuous_physics,
@@ -68,10 +70,11 @@ class InstalledG19SeededEndurance(EvenniaTestCase):
         return crew_physical_action(
             self.worker, request_id, action, target, value)
 
-    def _survey_original_drum(self):
+    def _survey_original_drum(self, drum):
+        self.assertIn(drum, DRUMS)
         survey_cargo_lot(
-            operator_approved=True, operation="verify", drum="DR-01")
-        for sector in SECTORS[:8]:
+            operator_approved=True, operation="verify", drum=drum)
+        for sector in (s for s in SECTORS if s.startswith(drum + "-")):
             survey_g19_cargo_sector(
                 operator_approved=True, sector=sector,
                 free_volume_m3=50, pressure_pa=101000,
@@ -95,15 +98,25 @@ class InstalledG19SeededEndurance(EvenniaTestCase):
             0x19D4: ("water", "power", "fire"),
         }
         self.assertEqual(tuple(hazard_order), expected_orders[seed])
-        sector = rng.choice(SECTORS[:8])
+        # As-fitted six-drum coverage, not seven trials of the same room.
+        # Fix each seed to one genuine original cargo drum for repeatability.
+        drum_for_seed = {
+            0x19A0: "DR-01", 0x19A1: "DR-02", 0x19A3: "DR-03",
+            0x19A6: "DR-04", 0x19A7: "DR-05", 0x19C3: "DR-06",
+            0x19D4: "DR-06",
+        }
+        drum = drum_for_seed[seed]
+        self.assertIn(drum, DRUMS)
+        sector = rng.choice(
+            [s for s in SECTORS if s.startswith(drum + "-")])
         leak_kg_s = .025 + .005 * rng.randrange(6)
         fire_fuel_kg = 5.0 + rng.randrange(5)
         fire_rate_kg_s = .008 + .002 * rng.randrange(4)
         water_kg = 3.0 + rng.randrange(8)
 
-        self._survey_original_drum()
+        self._survey_original_drum(drum)
         self.assertTrue(self.worker.move_to(
-            find_ship_space("DR-01-GALLERY"), quiet=True))
+            find_ship_space(drum + "-GALLERY"), quiet=True))
         self._action("cargo_sector", sector, "secure")
         hatch = "ACC-" + sector
         self.serial += 1
@@ -164,7 +177,7 @@ class InstalledG19SeededEndurance(EvenniaTestCase):
             self.assertGreaterEqual(
                 d["lost_to_space_kg"] + 1e-7, total_vent)
             self.assertGreater(row["lost_kg"], 0)
-            self.assertEqual(d["rotors"]["DR-01"]["target_rpm"], 0)
+            self.assertEqual(d["rotors"][drum]["target_rpm"], 0)
             self.assertEqual(d["instrumentation"]["last_s"], self.now_s)
             self.assertIsNotNone(row["gas"])
 
@@ -242,7 +255,7 @@ class InstalledG19SeededEndurance(EvenniaTestCase):
 
         print("G19_SEEDED_ENDURANCE " + json.dumps({
             "seed": seed, "minutes": self.DURATION_MINUTES,
-            "hazards": hazard_order, "sector": sector,
+            "hazards": hazard_order, "drum": drum, "sector": sector,
             "rate_kg_s": leak_kg_s, "traces": trace,
             "final_lost_kg": total_lost,
             "final_burned_fuel_kg": total_burn,
