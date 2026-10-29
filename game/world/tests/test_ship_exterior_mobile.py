@@ -186,6 +186,25 @@ class ExteriorMobileTests(unittest.TestCase):
         self.assertEqual(self.state["units"][self.name]["position"],"EXT-BOW")
         self.assertEqual(self.state["units"]["EVA-CRAWLER-1"]["position"],"EVA-FWD")
 
+    def test_converging_original_rail_segments_reserve_one_arrival_station(self):
+        aft="DRUM-INSPECT-ROBOT-2"
+        self.state=survey_exterior_mobile(self.state,aft,battery_kwh=2.0)
+        self.action("launch")
+        self.action("launch",name=aft)
+        for now in (1010,1020,1030,1040,1050):
+            self.tick(now)
+        self.assertEqual(self.state["units"][aft]["position"],"EXT-AFT")
+        self.action("move:EXT-CENTRAL",name=aft)
+        for now in (1060,1070,1080):
+            self.tick(now)
+        self.action("move:EXT-DR01",name=aft)
+        with self.assertRaises(MobileExteriorError):
+            self.action("move:EXT-DR01")
+        for now in (1090,1100,1110):
+            self.tick(now)
+        self.assertEqual(self.state["units"][aft]["position"],"EXT-DR01")
+        self.assertEqual(self.state["units"][self.name]["position"],"EXT-BOW")
+
     def test_true_as_built_first_rail_is_supported_by_test_itinerary(self):
         from world.ship_model import load_ship_model
         model=load_ship_model()
