@@ -9205,6 +9205,11 @@ def crew_physical_action(actor, request_id, action, target, value):
         current = clock.details.get("portable_damage")
         if current is None:
             raise PhysicsError("Portable machinery not commissioned")
+        validate_portable_damage(current)
+        standing = current["units"][target]
+        if (value == "place" and standing["carrier"] != actor.dbref
+                or value != "place" and standing["room"] != here):
+            raise PermissionError("Portable machine must be physically present or personally carried")
         before = _snapshot(clock)
         d = dict(clock.details)
         try:
@@ -9231,6 +9236,11 @@ def crew_physical_action(actor, request_id, action, target, value):
         ledger = clock.details.get("portable_air")
         if ledger is None:
             raise PhysicsError("Portable air machinery not commissioned")
+        validate_portable_air(ledger)
+        standing = ledger["units"][target]
+        if (value == "place" and standing["carrier"] != actor.dbref
+                or value != "place" and standing["room"] != here):
+            raise PermissionError("Portable scrubber must be physically present or personally carried")
         before = _snapshot(clock)
         d = dict(clock.details)
         try:
