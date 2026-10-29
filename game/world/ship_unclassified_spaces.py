@@ -17,6 +17,7 @@ import re
 from world.ship_cargo_manifest import DRUMS, validate_cargo
 from world.ship_propulsion_bay_service import (
     R_AIR, bay_pressure, bay_gas_safe)
+from world.ship_crew_physiology import GAS_CP_KJ_KG_K
 
 SECTORS = tuple(
     f"{drum}-SEC-{n:02d}" for drum in DRUMS for n in range(1, 9))
@@ -509,7 +510,7 @@ def breathing_sample(ledger,sector):
         "co2":gas["co2_kg"],"smoke":gas["smoke_kg"],
         "volume":gas["volume_m3"],"temperature":gas["temperature_k"],
         "capacity":capacity,
-        "energy":(capacity+gas["mass_kg"])*gas["temperature_k"],
+        "energy":(capacity+gas["mass_kg"]*GAS_CP_KJ_KG_K)*gas["temperature_k"],
     }
 
 

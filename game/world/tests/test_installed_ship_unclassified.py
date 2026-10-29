@@ -150,7 +150,7 @@ class OriginalCargoAndVoidClosure(EvenniaTestCase):
         self.assertAlmostEqual(actual["mass_kg"],first_mass)
         self.assertGreater(actual["temperature_k"],293.15)
         self.assertEqual(
-            _clock().details["summary"]["crew_oxygen_consumed_kg"] > 0,True)
+            _clock().details["summary"]["crew_o2_used_this_tick_kg"] > 0,True)
         self.leave(room)
 
     def test_suited_finite_cargo_sector_shell_patch_conserves_gas_and_material(self):
