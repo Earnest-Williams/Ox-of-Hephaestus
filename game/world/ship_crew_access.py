@@ -160,18 +160,23 @@ def _clearance(actor, exit_obj, dest):
     if link in NONPERSONNEL_UNCLASSIFIED:
         raise CrewTransitError("Cargo rail/portal and shield or trim volume is not a crew entrance")
     if link in SECTOR_DOORS:
-        from world.ship_unclassified_runtime import access_ready
+        from world.ship_unclassified_runtime import (
+            access_ready, open_hatch_casualty_egress)
         from world.continuous_ship_physics import _clock
         sector=SECTOR_DOORS[link]
         from_inside=src_id==sector
+        details=_clock().details
         if (door.reference.get("kind")!="cargo_service_door"
                 or door.reference.get("pressure_boundary") is not True
                 or {src_id,dst_id}!={sector,sector[:5]+"-GALLERY"}
                 or door.setting!="open"
-                or not access_ready(actor,_clock().details,sector,
-                    from_inside=from_inside,
-                    allow_small_leak=from_inside,
-                    retreat_only=from_inside)):
+                or not (
+                    access_ready(actor,details,sector,
+                        from_inside=from_inside,
+                        allow_small_leak=from_inside,
+                        retreat_only=from_inside)
+                    or (from_inside and open_hatch_casualty_egress(
+                        actor,details,sector)))):
             raise CrewTransitError(
                 "Sector access requires positive whole-drum manifest, safe independent gas, parked rotor and owner's live crew permit")
         return door
