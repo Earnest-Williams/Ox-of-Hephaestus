@@ -484,3 +484,23 @@ job for existing EVA, major hull damage, casualty transport, hull restoration,
 cargo movement and medical procedures. The earlier three-job runtime
 acceptance is green; the expanded cross-system gate is newly requested.
 No 40-crew voyage has been performed. PR #138 remains a draft.
+
+## Final G19 multi-system process recovery (29 October 2026)
+
+The bounded whole-ship casualty, clock replay, atomic rollback and independent
+Python-process persistence campaign is documented in
+[G19 integrated casualty/restart acceptance](G19_INTEGRATED_CASUALTY_RESTART_ACCEPTANCE.md).
+The three-job initial campaign was accepted on runtime `18d42358` at
+[run #40888000855](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40888000855).
+A fourth, independently isolated CI job verifies that two distinct Python
+interpreters survive the same original physically damaged Evennia database.
+It passed on runtime `0ed5f0d3` at
+[run #40889821371](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40889821371),
+with **4/4 jobs green**. The test recorded 18 kg lost before process exit
+and 87 kg cumulative loss after durable restart/catch-up (no material refill).
+The acceptance probe's final exception-precision edit is committed alongside
+this document and must be retested on its new exact runtime head.
+
+This is a bounded integration acceptance, not a full game release or
+NASA-style physical qualification. PR #138 remains draft/unmerged; the
+40-person voyage is not part of this development round.

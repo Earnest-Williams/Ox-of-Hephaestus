@@ -152,7 +152,8 @@ def _resume(db, proof):
     from evennia.objects.models import ObjectDB
     from evennia.scripts.models import ScriptDB
     from world.full_ship_operations import (
-        install_candidate, state, initialize_nominal_atmosphere)
+        ShipOperationsError, install_candidate, state,
+        initialize_nominal_atmosphere)
     from world.continuous_ship_physics import (
         _clock, SCRIPT_KEY, arm_continuous_physics,
         crew_physical_action, tick_continuous_physics,
@@ -187,8 +188,9 @@ def _resume(db, proof):
             "World inventory recreated during restart")
     try:
         initialize_nominal_atmosphere(operator_approved=True)
-    except Exception:
-        pass
+    except ShipOperationsError as exc:
+        _assert("already initialised" in str(exc),
+                "Atmosphere reset failed for an unrelated reason")
     else:
         raise AssertionError("A restarted ship could refill original gas cells")
 
