@@ -211,6 +211,8 @@ class InstalledAttendedFireWaterRecovery(EvenniaTestCase):
         self.assertEqual(state("pressure", zone).details["physics_mist_kg_s"], 0)
 
         self._issue_real_suit()
+        # Issued EVA custody, not an old character flag, authorizes mist.
+        self.worker.db.ox_suit_verified = False
         self.at(fire_room)
         source_kg = state("inventory", "INV-WATER-NORMAL").quantity * 1000
         self.counter += 1
