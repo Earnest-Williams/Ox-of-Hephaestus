@@ -487,3 +487,62 @@ def inspect_void(ledger,void,now_s):
     updated["voids"][void]["last_control_s"]=_num(now_s)
     validate_unclassified(updated)
     return updated
+
+
+def breathing_sample(ledger,sector):
+    """Virtual physiology adapter for one *measured* cargo sector only.
+
+    A virtual cell is a view of a prior as-found measured charge, not an
+    extra pressure cell or the rotating gallery's real crew air. Exposure
+    may use its finite oxygen; heat loads existing cargo lining thermal
+    capacity. Unsurveyed cargo returns None, i.e. absolutely no oxygen.
+    """
+    validate_unclassified(ledger)
+    if sector not in SECTORS:
+        raise UnclassifiedSpaceError("Unknown human occupancy cargo position")
+    gas=ledger["sectors"][sector]["gas"]
+    if gas is None:
+        return None
+    capacity=1000.0+10.0*gas["volume_m3"]
+    return {
+        "mass":gas["mass_kg"],"oxygen":gas["oxygen_kg"],
+        "co2":gas["co2_kg"],"smoke":gas["smoke_kg"],
+        "volume":gas["volume_m3"],"temperature":gas["temperature_k"],
+        "capacity":capacity,
+        "energy":(capacity+gas["mass_kg"])*gas["temperature_k"],
+    }
+
+
+def commit_breathing_sample(ledger,sector,measured):
+    """Crediting CO2 by the exact oxygen breathed conserves sector gas."""
+    validate_unclassified(ledger)
+    if sector not in SECTORS:
+        raise UnclassifiedSpaceError("Unknown occupied cargo-sector authority")
+    original=ledger["sectors"][sector]["gas"]
+    if original is None:
+        if measured is not None:
+            raise UnclassifiedSpaceError("Unmeasured sector cannot receive invented air")
+        return ledger
+    if not isinstance(measured,dict):
+        raise UnclassifiedSpaceError("Measured sector gas unexpectedly disappeared")
+    previous=breathing_sample(ledger,sector)
+    for k in ("mass","volume","smoke","oxygen","co2","temperature","energy"):
+        _num(measured.get(k))
+    if (not math.isclose(measured["mass"],previous["mass"],abs_tol=1e-7)
+            or not math.isclose(measured["volume"],previous["volume"],abs_tol=1e-7)
+            or not math.isclose(measured["smoke"],previous["smoke"],abs_tol=1e-7)
+            or measured["oxygen"]>previous["oxygen"]+EPS
+            or measured["co2"]<previous["co2"]-EPS
+            or not math.isclose(
+                previous["oxygen"]-measured["oxygen"],
+                measured["co2"]-previous["co2"],abs_tol=1e-7)
+            or measured["temperature"]<previous["temperature"]-EPS
+            or measured["temperature"]>350):
+        raise UnclassifiedSpaceError("Cargo breathing attempted unaccounted oxygen or heat")
+    updated=copy.deepcopy(ledger)
+    row=updated["sectors"][sector]["gas"]
+    row["oxygen_kg"]=measured["oxygen"]
+    row["co2_kg"]=measured["co2"]
+    row["temperature_k"]=measured["temperature"]
+    validate_unclassified(updated)
+    return updated
