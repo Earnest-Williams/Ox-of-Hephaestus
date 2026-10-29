@@ -69,7 +69,7 @@ rotary_gas_interface rotary_power_interface shore_interface switchboard
 trim_system workshop_rotor
 """.split())
 
-OPEN_INTERACTION = frozenset())
+OPEN_INTERACTION = frozenset()
 
 DISPOSITIONS = {
     "direct_physics": DIRECT_PHYSICS,
