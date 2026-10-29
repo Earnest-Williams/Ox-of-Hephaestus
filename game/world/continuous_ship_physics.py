@@ -134,8 +134,9 @@ from world.ship_unclassified_spaces import (
     PORTAL_DOORS as CARGO_PORTAL_DOORS,
     NONPERSONNEL_LINKS as NONPERSONNEL_UNCLASSIFIED_LINKS,
     VOIDS as ORIGINAL_SHIELD_VOIDS,
-    validate_unclassified, drum_clear_for_freight, portal_ready,
+    UnclassifiedSpaceError, validate_unclassified, drum_clear_for_freight, portal_ready,
     invalidate_portal, breathing_sample, commit_breathing_sample,
+    exchange_open_sector_hatch,
 )
 from world.ship_industrial_runtime import (
     ready as _industrial_room_ready, suit_ready as _industrial_suit_ready,
@@ -4683,6 +4684,26 @@ def tick_continuous_physics(*, now_game_time=None):
                 _parcel(donor, receiver, min(
                     0.60 * dt * abs(pa - pb) / 101325.0,
                     0.1 * donor["mass"]))
+        # The 48 manifest sectors are outside the 133 rated PZ cells. An
+        # actually OPEN original service hatch nevertheless joins its
+        # positively measured finite gas to the real co-rotating gallery.
+        # Unmeasured gas never supplies breathable air by implication.
+        if unclassified is not None:
+            for door in access_rows:
+                sector = CARGO_PERSONNEL_DOORS.get(door.source_id)
+                if sector is None or door.setting != "open":
+                    continue
+                if door.condition in _BROKEN or not door.reference.get(
+                        "pressure_boundary"):
+                    raise PhysicsError("Open original cargo hatch is unsound")
+                zone = "PZ-" + sector[:5] + "-SVC"
+                if zone not in cells:
+                    raise PhysicsError("Original cargo gallery gas is missing")
+                try:
+                    unclassified, cells[zone] = exchange_open_sector_hatch(
+                        unclassified, sector, cells[zone], dt)
+                except UnclassifiedSpaceError as exc:
+                    raise PhysicsError(str(exc)) from exc
         atm_edges = [e for e in edges
                      if e.reference["network"] == "atmosphere"
                      and _live_edge(e, isolators)]
