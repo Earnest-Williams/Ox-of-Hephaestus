@@ -69,6 +69,13 @@ from world.ship_survival_craft_air import (
     survey_survival_air, command_survival_air,
     step_survival_air,
 )
+from world.ship_portable_damage import (
+    PortableDamageError, FITTED as PORTABLE_DAMAGE_UNITS,
+    PUMPS as PORTABLE_PUMPS, FANS as PORTABLE_SMOKE_FANS,
+    initial_portable_damage, validate_portable_damage,
+    survey_portable_damage, command_portable_damage,
+    step_portable_damage,
+)
 from world.ship_portable_air import (
     PortableAirError, STOWAGE as PORTABLE_SCRUBBERS,
     initial_portable_air, validate_portable_air, survey_portable_air,
@@ -1036,6 +1043,61 @@ def survey_g19_survival_air(*, operator_approved=False, name,
 
 
 @transaction.atomic
+def commission_g19_portable_damage(*, operator_approved=False):
+    """Install only ten ORIGINAL pump/smoke fan portable-machine identities."""
+    if not operator_approved:
+        raise PermissionError("Operator must commission original portable machinery")
+    _require_installed()
+    clock = _clock(lock=True)
+    original = {row["id"]: row for row in load_candidate()["equipment"]
+                if row["kind"] in {"portable_pump", "portable_fan"}}
+    if set(original) != set(PORTABLE_DAMAGE_UNITS):
+        raise PhysicsError("Original portable pump/fan identity roster changed")
+    for name, home in PORTABLE_DAMAGE_UNITS.items():
+        if original[name]["space_id"] != home or state("equipment",name).space_id != home:
+            raise PhysicsError("Original portable device has been moved in the equipment registry")
+    prior = clock.details.get("portable_damage")
+    if prior is not None:
+        validate_portable_damage(prior)
+        return {"commissioned": False, "units": 10}
+    before = _snapshot(clock)
+    d = dict(clock.details)
+    d["portable_damage"] = initial_portable_damage()
+    clock.details = d
+    clock.revision += 1
+    clock.save(update_fields=["details","revision"])
+    _event(clock, "g19_original_portable_pumps_fans_commissioned",before)
+    return {"commissioned": True, "units": 10}
+
+
+@transaction.atomic
+def survey_g19_portable_damage(*, operator_approved=False, name,
+                               battery_s, filter_kg=0):
+    if not operator_approved:
+        raise PermissionError("Actual existing portable power/media requires survey")
+    clock = _clock(lock=True)
+    current = clock.details.get("portable_damage")
+    if current is None or name not in PORTABLE_DAMAGE_UNITS:
+        raise PhysicsError("Original portable unit not commissioned")
+    unit = state("equipment",name)
+    if unit.space_id != PORTABLE_DAMAGE_UNITS[name] or unit.condition in _BROKEN:
+        raise PhysicsError("Original portable appliance unavailable or displaced")
+    try:
+        revised = survey_portable_damage(
+            current,name,battery_s=battery_s,filter_kg=filter_kg)
+    except PortableDamageError as exc:
+        raise PhysicsError(str(exc)) from exc
+    before = _snapshot(clock)
+    d = dict(clock.details)
+    d["portable_damage"] = revised
+    clock.details = d
+    clock.revision += 1
+    clock.save(update_fields=["details","revision"])
+    _event(clock,"g19_portable_original_battery_filter_survey",before)
+    return {"unit":name,"battery_s":battery_s,"filter_kg":filter_kg}
+
+
+@transaction.atomic
 def commission_g19_portable_air(*, operator_approved=False):
     """Commission the four original portable filters without resetting custody."""
     if not operator_approved:
@@ -1790,6 +1852,7 @@ def _water_hardware(water, equipment, edges, isolators, nodes, power, *, motor_r
                and connected("potable_water", potable_sources, potable_receivers))
     process = {}
     fixed = {}
+    portable_route = {}
     for medium in ("grey", "black"):
         net = medium + "water"
         supply = [
@@ -1805,6 +1868,12 @@ def _water_hardware(water, equipment, edges, isolators, nodes, power, *, motor_r
         fixed[medium] = (
             sound("FIXED-GREY-HOLD" if medium == "grey" else "FIXED-BLACK-HOLD")
             and connected(net, supply, receiver))
+        for side in "AB":
+            # A portable pump is physically attached at this existing A/B
+            # wet-work station. A healthy *other* branch cannot substitute.
+            portable_route[f"{side}_{medium}"] = (
+                sound("FIXED-GREY-HOLD" if medium == "grey" else "FIXED-BLACK-HOLD")
+                and connected(net, owned(net,f"WASTE-PROC-{side}"), receiver))
     process_ok = {
         side: (running and sound(f"WASTE-PROC-{side}")
                and sound(f"WATER-PROC-{side}")
@@ -1868,6 +1937,7 @@ def _water_hardware(water, equipment, edges, isolators, nodes, power, *, motor_r
             for side in "AB"
         },
         "fixed": {k: essential_running and v for k, v in fixed.items()},
+        "portable_route": portable_route,
         "oxygen": oxygen_side is not None, "oxygen_side": oxygen_side,
         "bins": bins,
     }
@@ -3867,6 +3937,12 @@ def tick_continuous_physics(*, now_game_time=None):
             validate_survival_air(survival_air)
         except SurvivalAirError as exc:
             raise PhysicsError(str(exc)) from exc
+    portable_damage = clock.details.get("portable_damage")
+    if portable_damage is not None:
+        try:
+            validate_portable_damage(portable_damage)
+        except PortableDamageError as exc:
+            raise PhysicsError(str(exc)) from exc
     portable_air = clock.details.get("portable_air")
     if portable_air is not None:
         try:
@@ -3968,7 +4044,9 @@ def tick_continuous_physics(*, now_game_time=None):
     survival_air_kg_before = (
         survival_air["meter"]["captured_kg"] if survival_air is not None else 0.0)
     portable_air_kg_before = portable_air["meter"]["captured_kg"] if portable_air is not None else 0.0
-    total_before = (portable_air_kg_before + survival_air_kg_before
+    portable_smoke_before = (portable_damage["meter"]["smoke_captured_kg"]
+                             if portable_damage is not None else 0.0)
+    total_before = (portable_smoke_before + portable_air_kg_before + survival_air_kg_before
                     + bay_gas_kg + generator_gas_kg + industrial_gas_before
                     + cargo_sector_gas_before
                     + sum(c["mass"] + c["fuel"] for c in cells.values())
@@ -4474,6 +4552,26 @@ def tick_continuous_physics(*, now_game_time=None):
             if motion["mission_fluids_kg"] + 1e-7 < mass_departed:
                 raise PhysicsError("Spent mission fluid exceeds actual ship mass")
             motion["mission_fluids_kg"] -= mass_departed
+        # The ten actually fitted portable emergency machines operate with
+        # their current carried/deployed location, real bounded wastewater
+        # reservoirs or room gas. The same locked tick conserves the media.
+        if portable_damage is not None:
+            # Wet route availability is side-specific and based on the
+            # original rated rotary union, not a room-level ON flag.
+            ready_routes = (_water_hardware(
+                water_state,equipment,edges,isolators,
+                water_nodes,power,motor_ready=motor_ready)["portable_route"]
+                if water_state is not None else {})
+            try:
+                portable_damage,cells,water_state = step_portable_damage(
+                    portable_damage,dt,now_s=last + duration,
+                    equipment=equipment,room_zones=zones,cells=cells,
+                    water=water_state,wet_ready=ready_routes,
+                    pump_stations={
+                        side:equipment[f"WASTE-PROC-{side}"].space_id
+                        for side in "AB"})
+            except PortableDamageError as exc:
+                raise PhysicsError(str(exc)) from exc
         # Propulsion hardware is represented by durable world-owned motion
         # condition flags until dedicated drive/RCS installations are mapped.
         # A failed drive can coast, but cannot silently resume thrust.
@@ -5287,6 +5385,9 @@ def tick_continuous_physics(*, now_game_time=None):
             "cabin_cooling_units": (
                 len(cabin_coils["last"]["operating"])
                 if cabin_coils is not None else None),
+            "portable_pumped_kg": (round(portable_damage["meter"]["pumped_kg"],6) if portable_damage is not None else None),
+            "portable_smoke_retained_kg": (round(portable_damage["meter"]["smoke_captured_kg"],6) if portable_damage is not None else None),
+            "portable_airflow_m3": (round(portable_damage["meter"]["recirculated_m3"],6) if portable_damage is not None else None),
             "portable_air_captured_co2_kg": (round(portable_air["meter"]["captured_kg"],6) if portable_air is not None else None),
             "survival_air_captured_co2_kg": (
                 round(survival_air["meter"]["captured_kg"], 6)
@@ -5386,7 +5487,9 @@ def tick_continuous_physics(*, now_game_time=None):
                 after={"room": patched_room, "leak_kg_s": 0.0,
                        "installed_spares_kg": used_kg},
                 actor_dbref=patched_worker, game_time=last + seconds)
-    total_after = ((portable_air["meter"]["captured_kg"] if portable_air is not None else 0.0)
+    total_after = ((portable_damage["meter"]["smoke_captured_kg"]
+                    if portable_damage is not None else 0.0)
+                   + (portable_air["meter"]["captured_kg"] if portable_air is not None else 0.0)
                    + (survival_air["meter"]["captured_kg"]
                     if survival_air is not None else 0.0)
                    + bay_gas_kg + generator_gas_kg + industrial_gas_after
@@ -6468,6 +6571,9 @@ def tick_continuous_physics(*, now_game_time=None):
     if cabin_coils is not None:
         validate_cabin_coils(cabin_coils)
         d["cabin_coils"] = cabin_coils
+    if portable_damage is not None:
+        validate_portable_damage(portable_damage)
+        d["portable_damage"] = portable_damage
     if portable_air is not None:
         validate_portable_air(portable_air)
         d["portable_air"] = portable_air
@@ -7087,7 +7193,7 @@ def crew_physical_action(actor, request_id, action, target, value):
     """
     if not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
         raise PhysicsError("Expected one 32-character lowercase request UUID")
-    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial", "cargo_sector", "shield_trim", "cabin_air", "rescue_air", "portable_air"}:
+    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial", "cargo_sector", "shield_trim", "cabin_air", "rescue_air", "portable_air", "portable_damage"}:
         raise PhysicsError("Unknown physical operation")
     if actor is None or getattr(actor.db, "ox_terminal_dead", False):
         raise PermissionError("A deceased or missing character cannot operate machinery")
@@ -7110,8 +7216,8 @@ def crew_physical_action(actor, request_id, action, target, value):
                     "isolator:" if action == "switch"
                     else "pressure:" if action == "mist"
                     else "access:" if action == "hatch"
-                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial", "cargo_sector", "shield_trim", "cabin_air", "rescue_air", "portable_air"}
-                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial", "cargo_sector", "shield_trim", "cabin_air", "rescue_air", "portable_air"} else target)
+                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial", "cargo_sector", "shield_trim", "cabin_air", "rescue_air", "portable_air", "portable_damage"}
+                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial", "cargo_sector", "shield_trim", "cabin_air", "rescue_air", "portable_air", "portable_damage"} else target)
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
@@ -9087,6 +9193,33 @@ def crew_physical_action(actor, request_id, action, target, value):
         clock.revision += 1
         clock.save(update_fields=["details", "revision"])
         item = clock
+    elif action == "portable_damage":
+        if target not in PORTABLE_DAMAGE_UNITS:
+            raise PhysicsError("Only as-installed portable pumps and smoke fans are available")
+        here = getattr(getattr(getattr(actor,"location",None),"db",None),"ox_space_id",None)
+        _crew_at(actor,here)
+        machine = state("equipment",target)
+        if value == "on" and machine.condition in _BROKEN:
+            raise PhysicsError("Original portable machine is physically failed")
+        clock = _clock(lock=True)
+        current = clock.details.get("portable_damage")
+        if current is None:
+            raise PhysicsError("Portable machinery not commissioned")
+        before = _snapshot(clock)
+        d = dict(clock.details)
+        try:
+            d["portable_damage"] = command_portable_damage(
+                current,target,value,actor=actor.dbref,room=here,
+                known_rooms={row["id"] for row in load_candidate()["spaces"]},
+                pump_stations={
+                    side:state("equipment",f"WASTE-PROC-{side}").space_id
+                    for side in "AB"})
+        except PortableDamageError as exc:
+            raise PhysicsError(str(exc)) from exc
+        clock.details = d
+        clock.revision += 1
+        clock.save(update_fields=["details","revision"])
+        item = clock
     elif action == "portable_air":
         if target not in PORTABLE_SCRUBBERS or value not in {"take","place","on","off"}:
             raise PhysicsError("Only original fitted portable scrubber controls exist")
@@ -10480,6 +10613,21 @@ def local_physics_readout(actor, target):
     room = getattr(getattr(location, "db", None), "ox_space_id", None)
     if not room:
         raise PermissionError("Stand at an installed ship compartment")
+    if target.startswith("portable_damage:"):
+        name = target[len("portable_damage:"):]
+        if name not in PORTABLE_DAMAGE_UNITS:
+            raise PhysicsError("Unfitted portable equipment")
+        record = _clock().details.get("portable_damage")
+        if record is None:
+            raise PhysicsError("Original portable machinery not commissioned")
+        validate_portable_damage(record)
+        row = record["units"][name]
+        if row["room"] != room and row["carrier"] != actor.dbref:
+            raise PermissionError("Only actual carrier or local crew may read the portable")
+        return {"unit":name,**dict(row),
+                "fitted_home":PORTABLE_DAMAGE_UNITS[name],
+                "condition":state("equipment",name).condition,
+                "scope":"finite-original-power-local-fluid-or-smoke-effect"}
     if target.startswith("portable_air:"):
         name = target[len("portable_air:"):]
         if name not in PORTABLE_SCRUBBERS:
