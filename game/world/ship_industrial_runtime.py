@@ -51,9 +51,14 @@ def isolated(room, details):
         return False
     spec = SITES[room]
     original = p.state("isolator", spec["breaker"])
+    # This is the local-panel breaker PHYSICALLY INSIDE the sealed room,
+    # not an upstream remote disconnect. Requiring it open BEFORE entry
+    # would make the original bay inaccessible without an operator teleport.
+    # Machinery safing is instead verified from real remote high-energy
+    # controls (HT valves, FTL idle, inhibited propulsion, braked drums).
+    # A hands-on panel repair subsequently requires local feeder isolation.
     if (original.space_id != room or original.condition in p._BROKEN
-            or original.setting != "open" or
-            original.reference.get("network") != "power"):
+            or original.reference.get("network") != "power"):
         return False
     motion = details.get("motion", {})
     leg = (motion.get("ftl_leg") or {}).get("status")
