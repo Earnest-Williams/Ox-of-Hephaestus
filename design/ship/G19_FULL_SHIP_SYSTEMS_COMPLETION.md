@@ -579,3 +579,29 @@ records the scope. This also repairs a legacy electrical test that still
 mistakenly trusted a boolean suit flag rather than the current rated-hatch
 operating procedure. The general all-machine and multi-system G19 acceptance
 remain separately gated.
+
+
+### Attended fire suppression and positive potable-water recovery (29 October 2026)
+
+The original HAB fire-mist crew command now refuses the inherited boolean
+`ox_suit_verified` unless a real enrolled engineer also holds an EVA suit
+with intact pressure protection and **finite issued breathing oxygen** in
+the canonical installed EVA/crew-health ledger. An as-installed world test
+physically checks the suit out through the existing forward EVA lock,
+commands a reachable local HAB mist nozzle, witnesses positive, metered
+forward fire-pump discharge, cuts/restores the actual individual pump fuse,
+and later loads a finite chemistry filter at the independent A-side water
+processor to scrub and positively resample potable-water contamination.
+A separately damaged DR-03 cargo shell continues to lose gas in the same
+world, and signed work requests remain replay-safe. The original B-source
+feeds the A-side ECLSS motor panel separately from the main-generator
+fire-detection circuit. A positive test is not allowed to substitute
+nominal machinery status for proven water output.
+
+[Focused installed acceptance #40955493928](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40955493928)
+passed **1/1** at tested code `5daa3a18`, with the old suit flag
+explicitly **false** during successful issued-suit operation.
+[Operating contract](G19_ATTENDED_FIRE_WATER_RECOVERY_2026-10-29.md).
+The combined positive recovery scenario is now the 13th selected installed
+compatibility check in the final G19 campaign, whose expanded five-job
+rerun must pass before whole-ship signoff.
