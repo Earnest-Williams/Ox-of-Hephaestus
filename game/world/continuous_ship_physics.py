@@ -4694,9 +4694,13 @@ def tick_continuous_physics(*, now_game_time=None):
                 sector = CARGO_PERSONNEL_DOORS.get(door.source_id)
                 if sector is None or door.setting != "open":
                     continue
-                if door.condition in _BROKEN or not door.reference.get(
-                        "pressure_boundary"):
-                    raise PhysicsError("Open original cargo hatch is unsound")
+                # A jammed or failed OPEN original hatch still passes gas.
+                # Refusing to tick here would freeze every ship system at
+                # precisely the moment a damage-control incident starts.
+                # Crew clearance and hatch actuation separately reject
+                # the broken hardware; this branch models physical flow.
+                if not door.reference.get("pressure_boundary"):
+                    raise PhysicsError("Original cargo pressure boundary missing")
                 zone = "PZ-" + sector[:5] + "-SVC"
                 if zone not in cells:
                     raise PhysicsError("Original cargo gallery gas is missing")
