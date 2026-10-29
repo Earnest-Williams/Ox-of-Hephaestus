@@ -13,10 +13,10 @@ An unreviewed new family cannot silently pass as a generic machine.
 
 | Evidence/disposition | Fitted hardware | Families | Interpretation |
 | --- | ---: | ---: | --- |
-| Direct physics and output/control paths | **339** | 32 | Mapped to individual source/plant/process/telemetry logic, including 40 separately valved cabin fan-coils and the two finite surveyed rescue LSS units. A live contract is not a guarantee of every failure mode. |
+| Direct physics and output/control paths | **343** | 34 | Mapped to individual source/plant/process/telemetry logic, including 40 separately valved cabin fan-coils and the two finite surveyed rescue LSS units. A live contract is not a guarantee of every failure mode. |
 | Interface or material custody | **159** | 26 | Connector, pressure boundary, passive storage, mounting or bulk infrastructure generally exercised through the owning access/cargo/rotor/water subsystem rather than a second invented machine. |
 | Condition/interlock and supply hardware | **306** | 31 | Original equipment whose existence, condition, feeder, valve or receipt can affect the enclosing operation. Individual positive output is not claimed without a dedicated test. |
-| Outstanding independent interactions | **4** | 2 | Real original portable or exterior machinery still requiring independently proved deployment, power/media/traction, sustained output and recovery. |
+| Outstanding independent interactions | **0** | 0 | Real original portable or exterior machinery still requiring independently proved deployment, power/media/traction, sustained output and recovery. |
 | **As-fitted total** | **808** | **91** | Complete identity and location inventory; no fictional additions. |
 
 The category names are deliberately **evidence tiers**, not an assertion
@@ -28,28 +28,38 @@ that 790 units are fully functional or that every interlock is signed off.
 - Full 808/91 inventory identity, room placement and fail-closed unknown family review passed both pure and installed jobs in [CI #40895961792](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40895961792).
 - Both original rescue-craft independent air packages now have a finite as-found survey of cartridge CO2 capacity and onboard operating time, sealed-hatch restrictions, room-local crew controls, measured retained CO2 and no invented breathing oxygen. The original craft rooms retain their pressure cells. Dedicated workflow: `.github/workflows/ox-g19-survival-air.yml`; acceptance must be recorded from its completed runtime results before final subsystem signoff.
 
-## Outstanding four original fitted mobile units
+## Closure: zero outstanding original hardware identities
 
-| Original equipment ID | Family | As-installed space |
-| --- | --- | --- |
-| `EVA-CRAWLER-1` | `eva_rail_crawler` | `EVA-FWD` |
-| `EVA-CRAWLER-2` | `eva_rail_crawler` | `EVA-AFT` |
-| `DRUM-INSPECT-ROBOT-1` | `inspection_robot` | `EVA-FWD` |
-| `DRUM-INSPECT-ROBOT-2` | `inspection_robot` | `EVA-AFT` |
+**808 original devices across 91 families have been explicitly classified.**
+All original family identities and installed-room mappings remain unchanged;
+none have been substituted, duplicated or silently hidden.
 
-Four original crawlers/robots remain open for their own completed
-installed-world acceptance. The other **14 portable machines** have now passed
-the original finite-output and real crew/source-control test gates:
-[portable pumps/fans #40916094333](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40916094333)
-and [portable CO2 #40916246389](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40916246389).
-Their three fitted families are classified as direct physics, bringing the
-audited source-control tier from 325 to 339 original equipment identities.
+Fourteen original portable scrubbers, pumps and smoke-control fans passed
+their dedicated pure and installed-world gates:
 
-The four remaining crawler/robot machines have newly committed separate
-timed autonomous rail and remote drum-inspection logic; they stay open until
-the corrected, as-built installed-world CI is green. The original rail
-stations and *separate*, normally-closed 180-second drum skin platforms must
-not be conflated. The robot inspects from the fixed rail.
+- [Pumps/fans — #40916094333](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40916094333)
+- [Portable CO2 — #40916246389](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40916246389)
+
+The last **four** original exterior machines, two EVA crawlers and two
+drum-inspection robots, passed both focused pure and *installed Evennia*
+checks at [CI #40924922323](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40924922323)
+(commit `2ebab10d`). The real forward and aft recovered-gas
+airlocks, individually verified electrical feeders, rated fixed-rail
+sections, six separately restricted drum-skin work platforms, finite
+motor batteries, physical crew occupancy, inspection measurements and
+fault recovery were exercised.
+
+This promotes the two corresponding families from `open_interaction`
+to `direct_physics`. The resulting strict audit has **343** direct-physics
+units, **159** interface/custody units, **306** interlocked/controlled
+units, and **0** outstanding independent interaction identities.
+This is *family coverage closure*, not blanket proof that every one
+of 808 devices has separately demonstrated positive output under every
+conceivable failure sequence.
+
+The dedicated inventory evidence job now enforces the zero-open audit
+and original crawler/robot roster; CI for the revised classification
+must pass before its updated signoff is final.
 
 ## Integration and signoff policy
 
