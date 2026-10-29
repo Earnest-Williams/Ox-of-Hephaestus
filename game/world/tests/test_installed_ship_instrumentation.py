@@ -503,6 +503,34 @@ class InstalledInstrumentationTests(EvenniaTestCase):
         self.assertTrue(delivered["output_proven_at_site"], delivered)
         self.assertGreaterEqual(
             delivered["workshop_mechanical_output"]["value"], 300)
+        # A temporary local supply loss also causes real instrument alarms.
+        # Even after the spindle is demonstrably running, a latched
+        # unreliable/lost panel may need two normal epochs to clear,
+        # FOLLOWED by two independent corroborated output observations.
+        # Refuse verification until the installed fault case has counted
+        # both actual post-restoration observations; never bypass the gate.
+        observation_times = (1670, 1680, 1690, 1700, 1710, 1720)
+        good_observations = []
+        for index, when in enumerate(observation_times):
+            if index:
+                self.assertTrue(tick_continuous_physics(
+                    now_game_time=when)["advanced"])
+            observed = local_physics_readout(
+                self.worker, "fault:" + machine)["case"]
+            good_observations.append(observed["restart_consecutive_good"])
+            if observed["restart_consecutive_good"] >= 2:
+                break
+            with self.assertRaises(PhysicsError):
+                act(18, "fault", machine, "verify")
+        self.assertGreaterEqual(
+            good_observations[-1], 2,
+            {"observations": good_observations,
+             "fault": local_physics_readout(
+                self.worker, "fault:" + machine)["case"],
+             "panel": local_physics_readout(
+                self.worker, "panel:LP-SHOP-MECH")})
+        self.assertTrue(local_physics_readout(
+            self.worker, machine)["output_proven_at_site"])
         verified = act(18, "fault", machine, "verify")
         self.assertEqual(verified["status"], "succeeded")
         self.assertEqual(local_physics_readout(
