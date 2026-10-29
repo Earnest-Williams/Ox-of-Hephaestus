@@ -41,6 +41,83 @@ class UnclassifiedTaxonomy(unittest.TestCase):
         self.assertTrue(validate_unclassified(initial_unclassified()))
         self.assertTrue(all(x["gas"] is None for x in
             initial_unclassified()["sectors"].values()))
+    def test_all_forty_eight_sector_atmospheres_remain_separately_conserved(self):
+        """Six real drums, eight independent sectors apiece, zero borrowed air."""
+        manifest=initial_cargo(0)
+        manifest["verified_drums"]=sorted({sector[:5] for sector in SECTORS})
+        ledger=initial_unclassified()
+        for sector in SECTORS:
+            ledger=survey_sector(
+                ledger,manifest,parked(),sector,free_volume_m3=50,
+                pressure_pa=101000,temperature_k=293.15,
+                oxygen_fraction=.232,co2_fraction=.0004,
+                smoke_fraction=0,cargo_class="empty",lot_ids=[],
+                now_s=1000,hatch_closed=True)
+        for drum in manifest["verified_drums"]:
+            self.assertTrue(complete_manifest(ledger,manifest,drum))
+        original={
+            sector:ledger["sectors"][sector]["gas"]["mass_kg"]
+            for sector in SECTORS}
+        self.assertEqual(len(original),48)
+        self.assertTrue(all(permit_ready(
+            ledger,manifest,parked(),sector,
+            source_pressure_pa=101000,source_safe=True,
+            now_s=1000,permit_required=False) for sector in SECTORS))
+        breached="DR-05-SEC-07"
+        ledger=inject_sector_leak(ledger,breached,.037)
+        ledger,loss,finished=tick_unclassified(ledger,60)
+        self.assertAlmostEqual(loss,2.22)
+        self.assertFalse(finished)
+        self.assertAlmostEqual(
+            original[breached]-ledger["sectors"][breached]["gas"]["mass_kg"],
+            loss)
+        for sector in SECTORS:
+            if sector!=breached:
+                self.assertAlmostEqual(
+                    ledger["sectors"][sector]["gas"]["mass_kg"],
+                    original[sector])
+        self.assertAlmostEqual(
+            sum(original.values())-
+            sum(row["gas"]["mass_kg"]
+                for row in ledger["sectors"].values()),
+            loss)
+        self.assertTrue(validate_unclassified(ledger))
+
+    def test_all_twelve_berth_certificates_are_independent_and_revision_bound(self):
+        """A stale P1 seal can never impersonate a different drum's P2."""
+        ledger=initial_unclassified()
+        manifest=initial_cargo(0)
+        for i,portal in enumerate(PORTALS,1):
+            manifest["port_contacts"][portal]={
+                "docked":True,"berth_id":f"BERTH-{i:02d}"}
+            ledger=certify_portal(
+                ledger,manifest,parked(),portal,
+                berth=f"BERTH-{i:02d}",real_hatch_closed=True,
+                sound=True,machinery_healthy=True,now_s=1000,
+                hatch_revision=i)
+        self.assertEqual(sum(
+            row["certified_berth"] is not None
+            for row in ledger["portals"].values()),12)
+        for i,portal in enumerate(PORTALS,1):
+            proof=dict(hatch_revision=i,hatch_closed=True,
+                       hatch_sound=True,handler_sound=True)
+            self.assertTrue(portal_ready(ledger,manifest,portal,**proof))
+            self.assertFalse(portal_ready(
+                ledger,manifest,portal,
+                **{**proof,"hatch_revision":i+1}))
+        victim="DR-04-P2"
+        ledger=invalidate_portal(ledger,victim)
+        for i,portal in enumerate(PORTALS,1):
+            result=portal_ready(
+                ledger,manifest,portal,hatch_revision=i,
+                hatch_closed=True,hatch_sound=True,handler_sound=True)
+            self.assertEqual(result,portal!=victim)
+        self.assertEqual(sum(
+            row["certified_berth"] is not None
+            for row in ledger["portals"].values()),11)
+        self.assertTrue(all(row["gas"] is None
+                            for row in ledger["sectors"].values()))
+
     def test_positive_gas_is_per_sector_and_never_regenerated(self):
         l,m=survey_all()
         self.assertEqual(sum(x["gas"] is not None for x in l["sectors"].values()),8)
