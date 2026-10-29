@@ -9,7 +9,8 @@ from world.ship_unclassified_spaces import (
     note_entry, release_sector, inject_sector_leak, begin_sector_seal,
     cancel_sector_seal,
     tick_unclassified, certify_portal, invalidate_portal, portal_ready,
-    inspect_void, breathing_sample, commit_breathing_sample)
+    inspect_void, breathing_sample, commit_breathing_sample,
+    exchange_open_sector_hatch)
 from world.ship_cargo_manifest import initial_cargo, declare_cargo_lot
 
 def parked():
@@ -120,6 +121,45 @@ class UnclassifiedTaxonomy(unittest.TestCase):
             for row in ledger["portals"].values()),11)
         self.assertTrue(all(row["gas"] is None
                             for row in ledger["sectors"].values()))
+
+    def test_open_original_sector_hatch_conserves_real_gallery_air(self):
+        ledger, manifest = survey_all()
+        sector = "DR-01-SEC-01"
+        # First exercise migration of an original v1 sealed charge without
+        # changing its initial oxygen, pressure or surveyed room volume.
+        legacy = copy.deepcopy(ledger)
+        legacy["version"] = 1
+        for row in legacy["sectors"].values():
+            row.pop("gallery_net_kg")
+        self.assertTrue(validate_unclassified(legacy))
+        gas = legacy["sectors"][sector]["gas"]
+        gallery = {
+            "mass": 75.0, "oxygen": 17.4, "co2": .03, "smoke": .02,
+            "temperature": 305.0, "volume": 50.0, "capacity": 1500.0}
+        gallery["energy"] = (gallery["capacity"] + gallery["mass"])*gallery["temperature"]
+        initial_mass = gas["mass_kg"] + gallery["mass"]
+        initial_o2 = gas["oxygen_kg"] + gallery["oxygen"]
+        initial_co2 = gas["co2_kg"] + gallery["co2"]
+        initial_smoke = gas["smoke_kg"] + gallery["smoke"]
+        updated, mixed = exchange_open_sector_hatch(legacy, sector, gallery, 10.0)
+        new = updated["sectors"][sector]["gas"]
+        self.assertEqual(updated["version"], 2)
+        self.assertAlmostEqual(new["mass_kg"] + mixed["mass"], initial_mass)
+        self.assertAlmostEqual(new["oxygen_kg"] + mixed["oxygen"], initial_o2)
+        self.assertAlmostEqual(new["co2_kg"] + mixed["co2"], initial_co2)
+        self.assertAlmostEqual(new["smoke_kg"] + mixed["smoke"], initial_smoke)
+        self.assertAlmostEqual(
+            new["mass_kg"] + updated["sectors"][sector]["lost_kg"]
+            - updated["sectors"][sector]["gallery_net_kg"],
+            updated["sectors"][sector]["initial_kg"])
+        self.assertNotAlmostEqual(new["temperature_k"], gas["temperature_k"])
+        self.assertTrue(validate_unclassified(updated))
+        self.assertEqual(legacy["version"], 1)
+        again, changed = exchange_open_sector_hatch(updated, sector, mixed, 0.0)
+        self.assertEqual(again, updated)
+        self.assertEqual(changed, mixed)
+        with self.assertRaises(UnclassifiedSpaceError):
+            exchange_open_sector_hatch(legacy, "DR-02-SEC-01", gallery, 10)
 
     def test_positive_gas_is_per_sector_and_never_regenerated(self):
         l,m=survey_all()
