@@ -89,23 +89,32 @@ class InstalledAttendedFireWaterRecovery(EvenniaTestCase):
             graph[spec["from_node"]].append((spec["to_node"], edge))
             if spec["kind"] in {"bridge_feeder", "cross_tie"}:
                 graph[spec["to_node"]].append((spec["from_node"], edge))
-        start, destination = "NODE-GEN-B", "NODE-LP-WATER-FWD"
-        queue, visited, previous = deque([start]), {start}, {}
-        while queue and destination not in visited:
-            for nxt, edge in graph[queue.popleft()]:
-                if nxt not in visited:
-                    visited.add(nxt)
-                    previous[nxt] = (edge, edge.reference["from_node"],
-                                     edge.reference["to_node"])
-                    queue.append(nxt)
-        self.assertIn(destination, visited, "Fitted forward pump lacks source")
-        position = destination
-        while position != start:
-            edge, a, b = previous[position]
-            for ident in edge.reference["isolator_ids"]:
-                if state("isolator", ident).setting != "closed":
-                    set_isolator(ident, "closed", operator=True)
-            position = a if position == b else b
+        for start, destination in (
+                ("NODE-GEN-B", "NODE-LP-WATER-FWD"),
+                ("NODE-GEN-M", "NODE-HAB-06-ECLSS-A-LP")):
+            # The purifier's own A-side panel and motors are electrically
+            # independent of the forward fire pump. Powering one does not
+            # magically energise the other.
+            queue, visited, previous = deque([start]), {start}, {}
+            while queue and destination not in visited:
+                for nxt, edge in graph[queue.popleft()]:
+                    if nxt not in visited:
+                        visited.add(nxt)
+                        previous[nxt] = (
+                            edge, edge.reference["from_node"],
+                            edge.reference["to_node"])
+                        queue.append(nxt)
+            self.assertIn(destination, visited, "Fitted motor lacks source")
+            position = destination
+            while position != start:
+                edge, a, b = previous[position]
+                for ident in edge.reference["isolator_ids"]:
+                    if state("isolator", ident).setting != "closed":
+                        set_isolator(ident, "closed", operator=True)
+                position = a if position == b else b
+        for name in ("WATER-PROC-A", "WASTE-PROC-A"):
+            set_isolator(
+                "ISO-G19-MOTOR-" + name, "closed", operator=True)
 
         # A single observable source: no second fire-pump output can mask
         # an absent discharge from the fitted forward pump.
