@@ -115,8 +115,8 @@ def initial_unclassified():
             "seals_completed": 0
         } for s in SECTORS},
         "portals": {p: {
-            "certified_berth": None, "inspections": 0,
-            "seal_fault": False
+            "certified_berth": None, "seal_revision": None,
+            "inspections": 0, "seal_fault": False
         } for p in PORTALS},
         "voids": {v: {
             "inspections": 0, "last_control_s": None,
@@ -205,6 +205,9 @@ def validate_unclassified(ledger):
                 and (not isinstance(row["certified_berth"],str)
                      or not re.fullmatch("[A-Za-z0-9][A-Za-z0-9_-]{0,47}",
                                          row["certified_berth"]))
+                or (row["seal_revision"] is not None
+                    and (type(row["seal_revision"]) is not int or row["seal_revision"]<0))
+                or (row["certified_berth"] is None) != (row["seal_revision"] is None)
                 or type(row["inspections"]) is not int
                 or row["inspections"]<0
                 or type(row["seal_fault"]) is not bool):
@@ -413,7 +416,7 @@ def tick_unclassified(ledger,seconds,*,ready_seals=frozenset()):
 
 def certify_portal(ledger,manifest,rotors,portal,*,berth,
                    real_hatch_closed,sound,machinery_healthy,
-                   now_s):
+                   now_s, hatch_revision):
     validate_unclassified(ledger)
     if portal not in PORTALS or not real_hatch_closed or not sound or not machinery_healthy:
         raise UnclassifiedSpaceError("Original cargo pressure sleeve/handler not physically secured")
@@ -426,11 +429,14 @@ def certify_portal(ledger,manifest,rotors,portal,*,berth,
             or not drum_clear_for_freight(ledger,portal[:5])):
         raise UnclassifiedSpaceError("Port needs positive external berth, stopped drum and isolated cargo")
     _num(now_s)
+    if type(hatch_revision) is not int or hatch_revision<0:
+        raise UnclassifiedSpaceError("Original hatch revision is not measured")
     updated=copy.deepcopy(ledger)
     p=updated["portals"][portal]
     if p["seal_fault"]:
         raise UnclassifiedSpaceError("Faulted loading sleeve needs real repair and reinspection")
     p["certified_berth"]=berth
+    p["seal_revision"]=hatch_revision
     p["inspections"]+=1
     validate_unclassified(updated)
     return updated
@@ -442,6 +448,7 @@ def invalidate_portal(ledger,portal):
         raise UnclassifiedSpaceError("No fitted cargo portal")
     updated=copy.deepcopy(ledger)
     updated["portals"][portal]["certified_berth"]=None
+    updated["portals"][portal]["seal_revision"]=None
     validate_unclassified(updated)
     return updated
 
@@ -455,7 +462,8 @@ def drum_clear_for_freight(ledger,drum):
                if sector.startswith(drum+"-"))
 
 
-def portal_ready(ledger,manifest,portal):
+def portal_ready(ledger,manifest,portal,*,hatch_revision,hatch_closed,
+                 hatch_sound,handler_sound):
     validate_unclassified(ledger)
     if portal not in PORTALS:
         return False
@@ -463,6 +471,8 @@ def portal_ready(ledger,manifest,portal):
     berth=(manifest.get("port_contacts",{}).get(portal) or {}).get("berth_id")
     return bool(row["certified_berth"] is not None
                 and row["certified_berth"]==berth
+                and row["seal_revision"]==hatch_revision
+                and hatch_closed and hatch_sound and handler_sound
                 and not row["seal_fault"]
                 and drum_clear_for_freight(ledger,portal[:5]))
 
