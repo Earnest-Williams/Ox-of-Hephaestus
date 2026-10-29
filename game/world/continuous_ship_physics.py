@@ -115,6 +115,28 @@ from world.ship_propulsion_proof import (
     DriveProofError, initial_drive_proof, validate_drive_proof,
     start_drive_proof, verify_drive_proof,
 )
+from world.ship_unclassified_runtime import (
+    commission as commission_g19_unclassified_spaces,
+    survey as survey_g19_cargo_sector,
+    inspect_portal as inspect_g19_portal_sleeve,
+    witness_leak as witness_g19_cargo_sector_leak,
+    action as _cargo_sector_action,
+    void_action as _shield_trim_action,
+    access_ready as _cargo_sector_access_ready,
+    prepare_hatch as _cargo_sector_hatch,
+    advance as _unclassified_advance,
+    readout as _unclassified_readout,
+)
+from world.ship_unclassified_spaces import (
+    SECTORS as ORIGINAL_CARGO_SECTORS,
+    PERSONNEL_DOORS as CARGO_PERSONNEL_DOORS,
+    FREIGHT_ROUTES as CARGO_FREIGHT_ROUTES,
+    PORTAL_DOORS as CARGO_PORTAL_DOORS,
+    NONPERSONNEL_LINKS as NONPERSONNEL_UNCLASSIFIED_LINKS,
+    VOIDS as ORIGINAL_SHIELD_VOIDS,
+    validate_unclassified, drum_clear_for_freight, portal_ready,
+    invalidate_portal,
+)
 from world.ship_industrial_runtime import (
     ready as _industrial_room_ready, suit_ready as _industrial_suit_ready,
     worker_ready as _industrial_worker_ready,
@@ -553,6 +575,8 @@ def _snapshot(item):
             result["propulsion_bay"] = item.details["propulsion_bay"]
         if item.details.get("industrial_bays") is not None:
             result["industrial_bays"] = item.details["industrial_bays"]
+        if item.details.get("unclassified_spaces") is not None:
+            result["unclassified_spaces"] = item.details["unclassified_spaces"]
         if item.details.get("drive_proof") is not None:
             result["drive_proof"] = item.details["drive_proof"]
         if item.details.get("rcs_proof") is not None:
@@ -3667,6 +3691,14 @@ def tick_continuous_physics(*, now_game_time=None):
     propulsion_bay = clock.details.get("propulsion_bay")
     if propulsion_bay is not None:
         validate_bay(propulsion_bay)
+    unclassified = clock.details.get("unclassified_spaces")
+    cargo_sector_gas_before = 0.0
+    if unclassified is not None:
+        validate_unclassified(unclassified)
+        cargo_sector_gas_before = sum(
+            site["gas"]["mass_kg"]
+            for site in unclassified["sectors"].values()
+            if site["gas"] is not None)
     industrial_bays = clock.details.get("industrial_bays")
     industrial_gas_before = 0.0
     if industrial_bays is not None:
@@ -3693,6 +3725,7 @@ def tick_continuous_physics(*, now_game_time=None):
                      if propulsion_bay is not None and
                      propulsion_bay["gas"] is not None else 0.0)
     total_before = (bay_gas_kg + generator_gas_kg + industrial_gas_before
+                    + cargo_sector_gas_before
                     + sum(c["mass"] + c["fuel"] for c in cells.values())
                     + captured_co2 + refuge_captured_before
                     + retired_refuge_co2)
@@ -4949,6 +4982,32 @@ def tick_continuous_physics(*, now_game_time=None):
                 for zone, c in cells.items()),
         }
 
+    # Manifest-dependent cargo sectors each preserve their own previously
+    # measured sealed gas and debit a real shell leak into loss-to-space.
+    # No sector receives a pressure-cell ID or another free air reserve.
+    cargo_sector_gas_after = cargo_sector_oxygen_after = cargo_sector_smoke_after = 0.0
+    if unclassified is not None:
+        unclassified, sector_leak, repairs, completed_sector_seals = (
+            _unclassified_advance(clock, unclassified, seconds,
+                                  eva=eva, repair_stock=repairs))
+        lost += sector_leak
+        cargo_sector_gas_after = sum(
+            row["gas"]["mass_kg"] for row in unclassified["sectors"].values()
+            if row["gas"] is not None)
+        cargo_sector_oxygen_after = sum(
+            row["gas"]["oxygen_kg"] for row in unclassified["sectors"].values()
+            if row["gas"] is not None)
+        cargo_sector_smoke_after = sum(
+            row["gas"]["smoke_kg"] for row in unclassified["sectors"].values()
+            if row["gas"] is not None)
+        for patched_sector, patched_worker, spare_kg in completed_sector_seals:
+            CanonicalShipEvent.objects.create(
+                component_key="access:ACC-" + patched_sector,
+                operation="g19_real_cargo_sector_seal_with_held_material",
+                before={"site": patched_sector, "leak_present": True},
+                after={"site": patched_sector, "leak_kg_s": 0.0,
+                       "installed_spares_kg": spare_kg},
+                actor_dbref=patched_worker, game_time=last + seconds)
     # Leak the existing industrial gas, never the adjacent safe trunk;
     # a completed internal patch consumes physically carried finite spares.
     industrial_gas_after = industrial_oxygen_after = industrial_smoke_after = 0.0
@@ -4976,6 +5035,7 @@ def tick_continuous_physics(*, now_game_time=None):
                        "installed_spares_kg": used_kg},
                 actor_dbref=patched_worker, game_time=last + seconds)
     total_after = (bay_gas_kg + generator_gas_kg + industrial_gas_after
+                   + cargo_sector_gas_after
                    + sum(c["mass"] + c["fuel"] for c in cells.values())
                    + captured_co2
                    + (refuge_scrubbers["meter"]["captured_kg"]
@@ -6169,6 +6229,9 @@ def tick_continuous_physics(*, now_game_time=None):
     if industrial_bays is not None:
         validate_industrial(industrial_bays)
         d["industrial_bays"] = industrial_bays
+    if unclassified is not None:
+        validate_unclassified(unclassified)
+        d["unclassified_spaces"] = unclassified
     if bay_access is not None:
         d["bay_access"] = bay_access
     if major_damage is not None:
@@ -6221,10 +6284,20 @@ def tick_continuous_physics(*, now_game_time=None):
         "crew_co2_added_this_tick_kg": round(crew_exhaled_co2, 7),
         "gas_kg": round(
             sum(c["mass"] for c in cells.values()) + bay_gas_kg
-            + generator_gas_kg + industrial_gas_after, 6),
+            + generator_gas_kg + industrial_gas_after
+            + cargo_sector_gas_after, 6),
         "oxygen_kg": round(
             sum(c["oxygen"] for c in cells.values()) + bay_oxygen_kg
-            + generator_oxygen_kg + industrial_oxygen_after, 6),
+            + generator_oxygen_kg + industrial_oxygen_after
+            + cargo_sector_oxygen_after, 6),
+        "cargo_sector_measured_gas_kg": round(cargo_sector_gas_after, 6),
+        "cargo_sector_active_leaks": (
+            sorted(site for site, row in unclassified["sectors"].items()
+                   if row["leak_kg_s"]>0) if unclassified is not None else None),
+        "cargo_portals_certified": (
+            sum(row["certified_berth"] is not None
+                for row in unclassified["portals"].values())
+            if unclassified is not None else None),
         "industrial_bay_gas_kg": round(industrial_gas_after, 6),
         "industrial_bay_total_lost_kg": (
             round(sum(site["lost_kg"] for site in industrial_bays["sites"].values()),6)
@@ -6243,7 +6316,8 @@ def tick_continuous_physics(*, now_game_time=None):
             propulsion_bay["permit"] is not None
             if propulsion_bay is not None else None),
         "smoke_kg": round(sum(c["smoke"] for c in cells.values())
-                          + industrial_smoke_after, 6),
+                          + industrial_smoke_after
+                          + cargo_sector_smoke_after, 6),
         "fuel_kg": round(sum(c["fuel"] for c in cells.values()), 6),
         "damaged_cells": sum(c["damage"] >= 0.2 for c in cells.values()),
         "processed_seconds": seconds,
