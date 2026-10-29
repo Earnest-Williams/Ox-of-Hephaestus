@@ -4311,7 +4311,12 @@ def tick_continuous_physics(*, now_game_time=None):
                              not in _BROKEN)
             if (free_mw + 1e-9 >= PORT_AUX_MW and power["assured"]
                     and (unclassified is None or
-                         portal_ready(unclassified,cargo,portal))
+                         portal_ready(
+                             unclassified,cargo,portal,
+                             hatch_revision=access.revision if access else None,
+                             hatch_closed=bool(access and access.setting=="closed"),
+                             hatch_sound=bool(access and access.condition not in _BROKEN),
+                             handler_sound=sound_handler))
                     and access and access.condition not in _BROKEN
                     and access.setting == "closed" and sound_handler
                     and motor_ready(drum + "-RADIAL-FREIGHT-HANDLER")
@@ -9238,7 +9243,11 @@ def crew_physical_action(actor, request_id, action, target, value):
                 and _clock().details.get("unclassified_spaces") is not None
                 and not portal_ready(
                     _clock().details["unclassified_spaces"],
-                    _clock().details["cargo"], target)):
+                    _clock().details["cargo"], target,
+                    hatch_revision=inner.revision,
+                    hatch_closed=inner.setting=="closed",
+                    hatch_sound=inner.condition not in _BROKEN,
+                    handler_sound=handler.condition not in _BROKEN)):
             raise PhysicsError("Cargo-only portal requires positive sealed sleeve and exact current berth certificate")
         if direction in {"load", "unload"} and (
                 handler.condition in _BROKEN or inner.condition in _BROKEN):

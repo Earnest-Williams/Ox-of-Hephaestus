@@ -276,7 +276,7 @@ def inspect_portal(*,operator_approved=False,portal=None,berth_id=None):
             real_hatch_closed=hatch.setting=="closed",
             sound=hatch.condition not in p._BROKEN,
             machinery_healthy=handler.condition not in p._BROKEN,
-            now_s=d["last_game_time"])
+            now_s=d["last_game_time"],hatch_revision=hatch.revision)
     except UnclassifiedSpaceError as exc:
         raise p.PhysicsError(str(exc)) from exc
     before=p._snapshot(clock)
@@ -508,7 +508,12 @@ def readout(actor,target):
                 "original_contact":details["cargo"].get("port_contacts",{}).get(portal),
                 "seal_fault":row["seal_fault"],
                 "hatch":p.state("access","ACC-"+portal).setting,
-                "ready":portal_ready(ledger,details["cargo"],portal),
+                "ready":portal_ready(
+                    ledger,details["cargo"],portal,
+                    hatch_revision=p.state("access","ACC-"+portal).revision,
+                    hatch_closed=p.state("access","ACC-"+portal).setting=="closed",
+                    hatch_sound=p.state("access","ACC-"+portal).condition not in p._BROKEN,
+                    handler_sound=p.state("equipment",portal[:5]+"-RADIAL-FREIGHT-HANDLER").condition not in p._BROKEN),
                 "job":details["cargo"].get("port_jobs",{}).get(portal)}
         if not visible:
             raise PermissionError("Only an attended original cargo control may read portal status")

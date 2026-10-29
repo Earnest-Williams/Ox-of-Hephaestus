@@ -118,13 +118,17 @@ class UnclassifiedTaxonomy(unittest.TestCase):
         m["port_contacts"]["DR-01-P1"]={"docked":True,"berth_id":"BERTH-A"}
         with self.assertRaises(UnclassifiedSpaceError):
             certify_portal(led,m,parked(),"DR-01-P1",berth="WRONG",
-                real_hatch_closed=True,sound=True,machinery_healthy=True,now_s=1000)
+                real_hatch_closed=True,sound=True,machinery_healthy=True,now_s=1000,hatch_revision=5)
         led=certify_portal(led,m,parked(),"DR-01-P1",berth="BERTH-A",
-                real_hatch_closed=True,sound=True,machinery_healthy=True,now_s=1000)
-        self.assertTrue(portal_ready(led,m,"DR-01-P1"))
-        self.assertFalse(portal_ready(led,m,"DR-01-P2"))
+                real_hatch_closed=True,sound=True,machinery_healthy=True,now_s=1000,hatch_revision=5)
+        safe=dict(hatch_revision=5,hatch_closed=True,
+                  hatch_sound=True,handler_sound=True)
+        self.assertTrue(portal_ready(led,m,"DR-01-P1",**safe))
+        self.assertFalse(portal_ready(led,m,"DR-01-P2",**safe))
+        self.assertFalse(portal_ready(led,m,"DR-01-P1",
+                         **{**safe,"hatch_revision":6}))
         led=invalidate_portal(led,"DR-01-P1")
-        self.assertFalse(portal_ready(led,m,"DR-01-P1"))
+        self.assertFalse(portal_ready(led,m,"DR-01-P1",**safe))
         self.assertIsNone(led["sectors"]["DR-01-SEC-01"]["gas"])
     def test_non_habitable_void_inspection_never_creates_pressure_cell(self):
         led=initial_unclassified()
