@@ -259,7 +259,7 @@ def step_portable_damage(ledger, seconds, *, now_s, equipment, cells,
             route = row["route"]
             if (route is None or water is None
                     or row["room"] != pump_stations.get(route[0])
-                    or not wet_ready.get(route[1], False)):
+                    or not wet_ready.get(route[0] + "_" + route[1], False)):
                 continue  # Closed wet isolation, disconnected hose or no source.
             side, stream = route
             src = quantity(water["local"][side][stream])
