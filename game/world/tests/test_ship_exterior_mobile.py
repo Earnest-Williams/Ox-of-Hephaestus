@@ -4,6 +4,7 @@ import unittest
 from types import SimpleNamespace
 from world.ship_exterior_mobile import (
     CRAWLERS, ROBOTS, FITTED, MobileExteriorError, original_routes,
+    original_scan_stations,
     initial_exterior_mobile, validate_exterior_mobile, survey_exterior_mobile,
     mobile_move, step_exterior_mobile,
 )
@@ -11,12 +12,15 @@ from world.ship_exterior_mobile import (
 ANCHORS = {"EVA-FWD": "EXT-BOW", "EVA-AFT": "EXT-AFT"}
 REFERENCE = {
     "spaces": [{"id": k, "pressure_zone": "VACUUM"}
-               for k in ("EXT-BOW", "EXT-DR01-SKIN", "EXT-CENTRAL", "EXT-AFT")],
+               for k in ("EXT-BOW", "EXT-DR01", "EXT-DR01-SKIN", "EXT-CENTRAL", "EXT-AFT")],
     "access_links": [
         {"id": "ACC-EXT-BOW-EXT-DR01", "kind": "eva_rail",
-         "from": "EXT-BOW", "to": "EXT-DR01-SKIN"},
+         "from": "EXT-BOW", "to": "EXT-DR01"},
         {"id": "ACC-EXT-DR01-EXT-CENTRAL", "kind": "eva_rail",
-         "from": "EXT-DR01-SKIN", "to": "EXT-CENTRAL"},
+         "from": "EXT-DR01", "to": "EXT-CENTRAL"},
+        {"id": "ACC-EXT-DR01-EXT-DR01-SKIN",
+         "kind": "eva_work_platform_transfer",
+         "from": "EXT-DR01", "to": "EXT-DR01-SKIN"},
         {"id": "ACC-EXT-CENTRAL-EXT-AFT", "kind": "eva_rail",
          "from": "EXT-CENTRAL", "to": "EXT-AFT"},
     ],
@@ -77,10 +81,10 @@ class ExteriorMobileTests(unittest.TestCase):
         self.assertEqual(self.state["units"][self.name]["position"], "EXT-BOW")
         with self.assertRaises(MobileExteriorError):
             self.action("move:EXT-AFT")  # Not a single original rail link.
-        self.action("move:EXT-DR01-SKIN")
+        self.action("move:EXT-DR01")
         for now in (1060,1070,1080):
             self.tick(now)
-        self.assertEqual(self.state["units"][self.name]["position"], "EXT-DR01-SKIN")
+        self.assertEqual(self.state["units"][self.name]["position"], "EXT-DR01")
         self.assertEqual(self.state["meter"]["sections"], 2)
         self.assertGreater(self.state["meter"]["energy_kwh"], 0)
         self.assertAlmostEqual(
@@ -94,7 +98,7 @@ class ExteriorMobileTests(unittest.TestCase):
         self.action("launch")
         for now in (1010, 1020, 1030, 1040, 1050):
             self.tick(now)
-        self.action("move:EXT-DR01-SKIN")
+        self.action("move:EXT-DR01")
         for now in (1060, 1070, 1080):
             self.tick(now)
         self.action("scan")
@@ -103,26 +107,31 @@ class ExteriorMobileTests(unittest.TestCase):
         self.tick(1100)
         row = self.state["units"][self.name]
         self.assertEqual(row["sample"]["drum"], "DR-01")
-        self.assertEqual(row["sample"]["site"], "EXT-DR01-SKIN")
+        self.assertEqual(row["sample"]["site"], "EXT-DR01")
+        self.assertEqual(row["sample"]["observed_surface"], "EXT-DR01-SKIN")
         self.assertEqual(row["sample"]["evidence"],
                          "observed_existing_rotor_telemetry_at_skin")
         self.assertEqual(self.state["meter"]["scans"], 1)
 
-    def test_spinning_drum_blocks_approach_and_scan(self):
+    def test_spinning_drum_blocks_proximate_scan_not_fixed_rail(self):
         self.action("launch")
-        for now in (1010, 1020, 1030, 1040, 1050):
+        for now in (1010,1020,1030,1040,1050):
             self.tick(now)
         self.rotors["DR-01"]["rpm"] = 1.2
         self.rotors["DR-01"]["hardlock"] = False
+        self.action("move:EXT-DR01")
+        for now in (1060,1070,1080):
+            self.tick(now)
+        self.assertEqual(self.state["units"][self.name]["position"],"EXT-DR01")
         with self.assertRaises(MobileExteriorError):
-            self.action("move:EXT-DR01-SKIN")
+            self.action("scan")
         self.rotors["DR-01"]["rpm"] = 0.0
         self.rotors["DR-01"]["hardlock"] = True
-        self.action("move:EXT-DR01-SKIN")
+        self.action("scan")
         self.rotors["DR-01"]["rpm"] = 2.0
-        self.tick(1060)
-        self.assertEqual(self.state["units"][self.name]["position"], "EXT-BOW")
-        self.assertEqual(self.state["last"]["blocked"], [self.name + ":rail"])
+        self.tick(1090)
+        self.assertEqual(self.state["units"][self.name]["scans"],0)
+        self.assertEqual(self.state["last"]["blocked"],[self.name+":rotor"])
 
     def test_fault_latched_no_automatic_restart_and_measured_recovery(self):
         self.action("launch")
@@ -171,7 +180,7 @@ class ExteriorMobileTests(unittest.TestCase):
         # The inspection robot occupies the original exterior bow berth.
         with self.assertRaises(MobileExteriorError):
             self.action("launch",name="EVA-CRAWLER-1")
-        self.action("move:EXT-DR01-SKIN")
+        self.action("move:EXT-DR01")
         self.action("launch",name="EVA-CRAWLER-1")
         self.tick(1060)
         self.assertEqual(self.state["units"][self.name]["position"],"EXT-BOW")
@@ -182,9 +191,11 @@ class ExteriorMobileTests(unittest.TestCase):
         model=load_ship_model()
         rail = next(x for x in model.access_links
                     if x.id=="ACC-EXT-BOW-EXT-DR01")
+        self.assertEqual(original_scan_stations(REFERENCE),
+                         {"EXT-DR01":"EXT-DR01-SKIN"})
         self.assertEqual(
             (rail.from_id,rail.to_id,rail.kind),
-            ("EXT-BOW","EXT-DR01-SKIN","eva_rail"))
+            ("EXT-BOW","EXT-DR01","eva_rail"))
 
     def test_rail_source_must_be_original_vacuum_geometry(self):
         wrong=copy.deepcopy(REFERENCE)
