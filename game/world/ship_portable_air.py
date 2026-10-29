@@ -184,6 +184,7 @@ def step_portable_air(ledger, seconds, *, now_s, equipment, room_zones, cells):
         if original is None or original.space_id != home:
             raise PortableAirError("Original as-fitted appliance identity displaced")
         if original.condition in BROKEN:
+            unit["mode"] = "off"  # Real hardware fault requires attended manual restart.
             continue
         zone = room_zones.get(unit["room"])
         cell = cells.get(zone)
