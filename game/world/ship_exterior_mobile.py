@@ -69,8 +69,20 @@ def original_routes(reference):
     return routes
 
 
+def original_scan_stations(reference):
+    """Six original drum-station-to-skin work-platform adjacencies, no entry."""
+    stations = {}
+    for link in reference["access_links"]:
+        if link["kind"] != "eva_work_platform_transfer":
+            continue
+        match = re.fullmatch(r"EXT-DR(0[1-6])", link["from"])
+        if match and link["to"] == link["from"] + "-SKIN":
+            stations[link["from"]] = link["to"]
+    return stations
+
+
 def _destination_drum(room):
-    match = re.fullmatch(r"EXT-DR(0[1-6])-SKIN", room or "")
+    match = re.fullmatch(r"EXT-DR(0[1-6])", room or "")
     return "DR-" + match.group(1) if match else None
 
 
@@ -166,11 +178,12 @@ def validate_exterior_mobile(ledger):
         sample = row["sample"]
         if sample is not None:
             if name not in ROBOTS or not isinstance(sample, dict) or set(sample) != {
-                    "site", "drum", "observed_rpm", "observed_condition",
-                    "hardlock", "brake", "sample_s", "evidence"}:
+                    "site", "observed_surface", "drum", "observed_rpm",
+                    "observed_condition", "hardlock", "brake", "sample_s", "evidence"}:
                 raise MobileExteriorError("Invented or corrupted remote inspection receipt")
-            if sample["site"] != "EXT-" + sample["drum"].replace("DR-", "DR") + "-SKIN":
-                raise MobileExteriorError("Remote inspection has wrong fitted skin")
+            if (sample["site"] != "EXT-" + sample["drum"].replace("DR-", "DR")
+                    or sample["observed_surface"] != sample["site"] + "-SKIN"):
+                raise MobileExteriorError("Remote inspection misattributes drum platform")
             _num(sample["sample_s"])
             _num(sample["observed_rpm"])
         if job is not None and row["fault_latched"] and not row["held"]:
@@ -257,8 +270,8 @@ def mobile_move(ledger, name, value, *, routes, rail_access, rotors,
             if not rail_access.get(link):
                 raise MobileExteriorError(
                     "Original EVA rail unavailable: " + link)
-            if not _safe_drum(rotors, to):
-                raise MobileExteriorError("Rotating drum or unsecured rotor forbids rail approach")
+            # Original rail is on the fixed spine. A turning drum does
+            # not close the rail; approaching the skin platform is separate.
             seconds = RAIL_TRAVEL_S
         elif value == "scan" and name in ROBOTS:
             drum = _destination_drum(position)
@@ -329,8 +342,7 @@ def step_exterior_mobile(ledger, seconds, *, now_s, equipment, routes,
                     last["blocked"].append(name + ":airlock")
                     continue
             elif (routes.get((job["from"], job["to"])) != job["link"]
-                  or not rail_access.get(job["link"])
-                  or not _safe_drum(rotors, job["to"])):
+                  or not rail_access.get(job["link"])):
                 last["blocked"].append(name + ":rail")
                 continue
             power_kw = DRIVE_KW[_kind(name)]
@@ -351,7 +363,9 @@ def step_exterior_mobile(ledger, seconds, *, now_s, equipment, routes,
                 drum = _destination_drum(row["position"])
                 sample = rotors[drum]
                 row["sample"] = {
-                    "site": row["position"], "drum": drum,
+                    "site": row["position"],
+                    "observed_surface": row["position"] + "-SKIN",
+                    "drum": drum,
                     "observed_rpm": float(sample["rpm"]),
                     "observed_condition": sample["condition"],
                     "hardlock": bool(sample["hardlock"]),
