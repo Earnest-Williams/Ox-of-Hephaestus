@@ -110,3 +110,8 @@ jobs:
         env:
           OX_G19_RESTART_DB_PATH: ${{ runner.temp }}/ox-g19-restart.sqlite3
         run: python -m world.g19_process_recovery resume
+      - name: Process C - another cold interpreter verifies durable casualty and replay safety
+        working-directory: game
+        env:
+          OX_G19_RESTART_DB_PATH: ${{ runner.temp }}/ox-g19-restart.sqlite3
+        run: python -m world.g19_process_recovery confirm
