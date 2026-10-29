@@ -12,7 +12,7 @@ from world.continuous_ship_physics import (
     commission_g19_eva, commission_g19_exterior_mobile,
     survey_g19_exterior_mobile, crew_physical_action, local_physics_readout,
 )
-from world.ship_crew_access import traverse_canonical_exit
+from world.ship_crew_access import CrewTransitError, traverse_canonical_exit
 from world.models import WorkReceipt
 
 
@@ -133,6 +133,12 @@ class InstalledExteriorMobile(EvenniaTestCase):
         self.tick(40)
         self.assertEqual(self.mobile(name)["position"],"EXT-BOW")
         self.assertGreater(self.mobile(name)["used_kwh"],used)
+        # The same installed machine cannot be assigned to a human
+        # EVA route while it is away conducting an unmanned mission.
+        outer=find_world_entity("access:ACC-EVA-FWD-EXT:forward")
+        with self.assertRaises(CrewTransitError):
+            traverse_canonical_exit(
+                self.worker,outer,outer.destination,request_id=self.rid())
 
     def test_unpressurised_outer_hatch_is_not_a_magic_deployment(self):
         name="DRUM-INSPECT-ROBOT-2"
