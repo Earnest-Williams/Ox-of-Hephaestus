@@ -1169,6 +1169,10 @@ def _electrical_crew_air_gate(actor, room, electrical):
         if not _generator_room_worker_ready(actor, _clock().details, room):
             raise PhysicsError("Generator-room switching needs an original service permit and issued suit")
         return
+    if room in INDUSTRIAL_SITES:
+        if not _industrial_worker_ready(actor, _clock().details, room):
+            raise PhysicsError("Original industrial switchgear requires a real issued suit and signed rated service permit")
+        return
     if (zone not in {None, "VACUUM"}
             or electrical["worksite_surveys"].get(room) != "suited_service"
             or not bool(getattr(actor.db, "ox_suit_verified", False))):
@@ -3764,6 +3768,15 @@ def tick_continuous_physics(*, now_game_time=None):
     # bearing-annulus casualty: order coast-down under the normal dynamics.
     industrial_hazard_sites = (_industrial_hazards(industrial_bays)
                                if industrial_bays is not None else set())
+    if industrial_hazard_sites & {"REACTION-SVC", "THERM-HT"}:
+        if motion.get("drive_condition") == "operational":
+            motion["drive_condition"] = "inhibited"
+            motion["drive_trip_reason"] = "industrial_containment_casualty"
+        motion["command"] = "coast"
+    if "REACTION-SVC" in industrial_hazard_sites:
+        if motion.get("rcs_condition") == "operational":
+            motion["rcs_condition"] = "inhibited"
+        motion["attitude_command"] = "hold"
     for room in industrial_hazard_sites:
         drum = INDUSTRIAL_SITES[room]["drum"]
         if drum is not None:
@@ -6664,10 +6677,19 @@ def crew_physical_action(actor, request_id, action, target, value):
                 and any(INDUSTRIAL_SITES[room]["drum"] == target
                         for room in blocked)):
             raise PhysicsError("Bearing worksite permit or damage holds original drum stopped")
-        if (action == "switch" and target in {
-                INDUSTRIAL_SITES[room]["breaker"] for room in active_industrial}
-                and value == "closed"):
-            raise PhysicsError("Signed industrial work permit padlocks original local panel")
+        # The original local panel breaker physically lives INSIDE its rated
+        # room: permitted engineers may operate it for diagnosis. The
+        # particular instrument cannot re-energise during its own repair.
+        if (action == "switch" and value == "closed"
+                and any(target == INDUSTRIAL_SITES[room]["breaker"]
+                        for room in active_industrial)
+                and any(job["room"] in active_industrial
+                        and (target in job_name
+                             or INDUSTRIAL_SITES[job["room"]]["panel"] in job_name)
+                        for job_name, job in
+                        ((_clock().details.get("repairs") or {"jobs": {}})
+                         ["jobs"]).items())):
+            raise PhysicsError("Local panel under active repair cannot be re-energised")
         if ("THERM-HT" in active_industrial and action == "switch"
                 and target in {"ISO-RAD-HT-1", "ISO-RAD-HT-2"}
                 and value == "open"):
