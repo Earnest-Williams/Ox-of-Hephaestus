@@ -262,6 +262,15 @@ def mobile_move(ledger, name, value, *, routes, rail_access, rotors,
             to, link, seconds = position, None, SCAN_S
         else:
             raise MobileExteriorError("Unsupported fitted mobile operation")
+        if value != "scan" and any(
+                other_name != name and (
+                    other["position"] == to and other["job"] is None
+                    and to.startswith("EXT-")
+                    or other["job"] is not None
+                    and other["job"]["kind"] == "move"
+                    and other["job"]["link"] == link)
+                for other_name, other in out["units"].items()):
+            raise MobileExteriorError("Actual rail segment or exterior berth already occupied")
         required_kwh = ((SCAN_KW if value == "scan" else DRIVE_KW[_kind(name)])
                         * seconds / 3600.0)
         if row["charge"]["remaining_kwh"] + EPS < required_kwh:
