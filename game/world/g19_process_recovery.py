@@ -65,7 +65,8 @@ def _prepare(db, proof):
     from world.ship_world import build_canonical_ship, find_ship_space
     from world.full_ship_operations import (
         install_candidate, install_pressure_cells,
-        initialize_nominal_atmosphere, set_isolator, state)
+        initialize_nominal_atmosphere, set_isolator,
+        set_component_condition, state)
     from world.continuous_ship_physics import (
         _clock, arm_continuous_physics, commission_g19_electrical,
         commission_g19_water, commission_g19_repairs, commission_g19_eva,
@@ -115,6 +116,12 @@ def _prepare(db, proof):
     amount = min(10.0, _clock().details["water"]["working_kg"] / 2)
     _assert(amount > 0, "No surveyed finite water charge")
     configure_water_casualty(operator=True, contaminated_kg=amount)
+    # A real broken feeder must survive two independent process boundaries
+    # alongside the finite gas, fire and quarantined water casualties.
+    set_component_condition(
+        "edge", "EDGE-GEN-M", "severed", operator=True)
+    _assert(state("edge", "EDGE-GEN-M").condition == "severed",
+            "Generator feeder fault did not enter the canonical world")
     _assert(ensure_continuous_physics_clock(),
             "Persistent Evennia timer did not register")
     tick = tick_continuous_physics(now_game_time=1060)
@@ -134,6 +141,7 @@ def _prepare(db, proof):
         "loss_kg": row["lost_kg"],
         "burned_fuel_kg": clock.details["burned_fuel_kg"],
         "contamination_kg": amount,
+        "generator_feeder_condition": state("edge", "EDGE-GEN-M").condition,
         "gallery_gas_kg": state("pressure", "PZ-DR-01-SVC").quantity,
         "event_count": CanonicalShipEvent.objects.count(),
         "tick_count": clock.details["ticks"],
@@ -176,6 +184,9 @@ def _resume(db, proof):
             "Actual gallery gas changed between processes")
     _assert(clock.details["water"]["potable_quarantined"],
             "Water quarantine cleared on restart without proof")
+    _assert(state("edge", "EDGE-GEN-M").condition ==
+            expected["generator_feeder_condition"] == "severed",
+            "Physical feeder fault was cleared by process handoff")
     _assert(CanonicalShipEvent.objects.count() == expected["event_count"],
             "Event history was lost or replayed during process shutdown")
     _assert(ScriptDB.objects.filter(db_key=SCRIPT_KEY).count() == 1,
@@ -235,6 +246,15 @@ def _resume(db, proof):
             "Installed original pressure boundary was silently reset")
     _assert(_clock().details["water"]["potable_quarantined"],
             "New process erased unserviced water contamination")
+    expected.update({
+        "resume_last_s": target,
+        "resume_loss_kg": losses[-1],
+        "resume_burned_fuel_kg": _clock().details["burned_fuel_kg"],
+        "resume_gallery_gas_kg": state("pressure", "PZ-DR-01-SVC").quantity,
+        "resume_tick_count": _clock().details["ticks"],
+        "resume_event_count": CanonicalShipEvent.objects.count(),
+    })
+    proof.write_text(json.dumps(expected, sort_keys=True), encoding="utf-8")
     print("PROCESS_B_COMPLETE " + json.dumps({
         "first_s": expected["last_s"], "last_s": target,
         "recovery_ticks": len(positions), "lost_kg": losses[-1],
@@ -243,14 +263,106 @@ def _resume(db, proof):
         sort_keys=True))
 
 
+
+def _confirm(db, proof):
+    """A third fresh interpreter proves a second cold rebind is lossless."""
+    _assert(db.is_file() and proof.is_file(),
+            "Process C requires the exact prior disposable ship")
+    expected = json.loads(proof.read_text(encoding="utf-8"))
+    _assert("resume_last_s" in expected,
+            "Process B has not checkpointed its verified continuation")
+
+    from evennia.objects.models import ObjectDB
+    from evennia.scripts.models import ScriptDB
+    from world.full_ship_operations import state
+    from world.continuous_ship_physics import (
+        _clock, SCRIPT_KEY, arm_continuous_physics,
+        crew_physical_action, tick_continuous_physics,
+        ensure_continuous_physics_clock)
+    from world.models import CanonicalShipEvent, WorkReceipt
+
+    clock = _clock()
+    sector = expected["sector"]
+    prior = clock.details["unclassified_spaces"]["sectors"][sector]
+    _assert(clock.details["last_game_time"] == expected["resume_last_s"],
+            "Second process turnover lost the continued physical clock")
+    _assert(clock.details["ticks"] == expected["resume_tick_count"],
+            "Second process turnover replayed a physics integration")
+    _assert(prior["lost_kg"] == expected["resume_loss_kg"],
+            "Previously vented gas reappeared at the second turnover")
+    _assert(clock.details["burned_fuel_kg"] ==
+            expected["resume_burned_fuel_kg"],
+            "Previously burned fuel was restored at the second turnover")
+    _assert(state("pressure", "PZ-DR-01-SVC").quantity ==
+            expected["resume_gallery_gas_kg"],
+            "Second process turnover changed a real pressure inventory")
+    _assert(state("edge", "EDGE-GEN-M").condition == "severed",
+            "Restart silently repaired the broken generator feeder")
+    _assert(clock.details["water"]["potable_quarantined"],
+            "Restart silently cleared contaminated drinking water")
+    _assert(CanonicalShipEvent.objects.count() ==
+            expected["resume_event_count"], "Restart replayed journal events")
+    _assert(ScriptDB.objects.filter(db_key=SCRIPT_KEY).count() == 1,
+            "Restart did not retain the original sole physics timer")
+    _assert(not arm_continuous_physics(
+        operator_approved=True, now_game_time=9900)["armed"],
+        "A later re-arm reset established ship physics")
+    _assert(ensure_continuous_physics_clock(),
+            "Second cold process failed to rebind physics timer")
+    _assert(ScriptDB.objects.filter(db_key=SCRIPT_KEY).count() == 1,
+            "Second cold rebind duplicated the timer")
+
+    worker = ObjectDB.objects.get(
+        id=int(expected["crew_ref"].lstrip("#")))
+    _assert(crew_physical_action(
+        worker, expected["request"], "hatch",
+        "ACC-" + sector, "open") == expected["receipt"],
+        "An old physical-work receipt changed across the second turnover")
+    _assert(WorkReceipt.objects.filter(pk=expected["request"]).count() == 1,
+            "Third interpreter duplicated the original crew work receipt")
+    _assert(CanonicalShipEvent.objects.count() ==
+            expected["resume_event_count"],
+            "Receipt replay in process C generated new journal events")
+    _assert(not tick_continuous_physics(
+        now_game_time=expected["resume_last_s"])["advanced"],
+        "Equal-time replay ran the physical clock twice")
+
+    # Advance the same damaged ship again, rather than creating a new one.
+    target = expected["resume_last_s"] + 60
+    after = tick_continuous_physics(now_game_time=target)
+    _assert(after["advanced"] and after["last_game_time"] == target,
+            "Third process did not resume a bounded real-world tick")
+    final = _clock().details
+    _assert(final["unclassified_spaces"]["sectors"][sector]["lost_kg"] >=
+            expected["resume_loss_kg"],
+            "Advancing in process C reversed irreversible cargo-gas loss")
+    _assert(final["burned_fuel_kg"] >= expected["resume_burned_fuel_kg"],
+            "Advancing in process C reversed fuel consumption")
+    _assert(state("edge", "EDGE-GEN-M").condition == "severed",
+            "A later physics tick silently restored the generator")
+    _assert(final["water"]["potable_quarantined"],
+            "A later physics tick cleared unserviced quarantine")
+    _assert(not tick_continuous_physics(now_game_time=target)["advanced"],
+            "Third process duplicated its own completed tick")
+    print("PROCESS_C_COMPLETE " + json.dumps({
+        "last_s": target,
+        "loss_kg": final["unclassified_spaces"]["sectors"][sector]["lost_kg"],
+        "burned_fuel_kg": final["burned_fuel_kg"],
+        "feeder_condition": state("edge", "EDGE-GEN-M").condition,
+        "receipts": WorkReceipt.objects.filter(pk=expected["request"]).count(),
+    }, sort_keys=True))
+
+
 def main():
-    if len(sys.argv) != 2 or sys.argv[1] not in {"prepare", "resume"}:
-        raise SystemExit("Usage: python -m world.g19_process_recovery prepare|resume")
+    if len(sys.argv) != 2 or sys.argv[1] not in {"prepare", "resume", "confirm"}:
+        raise SystemExit("Usage: python -m world.g19_process_recovery prepare|resume|confirm")
     db, proof = _sandbox()
     if sys.argv[1] == "prepare":
         _prepare(db, proof)
-    else:
+    elif sys.argv[1] == "resume":
         _resume(db, proof)
+    else:
+        _confirm(db, proof)
 
 
 if __name__ == "__main__":
