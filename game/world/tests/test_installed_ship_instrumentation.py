@@ -3,6 +3,7 @@
 Uses actual ship rooms, power nodes, pressure cells and individual breakers.
 No 40-person voyage, automatic rescue, virtual camera or global fault oracle.
 """
+import copy
 from collections import defaultdict, deque
 
 from evennia.utils.test_resources import EvenniaTestCase
