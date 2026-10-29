@@ -584,7 +584,9 @@ def exchange_open_sector_hatch(ledger, sector, gallery, seconds):
             raise UnclassifiedSpaceError("Invalid gallery/sector gas at rated door")
 
     def parcel(source, destination, requested):
-undefined            return
+        amount = min(requested, 0.20 * source["mass"])
+        if amount <= 0:
+            return
         share = amount / source["mass"]
         for species in ("oxygen", "co2", "smoke"):
             moved = source[species] * share
