@@ -24,10 +24,10 @@ class CompleteOriginalEquipmentAuditTests(unittest.TestCase):
         report = audit_fitted_equipment(reference())
         self.assertEqual((report["equipment"],report["families"]),(808,91))
         self.assertEqual(report["dispositions"], {
-            "direct_physics": {"equipment": 339, "families": 32},
+            "direct_physics": {"equipment": 343, "families": 34},
             "interface_or_custody": {"equipment": 159, "families": 26},
             "controlled_hardware": {"equipment": 306, "families": 31},
-            "open_interaction": {"equipment": 4, "families": 2},
+            "open_interaction": {"equipment": 0, "families": 0},
         })
         self.assertEqual(sum(
             row["count"] for row in report["by_kind"].values()), 808)
@@ -40,9 +40,13 @@ class CompleteOriginalEquipmentAuditTests(unittest.TestCase):
     def test_open_portable_and_independent_packages_are_explicit(self):
         report=audit_fitted_equipment(reference())
         open_by_kind=Counter(row["kind"] for row in report["open_items"])
-        self.assertEqual(dict(open_by_kind),{
-            "eva_rail_crawler":2, "inspection_robot":2,
-        })
+        self.assertEqual(dict(open_by_kind),{})
+        self.assertEqual(report["open_items"],[])
+        for name in ("EVA-CRAWLER-1","EVA-CRAWLER-2",
+                     "DRUM-INSPECT-ROBOT-1","DRUM-INSPECT-ROBOT-2"):
+            self.assertIn(name,report["by_kind"][
+                "inspection_robot" if name.startswith("DRUM-INSPECT")
+                else "eva_rail_crawler"]["ids"])
         self.assertEqual(report["by_kind"]["fan_coil"]["count"],40)
         self.assertEqual(report["by_kind"]["fan_coil"][
             "disposition"],"direct_physics")
