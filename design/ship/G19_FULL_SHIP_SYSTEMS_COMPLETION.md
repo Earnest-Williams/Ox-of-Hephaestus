@@ -419,3 +419,45 @@ noncrew void. Do not invent an ordinary personnel hatch into it.
 
 PR #138 remains draft and not merged. The excluded 40-crew voyage has
 not been run. The full G19 whole-vessel cross-system closure remains open.
+
+
+## G19 original 63 unclassified cargo/port/shield closure (29 October 2026)
+
+The previous 16 industrial rooms and original generator/PROP-SVC bay work
+retain their exact-head positive installed acceptance. The remaining
+**63 unclassified spaces** now have source-fitted, class-specific authority
+and physics in the G19 branch, not a fictitious fourth generic machinery
+room type:
+
+- **48 manifest sectors** with 48 original rated personnel doors and
+  48 original cargo-only freight rail connections; finite as-found gas,
+  per-sector manifest allocation, independent pressure chemistry, time-
+  and receipt-bound actual cargo worker access, real oxygen/CO2 and heat
+  accounting for unsuited people in genuinely approved compartments,
+  held crew permits, and leak-to-space plus finite issued-spares sealing.
+- **12 commercial portal sleeves**, non-personnel, with exact physical
+  berth, original closed rated seal and its actual revision, actual
+  handler and hardlocked drum; these same controls gate the original
+  commercial and sealed-waste transfer systems. Docking alone is not
+  proof of safe sleeve operation. Original mass continues to move on
+  time-bounded loading/abort equipment.
+- **3 shield/trim spaces**: penetrated nonbreathable bow shield and
+  original field hardware, forward annular water/radiation tank with
+  real remotely operable gas-bank isolator, and original WR-01 trim
+  reservoir with *no* personnel hatch. Authenticated inspection from
+  actual controls does not conjure breathing gas, water, a new exit,
+  or instant remote structural repair.
+
+Original **110 rated interfaces** (96 sector person/handling, 12
+commercial sleeve, two shield/tank service) are retained; the 133
+commissioned ordinary pressure cells are not expanded by inventing
+another 63 safe atmospheres. The original manifest remains
+authoritative for cargo and motor imbalance.
+
+The implementation is in
+[G19 cargo, port and shield closure](G19_UNCLASSIFIED_CARGO_PORTAL_SHIELD_CLOSURE.md).
+The three-job focused CI is
+[Ox G19 63-space acceptance workflow](../../.github/workflows/ox-g19-unclassified.yml).
+Until the actual latest runtime head has all three *pure, installed and
+compatibility* jobs green, this extension is **implemented but not
+accepted**. Draft PR #138 is not merged. No 40-crew voyage has been run.
