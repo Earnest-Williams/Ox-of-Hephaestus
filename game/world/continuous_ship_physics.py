@@ -331,6 +331,7 @@ from world.ship_exterior_mobile import (
     MobileExteriorError, FITTED as ORIGINAL_EXTERIOR_MOBILE,
     CRAWLERS as MOBILE_CRAWLERS, ROBOTS as MOBILE_ROBOTS,
     ANCHORS as MOBILE_ANCHORS, original_routes as mobile_original_routes,
+    original_scan_stations as mobile_original_scan_stations,
     initial_exterior_mobile, validate_exterior_mobile,
     survey_exterior_mobile, mobile_move, step_exterior_mobile,
 )
@@ -2812,6 +2813,8 @@ def commission_g19_exterior_mobile(*, operator_approved=False):
     if set(original) != set(ORIGINAL_EXTERIOR_MOBILE):
         raise PhysicsError("Four original mobile exterior hardware identities changed")
     mobile_original_routes(source)
+    if len(mobile_original_scan_stations(source)) != 6:
+        raise PhysicsError("Six original fixed-rail/drum-skin inspection adjacencies missing")
     for key,home in ORIGINAL_EXTERIOR_MOBILE.items():
         if (original[key]["space_id"] != home
                 or state("equipment",key).space_id != home):
@@ -7383,10 +7386,11 @@ def crew_physical_action(actor, request_id, action, target, value):
                 or action == "ftl" and value == "engage"):
             raise PhysicsError("Real deployed exterior mobile hardware inhibits ship thrust and attitude")
         if action == "rotor" and value not in {"stop","hardlock"}:
-            if any(("EXT-" + target.replace("DR-","DR") + "-SKIN")
-                   in {entry["position"],(entry["job"] or {}).get("to")}
+            if any(entry["job"] is not None
+                   and entry["job"]["kind"] == "scan"
+                   and entry["position"] == "EXT-" + target.replace("DR-","DR")
                    for entry in on_rails if target.startswith("DR-")):
-                raise PhysicsError("Robot or crawler physically occupies original drum inspection skin")
+                raise PhysicsError("Live adjacent original robot drum scan inhibits rotating target")
     unclassified_work = _clock().details.get("unclassified_spaces")
     if unclassified_work is not None:
         validate_unclassified(unclassified_work)
