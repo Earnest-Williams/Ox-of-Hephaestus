@@ -207,8 +207,10 @@ def commission(*,operator_approved=False):
         else:
             # Crucial: no new person-access hatch is to be fabricated for
             # the enclosed workshop trim reservoir.
-            if CanonicalShipState.objects.filter(
-                    category="access",reference__to=void).exists():
+            if any(
+                    access.reference.get("to")==void
+                    for access in CanonicalShipState.objects.filter(
+                        category="access")):
                 raise p.PhysicsError("Trim reservoir unexpectedly gained a personnel access")
     before=p._snapshot(clock)
     d=dict(clock.details)
@@ -296,6 +298,8 @@ def witness_leak(*,operator_approved=False,sector=None,leak_kg_s=None):
     d=dict(clock.details)
     if d.get("unclassified_spaces") is None:
         raise p.PhysicsError("No surveyed cargo sector to damage")
+    if _physical_sector_door(sector,must_closed=True).setting!="closed":
+        raise p.PhysicsError("Open sector boundary needs gallery damage containment first")
     try:
         ledger=inject_sector_leak(d["unclassified_spaces"],sector,leak_kg_s)
     except UnclassifiedSpaceError as exc:

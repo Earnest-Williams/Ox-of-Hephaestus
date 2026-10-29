@@ -6888,7 +6888,13 @@ def crew_physical_action(actor, request_id, action, target, value):
         item = state("isolator", target, lock=True)
         here = getattr(getattr(getattr(actor, "location", None), "db", None),
                        "ox_space_id", None)
-        if (target in {"ISO-RAD-HT-1", "ISO-RAD-HT-2"}
+        if (target == "ISO-GAS-BANK-A"
+                and here == "WATER-FWD"
+                and item.reference.get("remote_operable")):
+            _crew_at(actor, "WATER-FWD")
+            if state("equipment", "LP-WATER-FWD").condition in _BROKEN:
+                raise PhysicsError("Fitted water control cannot operate remote annular-bank valve")
+        elif (target in {"ISO-RAD-HT-1", "ISO-RAD-HT-2"}
                 and here == "ENG-CONTROL"
                 and item.reference.get("remote_operable")):
             _crew_at(actor, "ENG-CONTROL")
