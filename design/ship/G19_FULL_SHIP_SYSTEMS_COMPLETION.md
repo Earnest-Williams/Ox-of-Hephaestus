@@ -558,3 +558,24 @@ These are additional installed acceptance gates under the existing single
 G19 integration PR. The original equipment-family inventory remains 808 units
 across 91 families; the above proofs extend actual cross-system behaviour,
 not the source geometry or equipment counts.
+
+
+### Original generator overcurrent protection and physical reset (29 October 2026)
+
+The `ISO-GEN-M` protective breaker now has positive original-world
+evidence that overload trips and latches, the generator is explicitly
+stopped at `ENG-CONTROL`, and a mechanic positively surveys its previously
+unclassified generator enclosure **only after actual machinery isolation**.
+The engineer obtains an issued finite-oxygen EVA suit, signs a
+`generator_bay secure` permit, traverses its original rated
+`ACC-GEN-M-ROOM` hatch, then clears the original breaker trip locally.
+The reset is replay-safe and leaves the feeder OPEN; only physical return and
+release ends the attended service permit.
+
+[Generator room acceptance #40941917450](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40941917450)
+passed its **1/1 installed Evennia test** at code `bdc27459`; the
+[dedicated operating contract](G19_GENERATOR_OVERCURRENT_RATED_SERVICE_ACCEPTANCE_2026-10-29.md)
+records the scope. This also repairs a legacy electrical test that still
+mistakenly trusted a boolean suit flag rather than the current rated-hatch
+operating procedure. The general all-machine and multi-system G19 acceptance
+remain separately gated.
