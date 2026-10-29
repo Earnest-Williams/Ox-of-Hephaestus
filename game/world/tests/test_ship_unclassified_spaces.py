@@ -8,7 +8,7 @@ from world.ship_unclassified_spaces import (
     complete_manifest, survey_sector, permit_ready, secure_sector,
     note_entry, release_sector, inject_sector_leak, begin_sector_seal,
     tick_unclassified, certify_portal, invalidate_portal, portal_ready,
-    inspect_void)
+    inspect_void, breathing_sample, commit_breathing_sample)
 from world.ship_cargo_manifest import initial_cargo, declare_cargo_lot
 
 def parked():
@@ -130,6 +130,31 @@ class UnclassifiedTaxonomy(unittest.TestCase):
         led=invalidate_portal(led,"DR-01-P1")
         self.assertFalse(portal_ready(led,m,"DR-01-P1",**safe))
         self.assertIsNone(led["sectors"]["DR-01-SEC-01"]["gas"])
+    def test_real_unsuited_breathing_consumes_sector_oxygen_and_adds_same_co2(self):
+        from world.ship_crew_physiology import step_crew_in_space
+        from world.ship_crew_exposure import initial_exposure
+        ledger,manifest=survey_all()
+        sector="DR-01-SEC-01"
+        original=ledger["sectors"][sector]["gas"]
+        before_mass=original["mass_kg"]
+        before_o2=original["oxygen_kg"]
+        before_co2=original["co2_kg"]
+        health,sample,breath=step_crew_in_space(
+            initial_exposure(),breathing_sample(ledger,sector),10)
+        self.assertGreater(breath["o2_used_kg"],0)
+        self.assertGreater(breath["metabolic_heat_kj"],0)
+        ledger=commit_breathing_sample(ledger,sector,sample)
+        gas=ledger["sectors"][sector]["gas"]
+        self.assertAlmostEqual(gas["mass_kg"],before_mass)
+        self.assertAlmostEqual(before_o2-gas["oxygen_kg"],breath["o2_used_kg"])
+        self.assertAlmostEqual(gas["co2_kg"]-before_co2,breath["co2_added_kg"])
+        self.assertGreater(gas["temperature_k"],293.15)
+        self.assertEqual(health["condition"],"fit")
+        with self.assertRaises(UnclassifiedSpaceError):
+            commit_breathing_sample(ledger,sector,{**sample,
+                "oxygen":sample["oxygen"]+0.5})
+        self.assertIsNone(breathing_sample(initial_unclassified(),sector))
+
     def test_non_habitable_void_inspection_never_creates_pressure_cell(self):
         led=initial_unclassified()
         for room in VOIDS:

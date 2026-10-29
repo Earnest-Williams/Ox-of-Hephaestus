@@ -135,6 +135,24 @@ class OriginalCargoAndVoidClosure(EvenniaTestCase):
         self.assertEqual(
             _clock().details["unclassified_spaces"]["sectors"][room]["entries"],1)
 
+    def test_unsuited_worker_actually_breathes_measured_sector_air(self):
+        room="DR-01-SEC-03"
+        self.survey_drum()
+        self.enter(room)
+        initial=_clock().details["unclassified_spaces"]["sectors"][room]["gas"]
+        first_o2=initial["oxygen_kg"]
+        first_co2=initial["co2_kg"]
+        first_mass=initial["mass_kg"]
+        self.tick(60)
+        actual=_clock().details["unclassified_spaces"]["sectors"][room]["gas"]
+        self.assertLess(actual["oxygen_kg"],first_o2)
+        self.assertGreater(actual["co2_kg"],first_co2)
+        self.assertAlmostEqual(actual["mass_kg"],first_mass)
+        self.assertGreater(actual["temperature_k"],293.15)
+        self.assertEqual(
+            _clock().details["summary"]["crew_oxygen_consumed_kg"] > 0,True)
+        self.leave(room)
+
     def test_suited_finite_cargo_sector_shell_patch_conserves_gas_and_material(self):
         room="DR-01-SEC-02"
         self.survey_drum()
