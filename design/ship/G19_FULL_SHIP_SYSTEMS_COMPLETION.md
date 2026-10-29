@@ -520,3 +520,41 @@ the full equipment identity/family audit passed both jobs at
 The two independently fitted rescue-bay scrubbers have now been integrated
 with as-found finite media and operating time; the dedicated installed
 acceptance remains the authority for final confirmation of that slice.
+
+
+## Late G19 original cargo-drum, machinery and bearing-service closure (29 October 2026)
+
+The original **six** rotating cargo drums now each have separately verified
+original rated-hatch, continuing casualty and **attended suited sector repair**
+operations. [Six-drum installed evidence](G19_ALL_SIX_DRUMS_DAMAGE_CONTROL_ACCEPTANCE_2026-10-29.md)
+records **7/7** seeded/fault-order endurance jobs at
+[CI #40938131219](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40938131219)
+(including a three-hour DR-06 case) and **6/6** finite-spares, 180-second
+physical shell repairs at
+[CI #40938176079](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40938176079).
+The installed crew, real cargo pressure boundary, material ledger, EVA
+custody, generator and water casualty consequences remained in place.
+
+The original `SHOP-CNC-MILL` has now passed an integrated 600-second physical
+repair and restart campaign under simultaneous fire/thermal, water and cargo
+shell faults. A real local breaker outage invalidates previous restarted-output
+evidence and requires physical reconnection, explicit plant restart and two
+fresh positive spindle observations after instrumentation alarms clear.
+[Focused acceptance #40939873917](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40939873917)
+passed **4 pure and 4 installed tests**, at `3605df60`.
+[Machinery recovery evidence](G19_COMPOUND_MACHINERY_RESTART_ACCEPTANCE_2026-10-29.md).
+The associated five-job whole-ship compatibility run
+[#40939874014](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40939874014)
+passed at the same code revision.
+
+The original `BE-01-BAT` industrial bearing-service operation now requires
+and demonstrates an **actually issued suit, finite gas, signed industrial
+permit and original rated hatch transit**, rather than a legacy suit flag.
+The [focused installed bearing CI #40940915917](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40940915917)
+passed at `578acefe`. This maintains fail-closed industrial electrical
+switchgear safety while restoring the matching installed test.
+
+These are additional installed acceptance gates under the existing single
+G19 integration PR. The original equipment-family inventory remains 808 units
+across 91 families; the above proofs extend actual cross-system behaviour,
+not the source geometry or equipment counts.
