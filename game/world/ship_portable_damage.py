@@ -126,6 +126,10 @@ def validate_portable_damage(ledger):
             raise PortableDamageError("Portable fan cannot acquire a liquid route")
         gross = quantity(record["cumulative_kg"])
         volume = quantity(record["cumulative_m3"])
+        if media is None and (gross > EPS or volume > EPS):
+            raise PortableDamageError("Unsurveyed portable cannot have produced work")
+        if name in FANS and media is not None and gross > media["filter_kg"] + EPS:
+            raise PortableDamageError("Portable smoke receiver exceeded its filter")
         if (quantity(record["last_kg"]) > gross + EPS
                 or quantity(record["last_m3"]) > volume + EPS):
             raise PortableDamageError("Portable meter exceeds its lifetime")
