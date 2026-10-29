@@ -135,6 +135,36 @@ class OriginalCargoAndVoidClosure(EvenniaTestCase):
         self.assertEqual(
             _clock().details["unclassified_spaces"]["sectors"][room]["entries"],1)
 
+    def test_open_cargo_sector_hatch_exchanges_real_gallery_gas(self):
+        sector="DR-01-SEC-02"
+        self.survey_drum()
+        self.at("DR-01-GALLERY")
+        self.op("cargo_sector",sector,"secure")
+        old=_clock().details["unclassified_spaces"]["sectors"][sector]["gas"]
+        before_sector_mass=old["mass_kg"]
+        before_gallery=state("pressure","PZ-DR-01-SVC").quantity
+        before_lost=_clock().details["lost_to_space_kg"]
+        self.op("hatch","ACC-"+sector,"open")
+        self.tick(60)
+        after=_clock().details
+        sampled=after["unclassified_spaces"]["sectors"][sector]
+        gallery=state("pressure","PZ-DR-01-SVC").quantity
+        self.assertAlmostEqual(
+            (sampled["gas"]["mass_kg"]-before_sector_mass)
+            +(gallery-before_gallery),0,places=4)
+        self.assertAlmostEqual(after["lost_to_space_kg"],before_lost,places=4)
+        self.assertEqual(after["unclassified_spaces"]["version"],2)
+        self.assertAlmostEqual(sampled["gallery_net_kg"],
+                               sampled["gas"]["mass_kg"]-before_sector_mass,
+                               places=5)
+        self.op("hatch","ACC-"+sector,"closed")
+        closed=sampled["gas"]["mass_kg"]
+        self.tick(60)
+        self.assertAlmostEqual(
+            _clock().details["unclassified_spaces"]["sectors"][sector]["gas"]["mass_kg"],
+            closed,places=5)
+        self.op("cargo_sector",sector,"release")
+
     def test_unsuited_worker_actually_breathes_measured_sector_air(self):
         room="DR-01-SEC-03"
         self.survey_drum()
