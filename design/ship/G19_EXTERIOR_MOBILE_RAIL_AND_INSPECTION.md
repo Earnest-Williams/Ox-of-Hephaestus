@@ -111,8 +111,12 @@ entry, airlock depressurisation, external release, remotely driven rail
 movement and drum-skin scan, reverse rail return, operator receipts,
 independent crawler failure and restart.
 
-This implementation is committed on G19. The strict 808-equipment
-evidence audit remains unchanged until **pure and installed CI pass on
-the relevant runtime**. Permanent structural repairs, exterior
+**Accepted:** both pure and installed Evennia tests passed in
+[CI #40924922323](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40924922323),
+tested at `2ebab10d`. The updated **808-original/91-family** strict
+equipment audit also passed both jobs in
+[CI #40925404027](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40925404027).
+All four original exterior vehicles are now in the directly exercised
+physics category; **zero outstanding independent equipment interactions**. Permanent structural repairs, exterior
 replacement of depleted batteries and autonomous multi-vehicle
 dispatch are not implied by observational robot acceptance.
