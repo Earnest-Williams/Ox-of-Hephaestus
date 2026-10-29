@@ -251,6 +251,26 @@ def _clearance(actor, exit_obj, dest):
                 or not room_ready(details, service_room)):
             raise CrewTransitError("Original generator rated-door traversal needs measured gas and a real suited permit")
         return door
+    from world.ship_industrial_access import (
+        DOORS as INDUSTRIAL_DOORS, SITES as INDUSTRIAL_SITES)
+    if link in INDUSTRIAL_DOORS:
+        from world.ship_industrial_runtime import (
+            ready as industrial_ready, worker_ready as industrial_worker,
+            retreat_ready as industrial_retreat)
+        from world.continuous_ship_physics import _clock
+        site = INDUSTRIAL_DOORS[link]
+        trunk = INDUSTRIAL_SITES[site]["trunk"]
+        details = _clock().details
+        permitted = (industrial_retreat(actor, details, site)
+                     if src_id == site else
+                     industrial_worker(actor, details, site, inside=False))
+        if ({src_id,dst_id}!={site,trunk}
+                or door.setting != "open" or not permitted
+                or not industrial_ready(
+                    details, site, allow_small_leak=(src_id==site))):
+            raise CrewTransitError(
+                "Original industrial service hatch needs personally issued suit, sound rated pressure boundary, finite air and safed machinery")
+        return door
     indexed = (kind == "indexed_rotary_transfer"
                or link == "ACC-WR-IX-HUB" and kind == "indexer_hatch")
     if (indexed and door.setting != "closed"
@@ -531,6 +551,10 @@ def traverse_canonical_exit(actor, exit_obj, dest, *, request_id=None):
         raise CrewTransitError("Crew cannot leave a moving personnel carriage")
     if not actor.move_to(dest):
         raise CrewTransitError("Crew movement vetoed")
+    from world.ship_industrial_access import DOORS as INDUSTRIAL_DOORS
+    if link in INDUSTRIAL_DOORS and dest.db.ox_space_id == INDUSTRIAL_DOORS[link]:
+        from world.ship_industrial_runtime import entered as industrial_entered
+        industrial_entered(clock, INDUSTRIAL_DOORS[link], actor)
     from world.ship_generator_bay_service import DOORS as GENERATOR_DOORS
     if link in GENERATOR_DOORS and dest.db.ox_space_id == GENERATOR_DOORS[link]:
         from world.ship_generator_bay_runtime import entered
