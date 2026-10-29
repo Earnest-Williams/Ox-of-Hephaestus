@@ -202,6 +202,31 @@ class OriginalCargoAndVoidClosure(EvenniaTestCase):
             self.op("hatch","ACC-"+sector,"open")
         self.op("cargo_sector",sector,"release")
 
+    def test_broken_open_cargo_boundary_continues_physics_and_denies_entry(self):
+        sector="DR-01-SEC-04"
+        self.survey_drum()
+        self.at("DR-01-GALLERY")
+        self.op("cargo_sector",sector,"secure")
+        self.op("hatch","ACC-"+sector,"open")
+        # A subsequent physical hardware failure does not seal the actual
+        # opening or make a new shell breach impossible to observe.
+        door=state("access","ACC-"+sector,lock=True)
+        door.condition="failed"
+        door.revision+=1
+        door.save(update_fields=["condition","revision"])
+        report=witness_g19_cargo_sector_leak(
+            operator_approved=True,sector=sector,leak_kg_s=.7)
+        self.assertEqual(report["rated_hatch_at_casualty"],"open")
+        self.tick(60)
+        site=_clock().details["unclassified_spaces"]["sectors"][sector]
+        self.assertGreater(site["lost_kg"],0)
+        self.assertGreater(site["gallery_net_kg"],0)
+        with self.assertRaises(PhysicsError):
+            self.op("hatch","ACC-"+sector,"closed")
+        with self.assertRaises(CrewTransitError):
+            self.walk("ACC-"+sector,"forward")
+        self.assertEqual(state("access","ACC-"+sector).setting,"open")
+
     def test_ambulatory_suited_owner_escapes_through_already_open_failed_sector(self):
         from world.ship_unclassified_runtime import (
             access_ready, open_hatch_casualty_egress)
