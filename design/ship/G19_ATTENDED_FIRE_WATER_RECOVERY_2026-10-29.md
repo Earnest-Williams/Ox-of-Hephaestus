@@ -24,7 +24,7 @@ The disposable, canonical Evennia world explicitly commissions real equipment an
 ## Acceptance evidence
 
 - [Focused installed run #40955124764](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40955124764) **passed 1/1** at runtime commit `23a6e257948a84bad79f05f762371b05ce0e56e1`. This proved actual suit and source-independent water-treatment recovery in one installed world.
-- The subsequent test assertion explicitly sets `ox_suit_verified=False` after issued-suit checkout, to prove the positive case does not depend on the old flag. The revised focused acceptance is subject to its own result.
+- [Final focused installed run #40955493928](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40955493928) **passed 1/1 installed Evennia test** at runtime revision `5daa3a188b7cad564aa071cd32a38cadf70310e0`. This adds the explicit positive proof with `ox_suit_verified=False` after real issued-suit checkout; the full suppression and potable-treatment recovery still passed.
 - The same scenario is now included in `.github/workflows/ox-g19-final-campaign.yml` as the **13th** independently selected installed compatibility witness. The five-job campaign's complete final-head acceptance remains a separate requirement.
 
 ## Scope
