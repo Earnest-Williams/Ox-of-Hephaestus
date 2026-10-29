@@ -171,6 +171,45 @@ class FittedIndustrialMaintenance(EvenniaTestCase):
         self.assertGreater(_clock().details["lost_to_space_kg"],before)
         self.assertEqual(_clock().details["rotors"]["DR-01"]["target_rpm"],0)
 
+    def test_failed_ftl_controller_finite_repair_requires_local_isolation(self):
+        """Operator-observed machinery fault cannot be repaired live or remotely.
+
+        The actual LCS-FTL is inside the original unclassified FTL-SVC room.
+        A suited, toolkit-carrying engineer closes the rated hatch, isolates
+        its separate local panel feed, works 600 real ship seconds and
+        consumes three kilograms of previously surveyed carried spares.
+        """
+        from world.full_ship_operations import set_component_condition
+        room="FTL-SVC"
+        self.at("TOOL-CRIB")
+        self.act("repair","TOOL-CRIB","pickup_toolkit")
+        survey_g19_water_material(
+            operator_approved=True,source="INV-SPARES",
+            room_id="SPARES-CENTRAL",verified_kg=3)
+        self.at("SPARES-CENTRAL")
+        self.act("repair","INV-SPARES","pickup:3")
+        self.survey(room)
+        set_component_condition("equipment","LCS-FTL","failed",operator=True)
+        self.wear_suit("TRUNK-A-AFT")
+        self.enter(room)
+        with self.assertRaises(PhysicsError):
+            self.act("repair","equipment:LCS-FTL","start")
+        self.act("switch","ISO-LP-FTL-SVC","open")
+        started=self.act("repair","equipment:LCS-FTL","start")
+        self.assertEqual(started["status"],"succeeded")
+        self.assertEqual(state("equipment","LCS-FTL").condition,"failed")
+        with self.assertRaises(PhysicsError):
+            self.act("switch","ISO-LP-FTL-SVC","closed")
+        self.tick(600)
+        self.assertEqual(state("equipment","LCS-FTL").condition,"serviceable")
+        self.assertGreaterEqual(_clock().details["repairs"]["completed"],1)
+        self.assertAlmostEqual(_clock().details["repairs"]["installed_kg"],3)
+        self.assertAlmostEqual(
+            _clock().details["repairs"]["carried_kg"][self.worker.dbref],0)
+        self.leave(room)
+        self.assertEqual(
+            state("isolator","ISO-LP-FTL-SVC").setting,"open")
+
     def test_fitted_sixteen_sites_match_real_objects(self):
         self.assertEqual(len(SITES),16)
         for room,spec in SITES.items():
