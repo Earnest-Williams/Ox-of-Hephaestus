@@ -28,7 +28,7 @@ jobs:
           python -m compileall -q game/world/ship_exterior_mobile.py game/world/continuous_ship_physics.py game/world/tests/test_ship_exterior_mobile.py game/world/tests/test_installed_ship_exterior_mobile.py
       - name: "Original rail links, finite energy, scan and recovery"
         working-directory: game
-        run: python -m unittest world.tests.test_ship_portable_damage -v
+        run: python -m unittest world.tests.test_ship_exterior_mobile -v
 
   installed:
     runs-on: ubuntu-latest
@@ -51,5 +51,5 @@ jobs:
           evennia migrate --noinput
       - name: Real EVA airlock robot launch, true rail travel and independent crawler recovery
         working-directory: game
-        run: python -m world.test_runner world.tests.test_installed_ship_portable_damage --verbosity=2
+        run: python -m world.test_runner world.tests.test_installed_ship_exterior_mobile --verbosity=2
 
