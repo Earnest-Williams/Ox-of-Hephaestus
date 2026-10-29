@@ -24,7 +24,8 @@ class InstalledExteriorMobile(EvenniaTestCase):
         install_pressure_cells(operator_approved=True)
         initialize_nominal_atmosphere(operator_approved=True)
         arm_continuous_physics(operator_approved=True,now_game_time=1000)
-        for br in ("ISO-GEN-M","ISO-DB-A-BOW","ISO-DB-A-HAB-HUB-SERVICES"):
+        for br in ("ISO-GEN-M","ISO-DB-A-BOW","ISO-DB-A-AFT",
+                   "ISO-DB-A-HAB-HUB-SERVICES"):
             set_isolator(br,"closed",operator=True)
         commission_g19_eva(operator_approved=True)
         self.assertTrue(commission_g19_exterior_mobile(operator_approved=True)["commissioned"])
