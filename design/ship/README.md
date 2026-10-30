@@ -26,6 +26,7 @@ The separately validated **v0.5 engineering candidate** (topology-identical to v
 - [`SURVIVABILITY_AND_MAINTENANCE.md`](SURVIVABILITY_AND_MAINTENANCE.md) — damage control, EVA maintenance, local machinery control and backup life support.
 - [`EVENNIA_INTEGRATION.md`](EVENNIA_INTEGRATION.md) — installed v0.4 topology, G19 crew traversal gates and migration sequence.
 - [`G19_ACCEPTANCE_RECORD_2026-10-29.md`](G19_ACCEPTANCE_RECORD_2026-10-29.md) — G19 requirement matrix, exact-head test results, open blockers and deferred items.
+- [`G19_FUZZ_CAMPAIGN_2026-10-30.md`](G19_FUZZ_CAMPAIGN_2026-10-30.md) — post-merge targeted fuzzing: method, results, the fixed heat-capacity finding and open hardening items.
 - [`LIVE_TERMINAL.md`](LIVE_TERMINAL.md) — privileged read-only spatial console and fail-closed drawing version policy.
 
 ## Scope

@@ -22,6 +22,9 @@ MAX_GAS_BUFFER_KG = 350.0
 MAX_STEP_S = 10.0
 
 
+# Must equal continuous_ship_physics.CP_GAS_KJ_KG_K (see ship_crew_physiology).
+GAS_CP_KJ_KG_K = 1.0
+
 class EVAError(ValueError):
     pass
 
@@ -342,7 +345,7 @@ def transfer_recovered_gas(eva, cells, *, lock, cycle):
     # Thermal energy stored in the transferred parcel is not invented.
     # Isothermal simplified recovery: installed metal thermal capacity remains.
     row["energy"] = (row["capacity"] +
-                     row["mass"] * 1.005) * row["temperature"]
+                     row["mass"] * GAS_CP_KJ_KG_K) * row["temperature"]
     validate_eva(result)
     return result, gas
 

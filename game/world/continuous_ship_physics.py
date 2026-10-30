@@ -9172,7 +9172,12 @@ def crew_physical_action(actor, request_id, action, target, value):
                 if target not in _refill_route(bank):
                     raise PhysicsError(
                         "No conducting route from this bank; line up the refill valves")
-                setpoint = float(cd.get("scenario_initial_pressure_pa", 101325.0))
+                setpoint = cd.get("scenario_initial_pressure_pa", 101325.0)
+                if (isinstance(setpoint, bool)
+                        or not isinstance(setpoint, (int, float))
+                        or not math.isfinite(setpoint)):
+                    raise PhysicsError("Pressure cell has no valid commissioned setpoint")
+                setpoint = float(setpoint)
                 if refill_deliverable_kg(
                         mass_kg=cell.quantity, volume_m3=cd["gas_volume_m3"],
                         temperature_k=cd["temperature_k"], setpoint_pa=setpoint,
