@@ -107,6 +107,15 @@ from world.ship_hull_restoration import (
     HullError, initial_hull, validate_hull, register_breach,
     effective_leak, expected_repair_condition, finish_hull_work,
 )
+from world.ship_gas_refill import (
+    EPS_KG as REFILL_EPS_KG, NETWORK as REFILL_NETWORK,
+    OXYGEN_MASS_FRACTION as REFILL_O2_FRACTION, REGULATORS as REFILL_REGULATORS,
+    SUPPLY_TEMPERATURE_K as REFILL_SUPPLY_T_K, GasRefillError,
+    bank_remaining_kg as refill_bank_remaining_kg,
+    deliverable_kg as refill_deliverable_kg, initial_refill, reachable_cells,
+    reconciles_with_inventory as refill_reconciles, record_delivery as
+    record_refill_delivery, start_refill, stop_refill, validate_refill,
+)
 from world.ship_indexed_personnel import (
     IndexedTransferError, initial_personnel_transfers,
     validate_personnel_transfers, indexed_mechanism_ready,
@@ -3796,6 +3805,67 @@ def _physical_passage(iso):
     return _conducts(iso)
 
 
+def _refill_node_cells():
+    """Authored tap/manifold node -> pressure cell for the refill network.
+
+    Taps pressurise the cell of the space they own; HAB manifolds name their
+    target arc explicitly. Nothing else in the network delivers into a cell.
+    """
+    ref = load_candidate()
+    zones = {s["id"]: s.get("pressure_zone") for s in ref["spaces"]}
+    equipment = {e["id"]: e for e in ref["equipment"]}
+    result = {}
+    for node in ref["service_nodes"]:
+        if node["network"] != REFILL_NETWORK:
+            continue
+        if node["kind"] == "pressure_cell_tap":
+            zone = zones.get(node["owner_id"])
+        elif node["kind"] == "hab_makeup_manifold":
+            zone = (equipment[node["owner_id"]].get("attributes") or {}).get(
+                "target_pressure_zone_id")
+        else:
+            continue
+        if zone:
+            result[node["id"]] = zone
+    return result
+
+
+def _refill_route(bank):
+    """Cells a regulator can feed now, from live valve and equipment state.
+
+    Authored edge settings such as `standby_isolated` describe the normal
+    lineup; the actual barrier is each edge's fitted valve. An edge conducts
+    only if it is serviceable and every valve on it physically passes gas.
+    Equipment-owned nodes (bank, regulator, header, rotary union, manifold)
+    block flow when that equipment is unserviceable.
+    """
+    isolators = {x.source_id: x for x in CanonicalShipState.objects.filter(
+        category="isolator") if x.reference.get("network") == REFILL_NETWORK}
+    edges = []
+    for edge in CanonicalShipState.objects.filter(category="edge"):
+        spec = edge.reference
+        if spec.get("network") != REFILL_NETWORK:
+            continue
+        edges.append({
+            "a": spec["from_node"], "b": spec["to_node"],
+            "conducts": (edge.condition not in _BROKEN and all(
+                i in isolators and _physical_passage(isolators[i])
+                for i in spec["isolator_ids"])),
+        })
+    blocked = set()
+    for node in CanonicalShipState.objects.filter(category="node"):
+        spec = node.reference
+        if (spec.get("network") == REFILL_NETWORK
+                and spec.get("owner_type") == "equipment"):
+            owner = CanonicalShipState.objects.filter(
+                pk="equipment:" + spec["owner_id"]).first()
+            if owner is None or owner.condition in _BROKEN:
+                blocked.add(node.source_id)
+    return reachable_cells(
+        start_node=REFILL_REGULATORS[bank]["bank_node"], edges=edges,
+        blocked_nodes=frozenset(blocked), node_cells=_refill_node_cells())
+
+
 def _live_edge(edge, isolators):
     r = edge.reference
     return (edge.condition not in _BROKEN and edge.setting == "available"
@@ -4174,6 +4244,40 @@ def tick_continuous_physics(*, now_game_time=None):
                     + captured_co2 + refuge_captured_before
                     + retired_refuge_co2)
     lost = burned = water = oxygen_generated = 0.0
+    # Casualty repressurisation: finite banks feed cells only through a live,
+    # lined-up route. Gas metered here enters the balance as a source term,
+    # exactly debited from the bank inventory; nothing is refunded on a halt.
+    refilled = 0.0
+    refill_halts = []
+    gas_refill = clock.details.get("gas_refill")
+    refill_stock = {}
+    if gas_refill is not None:
+        try:
+            gas_refill = validate_refill(gas_refill)
+        except GasRefillError as exc:
+            raise PhysicsError(str(exc)) from exc
+        refill_stock = {
+            bank: state("inventory", spec["inventory"], lock=True)
+            for bank, spec in REFILL_REGULATORS.items()}
+        for bank, row in refill_stock.items():
+            if not refill_reconciles(gas_refill, bank, (row.quantity or 0.0) * 1000.0):
+                raise PhysicsError("Refill bank inventory and metering ledger disagree")
+        for bank, job in list(gas_refill["jobs"].items()):
+            spec = REFILL_REGULATORS[bank]
+            reason = None
+            if state("equipment", spec["regulator_equipment"]).condition in _BROKEN:
+                reason = "regulator_unserviceable"
+            elif state("equipment", spec["bank_equipment"]).condition in _BROKEN:
+                reason = "bank_unserviceable"
+            elif job["cell"] not in cells:
+                reason = "cell_unverified"
+            elif job["cell"] not in _refill_route(bank):
+                reason = "route_lost"
+            if reason is not None:
+                gas_refill = stop_refill(gas_refill, bank=bank, reason=reason, now_s=last)
+                refill_halts.append((bank, dict(job), reason, last))
+    refill_stock_before_kg = {
+        bank: (row.quantity or 0.0) * 1000.0 for bank, row in refill_stock.items()}
     water_state = clock.details.get("water")
     if water_state is not None:
         validate_water(water_state, {k: v.quantity * 1000.0
@@ -5318,6 +5422,40 @@ def tick_continuous_physics(*, now_game_time=None):
                 cell["energy"] -= leak * CP_GAS_KJ_KG_K * cell["temperature"]
                 cell["mass"] -= leak
                 lost += leak
+            if gas_refill is not None and gas_refill["jobs"]:
+                for bank, job in list(gas_refill["jobs"].items()):
+                    if job["cell"] != cell_id:
+                        continue
+                    if leak_rate > 0:
+                        gas_refill = stop_refill(
+                            gas_refill, bank=bank, reason="downstream_leak",
+                            now_s=last + duration)
+                        refill_halts.append(
+                            (bank, dict(job), "downstream_leak", last + duration))
+                        continue
+                    stock_kg = max(0.0, (refill_stock[bank].quantity or 0.0) * 1000.0)
+                    metered = refill_deliverable_kg(
+                        mass_kg=cell["mass"], volume_m3=cell["volume"],
+                        temperature_k=cell["temperature"],
+                        setpoint_pa=job["setpoint_pa"], bank_kg=min(
+                            stock_kg, refill_bank_remaining_kg(gas_refill, bank)),
+                        seconds=dt)
+                    if metered <= 0:
+                        reason = ("bank_exhausted" if stock_kg <= REFILL_EPS_KG
+                                  else "setpoint_reached")
+                        gas_refill = stop_refill(
+                            gas_refill, bank=bank, reason=reason,
+                            now_s=last + duration)
+                        refill_halts.append((bank, dict(job), reason, last + duration))
+                        continue
+                    cell["mass"] += metered
+                    cell["oxygen"] += metered * REFILL_O2_FRACTION
+                    cell["energy"] += metered * CP_GAS_KJ_KG_K * REFILL_SUPPLY_T_K
+                    refill_stock[bank].quantity = max(
+                        0.0, refill_stock[bank].quantity - metered / 1000.0)
+                    gas_refill = record_refill_delivery(
+                        gas_refill, bank=bank, kg=metered)
+                    refilled += metered
 
             active_mist = (cell["mist"] > 0 and cell_id.startswith("PZ-HAB-")
                            and "NODE-" + cell_id[3:] + "-FIRE-MIST" in fire_nodes
@@ -5651,8 +5789,10 @@ def tick_continuous_physics(*, now_game_time=None):
                    + (refuge_scrubbers["meter"]["captured_kg"]
                       if refuge_scrubbers is not None else 0.0)
                    + retired_refuge_co2)
-    if not math.isclose(total_before + oxygen_generated, total_after + lost,
-                        abs_tol=1e-5, rel_tol=1e-10):
+    # Bank gas is held in inventory outside this balance, so metered refill
+    # enters as a source exactly like electrolysis oxygen.
+    if not math.isclose(total_before + oxygen_generated + refilled,
+                        total_after + lost, abs_tol=1e-5, rel_tol=1e-10):
         raise PhysicsError("Gas, fire fuel and vented mass did not reconcile")
     # Two real airlock chambers, isolated by their installed atmospheric
     # dampers, have a physically finite recovered-gas buffer. The transfer
@@ -6693,6 +6833,28 @@ def tick_continuous_physics(*, now_game_time=None):
     d["last_game_time"] = last + seconds
     d["ticks"] += 1
     d["lost_to_space_kg"] += lost
+    if gas_refill is not None:
+        debited = sum(
+            refill_stock_before_kg[bank] - (row.quantity or 0.0) * 1000.0
+            for bank, row in refill_stock.items())
+        if not math.isclose(debited, refilled, rel_tol=0, abs_tol=1e-6):
+            raise PhysicsError("Refill bank debit does not equal delivered gas")
+        for bank, row in refill_stock.items():
+            if not refill_reconciles(gas_refill, bank, (row.quantity or 0.0) * 1000.0):
+                raise PhysicsError("Refill bank inventory and metering ledger disagree")
+            if not math.isclose((row.quantity or 0.0) * 1000.0,
+                                refill_stock_before_kg[bank], rel_tol=0, abs_tol=0):
+                row.revision += 1
+                row.save(update_fields=["quantity", "revision"])
+        d["gas_refill"] = gas_refill
+        for bank, job, reason, ended in refill_halts:
+            CanonicalShipEvent.objects.create(
+                component_key=clock.key, operation="g19_gas_refill_stopped",
+                before={"bank": bank, "cell": job["cell"],
+                        "setpoint_pa": job["setpoint_pa"]},
+                after={"reason": reason, "request_id": job["request_id"],
+                       "delivered_kg": round(job["delivered_kg"], 6)},
+                actor_dbref=job["actor"], game_time=ended)
     d["burned_fuel_kg"] += burned
     d["water_suppression_kg"] += water
     d["co2_captured_kg"] = captured_co2
@@ -7348,7 +7510,7 @@ def crew_physical_action(actor, request_id, action, target, value):
     """
     if not isinstance(request_id, str) or re.fullmatch(r"[0-9a-f]{32}", request_id) is None:
         raise PhysicsError("Expected one 32-character lowercase request UUID")
-    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial", "cargo_sector", "shield_trim", "cabin_air", "rescue_air", "portable_air", "portable_damage", "exterior_mobile"}:
+    if action not in {"power", "switch", "plant", "schedule", "mist", "hatch", "service", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial", "cargo_sector", "shield_trim", "cabin_air", "rescue_air", "portable_air", "portable_damage", "exterior_mobile", "gas_refill"}:
         raise PhysicsError("Unknown physical operation")
     if actor is None or getattr(actor.db, "ox_terminal_dead", False):
         raise PermissionError("A deceased or missing character cannot operate machinery")
@@ -7371,8 +7533,8 @@ def crew_physical_action(actor, request_id, action, target, value):
                     "isolator:" if action == "switch"
                     else "pressure:" if action == "mist"
                     else "access:" if action == "hatch"
-                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial", "cargo_sector", "shield_trim", "cabin_air", "rescue_air", "portable_air", "portable_damage", "exterior_mobile"}
-                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial", "cargo_sector", "shield_trim", "cabin_air", "rescue_air", "portable_air", "portable_damage", "exterior_mobile"} else target)
+                    else "" if action in {"power", "power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial", "cargo_sector", "shield_trim", "cabin_air", "rescue_air", "portable_air", "portable_damage", "exterior_mobile", "gas_refill"}
+                    else "equipment:") + (CLOCK_KEY if action in {"power", "schedule", "helm", "attitude", "rotor", "drive", "freight", "ftl", "port", "water", "waste", "wasteport", "repair", "hull", "eva", "damage", "freight_service", "medical", "rescue", "flywheel_service", "radiator_service", "propulsion_service", "cultivation", "food", "instrument", "fault", "fabricate", "weld", "propulsion_bay", "generator_bay", "industrial", "cargo_sector", "shield_trim", "cabin_air", "rescue_air", "portable_air", "portable_damage", "exterior_mobile", "gas_refill"} else target)
                 or previous.after.get("requested_value") != value):
             raise PermissionError("Global request ID already belongs to another action")
         return _receipt(previous, request_id, actor, action, target)
@@ -8957,7 +9119,75 @@ def crew_physical_action(actor, request_id, action, target, value):
         item.revision += 1
         item.save(update_fields=["details", "revision"])
 
-
+    elif action == "gas_refill":
+        # Attended casualty repressurisation at the fitted regulator station.
+        # Starting a job proves seal, route and authority now; the physics
+        # tick re-proves route and seal every step and halts on any loss.
+        verb, _, bank = str(value).partition(":")
+        if verb not in {"start", "stop"} or bank not in REFILL_REGULATORS:
+            raise PhysicsError("Refill needs start:A, start:B, stop:A or stop:B")
+        spec = REFILL_REGULATORS[bank]
+        _crew_at(actor, spec["station"])
+        item = _clock(lock=True)
+        before = _snapshot(item)
+        d = dict(item.details)
+        stock = {k: state("inventory", s["inventory"], lock=True)
+                 for k, s in REFILL_REGULATORS.items()}
+        now_s = d["last_game_time"]
+        try:
+            ledger = d.get("gas_refill")
+            if ledger is None:
+                ledger = initial_refill({
+                    k: (row.quantity or 0.0) * 1000.0 for k, row in stock.items()})
+            ledger = validate_refill(ledger)
+            for k, row in stock.items():
+                if not refill_reconciles(ledger, k, (row.quantity or 0.0) * 1000.0):
+                    raise PhysicsError("Refill bank inventory and metering ledger disagree")
+            if verb == "stop":
+                job = ledger["jobs"].get(bank)
+                if job is None or job["cell"] != target:
+                    raise GasRefillError("This regulator is not metering into that cell")
+                ledger = stop_refill(ledger, bank=bank, reason="operator_stop",
+                                     now_s=now_s)
+            else:
+                if (state("equipment", spec["regulator_equipment"]).condition in _BROKEN
+                        or state("equipment", spec["bank_equipment"]).condition
+                        in _BROKEN):
+                    raise PhysicsError("Refill bank or regulator is unserviceable")
+                try:
+                    cell = state("pressure", target)
+                except ShipOperationsError as exc:
+                    raise PhysicsError("No installed pressure cell by that name") from exc
+                cd = cell.details
+                if (cell.quantity is None or "physics_oxygen_kg" not in cd
+                        or not cd.get("gas_volume_m3")):
+                    raise PhysicsError("Pressure cell gas state is unverified")
+                if cd.get("physics_leak_kg_s", 1.0) != 0:
+                    raise PhysicsError(
+                        "Cell is still losing gas; seal and prove the shell first")
+                breach = ((d.get("hull") or {}).get("breaches") or {}).get(target)
+                if breach is not None and breach["phase"] != "restored":
+                    raise PhysicsError(
+                        "Hull breach must be permanently restored before refilling")
+                if target not in _refill_route(bank):
+                    raise PhysicsError(
+                        "No conducting route from this bank; line up the refill valves")
+                setpoint = float(cd.get("scenario_initial_pressure_pa", 101325.0))
+                if refill_deliverable_kg(
+                        mass_kg=cell.quantity, volume_m3=cd["gas_volume_m3"],
+                        temperature_k=cd["temperature_k"], setpoint_pa=setpoint,
+                        bank_kg=refill_bank_remaining_kg(ledger, bank),
+                        seconds=STEP_SECONDS) <= 0:
+                    raise PhysicsError("Cell is at setpoint or the bank is empty")
+                ledger = start_refill(
+                    ledger, bank=bank, cell=target, setpoint_pa=setpoint,
+                    actor=actor.dbref, request_id=request_id, now_s=now_s)
+        except GasRefillError as exc:
+            raise PhysicsError(str(exc)) from exc
+        d["gas_refill"] = ledger
+        item.details = d
+        item.revision += 1
+        item.save(update_fields=["details", "revision"])
 
     elif action == "fault":
         if target not in set(MOTORS) | set(SERVICE_LOADS):
@@ -10859,6 +11089,43 @@ def local_physics_readout(actor, target):
     room = getattr(getattr(location, "db", None), "ox_space_id", None)
     if not room:
         raise PermissionError("Stand at an installed ship compartment")
+    if target == "gas_refill":
+        # Regulator-station gauges: own bank stock, own downstream job only.
+        bank = next((k for k, s in REFILL_REGULATORS.items()
+                     if s["station"] == room), None)
+        if bank is None:
+            raise PermissionError("Refill gauges are at the ENV-FWD/ENV-AFT regulators")
+        _crew_at(actor, room)
+        spec = REFILL_REGULATORS[bank]
+        stock_kg = (state("inventory", spec["inventory"]).quantity or 0.0) * 1000.0
+        ledger = _clock().details.get("gas_refill")
+        job = None
+        last_record = None
+        if ledger is not None:
+            try:
+                ledger = validate_refill(ledger)
+            except GasRefillError as exc:
+                raise PhysicsError(str(exc)) from exc
+            job = ledger["jobs"].get(bank)
+            last_record = next((r for r in reversed(ledger["history"])
+                                if r["bank"] == bank), None)
+        downstream = None
+        if job is not None:
+            cell = state("pressure", job["cell"])
+            v, t = cell.details["gas_volume_m3"], cell.details["temperature_k"]
+            downstream = {"cell": job["cell"], "pressure_pa": round(
+                cell.quantity * R_SPECIFIC_AIR * t / v, 1),
+                "oxygen_mass_fraction": round(
+                    cell.details["physics_oxygen_kg"] / cell.quantity, 5)}
+        return {
+            "regulator": spec["regulator_equipment"], "bank": bank,
+            "bank_remaining_kg": round(stock_kg, 3),
+            "regulator_condition": state(
+                "equipment", spec["regulator_equipment"]).condition,
+            "job": dict(job) if job else None, "downstream": downstream,
+            "last_stop": dict(last_record) if last_record else None,
+            "scope": "fitted regulator gauges; not a ship-wide pressure oracle",
+        }
     if target.startswith("exterior_mobile:"):
         name = target[len("exterior_mobile:"):]
         if name not in ORIGINAL_EXTERIOR_MOBILE:

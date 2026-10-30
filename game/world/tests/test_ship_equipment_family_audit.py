@@ -24,9 +24,9 @@ class CompleteOriginalEquipmentAuditTests(unittest.TestCase):
         report = audit_fitted_equipment(reference())
         self.assertEqual((report["equipment"],report["families"]),(808,91))
         self.assertEqual(report["dispositions"], {
-            "direct_physics": {"equipment": 343, "families": 34},
+            "direct_physics": {"equipment": 349, "families": 37},
             "interface_or_custody": {"equipment": 159, "families": 26},
-            "controlled_hardware": {"equipment": 306, "families": 31},
+            "controlled_hardware": {"equipment": 300, "families": 28},
             "open_interaction": {"equipment": 0, "families": 0},
         })
         self.assertEqual(sum(

@@ -45,6 +45,7 @@ indexed_drum_personnel_carrier indexer_drive linear_drive local_panel machine_to
 main_hab_drive oxygen_generation_skid rotor_drive thermal_plant waste_processor
 water_processor survival_craft_life_support portable_pump portable_fan
 portable_scrubber eva_rail_crawler inspection_robot
+breathable_refill_gas_bank repressurization_regulator repressurization_rotary_union
 """.split())
 
 INTERFACE_OR_CUSTODY = frozenset("""
@@ -59,14 +60,13 @@ vacuum_receiver waste_receiver
 """.split())
 
 CONTROLLED_HARDWARE = frozenset("""
-battery breathable_refill_gas_bank cabin_panel debris_sensor distribution_board
-dust_ionizer emergency_scrubber eva_work_platform field_coils fire_detection_loop
+battery cabin_panel debris_sensor distribution_board dust_ionizer
+emergency_scrubber eva_work_platform field_coils fire_detection_loop
 freight_sled independent_indexer_carrier indexer inert_makeup_mixer
-inert_makeup_regulator local_control_station local_fire_suppression oxygen_bank
-personnel_cart process_water_unit protected_local_system radiator
-repressurization_regulator repressurization_rotary_union rotary_fluid_interface
-rotary_gas_interface rotary_power_interface shore_interface switchboard
-trim_system workshop_rotor
+inert_makeup_regulator local_control_station local_fire_suppression
+oxygen_bank personnel_cart process_water_unit protected_local_system radiator
+rotary_fluid_interface rotary_gas_interface rotary_power_interface
+shore_interface switchboard trim_system workshop_rotor
 """.split())
 
 OPEN_INTERACTION = frozenset()

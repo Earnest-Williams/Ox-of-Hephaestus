@@ -25,11 +25,11 @@ jobs:
           python-version: "3.12"
       - name: Compile full G19 clock and final campaign
         run: |
-          python -m compileall -q game/world/continuous_ship_physics.py game/world/ship_unclassified_spaces.py game/world/ship_unclassified_runtime.py game/world/ship_crew_access.py game/world/tests/test_installed_ship_g19_final_campaign.py
+          python -m compileall -q game/world/continuous_ship_physics.py game/world/ship_unclassified_spaces.py game/world/ship_unclassified_runtime.py game/world/ship_crew_access.py game/world/tests/test_installed_ship_g19_final_campaign.py game/world/ship_gas_refill.py game/world/tests/test_installed_ship_gas_refill.py
       - name: Pure conservation, casualty transport and fault recovery
         working-directory: game
         run: |
-          python -m unittest world.tests.test_ship_unclassified_spaces world.tests.test_ship_casualty_transport world.tests.test_ship_fault_recovery -v
+          python -m unittest world.tests.test_ship_unclassified_spaces world.tests.test_ship_casualty_transport world.tests.test_ship_fault_recovery world.tests.test_ship_gas_refill -v
 
   installed_campaign:
     runs-on: ubuntu-latest
@@ -154,4 +154,5 @@ jobs:
             world.tests.test_installed_ship_cabin_fancoils.InstalledCabinFanCoils.test_live_original_power_and_lt_valves_create_positive_cabin_output \
             world.tests.test_installed_ship_g19_attended_fire_water_recovery.InstalledAttendedFireWaterRecovery.test_real_issued_suit_proves_mist_and_potable_recovery \
             world.tests.test_installed_ship_waste_repair.InstalledWasteAndRepairTests.test_failed_generator_needs_isolation_and_never_restarts_after_repair \
+            world.tests.test_installed_ship_gas_refill \
             --verbosity=2

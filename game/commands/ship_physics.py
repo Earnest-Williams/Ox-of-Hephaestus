@@ -9,7 +9,7 @@ from world.full_ship_operations import ShipOperationsError
 
 
 class CmdOxPhysicsRead(Command):
-    """Local air/plant readings. Usage: oxplantread <air|power|water|wasteport|repairs|hull|freight_service|personnel|crew|eva|damage|helm|cargo|flywheel_service|radiator_service|propulsion_service|propulsion_bay|generator_bay|industrial|cargo_sectors|cargo_portals|shield_trim|cultivation|food|nutrition|instruments|alarms|alarm_bridge|panel:ID|diagnose:ALARM-ID|fault:MACHINE-ID|portable_air:ID|portable_damage:ID|exterior_mobile:ID|rotor-id|equipment-id|isolator-id>"""
+    """Local air/plant readings. Usage: oxplantread <air|power|water|wasteport|repairs|hull|freight_service|personnel|crew|eva|damage|helm|cargo|flywheel_service|radiator_service|propulsion_service|propulsion_bay|generator_bay|industrial|cargo_sectors|cargo_portals|shield_trim|cultivation|food|nutrition|instruments|alarms|alarm_bridge|panel:ID|diagnose:ALARM-ID|fault:MACHINE-ID|portable_air:ID|portable_damage:ID|exterior_mobile:ID|gas_refill|rotor-id|equipment-id|isolator-id>"""
 
     key = "oxplantread"
     locks = "cmd:all()"
@@ -18,7 +18,7 @@ class CmdOxPhysicsRead(Command):
         from world.continuous_ship_physics import local_physics_readout
         name = self.args.strip()
         if not name:
-            self.caller.msg("Usage: oxplantread <air|power|water|wasteport|repairs|hull|freight_service|personnel|crew|eva|damage|helm|cargo|flywheel_service|radiator_service|propulsion_service|propulsion_bay|generator_bay|industrial|cargo_sectors|cargo_portals|shield_trim|cultivation|food|nutrition|instruments|alarms|alarm_bridge|panel:ID|diagnose:ALARM-ID|fault:MACHINE-ID|portable_air:ID|portable_damage:ID|exterior_mobile:ID|rotor-id|equipment-id|isolator-id>")
+            self.caller.msg("Usage: oxplantread <air|power|water|wasteport|repairs|hull|freight_service|personnel|crew|eva|damage|helm|cargo|flywheel_service|radiator_service|propulsion_service|propulsion_bay|generator_bay|industrial|cargo_sectors|cargo_portals|shield_trim|cultivation|food|nutrition|instruments|alarms|alarm_bridge|panel:ID|diagnose:ALARM-ID|fault:MACHINE-ID|portable_air:ID|portable_damage:ID|exterior_mobile:ID|gas_refill|rotor-id|equipment-id|isolator-id>")
             return
         try:
             result = local_physics_readout(self.caller, name)
@@ -31,7 +31,7 @@ class CmdOxPhysicsRead(Command):
 class CmdOxPhysicsOperate(Command):
     """Request receipted local machinery work.
 
-    Usage: oxplant <32hex-request-id> <power|switch|plant|schedule|mist|hatch|service|helm|attitude|rotor|drive|freight|freight_service|ftl|port|water|waste|wasteport|repair|hull|eva|damage|medical|rescue|portable_air|portable_damage|exterior_mobile|flywheel_service|radiator_service|propulsion_service|propulsion_bay|generator_bay|industrial|cargo_sector|shield_trim|cultivation|food|instrument|fault|fabricate|weld> <id> <value>
+    Usage: oxplant <32hex-request-id> <power|switch|plant|schedule|mist|hatch|service|helm|attitude|rotor|drive|freight|freight_service|ftl|port|water|waste|wasteport|repair|hull|eva|damage|medical|rescue|portable_air|portable_damage|exterior_mobile|flywheel_service|radiator_service|propulsion_service|propulsion_bay|generator_bay|industrial|cargo_sector|shield_trim|cultivation|food|instrument|fault|fabricate|weld|cabin_air|rescue_air|gas_refill> <id> <value>
     """
 
     key = "oxplant"
@@ -41,7 +41,7 @@ class CmdOxPhysicsOperate(Command):
         from world.continuous_ship_physics import crew_physical_action
         parts = self.args.strip().split()
         if len(parts) != 4 or not re.fullmatch("[0-9a-f]{32}", parts[0]):
-            self.caller.msg("Usage: oxplant <32hex-id> <power|switch|plant|schedule|mist|hatch|service|helm|attitude|rotor|drive|freight|freight_service|ftl|port|water|waste|wasteport|repair|hull|eva|damage|medical|rescue|portable_air|portable_damage|exterior_mobile|flywheel_service|radiator_service|propulsion_service|propulsion_bay|generator_bay|industrial|cargo_sector|shield_trim|cultivation|food|instrument|fault|fabricate|weld> <id> <value>")
+            self.caller.msg("Usage: oxplant <32hex-id> <power|switch|plant|schedule|mist|hatch|service|helm|attitude|rotor|drive|freight|freight_service|ftl|port|water|waste|wasteport|repair|hull|eva|damage|medical|rescue|portable_air|portable_damage|exterior_mobile|flywheel_service|radiator_service|propulsion_service|propulsion_bay|generator_bay|industrial|cargo_sector|shield_trim|cultivation|food|instrument|fault|fabricate|weld|cabin_air|rescue_air|gas_refill> <id> <value>")
             return
         try:
             result = crew_physical_action(self.caller, *parts)
