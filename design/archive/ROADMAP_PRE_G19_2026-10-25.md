@@ -1,0 +1,327 @@
+# Archived execution roadmap — through 25 October 2026
+
+> Historical G1–G16 and early G18 planning snapshot, preserved verbatim apart from relocated relative links. The G18b "unmerged" language and old experimental trial states are not current. See the [active roadmap](../ROADMAP.md), [status](../STATUS.md) and [G19 acceptance](../ship/G19_ACCEPTANCE_RECORD_2026-10-29.md).
+
+---
+
+# Ox of Hephaestus — execution roadmap after P4e
+
+**Historical planning baseline:** `main` commit `100f4ff6eb5acdcfccb73fba7e2651e80c0cdf9a` (18 October 2026), with 13 focused workflows *at that time*. This roadmap preserves original task history and acceptance intent; it is **not** a live feature inventory. For merged G6–G12, PostgreSQL PRs #82–83 and remaining limitations see [STATUS](../STATUS.md) (21 October 2026). GitHub Issues were disabled when this plan was recorded.
+
+## Active ship-physics work (25 October 2026)
+
+The authoritative ship spatial topology and installed v0.5 register remain
+distinct; G18 continuous physics is merged. G18b ([PR #136](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/136))
+is the current **unmerged** cascading-casualty and conservative local
+recovery gate. Acceptance requires actual world gas/fire/thermal/power
+propagation; finite resource conservation; local request receipts; closing
+a real physical valve rather than a magical hull patch; safe dual-ended
+HAB hatch interlocks; and restart/fuzz tests.
+
+After acceptance: integrate the 42 authored maintenance groups with staged
+parts, tools, skills, permit-to-work and travel; model atmosphere/ECLSS
+consumables; then enable ordinary world traversal only with actual seal,
+suit, pressure, rotor and indexer witnesses. The full 40-character
+operational recovery scenario remains an **acceptance objective**, not an
+accomplished simulated voyage. Qualify for believable fiction/game behavior,
+not NASA approval.
+
+## Invariants
+
+1. Evennia is authoritative for physical world state, time, character identity, permissions, items, skill outcomes, assignments, and consequential action receipts.
+2. The Ox handler owns per-agent beliefs, memories, proposed plans, agendas, inference metadata, checkpoints, and unfinished requests. Never read or write Evennia's DB from the handler.
+3. All AI characters use their own authenticated sessions. Every action is validated in-world. A model proposal is not evidence of a world effect.
+4. Unknown outcomes must be reconciled by the **same** persisted request ID. Never mint a fresh ID to compensate for a lost acknowledgment.
+5. Idle agents require zero model calls. The world progresses through events, coarse game-owned ticks and lazy catch-up; do not optimize for high-fidelity always-running simulation.
+6. Preserve the legacy three-crew integration as a regression, but do not run it alongside the five-crew controller on the same world.
+7. Favor additive migrations with backward-compatible readers; never reset a live character, event history, inventory or checkpoint on bootstrap.
+
+## Release procedure for every implementation PR
+
+- Define authoritative owner, schema, invariants, and anticipated failure modes.
+- Include tests for permitted and refused actions, cross-character scope, duplicate requests, stale state, and interrupted work.
+- Exercise real Evennia DB transactions as well as an independent authenticated handler. Add PostgreSQL checks where concurrent DB writers or row locks matter; SQLite alone cannot certify these guarantees.
+- Run the fast PR gate and then **applicable path-scoped
+  ready-for-review acceptance checks** on the final code commit, including
+  real PostgreSQL contention for journal/lock changes and G8 500-decision
+  acceptance for relevant private-cognition changes. The historic
+  "13 workflows" was an early count, not a fixed matrix. Paid-provider
+  experiments stay manual. MockModel or GOAP results demonstrate bounded
+  integration, not generally capable independent reasoning.
+- Update STATUS.md, ARCHITECTURE.md, guides, and the milestone evidence links in the same PR. No merge if documentation overstates implementation.
+- Merge only after the new acceptance gate is met, the complete required CI is green, and the result has been checked on the merged main branch.
+
+## Phase 0: safety and planning (first PR)
+
+- Preserve baseline SHA and CI evidence; prepare **synthetic** database and handler-checkpoint fixtures for upgrade tests. Never commit live credentials or snapshot secrets.
+- Review historical documentation for stale claims and label archived descriptions as historical.
+- Establish ADRs for event persistence and recovery, split world-owned work orders from private agent agendas, and define migration/rollback policy.
+- User must rotate the previously shared Gemini credential through the provider UI. Do not read or attempt to rotate private account secrets through the repository.
+- GitHub Issues currently disabled: maintain this checklist here; optionally enable Issues later.
+
+## G1: Reliable foundations
+
+### PR 21 — world-owned event ledger and lossless addressed replay
+**Dependency:** Phase 0. **Owner:** Evennia DB; handler tracks recipient cursors.
+
+- Move private `ox_event` records off P-01 into indexed shipwide append-only storage. Use a monotonic global sequence, stable event ID, recipient/sender, kind, game time, correlation ID, schema version, and bounded validated payload.
+- Use authenticated, paginated `oxinbox` cursor semantics; reply with `next_cursor`, `has_more`, and explicit schema version while retaining compatibility with legacy `oxinbox 0` tests.
+- Cursor update and per-agent observation checkpoint must be crash-consistent. Replayed event IDs are harmless. Publish live notifications only after DB commit; replay is authoritative, socket delivery is advisory.
+- Add deterministic legacy Attribute-to-ledger migration; make it idempotent, validated, and reversible until cutover. Event retention must not prune unread entries without an explicit archive/recovery mechanism.
+- **Acceptance:** >2,000 events with >128 addressed to one actor, mixed recipients, cursor paging, disconnect/restart mid-page, no unauthorized leak, no lost/duplicate observations, transactional rollback produces no emitted event, migrated P4e histories preserve order and content.
+
+### PR 22 — common action executor and exact-effect reconciliation
+**Dependency:** PR 21. **Owner:** world for effects/receipts; handler for durable intended work.
+
+- Define typed `ActionIntent`, `ActionReceipt`, `WorkExecution` schemas, indexed unique request IDs and actor/target/operation binding.
+- Persist intent before network submission; atomically transact physical effects and receipt. On unknown, lookup by the **original** ID and do not resubmit as a new request.
+- Generalize to P-01, C-01, A-01 and social obligations (release, radio, handover, answer), distinguishing exactly-once **effects** from at-least-once network delivery.
+- Test contention for a single resource on PostgreSQL, plus SQLite compatibility.
+- **Acceptance:** kill/restart before intent, before send, before commit, after commit/before ACK, after ACK/before checkpoint and between steps; each action is applied at most once, fully attributed, or explicitly unresolved with no unsafe replay.
+
+### Implementation correspondence (18 October 2026)
+
+The roadmap's early provisional PR numbering differed from actual GitHub
+allocations. **Merged PR #22** implements the addressed-event ledger and
+lossless replay; **merged PR #23** implements the common world work receipt
+namespace and authenticated client adapter. **P4h** adds durable handler
+intents for five pump-cycle stages and a multi-process restart test.
+G1's subsequent focused milestones implemented the then-current
+radio, watch, hail and specialist operations (PRs #26–27), while PR #28
+verified the existing shared protocol under real PostgreSQL contention.
+These scoped gates are complete. New or unimplemented gameplay actions
+still require their own authorization, crash recovery and concurrency
+evidence; do not treat G1 as a blanket certification of future systems.
+
+**P4i (merged PR #26):** This G1 implementation
+migrated bridge alarm relay, scheduled engineering offer/accept and
+addressed hail answers to persistent handler intent records with
+actor-bound world receipt reconciliation. The old ordinary character
+commands remain supported. The subsequent G1 milestones covered specialist stages and
+real PostgreSQL resource contention.
+
+**P4j (merged PR #27):** Both specialist departments' newly
+scheduled physical steps now use the global world-work namespace
+and handler-side stage ledger. Old P4e pending IDs retain the
+fixture-specific recovery path; after safe reconciliation the
+remaining steps migrate. Three isolated server tests exercise
+pre-send, post-commit and old-checkpoint recovery. PostgreSQL multi-writer contention was separately verified
+in merged PR #28 for the existing action protocol.
+
+**G1-PG (merged PR #28):** A dedicated PostgreSQL CI job
+races independent world writers and verifies the actual row lock,
+global request ID uniqueness, one-unit resource consumption and
+rollback of world-owned event/receipt records. This does not
+constitute a production-grade Postgres deployment recipe, nor a
+general property proof for every future inventory system.
+
+## G2: Individual autonomy
+
+### G2a implemented (merged PR #29)
+
+Introduce a generic private `AgentAgenda` for each of the five existing
+characters, persist dispositions and future-event reconsideration
+triggers, retain old saved jobs, and dispatch specialist obligations
+by meaningful local priority. Two game-server acceptance cases must
+demonstrate world-triggered reprioritization/interruption and an
+A-01 supply refusal followed by a later resupply observation and safe
+new attempt. The world owns both failed and successful work receipts.
+This slice deliberately precedes deadline escalation, cross-department
+delegation, freeform goal selection, threaded/provider-isolated cognition
+and general autonomous movement.
+
+### PR 23 — persistent agendas and reconsideration
+**Dependency:** PR 22. Persistent private goals, ranked obligations, blockers, due times and accepted/deferred/declined/delegated/escalated/completed states; world-owned `WorkOrder` is distinct from handler-owned `AgentAgenda`. A deferral records its next trigger; no indefinite silent skip. **Acceptance:** priority interruption, later resumption and missing-supply reconsideration survive restarts.
+
+### G2b — nonblocking cognition and local exclusive supervision (merged PR #33)
+
+The original provisional PR 24 is now [actual PR #33](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/33). Detached native Concordia snapshots provide nonblocking, role-scoped inference, bounded global concurrency, model timeouts and quarantine, stale decision rejection, limited hourly inference budgets and safe failure. Hails on independently authenticated crew clients may be scheduled in parallel; the existing real physical duty order is preserved. Both supervisor variants share one POSIX lock file. **Acceptance:** a delayed model does not block another agent's inference or observation; an out-of-date result is never adopted; a competing local supervisor is refused. **Limit:** the local flock epoch is not a world-enforced or distributed fence—multi-host operation needs a later authoritative fencing protocol. [Design and tests](../prototypes/g2-nonblocking-cognition.md).
+
+### G2c — world-owned capability discovery and learned GOAP travel (PRs #35, #36)
+
+The old provisional PR 25 is implemented in two real PRs: [#35](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/35) (merged; 22/22 CI jobs), and [#36](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/36) (merged; full authenticated navigation and live-crew acceptance, all 35 jobs passed). World command `oxcapabilities` advertises only currently traversable **local** exits and currently eligible local fixture actions, with an actor-bound challenge. The handler learns a private map of visited rooms and builds bounded GOAP travel steps exclusively from those observations; it navigates by stock exit commands and verifies arrival from a fresh world response. Locked hatches are excluded and a discovered alternative may be used; physical work still requires separate game-owned authorisation and receipts. Acceptance requires a live authenticated Mess -> Passage -> Engineering walk, denied-hatch safe block, alternate Machine Shop route, and displaced Teo returning to A-01 before work. [Design](../prototypes/g2-navigation.md).
+
+## G3: Cooperative shipboard operations
+
+### G3a / G3b — character epistemics and authoritative inventory (merged PRs #38–39)
+
+[PR #38](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/38) establishes per-character open-world observations, beliefs, explicit unanswered questions and retrospective surprises. [PR #39](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/39) implements physical serialized cartridges, real carriers, actor-local stock evidence, and a bounded supply order with globally typed idempotent request/accept/collect/deliver commands. Two orders cannot consume the same last item. These are narrower than the provisional generalized inventory/order PR 26–27 language. [Epistemics](../prototypes/g3-epistemics.md) · [Inventory](../prototypes/g3-inventory.md).
+
+### G3 epistemic clarification — systemic but actor-hidden unknown unknowns (merged PR #42)
+
+An authoritative world fact can be an **unknown unknown to a particular
+character right now**, without a future revelation or surprise. In a mostly
+closed simulation, a privileged operator may compare the world-owned fact
+with that actor's actual observations, specific questions, beliefs and
+exposure records. This must not enumerate hidden facts in agent memory,
+prompts, action options or character-facing events. A question such as
+"what is behind that moon?" does not itself reveal the specific pirate
+waiting there. [Detailed contract](../prototypes/g3-epistemics.md).
+
+### G3c — real world-receipted Teo/Mara delivery (merged PR #40)
+
+[PR #40](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/40) connects those world contracts to the five-crew supervisor: Teo's world-verified shortage triggers a real request, Mara receives an independently addressed assignment, physically inspects/collects and navigates an actual item, then Teo verifies real delivery and resumes repair. A lost delivery acknowledgment is reconciled with the SAME persisted ID across handler and Evennia restart. **Acceptance passed:** 37/37 jobs across 23 workflows, including final-source world conservation and epistemic provenance checks. This is an opt-in bounded single-order vertical slice, **not** general multi-order coordination. [Design](../prototypes/g3-cooperation.md).
+
+Generalised work orders, deadline escalation, cross-department prioritisation under simultaneously urgent incidents, reservation expiry and use-based skills remain later G3 increments.
+
+### PR 28 — continuous skills and evidence
+**Dependency:** PRs 22, 27. World-owned competency vectors, bounded practice/learning tied to verified consequential receipts, task difficulty, novelty and actual contribution; distinguish skill from role and authorization. **Acceptance:** proficiency changes through real work, not repeated IDs or meaningless repetitions; skilled actors still need permission.
+
+### PR 29 — reusable duty assignments and relief
+**Dependency:** PRs 23, 28. World-owned shift and on-call scheduling, independent review, delegated authority and unfinished-job handoff. **Acceptance:** several watch changes with concurrent work and strict self-review denial.
+
+## G4: Consequential simulation
+
+### PR 30 — causally linked world systems
+**Dependency:** G3. Add modest power/thermal/life-support dependencies, equipment wear, recurring inspections and coarse or deferred catch-up. **Acceptance:** world-generated chain of linked failures, consistent outcomes under stepped vs lazy advancement, idle zero-inference operation.
+
+### PR 31 — player-directed work and grounded dialogue
+**Dependency:** PRs 23, 27, 30. Bounded natural-language interpretation into typed requests, confirmation/refusal, delegated tasks, deadlines and source-grounded answers. **Acceptance:** human requests supply delivery; unauthorized and privacy-invasive commands denied; no prompt can bypass world permissions.
+
+## G5: Observability and operations
+
+### PR 32 — authorized read-only operator diagnostics
+**Dependency:** G2 (may be parallel with G3). Show world facts and independently sourced agent beliefs, event cursors, outstanding intents/receipts, task status, decisions and inference metrics; strict operator-only cognition access. **Acceptance:** trace any delayed/failed job from origin to disposition without reading another agent's private state as an ordinary player.
+
+### PR 33 — adversarial, endurance and hosted-model evaluations
+**Dependency:** G4. Deterministic randomized scenarios, long accelerated game-time soak, failure injection, latency/event loss and ledger growth checks. Opt-in hosted model benchmarks with budgets and recorded prompts; hosted CI is not required. **Acceptance:** no missing world effects, duplication, unauthorized transfer or unbounded agenda growth under defined stress windows.
+
+### PR 34 — supported local runtime, migrations and release
+**Dependency:** G5. One maintained runtime, supervised local process, identity/credential hardening, explicit upgrades/backups/rollback, production config separation, documentation reconciliation and dependency review. Keep network exposure private until independently hardened. **Acceptance:** fresh install, P4e upgrade, restart, restore, clean shutdown and complete regression suite.
+
+## Deferred independently
+
+**P5 browser observatory:** wait for PR 32 versioned permissioned read models; the UI must not become world authority. Ship expansion, economy, propulsion, fabrication and additional crew may resume after **G3**, using capabilities/work orders instead of bespoke new supervisors.
+
+## Gate policy
+
+- **G1:** >128-event offline catch-up and all-action crash reconciliation.
+- **G2:** five crew maintain agendas, choose safe alternatives, travel, defer and reconsider despite delayed models.
+- **G3:** cargo-to-environment delivery and work-order handoff through several watches with use-based competency evidence.
+- **G4:** a world-owned system generates interdependent work without a developer driving each scenario.
+- **G5:** results are observable, reproducible and robust through accelerated-world endurance and controlled restarts.
+
+Unmet gates are blockers, not merely documentation TODOs.
+
+
+## G3e — real uncertainty ahead of ship/skills/personality expansion
+
+G3e-1 merged in PR #47 after 46/46 checks: five individually authenticated
+existing crewmembers receive only ambiguous world-sourced observations of a
+world-secret atmospheric analyzer fault. Lin's preliminary theory may be
+wrong and never becomes world truth. The case is opt-in; not a freeform
+diagnostic model.
+
+G3e-2 merged in PR #48 after 46/46 final-head checks: specialists can raise competing hypotheses,
+run fallible, repeat-safe role-local experiments, independently reconsider
+their positions, and send evidence/provenance to Lin. A revised or retained
+bridge interpretation is explicitly unconfirmed and requires reports from
+more than one department. World-only hidden causes and probe randomness
+must never become an actor-visible affordance or model context.
+[Design and gates](../prototypes/g3e-contradictory-evidence.md).
+The uncertainty-to-reassessment path is now verified. New compartments,
+skills and personalities remain deferred until a deliberate next-stage plan.
+
+## G3e-3 complete — Known unknowns can drive work without disagreement
+
+G3e-3 is merged in PR #51 (50/50 final-head checks). A specialist's
+independently identified unanswered analyzer question can cause one
+world-authorized local experiment after that actor's original firsthand
+report, without needing a dissenting alternative to Lin's theory. Lin can
+make a provisional assessment from cross-department second measurements,
+including after previously deferring; no model receives the world-owned
+latent cause. Old G3e-2 challenge-only behavior remains as an explicit
+control. [Protocol and operation flags](../prototypes/g3e-independent-questions.md).
+[Implementation and three-run comparison](../prototypes/g3e3-independent-questions-results.md).
+
+Next acceptance study, before adding more roles or rooms: vary bounded
+choice-menu ordering and experimental evidence, repeat hosted-model trials,
+and distinguish genuine evidence-seeking from menu-position biases. Probe
+selection is not yet open-ended, and one follow-up per character does not
+support indefinite pursuit of unanswered questions. Diagnose rather than
+paper over the retained wrong theory in the all-elevated case.
+
+## G4 — Character competence and practical progression (19 October 2026)
+
+**Merged and verified:** G3f (#54) introduced the sixth, accountable captain.
+G4a–G4c (#55–#57) established version-two aptitudes/psychology, durable
+per-person 55-skill records and explicit restricted Evennia character/account
+command sets. G4d (#58) moved the captain's technical qualification to a
+world-owned 0–100 skill threshold and retired role-based 0–4 competency
+attributes, then introduced a read-only task comparison. G4e (#59)
+independently persisted theoretical foundations and exact equipment/procedure
+familiarity. G4f (#60) made real successful physical work generate
+replay-resistant, bounded practical skill and technique practice. All
+G4d–G4f final-head workflow matrices passed before merge (27/27, 28/28,
+and 29/29 respectively).
+
+**Verified conceptual-learning gates and remaining acceptance order:**
+
+1. **Verified conceptual learning — G4g and G4h complete.**
+   A qualified instructor, consenting local learner, timed supervised lesson
+   and privately graded transfer exercise can generate bounded theoretical
+   evidence. Identity, activity, source receipt and before/after progression
+   are recorded. [Scope and gates](../prototypes/g4g-verified-conceptual-learning.md).
+   G4h adds a first real-investigation activity: a pre-test forecast, actual
+   local probe/report and evidence-limits/source-independence assessment can
+   earn bounded method knowledge without consulting the hidden cause.
+   [Scope and gates](../prototypes/g4h-investigative-learning.md). G4g and G4h are both merged and verified ([PR #62](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/62), [PR #63](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/63)); G4h's final-head gate passed all 36 applicable workflows. Wider curricula and autonomous study remain subsequent work. Declarations, generic repairs and hearsay earn none.
+2. **Typed, graded task attempts.** Distinguish invalid/refused commands from
+   real attempts that fail, partially succeed, succeed imperfectly or succeed
+   fully. Use individual practical skill, conceptual knowledge, relevant
+   aptitudes, procedure familiarity and current acquired conditions. Keep
+   authority, physical access and interlocks independent from proficiency.
+3. **One reversible physical pilot.** Feature-gate quality resolution on a
+   well-instrumented fixture, preferably P-01 bearing/service work. Preserve
+   the current real-world state machine and receipt semantics as the control.
+   Commit tool wear, parts, elapsed time, terminal readings, physical outcome
+   and character learning within one world transaction. Test failed repairs,
+   retries, interruption and delayed defects before using it more broadly.
+4. **Acquired attribute ledger.** Model fatigue, injury, acclimatisation,
+   practice-dependent habits and environmental penalties as provenance-rich
+   world effects; do not rewrite a person's foundational aptitude each time
+   they are tired. Avoid automatically assigning stereotyped psychological
+   consequences.
+5. **Cognition and staffing consequences.** Permit autonomous scheduling to
+   weigh fallible personal estimates of ability, actual witnessed outcomes,
+   pay/availability, working conditions and incomplete crews. Characters
+   must not receive latent world causes or other people's private skill data.
+6. **Continue Evennia contraction.** Replace only those remaining generic
+   stock mechanisms that conflict with authoritative Ox semantics, such as
+   inventory shortcuts, role-to-skill aliasing or user-modifiable world facts.
+   Keep supported engine authentication, sessions, typeclasses, locks, exits,
+   database transactions and event infrastructure. Every replacement needs
+   migration and actor-local integration tests.
+
+The shadow resolver is **not** a live success/failure roll. Current
+practical experience credit is only from already-authorised and
+already-successful physical work; it does not make general world repairs
+skill-sensitive yet. Conceptual progress has its own assessed activities.
+Character recruitment, full ship economics and an acquired-attribute engine
+remain unimplemented. Conceptual learning has one assessed course and one
+bounded firsthand method reflection; general theoretical training is not
+complete.
+
+## Proposed G16 model policy (not adopted; 23 October 2026)
+
+**Decision is proposed, not activated.** Select Decider 4B Q4_K_M only as the position-balanced G15 three-pass finite-action scorer, with explicit authored character dispositions applied in GOAP operator costs and a separate bounded, seeded and replay-stable personality adjustment to native deliberate-choice scores. A distinct generative model produces dialogue; generated text never chooses or authorizes a consequential world action. Gate all behaviour under `OX_PERSONALITY_CHOICE` (off by default). Require G16 schema, real-margin calibration, replay/ledger, safety invariants, preregistered six-actor native evidence, 6/20/40 scheduler cost, independently evaluated dialogue and position-balanced Qwen-vs-Decider comparison **before** adoption or opt-in supervisor soak. [Full proposed architecture and gates](../prototypes/g16-proposed-personality-action-policy.md).
+
+**G16b preregistration, 24 October 2026:** [paired real-native margin calibration](../prototypes/g16b-native-margin-calibration.md) frozen from the two completed G14 v2 six-actor runs before any G16e holdout. Initial gain 0.10, shift cap 0.21, base temperature 0.33, urgent temperature 0.11. The proposed native-score safety lock of 0.85 engaged in **none** of the G14 cases and is not a certified safety threshold. Production remains opt-in/off; implementation and safety validation are pending.
+
+**G16e/f/g/h experiment status (24 October 2026):** the 936-forward G16e six-actor native trial is still accumulating real results. G16e and G16f experiment harnesses merged, without enabling live personality routing. G16f measured 198 genuine Decider Q4 CPU forwards across actual 6, 20 and 40 Concordia actor cohorts and ~175 *sequential* decisions/hour (25-second production queue deadline remains unproved for bursts); [native results](../prototypes/g16f-native-throughput-results-2026-10-24.md). G16g measured 48 real local Qwen utterances and tokens/latency, without human voice review; [speech results](../prototypes/g16g-local-speech-results-2026-10-24.md). G16h Qwen balanced historical action cases 87/96; matched full Decider/Qwen scoring remains in progress. No scorer/speech choice or production feature activation is adopted by these tests.
+
+**G16c/d merge status (24 October 2026):** personality-weighted GOAP [#116](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/116) and disabled-by-default durable G16c routing [#117](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/117) have been squash-merged and passed all 32/35 final-head checks respectively. The [current STATUS](../STATUS.md) distinguishes these engineering completions from pending G16e native behavioural acceptance, G16f measured Decider throughput, G16g blind speech review and G16h position-balanced Qwen/Decider comparison. Do **not** enable the live supervisor flag on structural CI alone.
+
+**G16h/G16i update (24 October 2026):** [PR #122](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/122) fully merged the clean 24-pair native comparison after all 32 exact-head checks. Correct decisions: Decider Q4 **94/96** versus Qwen3.5-4B Q4 **87/96**, position balanced with both original/reversed caller orders and independently verified genuine source artifacts. Decider's superior binary-case accuracy supports only a *proposed* scorer, not acceptance of the full personality feature. The [G16i queue study PR #123](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/123) uses G16f's true native latency to model deadlines for six/twenty/forty crew, but **is not a genuine concurrent model run or live scheduler patch**. G16e behavioural acceptance, G16g reviewer outcome and forty-world-actor soak remain pending. `OX_PERSONALITY_CHOICE` remains OFF.
+
+**G16e/G16j/G16k recovery and shortcut caveat (24 October 2026):** the original six-actor G16e native trial ended with Iona's timeout; five genuinely completed actor records have passed independent partial auditing (780 native Decider forwards, 12/35 adjusted trait-arm disagreements, 80/80 outer-order invariant choices and 20/20 repeat score pairs). The final 936-forward acceptance remains **unresolved** while [isolated Iona recovery #40094100849](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40094100849) runs. The native safety-lock threshold of 0.85 was triggered **zero** times in the five recovered actor shards; native safety-critical scenes failed closed rather than validating a positive evidence lock. [G16j PR #125](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/125) instruments real scheduling delays and abandoned workers, without changing action selection. [G16k post-hoc adaptive audit](../prototypes/g16k-adaptive-shortcut-evidence.md) found the originally suggested 0.15 initial margin cutoff would preserve raw argmax but alter **3/20** eligible final *personality-adjusted* decisions; do **not** adopt the one-pass shortcut. These experiments have issued no Evennia world commands and do not authorize switching on the personality flag.
+
+**G16e genuine six-actor native result (24 October 2026):** recovered Iona run [#40094100849](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40094100849) completed all 936 original native Decider forward passes with five checksum-pinned archived actors and frozen preregistration. **Preregistered behavioural acceptance PASSED:** 13/42 non-safety personality-adjusted differences (raw 1/42); order 96/96, repeats 24/24, four non-ceiling new scenes. [Permanent six-actor results](../prototypes/g16e-native-six-role-results-2026-10-24.md). Every one of 36 safety-critical native decisions refused and **no high-confidence safety lock was exercised**, so that condition is not an affirmative safety clearance. [G16j telemetry PR #125](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/125) merged after 36/36 checks. Personality routing remains production-disabled pending genuine 40-actor queue/authorization soak and G16g independent blind speech review.
+
+**G16m capacity evidence (24 October 2026):** [verified real GGUF 6/20/40 simultaneous deadline run #40123141056](../prototypes/g16m-native-forty-burst-results-2026-10-24.md) completed with **0/66** character decisions within the existing 25-second scheduler deadline. Identical Q4 weights yielded **36.5–36.7 seconds** for a three-position score on this separate runner, versus approximately **20.55 seconds** per decision in earlier sequential G16f evidence. Exactly three already-running workers were quarantined after their callers expired and 63 queued requests were discarded before inference; no late action or world receipt was adopted. This is a successfully executed experiment but a **failed operational capacity gate**. G16e's six-character personality behavioural acceptance remains passed; live G16 routing stays off until target-host scheduling, safety and real Evennia duty/receipt recovery are independently validated.
+
+**G16o implementation (24 October 2026):** [two-position binary controller and registered per-host measurement](../prototypes/g16o-balanced-binary-capacity.md) removes the three-action-only interface mismatch without inventing a third report/defer choice. Binary policy v2 and two-forward accounting are experimental; existing three-action calibration remains scoped to v1. Three genuine native runner samples are registered, with six sequential decisions followed by actual 6/20/40 simultaneous 25-second queues. A [checked local native sample](../prototypes/g16o-local-binary-results-2026-10-24.md) completed with a 27.024-second binary median and 0/66 on-time burst proposals: the local 25-second operational gate failed. The [three independently verified CI samples](../prototypes/g16o-three-host-native-results-2026-10-24.md) are now complete: 13.804/23.638/39.797-second medians and 6/198 on-time burst proposals, with 66 actual forwards and all late workers contained. All 56 regular code-head checks passed. Target-host capacity/admission, binary behavioural calibration and authenticated forty-person authority/recovery acceptance remain outstanding. Production personality choice stays off.
+
+**G16p capacity correction:** [measured asynchronous admission](../prototypes/g16p-measured-capacity-admission.md) separates queue waiting from native service deadlines, bounds pending actors and reserved quota, forks only fresh evidence at dispatch and holds cancelled/late worker slots until drain. Real-model acceptance requires 40/40 admitted proposals plus safe overload refusal and original-route retry. The old 25-second all-at-once gate remains failed; no production activation is implied.
+
+**G16p native asynchronous acceptance PASS:** [verified forty-actor result](../prototypes/g16p-native-admission-results-2026-10-24.md) served 40/40 admitted decisions in 1,118.287 seconds, refused the extra actor before inference and retried its original request identity. The test made 94 actual forwards without queue expiry or service overrun; maximum observed heartbeat gap was 47.276 ms. This establishes the bounded asynchronous queue contract, while the original 25-second burst gate, live world authority/recovery, binary behavioural calibration and blinded speech requirements retain their separate scope.
