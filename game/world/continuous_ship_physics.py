@@ -4016,6 +4016,11 @@ def _load_cell(row):
         "exposure": d["physics_heat_exposure_s"],
         "damage": d["physics_damage_index"],
     }
+    # Check every raw number BEFORE calculating energy: arithmetic against a
+    # malformed JSON field must not throw an unclassified TypeError.
+    if any(type(x) not in (int, float) or not math.isfinite(x) or x < 0
+           for x in result.values()):
+        raise PhysicsError("Invalid cell gas, heat, or fuel field type")
     result["energy"] = (result["capacity"] + mass * CP_GAS_KJ_KG_K) * result["temperature"]
     if (any(not math.isfinite(x) or x < 0 for x in result.values())
             or result["oxygen"] + result["co2"] + result["smoke"] > mass + 1e-6):

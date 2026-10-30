@@ -484,6 +484,32 @@ class G19PersistedSafetyRegressions(_InstalledFuzzBase):
                 finally:
                     transaction.savepoint_rollback(sid)
 
+    def test_water_and_electrical_schema_corruption_is_refused_transactionally(self):
+        from copy import deepcopy
+        for ledger in ("water", "electrical"):
+            for kind in ("extra", "missing", "wrong_container"):
+                with self.subTest(ledger=ledger, kind=kind):
+                    sid = transaction.savepoint()
+                    try:
+                        clock = _clock(lock=True)
+                        details = deepcopy(clock.details)
+                        if kind == "extra":
+                            details[ledger]["fuzz_extra_field"] = True
+                        elif kind == "missing":
+                            key = ("working_kg" if ledger == "water" else "meter")
+                            del details[ledger][key]
+                        else:
+                            key = ("cumulative" if ledger == "water" else "meter")
+                            details[ledger][key] = "corrupt"
+                        clock.details = details
+                        clock.save(update_fields=["details"])
+                        before = _snapshot()
+                        with self.assertRaises((PhysicsError, ValueError)):
+                            tick_continuous_physics(now_game_time=self.now + 10)
+                        self.assertEqual(_snapshot(), before)
+                    finally:
+                        transaction.savepoint_rollback(sid)
+
     def test_corrupt_rotary_interlocks_and_motion_conditions_fail_closed(self):
         from copy import deepcopy
         from world.ship_motion_machinery import initial_rotors

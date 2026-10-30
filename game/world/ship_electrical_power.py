@@ -65,7 +65,7 @@ def validate_electrical(s):
             or not set(s["flywheels"]) <= set(FLYWHEELS)):
         raise ElectricalError("Unknown installed energy-storage module")
     for name, bank in {**s["banks"], **s["flywheels"]}.items():
-        if set(bank) != {"capacity_kwh", "charge_kwh", "initial_kwh",
+        if not isinstance(bank, dict) or set(bank) != {"capacity_kwh", "charge_kwh", "initial_kwh",
                          "charged_kwh", "discharged_kwh", "max_charge_mw",
                          "max_discharge_mw", "mode"}:
             raise ElectricalError("Unmeasured battery bank fields")
@@ -99,7 +99,7 @@ def validate_electrical(s):
     for target, fault in s["faults"].items():
         if not isinstance(target, str) or not target.startswith("ISO-"):
             raise ElectricalError("Unidentified real overcurrent switch")
-        if set(fault) != {"observed_mw", "rating_mw", "overload_s", "latched"}:
+        if not isinstance(fault, dict) or set(fault) != {"observed_mw", "rating_mw", "overload_s", "latched"}:
             raise ElectricalError("Unmeasured breaker protection")
         for k in ("observed_mw", "rating_mw", "overload_s"):
             number(fault[k], positive=k == "rating_mw")
@@ -115,7 +115,7 @@ def validate_electrical(s):
             raise ElectricalError("Invalid bounded synchronization window")
         if not isinstance(s["sync"]["source_signature"], list):
             raise ElectricalError("Invalid synchronisation witness")
-    if set(s["meter"]) != {
+    if not isinstance(s["meter"], dict) or set(s["meter"]) != {
             "generation_kwh", "shore_import_kwh", "served_kwh",
             "unserved_kwh", "battery_discharge_kwh", "battery_charge_kwh",
             "flywheel_discharge_kwh", "flywheel_charge_kwh"}:
