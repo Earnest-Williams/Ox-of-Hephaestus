@@ -60,7 +60,10 @@ class CanonicalShipWorldTests(EvenniaTestCase):
         self.assertEqual(forward.destination, room_b)
         self.assertEqual(reverse.location, room_b)
         self.assertEqual(reverse.destination, room_a)
-        self.assertEqual(forward.db.ox_integration_state, "developer_topology_only")
+        # G19: exits are open to every character, and the world-owned gate in
+        # CanonicalShipAccess.at_traverse makes the movement decision.
+        self.assertEqual(forward.db.ox_integration_state, "live_world_gated")
+        self.assertTrue(forward.access(forward, "traverse"))
         self.assertEqual(built["created_spaces"], 2)
         self.assertEqual(built["created_accesses"], 2)
 
