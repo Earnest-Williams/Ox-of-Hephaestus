@@ -1,0 +1,55 @@
+name: Ox G19 all-six-drum attended damage-control repair
+on:
+  push:
+    branches: [g19-complete-ship-systems]
+    paths:
+      - "game/world/tests/test_installed_ship_g19_cross_drum_repair.py"
+      - "game/world/ship_unclassified_spaces.py"
+      - "game/world/ship_unclassified_runtime.py"
+      - "game/world/continuous_ship_physics.py"
+      - "game/world/ship_equipment_repair.py"
+      - "game/world/ship_crew_access.py"
+      - ".github/workflows/ox-g19-cross-drum-repair.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ox-g19-cross-drum-repair-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  installed_drum_patch:
+    name: "Original cargo drum ${{ matrix.drum }} shell repair"
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        drum: ["01", "02", "03", "04", "05", "06"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install Evennia and compile installed ship test
+        run: |
+          python -m pip install .
+          python -m compileall -q game/world/tests/test_installed_ship_g19_cross_drum_repair.py
+      - name: Create isolated canonical ship test database
+        working-directory: game
+        env:
+          EVENNIA_SUPERUSER_USERNAME: OxCI
+          EVENNIA_SUPERUSER_EMAIL: oxci@example.invalid
+        run: |
+          export EVENNIA_SUPERUSER_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+          evennia migrate --noinput
+      - name: Verify suited physical patch and coupled damage invariants
+        working-directory: game
+        run: |
+          python -m world.test_runner \
+            world.tests.test_installed_ship_g19_cross_drum_repair.InstalledCrossDrumCasualtyRepair.test_dr${{ matrix.drum }}_minor_shell_patch_with_shipwide_casualties \
+            --verbosity=2

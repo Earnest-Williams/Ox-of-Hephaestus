@@ -1,0 +1,57 @@
+name: Ox G19 seeded sustained multi-system endurance
+on:
+  push:
+    branches: [g19-complete-ship-systems]
+    paths:
+      - "game/world/**"
+      - ".github/workflows/ox-g19-seeded-endurance.yml"
+      - "!**/*.md"
+  workflow_dispatch:
+permissions:
+  contents: read
+
+concurrency:
+  group: ox-g19-seeded-endurance-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  original_installed_ship_seed:
+    name: "Installed sustained casualty ${{ matrix.case }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        case:
+          - test_seed_19a0
+          - test_seed_19a1
+          - test_seed_19a3
+          - test_seed_19a6
+          - test_seed_19a7
+          - test_seed_19c3
+          - test_seed_19d4_long
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install original Evennia and Ox world
+        run: |
+          python -m pip install .
+          python -m compileall -q game/world/tests/test_installed_ship_g19_seeded_endurance.py
+      - name: Provision independent original installed test world
+        working-directory: game
+        env:
+          EVENNIA_SUPERUSER_USERNAME: OxCI
+          EVENNIA_SUPERUSER_EMAIL: oxci@example.invalid
+        run: |
+          export EVENNIA_SUPERUSER_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+          evennia migrate --noinput
+      - name: Exercise and verify seeded multi-system casualty sequence
+        working-directory: game
+        run: |
+          python -m world.test_runner \
+            world.tests.test_installed_ship_g19_seeded_endurance.InstalledG19SeededEndurance.${{ matrix.case }} \
+            --verbosity=2

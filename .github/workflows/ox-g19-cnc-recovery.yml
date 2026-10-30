@@ -1,0 +1,50 @@
+name: Ox G19 CNC mill recovery focused acceptance
+on:
+  push:
+    branches: [g19-complete-ship-systems]
+    paths:
+      - "game/world/continuous_ship_physics.py"
+      - "game/world/ship_fault_recovery.py"
+      - "game/world/ship_workshop_dynamics.py"
+      - "game/world/tests/test_ship_workshop_dynamics.py"
+      - "game/world/ship_equipment_services.py"
+      - "game/world/tests/test_installed_ship_instrumentation.py"
+      - ".github/workflows/ox-g19-cnc-recovery.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ox-g19-cnc-focused-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  single-mill-restart:
+    name: Installed CNC mill finite repair and restarted output
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Check Python sources
+        run: |
+          python -m compileall -q game/world/ship_workshop_dynamics.py game/world/tests/test_ship_workshop_dynamics.py game/world/continuous_ship_physics.py game/world/ship_fault_recovery.py game/world/ship_equipment_services.py game/world/tests/test_installed_ship_instrumentation.py
+      - name: Run all physical workshop gauge tests
+        working-directory: game
+        run: python -m unittest world.tests.test_ship_workshop_dynamics -v
+      - name: Install ship / Evennia runtime
+        run: python -m pip install .
+      - name: Initialize independent canonical ship test DB
+        working-directory: game
+        env:
+          EVENNIA_SUPERUSER_USERNAME: OxCI
+          EVENNIA_SUPERUSER_EMAIL: oxci@example.invalid
+        run: |
+          export EVENNIA_SUPERUSER_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+          evennia migrate --noinput
+      - name: Execute complete physical CNC mill repair and restart
+        working-directory: game
+        run: |
+          python -m world.test_runner world.tests.test_installed_ship_instrumentation.InstalledInstrumentationTests.test_actual_shop_failure_requires_finite_repair_and_measured_restart world.tests.test_installed_ship_instrumentation.InstalledInstrumentationTests.test_live_cnc_repair_and_restart_survives_compound_ship_casualties world.tests.test_installed_ship_instrumentation.InstalledInstrumentationTests.test_cnc_spindle_coasts_after_power_off_and_blocks_hands_on_isolation world.tests.test_installed_ship_instrumentation.InstalledInstrumentationTests.test_legacy_work_order_cannot_service_coasting_mill_or_reclose_feeder --verbosity=2

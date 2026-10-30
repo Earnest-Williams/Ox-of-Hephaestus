@@ -2,7 +2,7 @@
 
 **An autonomous spaceship MUD/simulation prototype built on [Evennia](https://www.evennia.com/).**
 
-**Full-ship integration stage one:** the canonical 421-room v0.4 spatial topology is materialised in Evennia with Developer-only exits and a read-only authenticated wire terminal. The seven-compartment proving ground remains the runtime for crew operations until the real ship's access, equipment, pressure and maintenance mechanics migrate.
+**Full-ship integration (G19, [PR #138](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/138)):** the canonical 421-room / 517-link topology and all 808 v0.5 equipment units run under one persistent Evennia physics clock. Characters traverse authored exits through world-owned pressure, interlock, suit and transfer gates, and operate machinery through receipted local commands. The autonomous Concordia/GOAP crew still runs on the seven-compartment proving ground; migrating it to the full ship is the next stage. See the [G19 acceptance record](design/ship/G19_ACCEPTANCE_RECORD_2026-10-29.md) for verified scope and open items.
 
 > **Current state — 22 October 2026 (through authenticated 40-character recovery PR #97).**
 > The primary proving-ground ship has seven compartments, three physical
@@ -42,7 +42,7 @@ equipment, authorize itself, invent evidence or settle a case.
 
 | Area | Verified capability |
 | --- | --- |
-| Ship | Canonical 421-room/517-link v0.4 spatial topology with Developer-only traversal; separate seven-room operational proving ground with coolant pump P-01, cargo grid C-01 and atmospheric scrubber A-01 |
+| Ship | Canonical 421-room/517-link topology with gated crew traversal and 808 v0.5 equipment units under one physics clock (G19): finite power, gas, water, waste, heat, fire, cargo, propulsion, repair and crew exposure. Separate seven-room proving ground with coolant pump P-01, cargo grid C-01 and atmospheric scrubber A-01 still hosts the autonomous crew |
 | Crew | Lin, Ari, Iona, Mara and Teo have separate character identities, authenticated sessions, native Concordia state and private observations; the sixth captain is opt-in |
 | Responsibilities | World-owned roster, inspection and safety gates, specialist work, addressed hails, watch changes and captain-owned open obligations with assignment/review |
 | Decisions | Event-driven external supervisor; bounded Concordia choices; model-free GOAP for familiar procedures and locally discovered travel; optional independent maintenance rounds and uncertain investigations |
@@ -110,7 +110,7 @@ and captain-obligation contention. G11's opt-in hosted-model harness and
 G12's native dispatch profiler answer **different** questions from this
 integration testing. See [status and limits](design/STATUS.md).
 
-P5 (joined handler/world observatory) is postponed. The [full-ship spatial topology](design/ship/README.md) **is now materialised in Evennia** and has an authenticated Developer-only read-only [wire terminal](design/ship/LIVE_TERMINAL.md). The seven-compartment proving ground still operates the crew and equipment mechanics. Still unimplemented are full-ship operational mechanics,
+P5 (joined handler/world observatory) is postponed. The [full ship](design/ship/README.md) **is materialised in Evennia** with G19 operational mechanics and an authenticated Developer-only read-only [wire terminal](design/ship/LIVE_TERMINAL.md). The seven-compartment proving ground still hosts the autonomous crew. Still unimplemented are autonomous crew operation of the full ship,
 freight trading/economics, graded real physical task attempts,
 an acquired-attribute engine, autonomous education agendas and comprehensive
 production operations. See [status](design/STATUS.md) and

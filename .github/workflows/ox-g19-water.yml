@@ -1,0 +1,97 @@
+name: Ox G19 water/waste full-ship subsystem
+
+on:
+  push:
+    branches: [g19-complete-ship-systems]
+    paths:
+      - "game/world/ship_water_recycling.py"
+      - "game/world/ship_water_materials.py"
+      - "game/world/continuous_ship_physics.py"
+      - "game/world/tests/test_ship_water_recycling.py"
+      - "game/world/tests/test_ship_water_materials.py"
+      - "game/world/tests/test_ship_water_fuzz.py"
+      - "game/world/tests/test_installed_ship_water_recycling.py"
+      - ".github/workflows/ox-g19-water.yml"
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - "game/world/ship_water_recycling.py"
+      - "game/world/ship_water_materials.py"
+      - "game/world/continuous_ship_physics.py"
+      - "game/world/tests/test_ship_water_recycling.py"
+      - "game/world/tests/test_ship_water_materials.py"
+      - "game/world/tests/test_ship_water_fuzz.py"
+      - "game/world/tests/test_installed_ship_water_recycling.py"
+      - ".github/workflows/ox-g19-water.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ox-g19-water-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  water:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Compile and inspect the exact installed design
+        run: |
+          python -m compileall -q game/world/ship_water_recycling.py game/world/ship_water_materials.py game/world/continuous_ship_physics.py game/world/tests/test_ship_water_recycling.py game/world/tests/test_ship_water_materials.py game/world/tests/test_ship_water_fuzz.py game/world/tests/test_installed_ship_water_recycling.py
+          python design/ship/check_waste_byproducts.py > /dev/null
+          python design/ship/check_physical_operations.py > /dev/null
+      - name: Run 730-day pure-water mass and failure campaign
+        working-directory: game
+        run: python -m unittest world.tests.test_ship_water_recycling world.tests.test_ship_water_materials world.tests.test_ship_water_fuzz -v
+      - name: Install real Evennia
+        run: python -m pip install .
+      - name: Provision disposable installed-world database
+        working-directory: game
+        env:
+          EVENNIA_SUPERUSER_USERNAME: OxCI
+          EVENNIA_SUPERUSER_EMAIL: oxci@example.invalid
+        run: |
+          export EVENNIA_SUPERUSER_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+          evennia migrate --noinput
+      - name: Run real installed G19 water, rotating interfaces and local custody
+        working-directory: game
+        run: |
+          python -m world.test_runner world.tests.test_installed_ship_water_recycling --verbosity=2
+
+  coupled-regression:
+    name: Existing G18 fire, gas, thermal and damage compatibility
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install real Evennia and compile shared physics
+        run: |
+          python -m pip install .
+          python -m compileall -q game/world/continuous_ship_physics.py game/world/full_ship_operations.py
+      - name: Provision disposable installed-world database
+        working-directory: game
+        env:
+          EVENNIA_SUPERUSER_USERNAME: OxCI
+          EVENNIA_SUPERUSER_EMAIL: oxci@example.invalid
+        run: |
+          export EVENNIA_SUPERUSER_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+          evennia migrate --noinput
+      - name: Regress G18 atmosphere, thermal, fire, isolation and persistent casualty
+        working-directory: game
+        run: |
+          python -m world.test_runner world.tests.test_continuous_ship_physics world.tests.test_coupled_casualty --verbosity=2

@@ -1,0 +1,74 @@
+name: G19 waste/repair physical-site probe
+on:
+  push:
+    branches: [g19-complete-ship-systems]
+    paths: [".github/workflows/ox-g19-site-probe.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  map:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show selected installed candidate sites and accesses
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          m=json.loads(Path('design/ship/ox_full_ship_v0.5_candidate.json').read_text())
+          print('REPAIR-ZONES')
+          for x in m['spaces']:
+              if x['id'] in ('GEN-B-ROOM','GEN-M-ROOM','HAB-06-ECLSS-A','TRUNK-A-AFT','STORE-FLUID-AFT'):
+                  print(x['id'],x.get('pressure_zone'),x.get('frame'),x.get('environment'))
+          for x in m['isolation_points']:
+              if x['id'] in ('ISO-GEN-B','ISO-GEN-M'):
+                  print('breaker',x['id'],x.get('normal_state'),x.get('current_state'),x.get('kind'))
+          print('WASTE-EQUIPMENT')
+          for x in m['equipment']:
+              if any(y in x['id'] for y in ('WASTE-RESIDUE-HOLD','IND-SCRAP-HOLD','HAZ-ISO-HOLD','RADIAL-FREIGHT-HANDLER','FREIGHT-COLLAR','LCS-PROP','GEN-B','WATER-PROC')):
+                  print(x['id'],x['space_id'],x.get('attributes',{}))
+          print('WASTE-STOCKS')
+          for x in m['inventories']:
+              if any(y in x['id'] for y in ('SPARES','SCRAP','WASTE-RESIDUE','HAZARDOUS')):
+                  print(x['id'],x.get('location_ids'),x.get('location_allocations_t'))
+          print('GENERATOR ACCESS')
+          for x in m['access_links']:
+              if x.get('from') in ('GEN-M-ROOM','GEN-A-ROOM','GEN-B-ROOM') or x.get('to') in ('GEN-M-ROOM','GEN-A-ROOM','GEN-B-ROOM'):
+                  print(x['id'],x.get('from'),x.get('to'),x.get('kind'),x.get('normal_state'),x.get('pressure_boundary'))
+          print('SELECTED-ACCESS')
+          for x in m['access_links']:
+              if any(y in x['id'] for y in ('FREIGHT-CAPTURE','DR-01-P1','DR-02-P1')) or any(y in (x.get('from'),x.get('to')) for y in ('STORE-FLUID-AFT','SPARES-CENTRAL','CARGO-CTRL-FWD','DR-01-FREIGHT-LOCK','DR-01-SERVICE-LOCK')):
+                  print(x['id'],x.get('from'),x.get('to'),x.get('kind'),x.get('pressure_boundary'))
+          print('ROOMS')
+          for x in m['spaces']:
+              if x['id'] in ('STORE-FLUID-AFT','SPARES-CENTRAL','CARGO-CTRL-FWD','DR-01-FREIGHT-LOCK','DR-01-SERVICE-LOCK'):
+                  print(x['id'],x.get('pressure_zone'),x.get('frame'))
+          print('WASTE-ROUTES')
+          from collections import deque, defaultdict
+          by_room={x['id']:x for x in m['spaces']}
+          neighbors=defaultdict(list)
+          for x in m['access_links']:
+              if any(y in x['kind'].lower() for y in ('eva','external','cargo_portal_inner','indexed_freight_transfer')):
+                  continue
+              for a,b in ((x['from'],x['to']),(x['to'],x['from'])):
+                  neighbors[a].append((b,x['id']))
+          for receiver in ('STORE-FLUID-AFT','SPARES-CENTRAL','MATERIAL-STOCK','PARTS-WASH','STORE-CRIT-SPARES'):
+              dest='DR-01-FREIGHT-LOCK'
+              queue=deque([(receiver,[])])
+              seen={receiver}
+              found=None
+              while queue:
+                  room,path=queue.popleft()
+                  if room==dest:
+                      found=path; break
+                  for to,link in sorted(neighbors[room]):
+                      if to not in seen and len(path)<65:
+                          seen.add(to); queue.append((to,path+[(link,to)]))
+              print(receiver,'path',found,'visited',len(seen))
+          print('STOCK-FIELDS')
+          for x in m['inventories']:
+              if x['id'] in ('INV-SPARES','INV-WASTE-RESIDUE','INV-HAZARDOUS-RESIDUE','INV-INDUSTRIAL-SCRAP'):
+                  print(x)
+          PY

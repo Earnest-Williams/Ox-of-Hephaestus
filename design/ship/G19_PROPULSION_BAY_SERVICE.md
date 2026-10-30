@@ -1,0 +1,65 @@
+# G19 — original PROP-SVC rated service hatch, measured gas and real LCS-PROP recovery
+
+**Status:** The original rated hatch, source-gas conservation and controller-repair-to-thrust slice passed its two-job pure/installed Evennia acceptance at [run #40787989192](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40787989192). Subsequent low-suit-oxygen safe-retreat coverage is implemented and has a separate pending same-head installed gate. This is a *functionally realistic fictional freighter* and is not a claim of qualified pressure-vessel engineering. No 40-crew voyage is included. The entire G19 integration remains in draft PR #138.
+
+## As-fitted physical boundary (v0.5)
+
+The original `PROP-SVC` propulsion service compartment occupies a 48 m × 7 m × 3.8 m rectangular gross envelope (1276.8 m³). Its original `pressure_zone` is **null/unclassified**, not `VACUUM` and not automatically breathable. Do **not** turn it into one of the already commissioned 133 canonical rated pressure cells or infer that a worker in a suit may open its hatch directly. It remains isolated from the 133-cell main ship register.
+
+There is an existing, original, **rated** `ACC-PROP-SVC` service door from `TRUNK-B-AFT` (the real `PZ-TRUNK-B-AFT` pressure cell) into `PROP-SVC`, with the historical requirement that pressure, composition and differential be measured/equalised **before opening**. The separate original industrial freight access `ACC-LOGI-AFT-PROP-SVC` must remain closed and sound. The actual local service-room panel is `LP-PROP-SVC`, its original non-remotely-operated breaker `ISO-LP-PROP-SVC`, and the machine to diagnose/repair is **`LCS-PROP` physically inside `PROP-SVC`**. Neither `LCS-PROP` nor the bay is secretly moved to the safe `PROP-CTRL` console.
+
+## Original unclassified gas, independent containment and transfer
+
+`commission_g19_propulsion_bay(operator_approved=True)` validates that the original rooms, two separate doors, machinery and local breaker are really present in the installed Evennia world. It is idempotent, and requires previously commissioned physical electrical isolation, finite repairs and actual EVA suits. It does **not** create any gas, airlock or new compartment.
+
+`survey_g19_propulsion_bay` is a **positive operator-observed as-found** measurement of previously unclassified gas in the sealed original service compartment. It requires the original service and freight boundaries to be sound and closed, and records a measured **free gas volume** between 400 m³ and its original gross-envelope upper limit of 1276.8 m³; pressure, gas temperature, oxygen, CO₂ and smoke. It converts the observed initial charge to **finite mass** by the local gas law and records it as `initial_survey_kg`, a *previously unaccounted original sealed compartment charge*. No existing 133-cell main-atmosphere mass is debited or fabricated by this one-time classification. Later surveys can update the sample timestamp **only if they agree with the already conserved gas state**; they cannot reset, refill or dilute it.
+
+A local qualified engineer at the **real trunk** may issue `oxplant <uuid> propulsion_bay PROP-SVC bleed:<kg>`, with a closed original rated hatch, separately closed freight shutter, isolated service-room breaker and inhibited main/RCS propulsion. The controller is a **bounded manually metered equalisation tapping on the existing rated hatch**, not an added through-deck port, compressor or new air source. A single tap can transfer at most 20 kg, and **only clean gas from higher-pressure original crew trunk into the lower-pressure service bay**; flow beyond the current true differential is impossible. Real source `PZ-TRUNK-B-AFT` gas mass, oxygen and CO₂ are debited exactly; the unknown compartment gains exactly that mass, and its temperature/composition mix by a bounded gas balance. Contaminated bay gas is **not** permitted to backflow into breathable crew space. If the bay pressure is higher, this slice has **no authorised vent/equalisation path**; entry stays blocked pending further physically surveyed engineering.
+
+The ordinary ship gas conservation check and overview now include this **separately surveyed original trapped gas** without reclassifying it as a 134th rated canonical pressure cell. A gas transfer preserves the sum of original 133-cell gas + the surveyed bay charge; no `INV-WATER` or generic 'air' account is misused. After each fuel burn/pressure change, source pressure and gas are rechecked at actual hatch operation. A bay may not be opened if its pressure differs from the source by more than 2 kPa, or if temperature, O₂ partial pressure, CO₂, smoke, leak, fire or local trunk condition is unsafe. **PPE cannot override these pressure/contamination interlocks.**
+
+## Worksite and real crew route
+
+1. At the safe `PROP-CTRL` room, engineering **inhibits MAIN and RCS** through existing local actions; helm must be COAST, attitude HOLD, FTL inactive and main-drive heat below the fitted hot-work threshold. The independent `ISO-LP-PROP-SVC` room feeder must be physically **open** and sound. No concurrent aft nozzle EVA permit is admitted.
+2. The same actual worker must have a **genuine issued, intact finite-oxygen EVA suit** from one of the existing commissioned ship airlocks, plus a `fit` or `impaired` enrolled physiology state. The inherited `ox_suit_verified` Boolean from early generator service is explicitly **insufficient**. A real engineer at `TRUNK-B-AFT` issues `oxplant <uuid> propulsion_bay PROP-SVC secure` after a **fresh** positive gas sample and verified differential. Only one worker can own this original work permit.
+3. That engineer positively opens `ACC-PROP-SVC` with the existing `hatch` action. Its normal local-door preflight is deliberately **not** reused; it is a dedicated original hazardous boundary. An actual `traverse_canonical_exit` via `access:ACC-PROP-SVC:forward` checks the rated hatch, *current live* upstream gas, metered as-found bay gas, issued suit, individual permit and engine inhibitions before moving the Evennia character. A failed movement is not a teleport, and no entry receipt is created until the actual exit succeeds. The engineer then closes the pressure hatch from the real inside endpoint. Opening it while gas or machinery are unsafe remains prohibited.
+4. Inside `PROP-SVC`, the permit holder may personally inspect the true `LCS-PROP` condition and use the **existing finite** `repair equipment:LCS-PROP start` work order, with a previously carried original toolkit and actually surveyed/issued spare parts. The original 600-second timed part replacement is not accelerated by a repair button. Only the suited worker actually present at the real equipment, with its room breaker still physically OPEN, drives inhibited, hatch SHUT and both pressure-side conditions safe may contribute repair time. Any loss of source pressure, engine inhibit, local breaker isolation, suit oxygen or room attendance pauses the repair. Fault-condition and source-parts checks are inherited from the ordinary shared-repair controller.
+5. The same engineer opens the actual rated hatch after safe pressure recheck, traverses the existing reverse exit into `TRUNK-B-AFT`, closes the hatch, and issues `propulsion_bay PROP-SVC release`. Releasing is refused while the hatch is open, an actual person remains in the bay, or a timed bay repair order remains. An active permit blocks propulsion MAIN/RCS release, helm manoeuvring, attitude changes, FTL engage and unsafe service-room breaker closure. An operator may not bypass it by merely changing LCS-PROP's condition.
+6. After the empty, sealed worksite is released, authorised engineers at the separate actual `PROP-CTRL` station may rearm the existing drive and use the already accepted `drive MAIN prove_start/prove_verify` causal witness: **real spent propellant, actual velocity delta, and the live restored local control**. A repaired but still inhibited ship cannot move until that separate authentic operational transition occurs.
+
+## Separate original A/B propulsion power paths
+
+The crew-operated `LP-PROP-CTRL` is an **original B-bus** load: `GEN-B → EDGE-GEN-B → PWR-MSB-B → EDGE-DB-B-AFT → NODE-DB-B-AFT → EDGE-LP-PROP-CTRL → NODE-LP-PROP-CTRL`, with the individually fitted original breakers in each segment. The local `LP-PROP-SVC` machinery panel is separately supplied by **MSB-A** via `EDGE-DB-A-AFT` and `EDGE-LP-PROP-SVC`; the service-room breaker is deliberately opened and held for maintenance. `GEN-M` cannot supply the propulsion control console from MSB-A without a separately authenticated, currently available and synchronised `EDGE-MSB-XTIE` action. The bay's installed-world acceptance uses the actual `GEN-B` path and never treats the standby cross-tie as a live invisible conductor. Emergency drive inhibit remains a hardwired safing command, not a certificate of available local control power.
+
+## Acceptance
+
+- `world.tests.test_ship_propulsion_bay_service`: installed-layout volume bounds, first-survey discovery and no resurvey material reset, 2 kPa hatch differential, 20 kg maximum source bleed, real mass/O₂ conservation, hazardous-gas rejection, crew-owned permits, no double entry and no release with personnel or ongoing repair.
+- `world.tests.test_installed_ship_propulsion_bay`: real 421-room canonical world, existing 133 pressure cells, real authenticated/physiologically enrolled engineer, physical suit issue and oxygen custody, original `ACC-PROP-SVC` forward/reverse movement, failed controller and 3 kg source spare repair, 600-second attended repair, hatch return, signed permit release, verified resumed positive main thrust, and metered full-ship gas conservation.
+- `.github/workflows/ox-g19-propulsion-bay.yml` runs the independent **pure** and **installed Evennia** regression jobs on every relevant branch push, including draft-PR code, and also reruns established live drive proof and aft exterior plume inspection. This specialist slice is accepted only after both jobs pass at an identical code SHA and cross-system pressure and movement tests remain compatible.
+
+## Low-oxygen escape is deliberately different from new admission
+
+A real engineer whose initially issued suit oxygen subsequently falls below
+the service-entry threshold cannot begin or continue hazardous repairs or
+re-enter the propulsion bay. When physically **inside** `PROP-SVC`,
+however, the same still-mobile permit holder may open and traverse the
+**already measured, pressure-matched and sound original rated hatch in
+reverse** into breathable `TRUNK-B-AFT` without an artificial oxygen
+refill. This is *not* an override of pressure, contamination, propulsion
+safing, owner permission, opposite freight hatch or feeder lockout.
+The ordinary crew physiology gate still prohibits self-walking when
+actually incapacitated/critical/dead; such a casualty needs a separate
+rescue procedure. Once outside, the exhausted suit cannot open the
+hatch again to start a new job, and the qualified engineer must close
+the original door before releasing the maintenance permit.
+
+The dedicated installed acceptance now exercises controlled depletion
+of the **genuinely issued** suit, conserves its existing oxygen-consumption
+tally, rejects further inspection, permits a real reverse Evennia
+traversal, forbids immediate re-entry, and retains the original
+gas/hatch safety checks. Its newest run is independent of the already
+accepted earlier entrance/repair baseline.
+
+## Explicit boundary
+
+The fitted hatch's manually metered bleed tapping is the minimum functionality implied by the original requirement for physical pressure equalisation at the **original service door**. Its measured passage rate and effective volume are gameplay parameters; it is **not** a newly invented habitable airlock or a free pump. The existing single rated hatch does not permit entry into a high-pressure contaminated or fully evacuated compartment. That harder scenario requires separate surveyed vent/recovery plumbing, rated transfer arrangements and source gas conservation, and is deliberately not claimed for this slice. New tests target material safety and causality, not real-world pressure equipment certification.

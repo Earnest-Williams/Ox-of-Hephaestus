@@ -1,0 +1,80 @@
+{
+  "schema": "ox.g19.electrical-acceptance/1",
+  "date_utc": "2026-10-27",
+  "feature": "G19 installed electrical power and protection",
+  "pr": 138,
+  "branch": "g19-complete-ship-systems",
+  "acceptance": "bounded_subsystem_accepted",
+  "whole_ship_accepted": false,
+  "merge_authorized": false,
+  "tested_runtime_sha": "c586378e897fe284418456331e860ead50211596",
+  "run_id": 40435001116,
+  "run_url": "https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40435001116",
+  "run_status": "completed",
+  "run_conclusion": "success",
+  "tests": {
+    "pure_power_conservation": {
+      "tests": 22,
+      "passed": 22,
+      "job": "pure"
+    },
+    "installed_evennia_power": {
+      "tests": 16,
+      "passed": 16,
+      "job": "installed"
+    },
+    "g18_fire_air_cooling_casualty": {
+      "tests": 14,
+      "passed": 14,
+      "job": "G18 atmosphere, fire, cooling and crew local-control regressions"
+    },
+    "g19_water_cargo_movement": {
+      "tests": 25,
+      "passed": 25,
+      "job": "G19 water and cargo/movement installed compatibility"
+    },
+    "total": {
+      "tests": 77,
+      "passed": 77,
+      "failed": 0,
+      "jobs": 4,
+      "passed_jobs": 4
+    }
+  },
+  "fitted_topology": {
+    "power_nodes": 438,
+    "power_edges": 450,
+    "power_breakers": 466,
+    "all_nodes_have_potential_route_from_installed_sources": true
+  },
+  "sources": {
+    "generator_cartridge_initial_kg": 125000,
+    "fictional_cartridge_consumption_kg_per_mwh": 2,
+    "common_operational_battery_nominal_mwh": 8,
+    "common_protected_battery_nominal_mwh": 12,
+    "flywheel_modules": 64,
+    "flywheel_nominal_total_mwh": 250,
+    "local_batteries_without_authored_grid_endpoints": 16,
+    "storage_requires_positive_operator_capacity_and_charge_survey": true
+  },
+  "checks": [
+    "finite source output and fuel-to-spent-cartridge custody",
+    "accurate MW-seconds to kWh conversions",
+    "real directed A/B and protected-bus feeder topology and broken-panel isolation",
+    "real switch state, 15-second tie synchronisation, latched overcurrent and physical local reset",
+    "separate operational and protected battery roles; no protected reverse backfeed",
+    "64 independently rated and physically isolated flywheels across two bank buses; no invented parallel supply",
+    "real generator, battery, flywheel and shore source predicates",
+    "actual installed HAB-03 cabin-07 refit fan-coil wiring",
+    "local crew identity, PPE, survey and idempotent world receipts",
+    "bounded ship clock and persistence; G18/G19 compatibility"
+  ],
+  "known_limits": [
+    "16 genuinely fitted local batteries have no independent ship-wide power service endpoint; do not credit global dispatch",
+    "individual fitted fire-pump and LT motor power feeder identities are not enumerated; physical protection evidence remains conditional",
+    "ship-wide load profiles are grouped scenario MW budgets; circuit-level voltage, impedance and ampacity are not fabrication-calibrated",
+    "external berth shore-power mode is tested in the pure kernel; no fully independent docked berth acceptance campaign included",
+    "40-crew voyage and full-ship multi-casualty acceptance expressly excluded; draft PR remains unmerged"
+  ],
+  "doc_path": "design/ship/G19_ELECTRICAL_POWER_AND_RECOVERY.md"
+}

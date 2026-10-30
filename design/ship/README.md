@@ -12,9 +12,9 @@
 
 This directory contains the current **Ox of Hephaestus full-ship physical world model, v0.4**.
 
-The published `ox_full_ship.json` **v0.4 source is now materialised in Evennia** as 421 persistent canonical rooms and 1,034 Developer-only exits for the 517 authored physical connections. The Developer-only authenticated read-only wire terminal presents separately persisted world spatial conditions over the *matching v0.4 drawing*. The seven-compartment proving ground still runs the current crew/equipment operations pending migration.
+The published `ox_full_ship.json` **v0.4 source is materialised in Evennia** as 421 persistent canonical rooms and 1,034 exits for the 517 authored physical connections. Since G19 the exits are open to ordinary characters behind world-owned access gates. The Developer-only authenticated read-only wire terminal presents separately persisted world spatial conditions over the *matching v0.4 drawing*. The autonomous crew still runs on the seven-compartment proving ground.
 
-The separately validated **v0.5 engineering candidate** adds finite resource budgets, all 133 dimensioned pressure cells, emergency and routine gas stores and 808 equipment units, but has **not** been promoted to `ox_full_ship.json` or a regenerated v0.5 renderer. A topology-identical source is *not* a version-compatible wire rendering or proof of implemented equipment and interlocks.
+The separately validated **v0.5 engineering candidate** (topology-identical to v0.4) supplies the operational register: finite resource budgets, all 133 dimensioned pressure cells, gas stores and 808 equipment units, which G19 simulates under the installed physics clock. It has **not** been promoted to `ox_full_ship.json` or a regenerated v0.5 renderer. Per-family evidence tiers are in the [G19 equipment-family audit](G19_EQUIPMENT_FAMILY_CLOSURE_AUDIT.md); verified scope and open items are in the [G19 acceptance record](G19_ACCEPTANCE_RECORD_2026-10-29.md).
 
 ## Current files
 
@@ -24,7 +24,8 @@ The separately validated **v0.5 engineering candidate** adds finite resource bud
 - [`MODEL_GUIDE.md`](MODEL_GUIDE.md) — modelling boundaries and future integration rules.
 - [`FIXED_SPINE_LAYOUT.md`](FIXED_SPINE_LAYOUT.md) — bridge, fixed-spine compartments, transit/logistics, adjustable-gravity Engineering shop and debris protection.
 - [`SURVIVABILITY_AND_MAINTENANCE.md`](SURVIVABILITY_AND_MAINTENANCE.md) — damage control, EVA maintenance, local machinery control and backup life support.
-- [`EVENNIA_INTEGRATION.md`](EVENNIA_INTEGRATION.md) — tested Developer-only v0.4 topology, interlock restrictions and migration sequence.
+- [`EVENNIA_INTEGRATION.md`](EVENNIA_INTEGRATION.md) — installed v0.4 topology, G19 crew traversal gates and migration sequence.
+- [`G19_ACCEPTANCE_RECORD_2026-10-29.md`](G19_ACCEPTANCE_RECORD_2026-10-29.md) — G19 requirement matrix, exact-head test results, open blockers and deferred items.
 - [`LIVE_TERMINAL.md`](LIVE_TERMINAL.md) — privileged read-only spatial console and fail-closed drawing version policy.
 
 ## Scope
@@ -49,7 +50,7 @@ which is not yet enabled.
 
 ## Integration boundary
 
-The stage-one importer validates the v0.4 source then idempotently creates persistent spaces and Developer-only exits without resetting existing room condition or descriptions. It does **not** give general crew permission to traverse doors marked `closed`, `closed_or_auto` or otherwise mechanically/pressure restricted; these states are presently static metadata, not enforced ordinary access. Evennia remains the sole world authority; the handler maintains private cognition and receives only observations it is entitled to receive. Promoting v0.5 later must preserve room identities, deliberately migrate operational state and generate a matched visualization before the console will serve it.
+The importer validates the v0.4 source then idempotently creates persistent spaces and exits without resetting existing room condition or descriptions; on an existing world it re-applies the G19 exit lock and rebuilds if the first exit is not yet `live_world_gated`. Doors marked `closed`, `closed_or_auto` or otherwise mechanically/pressure restricted are enforced at traversal by `world/ship_crew_access.py`, not by static metadata. Evennia remains the sole world authority; the handler maintains private cognition and receives only observations it is entitled to receive. Promoting v0.5 later must preserve room identities, deliberately migrate operational state and generate a matched visualization before the console will serve it.
 
 ### Latest design candidate engineering totals
 

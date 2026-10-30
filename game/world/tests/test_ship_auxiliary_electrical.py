@@ -1,0 +1,578 @@
+"""Pure G19 auxiliary electric fault, energy, and isolation regression."""
+import copy
+import random
+import unittest
+from types import SimpleNamespace as Row
+
+from world.ship_auxiliary_electrical import (
+    LOCAL_LOADS, MOTORS, _specs, auxiliary_ids, initial_local_backup,
+    survey_local_backup, set_local_mode, step_local_backup, motor_power,
+    validate_local_backup, migrate_local_backup, charger_ids,
+    PROTECTED_FIRE_MOTORS, protected_fire_ids, PROTECTED_TRUNK_A,
+    fire_pump_service_ready, allocate_lt_cooling,
+)
+from world.ship_electrical_power import ElectricalError
+
+
+def fitted():
+    spec = _specs()
+    e = {}
+    sw = {}
+    equipment = {}
+    for record in spec.values():
+        row = Row(**record)
+        if row.category == "edge":
+            e[row.source_id] = row
+        if row.category == "isolator":
+            sw[row.source_id] = row
+    for name, (room, consumer, panel, *_rest) in LOCAL_LOADS.items():
+        equipment[name] = Row(space_id=room, condition="serviceable")
+        equipment[consumer] = Row(space_id=room, condition="serviceable")
+    for name, (room, _panel) in MOTORS.items():
+        equipment[name] = Row(space_id=room, condition="serviceable")
+    return e, sw, equipment
+
+
+class AuxiliaryPowerContracts(unittest.TestCase):
+    def test_all_real_harnesses_have_separate_endpoints_and_contacts(self):
+        ids = _specs()
+        self.assertEqual(len(ids), 3 * len(MOTORS) + 6 * len(LOCAL_LOADS) + 2 * len(PROTECTED_FIRE_MOTORS))
+        self.assertEqual(len(LOCAL_LOADS), 16)
+        self.assertEqual(len(MOTORS), 72)
+        self.assertEqual(len(set(ids)), len(ids))
+        self.assertTrue(all(x["source_model"] == "g19-electrical-aux/1"
+                            for x in ids.values()))
+
+    def test_critical_motor_families_are_fused_individually(self):
+        e, sw, equipment = fitted()
+        from collections import Counter
+        families = Counter(
+            "bearing_lube" if "-LUBE-" in name else
+            "drum_indexer" if "-PERSONNEL-INDEXER" in name else
+            "freight_handler" if "-RADIAL-FREIGHT-HANDLER" in name else
+            "eclss" if name.startswith("ECLSS-") else
+            "water" if name.startswith("WATER-PROC-") else
+            "waste" if name.startswith("WASTE-PROC-") else
+            "other"
+            for name in MOTORS)
+        self.assertEqual(families["bearing_lube"], 24)
+        self.assertEqual(families["drum_indexer"], 6)
+        self.assertEqual(families["freight_handler"], 6)
+        self.assertEqual(families["eclss"], 6)
+        self.assertTrue({"WR-DRIVE-A", "WR-DRIVE-B",
+                         "WR-EXTEND-SHOP", "WR-EXTEND-STORES"} <= set(MOTORS))
+        self.assertEqual(sum(name.endswith("-AHU") for name in MOTORS), 8)
+        self.assertEqual(sum(name.startswith("DEHUM-") for name in MOTORS), 4)
+        self.assertEqual(sum(name.startswith("SPINE-AIR-") for name in MOTORS), 2)
+        self.assertTrue({"ECLSS-A-O2-GEN", "ECLSS-B-O2-GEN",
+                         "ECLSS-A-CO2-REGEN", "ECLSS-B-CO2-REGEN"} <= set(MOTORS))
+        self.assertEqual(families["water"], 2)
+        self.assertEqual(families["waste"], 2)
+        for name, (_, panel) in MOTORS.items():
+            self.assertTrue(motor_power(
+                name, nodes={panel}, equipment=equipment, edges=e, switches=sw),
+                name)
+        name = "BE-01-LUBE-N"
+        _, _, breaker = auxiliary_ids(name, motor=True)
+        sw[breaker].setting = "open"
+        panel = MOTORS[name][1]
+        self.assertFalse(motor_power(
+            name, nodes={panel}, equipment=equipment, edges=e, switches=sw))
+        self.assertTrue(motor_power(
+            "BE-01-LUBE-S", nodes={panel},
+            equipment=equipment, edges=e, switches=sw))
+
+    def test_workshop_and_air_handlers_have_independent_real_panel_contacts(self):
+        edges, switches, equipment = fitted()
+        self.assertTrue(motor_power(
+            "WR-DRIVE-A", nodes={"NODE-WR-PWR-IF"},
+            equipment=equipment, edges=edges, switches=switches))
+        self.assertTrue(motor_power(
+            "WR-DRIVE-B", nodes={"NODE-WR-PWR-IF"},
+            equipment=equipment, edges=edges, switches=switches))
+        _, _, switch = auxiliary_ids("WR-DRIVE-A", motor=True)
+        switches[switch].setting = "open"
+        self.assertFalse(motor_power(
+            "WR-DRIVE-A", nodes={"NODE-WR-PWR-IF"},
+            equipment=equipment, edges=edges, switches=switches))
+        self.assertTrue(motor_power(
+            "WR-DRIVE-B", nodes={"NODE-WR-PWR-IF"},
+            equipment=equipment, edges=edges, switches=switches))
+        for name in ("HAB-06-AHU", "HAB-08-AHU",
+                     "ECLSS-A-O2-GEN", "ECLSS-B-CO2-REGEN"):
+            panel = MOTORS[name][1]
+            self.assertTrue(motor_power(
+                name, nodes={panel}, equipment=equipment,
+                edges=edges, switches=switches))
+            self.assertFalse(motor_power(
+                name, nodes=set(), equipment=equipment,
+                edges=edges, switches=switches))
+        self.assertEqual(MOTORS["HAB-06-AHU"][1], "NODE-HAB-06-PDB-B")
+        self.assertEqual(MOTORS["HAB-08-AHU"][1], "NODE-HAB-08-PDB-A")
+        self.assertEqual(MOTORS["ECLSS-A-O2-GEN"][1],
+                         "NODE-HAB-06-ECLSS-A-LP")
+
+    def test_protected_fire_trunk_runs_without_b_main_and_never_parallels(self):
+        e, switches, equipment = fitted()
+        self.assertEqual(len(PROTECTED_FIRE_MOTORS), 2)
+        self.assertEqual(PROTECTED_TRUNK_A[0], "TRUNK-A-AFT")
+        self.assertEqual(PROTECTED_TRUNK_A[-1], "TRUNK-A-BOW")
+        for name in PROTECTED_FIRE_MOTORS:
+            panel = MOTORS[name][1]
+            _, primary_edge, _ = auxiliary_ids(name, motor=True)
+            protected_edge, backup_iso = protected_fire_ids(name)
+            self.assertIn("PWR-AFT", e[protected_edge].reference["route_spaces"])
+            self.assertIn(MOTORS[name][0], e[protected_edge].reference["route_spaces"])
+            self.assertTrue(motor_power(
+                name, nodes={panel}, equipment=equipment,
+                edges=e, switches=switches))
+            e[primary_edge].setting = "standby"
+            e[protected_edge].setting = "available"
+            self.assertTrue(motor_power(
+                name, nodes={"PWR-PROT"}, equipment=equipment,
+                edges=e, switches=switches))
+            self.assertFalse(motor_power(
+                name, nodes={panel}, equipment=equipment,
+                edges=e, switches=switches))
+            switches[backup_iso].setting = "open"
+            self.assertFalse(motor_power(
+                name, nodes={"PWR-PROT"}, equipment=equipment,
+                edges=e, switches=switches))
+            switches[backup_iso].setting = "closed"
+            e[primary_edge].setting = "available"
+            with self.assertRaises(ElectricalError):
+                motor_power(name, nodes={panel, "PWR-PROT"},
+                            equipment=equipment, edges=e, switches=switches)
+            e[protected_edge].setting = "standby"
+            self.assertTrue(motor_power(
+                name, nodes={panel}, equipment=equipment,
+                edges=e, switches=switches))
+
+    def test_fire_pump_selected_source_does_not_borrow_other_bus_capacity(self):
+        edges, switches, equipment = fitted()
+        for pump in PROTECTED_FIRE_MOTORS:
+            with self.subTest(pump=pump):
+                panel = MOTORS[pump][1]
+                _, primary_id, _ = auxiliary_ids(pump, motor=True)
+                alternate_id, alternate_breaker = protected_fire_ids(pump)
+                def serves(nodes, normal, protected):
+                    return fire_pump_service_ready(
+                        pump, nodes=nodes, equipment=equipment,
+                        edges=edges, switches=switches,
+                        normal_assured=normal, protected_assured=protected)
+                # A normal-fed pump remains useful if PWR-PROT is lost.
+                self.assertTrue(serves({panel}, True, False))
+                # PWR-PROT cannot rescue a browned-out *normal* selection.
+                self.assertFalse(serves({panel, "PWR-PROT"}, False, True))
+                self.assertFalse(serves({"PWR-PROT"}, True, True))
+                # Deliberate break-before-make physical source selection.
+                edges[primary_id].setting = "standby"
+                edges[alternate_id].setting = "available"
+                self.assertTrue(serves({"PWR-PROT"}, False, True))
+                self.assertFalse(serves({"PWR-PROT"}, True, False))
+                self.assertFalse(serves({panel}, True, True))
+                switches[alternate_breaker].setting = "open"
+                self.assertFalse(serves({"PWR-PROT"}, False, True))
+                switches[alternate_breaker].setting = "closed"
+                equipment[pump].condition = "failed"
+                self.assertFalse(serves({"PWR-PROT"}, False, True))
+                equipment[pump].condition = "serviceable"
+                edges[primary_id].setting = "available"
+                with self.assertRaises(ElectricalError):
+                    serves({panel, "PWR-PROT"}, True, True)
+                edges[alternate_id].setting = "standby"
+                self.assertTrue(serves({panel}, True, False))
+        with self.assertRaises(ElectricalError):
+            fire_pump_service_ready(
+                "LT-PLANT", nodes=set(), equipment=equipment,
+                edges=edges, switches=switches,
+                normal_assured=True, protected_assured=True)
+
+    def test_lt_cooling_shared_capacity_and_motor_trip_fail_closed(self):
+        for rads in range(5):
+            with self.subTest(radiators=rads):
+                budget = allocate_lt_cooling(
+                    seconds=10, drive_heat_kj=30000,
+                    active_radiators=rads, coolant_connected=True,
+                    plant_running=True, motor_ready=True,
+                    service_assured=True, drive_limit_kw=1800)
+                self.assertAlmostEqual(budget["capacity_kw"], 937.5 * rads)
+                self.assertAlmostEqual(
+                    budget["drive_kw"], min(1800., budget["capacity_kw"]))
+                self.assertAlmostEqual(
+                    budget["drive_kw"] + budget["environment_kw"],
+                    budget["capacity_kw"])
+                self.assertLessEqual(
+                    budget["drive_kw"] * 10, 30000)
+        # A generator running elsewhere cannot reject heat through a
+        # tripped local LT feeder, stopped plant or isolated coolant loop.
+        for broken in ("motor_ready", "plant_running", "coolant_connected",
+                       "service_assured"):
+            inputs = dict(
+                seconds=10, drive_heat_kj=30000,
+                active_radiators=4, coolant_connected=True,
+                plant_running=True, motor_ready=True,
+                service_assured=True, drive_limit_kw=1800)
+            inputs[broken] = False
+            result = allocate_lt_cooling(**inputs)
+            self.assertEqual(result["drive_kw"], 0)
+            self.assertEqual(result["environment_kw"], 0)
+        # Zero stored drive heat makes the entire live budget available
+        # to the ship; an empty thermal store cannot be overcooled.
+        empty = allocate_lt_cooling(
+            seconds=10, drive_heat_kj=0,
+            active_radiators=4, coolant_connected=True,
+            plant_running=True, motor_ready=True,
+            service_assured=True, drive_limit_kw=1800)
+        self.assertEqual(empty["drive_kw"], 0)
+        self.assertEqual(empty["environment_kw"], 3750)
+        for invalid in (
+            dict(seconds=11, drive_heat_kj=5, active_radiators=4),
+            dict(seconds=0, drive_heat_kj=5, active_radiators=4),
+            dict(seconds=10, drive_heat_kj=-1, active_radiators=4),
+            dict(seconds=10, drive_heat_kj=5, active_radiators=5),
+            dict(seconds=10, drive_heat_kj=float("nan"), active_radiators=4),
+        ):
+            with self.assertRaises(ElectricalError):
+                allocate_lt_cooling(
+                    **invalid, coolant_connected=True, plant_running=True,
+                    motor_ready=True, service_assured=True, drive_limit_kw=1800)
+
+    def test_unrated_local_store_cannot_create_electricity(self):
+        e, sw, units = fitted()
+        ledger = initial_local_backup()
+        self.assertEqual(step_local_backup(
+            ledger, 10, nodes=set(), equipment=units,
+            edges=e, switches=sw)["meter"]["delivered_kwh"], 0)
+
+    def test_finite_local_backup_independent_of_main_grid(self):
+        e, sw, units = fitted()
+        name = "BE-01-BAT"
+        ledger = survey_local_backup(initial_local_backup(), name,
+                                     capacity_kwh=0.005, initial_kwh=0.005)
+        ledger = set_local_mode(ledger, name, "reserve")
+        result = step_local_backup(ledger, 10, nodes=set(),
+                                   equipment=units, edges=e, switches=sw)
+        self.assertAlmostEqual(result["meter"]["delivered_kwh"], 1 / 360)
+        self.assertAlmostEqual(result["units"][name]["charge_kwh"], .005 - 1 / 360)
+        after = step_local_backup(result, 10, nodes=set(),
+                                  equipment=units, edges=e, switches=sw)
+        self.assertAlmostEqual(after["units"][name]["charge_kwh"], 0)
+        self.assertGreater(after["meter"]["unserved_kwh"], 0)
+        validate_local_backup(after)
+        self.assertEqual(ledger["units"][name]["charge_kwh"], .005)
+
+    def test_local_grid_available_does_not_debit_battery(self):
+        e, sw, units = fitted()
+        name = "HAB-04-REFUGE-BAT"
+        ledger = set_local_mode(survey_local_backup(
+            initial_local_backup(), name,
+            capacity_kwh=20, initial_kwh=12), name, "reserve")
+        result = step_local_backup(
+            ledger, 10, nodes={"NODE-PWR-HAB-04-REFUGE-AIR"}, equipment=units,
+            edges=e, switches=sw)
+        self.assertEqual(result["meter"]["delivered_kwh"], 0)
+        self.assertEqual(result["units"][name]["charge_kwh"], 12)
+
+    def test_local_reserve_cuts_in_when_connected_bus_is_browned_out(self):
+        edges, switches, equipment = fitted()
+        battery = "HAB-04-REFUGE-BAT"
+        consumer = LOCAL_LOADS[battery][1]
+        live_endpoint = "NODE-PWR-" + consumer
+        bank = survey_local_backup(
+            initial_local_backup(), battery,
+            capacity_kwh=1.0, initial_kwh=0.08)
+        bank = set_local_mode(bank, battery, "reserve")
+        # The actual original appliance's contact is still connected,
+        # but 3.3-MW bus dispatch cannot assure the essential load budget.
+        out = step_local_backup(
+            bank, 10, nodes={live_endpoint}, equipment=equipment,
+            edges=edges, switches=switches, normal_assured=False)
+        self.assertAlmostEqual(
+            out["meter"]["delivered_kwh"], 10 / 360, places=7)
+        self.assertEqual(out["last"]["active_local_consumers"][battery],
+                         consumer)
+        # No needless battery discharge when the very same connected
+        # normal circuit is demonstrably supplying adequate power.
+        good = step_local_backup(
+            bank, 10, nodes={live_endpoint}, equipment=equipment,
+            edges=edges, switches=switches, normal_assured=True)
+        self.assertEqual(good["meter"]["delivered_kwh"], 0)
+        # Local emergency fuse still defeats a brownout takeover.
+        _, _, fuse = auxiliary_ids(battery)
+        switches[fuse].setting = "open"
+        failed = step_local_backup(
+            bank, 10, nodes={live_endpoint}, equipment=equipment,
+            edges=edges, switches=switches, normal_assured=False)
+        self.assertNotIn(battery, failed["last"]["active_local_consumers"])
+        self.assertGreater(failed["meter"]["unserved_kwh"], 0)
+        with self.assertRaises(ElectricalError):
+            step_local_backup(
+                bank, 10, nodes={live_endpoint}, equipment=equipment,
+                edges=edges, switches=switches, normal_assured="unknown")
+
+    def test_refuge_bypasses_failed_primary_appliance_branch_not_entire_panel(self):
+        e, sw, units = fitted()
+        name = "HAB-04-REFUGE-BAT"
+        ledger = set_local_mode(survey_local_backup(
+            initial_local_backup(), name,
+            capacity_kwh=20, initial_kwh=10), name, "reserve")
+        parent = LOCAL_LOADS[name][2]
+        self.assertNotEqual(parent, "NODE-PWR-HAB-04-REFUGE-AIR")
+        battery = step_local_backup(
+            ledger, 10, nodes={parent}, equipment=units,
+            edges=e, switches=sw)
+        self.assertGreater(battery["meter"]["delivered_kwh"], 0)
+        self.assertIn(name, battery["last"]["active_local_consumers"])
+        normal = step_local_backup(
+            ledger, 10, nodes={parent, "NODE-PWR-HAB-04-REFUGE-AIR"},
+            equipment=units, edges=e, switches=sw)
+        self.assertEqual(normal["meter"]["delivered_kwh"], 0)
+
+    def test_fuse_open_and_load_fault_refuse_backup(self):
+        e, sw, units = fitted()
+        name = "IX-A-LOCAL-BAT"
+        ledger = set_local_mode(survey_local_backup(
+            initial_local_backup(), name, capacity_kwh=1,
+            initial_kwh=1), name, "reserve")
+        _, edge, iso = auxiliary_ids(name)
+        sw[iso].setting = "open"
+        denied = step_local_backup(ledger, 10, nodes=set(),
+                                   equipment=units, edges=e, switches=sw)
+        self.assertEqual(denied["meter"]["delivered_kwh"], 0)
+        self.assertGreater(denied["meter"]["unserved_kwh"], 0)
+        sw[iso].setting = "closed"
+        units[LOCAL_LOADS[name][1]].condition = "failed"
+        denied = step_local_backup(ledger, 10, nodes=set(),
+                                   equipment=units, edges=e, switches=sw)
+        self.assertEqual(denied["meter"]["delivered_kwh"], 0)
+
+    def test_finite_charging_requires_live_generator_or_shore_path_and_fuse(self):
+        e, sw, units = fitted()
+        name = "HAB-04-REFUGE-BAT"
+        parent = LOCAL_LOADS[name][2]
+        ledger = set_local_mode(survey_local_backup(
+            initial_local_backup(), name, capacity_kwh=1, initial_kwh=0
+        ), name, "charge")
+        prior = copy.deepcopy(ledger)
+        charged = step_local_backup(
+            ledger, 10, nodes={parent}, producer_nodes={parent},
+            producing_mw=3.0, other_requested_mw=1.35,
+            equipment=units, edges=e, switches=sw)
+        expected = 10 * LOCAL_LOADS[name][4] / 3600.0
+        self.assertAlmostEqual(charged["units"][name]["charge_kwh"], expected)
+        self.assertAlmostEqual(charged["units"][name]["charged_kwh"], expected)
+        self.assertAlmostEqual(charged["meter"]["charged_kwh"], expected)
+        self.assertAlmostEqual(
+            charged["last"]["grid_charge_requested_mw"],
+            LOCAL_LOADS[name][4] / 1000.0)
+        self.assertEqual(prior["units"][name]["charge_kwh"], 0)
+        self.assertEqual(charged["meter"]["delivered_kwh"], 0)
+        charge_edge, breaker = charger_ids(name)
+        sw[breaker].setting = "open"
+        refused = step_local_backup(
+            ledger, 10, nodes={parent}, producer_nodes={parent},
+            producing_mw=3.0, other_requested_mw=1.35,
+            equipment=units, edges=e, switches=sw)
+        self.assertEqual(refused["meter"]["charged_kwh"], 0)
+        sw[breaker].setting = "closed"
+        for parent_sources, supply, load in [
+            (set(), 3., 1.35), ({parent}, 1.35, 1.35),
+            ({parent}, 0., 0.),
+        ]:
+            refused = step_local_backup(
+                ledger, 10, nodes={parent}, producer_nodes=parent_sources,
+                producing_mw=supply, other_requested_mw=load,
+                equipment=units, edges=e, switches=sw)
+            self.assertEqual(refused["meter"]["charged_kwh"], 0)
+        self.assertIn(charge_edge, e)
+
+    def test_charge_then_reserve_reconciles_every_kwh(self):
+        e, sw, units = fitted()
+        name = "IX-A-LOCAL-BAT"
+        parent = LOCAL_LOADS[name][2]
+        ledger = survey_local_backup(
+            initial_local_backup(), name,
+            capacity_kwh=1, initial_kwh=0)
+        ledger = set_local_mode(ledger, name, "charge")
+        ledger = step_local_backup(
+            ledger, 10, nodes={parent}, producer_nodes={parent},
+            producing_mw=3.0, other_requested_mw=1.35,
+            equipment=units, edges=e, switches=sw)
+        gained = ledger["units"][name]["charge_kwh"]
+        ledger = set_local_mode(ledger, name, "reserve")
+        ledger = step_local_backup(
+            ledger, 10, nodes=set(), equipment=units, edges=e, switches=sw)
+        self.assertAlmostEqual(
+            ledger["units"][name]["charge_kwh"] +
+            ledger["units"][name]["delivered_kwh"], gained)
+        self.assertEqual(ledger["meter"]["charged_kwh"], gained)
+        validate_local_backup(ledger)
+
+    def test_nonresetting_v1_local_battery_migration(self):
+        name = "BE-06-BAT"
+        v1 = {
+            "version": 1,
+            "units": {
+                name: {"capacity_kwh": 30., "charge_kwh": 15.,
+                       "initial_kwh": 25., "delivered_kwh": 10.,
+                       "mode": "reserve"},
+            },
+            "meter": {"delivered_kwh": 10., "unserved_kwh": 1.2},
+            "last": {"any_old_readout": "preserved"},
+        }
+        migrated = migrate_local_backup(v1)
+        self.assertEqual(migrated["version"], 2)
+        self.assertEqual(migrated["units"][name]["charge_kwh"], 15)
+        self.assertEqual(migrated["meter"]["charged_kwh"], 0)
+        self.assertEqual(migrated["last"], v1["last"])
+        self.assertEqual(migrate_local_backup(migrated), migrated)
+        with self.assertRaises(ElectricalError):
+            migrate_local_backup(None)
+        bad = copy.deepcopy(v1)
+        bad["units"][name]["charge_kwh"] += 10
+        with self.assertRaises(ElectricalError):
+            migrate_local_backup(bad)
+
+    def test_translation_control_has_real_b_side_feeder_and_local_trip(self):
+        e, sw, units = fitted()
+        name = "FTL-TRANSLATION-FIELD"
+        self.assertEqual(MOTORS[name], ("FTL-SVC", "NODE-LP-FTL-SVC"))
+        panel = MOTORS[name][1]
+        self.assertFalse(motor_power(name, nodes={"PWR-MSB-A"},
+                                     equipment=units, edges=e, switches=sw))
+        self.assertTrue(motor_power(name, nodes={panel},
+                                    equipment=units, edges=e, switches=sw))
+        _, feeder, breaker = auxiliary_ids(name, motor=True)
+        sw[breaker].setting = "open"
+        self.assertFalse(motor_power(name, nodes={panel},
+                                     equipment=units, edges=e, switches=sw))
+        sw[breaker].setting = "closed"
+        e[feeder].condition = "severed"
+        self.assertFalse(motor_power(name, nodes={panel},
+                                     equipment=units, edges=e, switches=sw))
+
+    def test_all_seventy_two_motor_isolations_have_no_silent_crossfeed(self):
+        wires, switches, equipment = fitted()
+        parent_nodes = {panel for room, panel in MOTORS.values()}
+        self.assertEqual(len(MOTORS), 72)
+        for name in sorted(MOTORS):
+            self.assertTrue(motor_power(
+                name, nodes=parent_nodes, equipment=equipment,
+                edges=wires, switches=switches), name)
+        # A complete, deterministic single-fault sweep: an open local
+        # breaker, failed plant and cut conductor may only stop the actual
+        # selected device, never masquerade as a shipwide outage or a
+        # conducting protected crossfeed.
+        for name in sorted(MOTORS):
+            with self.subTest(failed_motor=name):
+                _, wire_id, breaker_id = auxiliary_ids(name, motor=True)
+                switches[breaker_id].setting = "open"
+                self.assertFalse(motor_power(
+                    name, nodes=parent_nodes, equipment=equipment,
+                    edges=wires, switches=switches))
+                others = [other for other in MOTORS if other != name]
+                self.assertTrue(all(motor_power(
+                    other, nodes=parent_nodes, equipment=equipment,
+                    edges=wires, switches=switches) for other in others))
+                switches[breaker_id].setting = "closed"
+                wires[wire_id].condition = "severed"
+                self.assertFalse(motor_power(
+                    name, nodes=parent_nodes, equipment=equipment,
+                    edges=wires, switches=switches))
+                self.assertTrue(all(motor_power(
+                    other, nodes=parent_nodes, equipment=equipment,
+                    edges=wires, switches=switches) for other in others),
+                    "severed local wire affected an unrelated motor: " + name)
+                wires[wire_id].condition = "serviceable"
+                equipment[name].condition = "failed"
+                self.assertFalse(motor_power(
+                    name, nodes=parent_nodes, equipment=equipment,
+                    edges=wires, switches=switches))
+                self.assertTrue(all(motor_power(
+                    other, nodes=parent_nodes, equipment=equipment,
+                    edges=wires, switches=switches) for other in others),
+                    "failed local motor affected an unrelated motor: " + name)
+                equipment[name].condition = "serviceable"
+                self.assertTrue(motor_power(
+                    name, nodes=parent_nodes, equipment=equipment,
+                    edges=wires, switches=switches))
+
+    def test_seeded_local_battery_fault_sequence_conserves_every_unit(self):
+        wires, switches, equipment = fitted()
+        rng = random.Random(19470)
+        ledger = initial_local_backup()
+        for name in sorted(LOCAL_LOADS):
+            ledger = survey_local_backup(
+                ledger, name, capacity_kwh=1.0, initial_kwh=0.25)
+        for tick in range(120):
+            chosen = rng.choice(sorted(LOCAL_LOADS))
+            mode = rng.choice(("standby", "reserve", "charge"))
+            ledger = set_local_mode(ledger, chosen, mode)
+            parent = LOCAL_LOADS[chosen][2]
+            charge_wire, charge_breaker = charger_ids(chosen)
+            _, out_wire, out_breaker = auxiliary_ids(chosen)
+            switches[charge_breaker].setting = (
+                "open" if tick % 7 == 0 else "closed")
+            switches[out_breaker].setting = (
+                "open" if tick % 11 == 0 else "closed")
+            # Surviving real producer panels are not automatically all
+            # connected; credits require the one selected locally.
+            producers = ({parent} if tick % 3 != 0 else set())
+            primary = ({parent} if tick % 2 == 0 else set())
+            supplied = rng.choice((0.0, 0.65, 1.35, 3.0))
+            main_demand = rng.choice((0.0, 0.65, 1.35))
+            previous = ledger["meter"]["charged_kwh"]
+            ledger = step_local_backup(
+                ledger, 10, nodes=primary, producer_nodes=producers,
+                producing_mw=supplied, other_requested_mw=main_demand,
+                equipment=equipment, edges=wires, switches=switches)
+            delta = ledger["meter"]["charged_kwh"] - previous
+            available_kwh = max(0.0, supplied - main_demand) * 10 / 3.6
+            self.assertGreaterEqual(delta, -1e-8)
+            self.assertLessEqual(delta, available_kwh + 1e-8)
+            self.assertAlmostEqual(
+                delta, ledger["last"]["grid_charge_requested_mw"]
+                * 10 / 3.6, places=7)
+            self.assertAlmostEqual(
+                sum(x["initial_kwh"] + x["charged_kwh"]
+                    - x["delivered_kwh"] - x["charge_kwh"]
+                    for x in ledger["units"].values()), 0.0, places=6)
+            validate_local_backup(ledger)
+            # The whole original 16-bank reference remains finite, even
+            # after arbitrarily interleaving discharge and recharge.
+            self.assertLessEqual(
+                sum(x["charge_kwh"] for x in ledger["units"].values()),
+                16.0 + 1e-7)
+
+    def test_motor_feeder_trip_is_individual(self):
+        e, sw, units = fitted()
+        name = "LT-PLANT"
+        _, _, iso = auxiliary_ids(name, motor=True)
+        panel = MOTORS[name][1]
+        self.assertTrue(motor_power(name, nodes={panel},
+                                    equipment=units, edges=e, switches=sw))
+        sw[iso].setting = "open"
+        self.assertFalse(motor_power(name, nodes={panel},
+                                     equipment=units, edges=e, switches=sw))
+        self.assertTrue(motor_power(
+            "FIRE-PUMP-FWD", nodes={MOTORS["FIRE-PUMP-FWD"][1]},
+            equipment=units, edges=e, switches=sw))
+
+    def test_corrupt_meter_and_double_survey_rejected(self):
+        name = "BE-06-BAT"
+        ledger = survey_local_backup(initial_local_backup(), name,
+                                     capacity_kwh=30, initial_kwh=20)
+        with self.assertRaises(ElectricalError):
+            survey_local_backup(ledger, name, capacity_kwh=30, initial_kwh=30)
+        tampered = copy.deepcopy(ledger)
+        tampered["units"][name]["charge_kwh"] += 1
+        with self.assertRaises(ElectricalError):
+            validate_local_backup(tampered)
+        with self.assertRaises(ElectricalError):
+            survey_local_backup(initial_local_backup(), name,
+                                capacity_kwh=1000, initial_kwh=1)
+
+
+if __name__ == "__main__":
+    unittest.main()

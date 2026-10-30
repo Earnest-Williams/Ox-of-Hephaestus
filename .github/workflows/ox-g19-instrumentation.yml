@@ -1,0 +1,247 @@
+name: Ox G19 installed instrumentation and fault-recovery acceptance
+
+on:
+  push:
+    branches: [g19-complete-ship-systems]
+    paths:
+      - "game/world/ship_instrumentation.py"
+      - "game/world/ship_fault_recovery.py"
+      - "game/world/ship_process_outputs.py"
+      - "game/world/ship_water_recycling.py"
+      - "game/world/ship_workshop_dynamics.py"
+      - "game/world/ship_instrumentation_world.py"
+      - "game/world/tests/test_ship_instrumentation.py"
+      - "game/world/tests/test_ship_fault_recovery.py"
+      - "game/world/tests/test_ship_process_outputs.py"
+      - "game/world/tests/test_ship_workshop_dynamics.py"
+      - "game/world/tests/test_installed_ship_instrumentation.py"
+      - "game/world/tests/test_installed_ship_waste_repair.py"
+      - "game/world/continuous_ship_physics.py"
+      - "game/commands/ship_physics.py"
+      - ".github/workflows/ox-g19-instrumentation.yml"
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - "game/world/ship_instrumentation.py"
+      - "game/world/ship_fault_recovery.py"
+      - "game/world/ship_process_outputs.py"
+      - "game/world/ship_water_recycling.py"
+      - "game/world/ship_workshop_dynamics.py"
+      - "game/world/ship_instrumentation_world.py"
+      - "game/world/tests/test_ship_instrumentation.py"
+      - "game/world/tests/test_ship_fault_recovery.py"
+      - "game/world/tests/test_ship_process_outputs.py"
+      - "game/world/tests/test_ship_workshop_dynamics.py"
+      - "game/world/tests/test_installed_ship_instrumentation.py"
+      - "game/world/tests/test_installed_ship_waste_repair.py"
+      - "game/world/continuous_ship_physics.py"
+      - "game/commands/ship_physics.py"
+      - ".github/workflows/ox-g19-instrumentation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ox-g19-instruments-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  pure:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    name: Pure sensor provenance, latching, blackouts and old subsystems
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile installed sensor and physical world integration
+        run: |
+          python -m compileall -q game/world/ship_process_outputs.py game/world/ship_water_recycling.py game/world/tests/test_ship_process_outputs.py game/world/ship_workshop_dynamics.py game/world/tests/test_ship_workshop_dynamics.py game/world/ship_fault_recovery.py game/world/ship_instrumentation.py game/world/ship_instrumentation_world.py game/world/continuous_ship_physics.py game/world/tests/test_ship_instrumentation.py game/world/tests/test_installed_ship_instrumentation.py game/commands/ship_physics.py
+      - name: Run origin, tamper, blackout, alarm and existing machinery pure tests
+        working-directory: game
+        run: |
+          python -m unittest world.tests.test_ship_process_outputs world.tests.test_ship_workshop_dynamics world.tests.test_ship_fault_recovery world.tests.test_ship_instrumentation world.tests.test_ship_electrical_power world.tests.test_ship_equipment_services world.tests.test_ship_equipment_wear world.tests.test_ship_water_recycling world.tests.test_ship_food_logistics world.tests.test_ship_food_cultivation -v
+
+  installed:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    name: Original 116 panels and real Evernia faults and crew responses
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install actual ship and Evennia dependencies
+        run: python -m pip install .
+      - name: Create independent authoritative installed-world test database
+        working-directory: game
+        env:
+          EVENNIA_SUPERUSER_USERNAME: OxCI
+          EVENNIA_SUPERUSER_EMAIL: oxci@example.invalid
+        run: |
+          export EVENNIA_SUPERUSER_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+          evennia migrate --noinput
+      - name: Verify local power, pressure, machine, breaker, relay and no-oracle
+        working-directory: game
+        run: |
+          python -m world.test_runner world.tests.test_installed_ship_instrumentation --verbosity=2
+
+  compatibility:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    name: Existing accepted machinery and damage controls — ${{ matrix.group }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        include:
+          - group: electrical-1
+            cases: >-
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_actual_mooring_shore_power_import_interlocks_and_safe_undock
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_auxiliary_harnesses_installed_once_and_individually_fused
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_cabin_refit_panel_is_not_the_fan_coil_source
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_cargo_and_cultivation_branches_stop_one_service_not_ship_power
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_cargo_thermal_quality_survives_manifest_split_and_restart
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_common_operational_battery_serves_real_b_bus_and_expires
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_damaged_main_switchboard_really_disconnects_downstream_branch
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_eclss_motor_is_independently_shed_without_disabling_main_bus
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_fitted_battery_charging_consumes_real_generator_cartridges
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_ftl_control_requires_real_b_feeder_and_aborts_on_trip
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_full_authored_graph_and_nonresetting_commission
+          - group: electrical-2
+            cases: >-
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_generator_cartridge_magazine_tamper_fails_before_any_energy_tick
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_generator_draws_finite_authored_cartridge_stock_without_losing_ship_mass
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_generator_feeder_failure_browns_out_normal_work
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_generator_trips_do_not_destroy_real_refit_buses
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_inherited_cnc_wear_causes_actual_degradation_and_local_fault
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_local_charger_uses_generator_cartridges_and_never_replays
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_local_refuge_fuse_trip_stops_finite_backup
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_lt_motor_fuse_controls_real_propulsion_heat_sink_and_room_cooling
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_machine_shop_power_loss_latches_attended_restart_and_history
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_meter_advances_once_only_and_persists_exactly
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_motor_overcurrent_trip_is_local_and_resets_only_after_clearance
+          - group: electrical-3
+            cases: >-
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_motor_trip_is_local_not_a_shipwide_blackout
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_nonresetting_electrical_migration_preserves_real_old_meter
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_normal_fire_pump_actual_mist_stops_on_local_motor_fuse
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_one_hab_air_handler_trip_stops_forced_flow_without_isolating_ducts
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_operator_cannot_invent_a_battery_or_unapproved_source
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_power_readout_is_local_and_does_not_oracle_other_rooms
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_preexisting_equipment_faults_survive_service_control_enrolment
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_protected_battery_does_not_create_hidden_msb_backfeed
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_protected_fire_pump_transfer_is_not_a_hidden_main_bus_tie
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_real_breaker_overload_trips_and_requires_reset
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_real_flywheel_bay_works_only_when_surveyed_suited_and_connected
+          - group: electrical-4
+            cases: >-
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_refuge_backup_finite_island_and_replay
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_refuge_battery_runs_finite_actual_co2_capture_with_no_replay
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_refuge_scrubber_media_replacement_debits_actual_local_stock
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_second_stage_equipment_feeders_installed_from_authentic_rooms
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_suited_bearing_battery_requires_real_survey
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_surveyed_cargo_hold_rejects_finite_heat_through_real_lt_valve
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_tie_requires_elapsed_synchronisation_and_live_source
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_unsurveyed_refuge_scrubber_cannot_supply_invisible_co2_sink
+              world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_workshop_rotor_redundant_drive_fuses_do_not_blackout_ship
+          - group: water_recycling
+            cases: >-
+              world.tests.test_installed_ship_water_recycling.InstalledWaterRecyclingTests.test_broken_rotary_waste_interface_cannot_reach_fixed_receiver
+              world.tests.test_installed_ship_water_recycling.InstalledWaterRecyclingTests.test_closed_network_isolation_blocks_real_water_transfer
+              world.tests.test_installed_ship_water_recycling.InstalledWaterRecyclingTests.test_contamination_requires_actual_finite_filtration_and_sample
+              world.tests.test_installed_ship_water_recycling.InstalledWaterRecyclingTests.test_degraded_processor_recovery_really_drops_to_eighty_percent
+              world.tests.test_installed_ship_water_recycling.InstalledWaterRecyclingTests.test_double_treatment_casualty_halts_recovery_not_creating_water
+              world.tests.test_installed_ship_water_recycling.InstalledWaterRecyclingTests.test_essential_power_preserves_drinking_water_but_sheds_recycling
+              world.tests.test_installed_ship_water_recycling.InstalledWaterRecyclingTests.test_hydrogen_byproduct_has_no_unapproved_vacuum_route
+              world.tests.test_installed_ship_water_recycling.InstalledWaterRecyclingTests.test_installed_network_delivers_and_recycles_with_real_receivers
+              world.tests.test_installed_ship_water_recycling.InstalledWaterRecyclingTests.test_local_classified_spares_disposal_requires_survey_and_receipt
+              world.tests.test_installed_ship_water_recycling.InstalledWaterRecyclingTests.test_local_receipt_replay_rejects_remote_and_wrong_roles
+              world.tests.test_installed_ship_water_recycling.InstalledWaterRecyclingTests.test_one_treatment_train_fails_other_carries_domestic_load
+              world.tests.test_installed_ship_water_recycling.InstalledWaterRecyclingTests.test_unsealed_cassette_cannot_collect_sanitary_or_hazardous_waste
+          - group: food
+            cases: >-
+              world.tests.test_installed_ship_food.InstalledFoodTests.test_actual_store_to_galley_to_mess_and_real_crew_meal
+              world.tests.test_installed_ship_food.InstalledFoodTests.test_food_issued_at_one_store_is_not_issued_by_remote_worker
+              world.tests.test_installed_ship_food.InstalledFoodTests.test_galley_cannot_cook_without_real_feeder
+              world.tests.test_installed_ship_food.InstalledFoodTests.test_galley_scraps_reach_original_sealed_sanitary_receiver_once
+              world.tests.test_installed_ship_food.InstalledFoodTests.test_named_helper_can_feed_patient_in_original_cabin_only
+              world.tests.test_installed_ship_food.InstalledFoodTests.test_one_original_inventory_and_no_reset_or_global_remote_oracle
+              world.tests.test_installed_ship_food.InstalledFoodTests.test_original_spares_are_physically_debited_for_crop_nutrients
+              world.tests.test_installed_ship_food.InstalledFoodTests.test_spoilage_debits_live_original_food_inventory
+          - group: crew_physiology
+            cases: >-
+              world.tests.test_installed_ship_crew_physiology.InstalledCrewPhysiologyTests.test_operator_must_enrol_named_real_ship_character
+              world.tests.test_installed_ship_crew_physiology.InstalledCrewPhysiologyTests.test_real_eva_suit_is_one_breathing_source_not_two
+              world.tests.test_installed_ship_crew_physiology.InstalledCrewPhysiologyTests.test_two_named_crew_breathe_real_cell_gas_with_restart_safe_ticks
+              world.tests.test_installed_ship_crew_physiology.InstalledCrewPhysiologyTests.test_unprotected_crew_in_a_real_leaking_lock_becomes_incapacitated
+          - group: movement
+            cases: >-
+              world.tests.test_installed_ship_movement.InstalledMovementTests.test_aft_propulsion_inhibit_is_local_and_recoverable
+              world.tests.test_installed_ship_movement.InstalledMovementTests.test_cargo_survey_and_declared_balance_preserve_ship_mass
+              world.tests.test_installed_ship_movement.InstalledMovementTests.test_crew_rotor_control_is_local_and_receipted
+              world.tests.test_installed_ship_movement.InstalledMovementTests.test_docked_berth_prevents_helm_ftl_and_drum_release
+              world.tests.test_installed_ship_movement.InstalledMovementTests.test_explicit_migration_preserves_motion_and_reconciles_mass
+              world.tests.test_installed_ship_movement.InstalledMovementTests.test_freight_action_requires_local_environmental_proof
+              world.tests.test_installed_ship_movement.InstalledMovementTests.test_ftl_plan_engages_only_with_authorised_bridge_watch
+              world.tests.test_installed_ship_movement.InstalledMovementTests.test_helm_is_not_engine_room_generator_switch
+              world.tests.test_installed_ship_movement.InstalledMovementTests.test_installed_propulsion_controller_casualty_prevents_thrust
+              world.tests.test_installed_ship_movement.InstalledMovementTests.test_mass_commission_matches_authored_departure
+              world.tests.test_installed_ship_movement.InstalledMovementTests.test_nonlocal_rotor_control_denied
+              world.tests.test_installed_ship_movement.InstalledMovementTests.test_propulsion_heat_trips_and_requires_cooled_local_reset
+              world.tests.test_installed_ship_movement.InstalledMovementTests.test_real_port_transfer_reversal_updates_ship_mass_incrementally
+          - group: eva_major
+            cases: >-
+              world.tests.test_installed_ship_eva_major.InstalledEVAMajorDamageTests.test_broken_bulkhead_pauses_containment_and_preserves_leak
+              world.tests.test_installed_ship_eva_major.InstalledEVAMajorDamageTests.test_large_breach_isolation_and_suited_exterior_hull_recovery
+              world.tests.test_installed_ship_eva_major.InstalledEVAMajorDamageTests.test_later_pressure_door_failure_revokes_major_containment
+              world.tests.test_installed_ship_eva_major.InstalledEVAMajorDamageTests.test_real_return_eva_repressurises_from_retained_gas
+              world.tests.test_installed_ship_eva_major.InstalledEVAMajorDamageTests.test_two_fitted_oxygen_and_recovery_ledgers_support_real_eva
+          - group: medical
+            cases: >-
+              world.tests.test_installed_ship_medical.InstalledMedical.test_custody_and_deduplicated_actions
+              world.tests.test_installed_ship_medical.InstalledMedical.test_lost_local_feeder_pauses_work_without_refund
+              world.tests.test_installed_ship_medical.InstalledMedical.test_stabilisation_pauses_when_attendant_leaves
+          - group: hull_restoration
+            cases: >-
+              world.tests.test_installed_ship_hull_restoration.InstalledHullRepairTests.test_active_fire_stops_hull_work_without_refunding_reserved_parts
+              world.tests.test_installed_ship_hull_restoration.InstalledHullRepairTests.test_large_leak_needs_suited_access_and_does_not_issue_parts
+              world.tests.test_installed_ship_hull_restoration.InstalledHullRepairTests.test_no_remote_repair_and_work_pauses_if_worker_leaves
+              world.tests.test_installed_ship_hull_restoration.InstalledHullRepairTests.test_operator_cannot_relabel_existing_leak_or_reset_registered_breach
+              world.tests.test_installed_ship_hull_restoration.InstalledHullRepairTests.test_real_timed_patch_permanent_restore_and_material_custody
+          - group: waste_repair
+            cases: >-
+              world.tests.test_installed_ship_waste_repair.InstalledWasteAndRepairTests.test_crew_carried_spares_repair_failed_water_processor_after_real_work
+              world.tests.test_installed_ship_waste_repair.InstalledWasteAndRepairTests.test_cross_class_acceptance_and_nonlocal_work_are_denied
+              world.tests.test_installed_ship_waste_repair.InstalledWasteAndRepairTests.test_damaged_access_door_is_repaired_at_actual_safe_endpoint
+              world.tests.test_installed_ship_waste_repair.InstalledWasteAndRepairTests.test_failed_generator_needs_isolation_and_never_restarts_after_repair
+              world.tests.test_installed_ship_waste_repair.InstalledWasteAndRepairTests.test_incapacitated_worker_cannot_progress_or_issue_repair_work
+              world.tests.test_installed_ship_waste_repair.InstalledWasteAndRepairTests.test_real_berth_cassette_haul_offload_return_and_departure_mass
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install existing ship with Evennia
+        run: python -m pip install .
+      - name: Provision separately isolated authoritative ship database
+        working-directory: game
+        env:
+          EVENNIA_SUPERUSER_USERNAME: OxCI
+          EVENNIA_SUPERUSER_EMAIL: oxci@example.invalid
+        run: |
+          export EVENNIA_SUPERUSER_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+          evennia migrate --noinput
+      - name: Preserve existing subsystem and physical recovery tests
+        working-directory: game
+        run: |
+          python -m world.test_runner ${{ matrix.cases }} --verbosity=2

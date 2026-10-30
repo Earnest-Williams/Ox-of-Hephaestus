@@ -1,0 +1,44 @@
+name: Ox G19 attended fire and water casualty recovery
+on:
+  push:
+    branches: [g19-complete-ship-systems]
+    paths:
+      - "game/world/continuous_ship_physics.py"
+      - "game/world/ship_eva_operations.py"
+      - "game/world/ship_water_recycling.py"
+      - "game/world/ship_process_outputs.py"
+      - "game/world/tests/test_installed_ship_g19_attended_fire_water_recovery.py"
+      - ".github/workflows/ox-g19-attended-fire-water-recovery.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+
+jobs:
+  genuine_suited_fire_and_potable_recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Compile installed fire and water recovery
+        run: |
+          python -m compileall -q game/world/continuous_ship_physics.py game/world/tests/test_installed_ship_g19_attended_fire_water_recovery.py
+      - run: python -m pip install .
+      - name: Provision the authoritative fitted Evennia world
+        working-directory: game
+        env:
+          EVENNIA_SUPERUSER_USERNAME: OxCI
+          EVENNIA_SUPERUSER_EMAIL: oxci@example.invalid
+        run: |
+          export EVENNIA_SUPERUSER_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+          evennia migrate --noinput
+      - name: Verify issued-suit fire-mist output and physical potable recovery
+        working-directory: game
+        run: |
+          python -m world.test_runner \
+            world.tests.test_installed_ship_g19_attended_fire_water_recovery.InstalledAttendedFireWaterRecovery.test_real_issued_suit_proves_mist_and_potable_recovery \
+            --verbosity=2

@@ -1,0 +1,49 @@
+name: Ox G19 real generator breaker overcurrent service
+on:
+  push:
+    branches: [g19-complete-ship-systems]
+    paths:
+      - "game/world/tests/test_installed_ship_electrical.py"
+      - "game/world/ship_generator_bay_runtime.py"
+      - "game/world/ship_generator_bay_service.py"
+      - "game/world/continuous_ship_physics.py"
+      - ".github/workflows/ox-g19-generator-overcurrent-service.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fitted_generator_overcurrent_recovery:
+    name: Installed GEN-M overcurrent reset via real rated service access
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Compile generator breaker and rated-hatch integration
+        run: |
+          python -m compileall -q \
+            game/world/tests/test_installed_ship_electrical.py \
+            game/world/ship_generator_bay_runtime.py \
+            game/world/ship_generator_bay_service.py \
+            game/world/continuous_ship_physics.py
+      - run: python -m pip install .
+      - name: Provision isolated installed ship database
+        working-directory: game
+        env:
+          EVENNIA_SUPERUSER_USERNAME: OxCI
+          EVENNIA_SUPERUSER_EMAIL: oxci@example.invalid
+        run: |
+          export EVENNIA_SUPERUSER_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+          evennia migrate --noinput
+      - name: Verify real generator trip reset, issued EVA suit and signed rated permit
+        working-directory: game
+        run: |
+          python -m world.test_runner \
+            world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_real_breaker_overload_trips_and_requires_reset \
+            --verbosity=2

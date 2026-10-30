@@ -1,0 +1,47 @@
+name: Ox G19 real suited bearing switchgear service
+on:
+  push:
+    branches: [g19-complete-ship-systems]
+    paths:
+      - "game/world/tests/test_installed_ship_electrical.py"
+      - "game/world/ship_industrial_runtime.py"
+      - "game/world/ship_industrial_access.py"
+      - "game/world/continuous_ship_physics.py"
+      - ".github/workflows/ox-g19-bearing-battery-service.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  installed_suited_bearing_battery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Verify fitted original machinery and entry test syntax
+        run: |
+          python -m compileall -q \
+            game/world/tests/test_installed_ship_electrical.py \
+            game/world/ship_industrial_runtime.py \
+            game/world/continuous_ship_physics.py
+      - run: python -m pip install .
+      - name: Provision isolated authentic Evennia ship
+        working-directory: game
+        env:
+          EVENNIA_SUPERUSER_USERNAME: OxCI
+          EVENNIA_SUPERUSER_EMAIL: oxci@example.invalid
+        run: |
+          export EVENNIA_SUPERUSER_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+          evennia migrate --noinput
+      - name: Attended issued-suit rated-hatch bearing switchgear acceptance
+        working-directory: game
+        run: |
+          python -m world.test_runner \
+            world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_suited_bearing_battery_requires_real_survey \
+            --verbosity=2
