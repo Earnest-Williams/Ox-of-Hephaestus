@@ -158,7 +158,7 @@ The supplementary local run of all 137 test modules at `7071f815` completed: 915
 1. ~~Push the B1 fix and documentation to PR #138.~~ Done: `7071f815`, `ae23bc9e`.
 2. ~~Confirm the G19 workflows green on the pushed head.~~ Done; see section 5.
 3. ~~Mark PR #138 ready and merge.~~ Done. Leaving draft ran the 43 draft-gated workflows for the first time, and a full local run of all 137 test modules had already found the one stale assertion they would have hit (`test_ship_world` still expected Developer-only exits); it was fixed in `8802f8c3`. Merged as `d7fc201d`, whose tree is identical to `8802f8c3`.
-4. Run `ox-ship-world`, `ox-continuous-ship-physics` and the final campaign on `main`. Dispatched at merge.
+4. ~~Run `ox-ship-world`, `ox-continuous-ship-physics` and the final campaign on `main`.~~ Done: all 28 workflow runs on `d7fc201d` succeeded, including the dispatched [final campaign #40989739818](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40989739818), G18 continuous physics and the spaceship game tests. **G19 is closed.**
 
 ## 9. Post-merge targeted fuzzing (30 October 2026)
 
