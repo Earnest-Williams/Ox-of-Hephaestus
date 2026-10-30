@@ -1,11 +1,14 @@
 # Cross-system contracts: implemented transport and future APIs
 
-**Status (21 October 2026, through G12 and PRs #82–83):** Ox uses an
-**ordinary authenticated Evennia WebSocket + game-command/OOB protocol**.
-G7b adds persistent typed social agreements, G10b adds authenticated clock
-reads, and the PostgreSQL journal now serializes sequence assignment
-through commit. The Python `WorldPort` remains an internal prototype
-interface, **not** a public multi-character service or browser/handler API.
+**Current boundary (30 October 2026):** Ox uses ordinary authenticated
+Evennia WebSocket sessions, actor-bound game commands and verified OOB
+receipts. G19 full-ship equipment operations remain world-authorized,
+not model-owned. G7b supplies persistent typed social agreements; G10b
+adds authenticated clock reads; the PostgreSQL journal assigns sequences
+through commit. The G16c/d opt-in personality routes consume the G16a
+authored disposition catalog, but no model-selected action thereby gains
+physical authority. The Python `WorldPort` is an internal prototype,
+not a public multi-character server or combined browser API.
 See [implementation status](../design/STATUS.md).
 
 ## Ownership rules
@@ -90,7 +93,7 @@ private belief or self-description. See [G4f](../design/prototypes/g4f-world-rec
 [G4g](../design/prototypes/g4g-verified-conceptual-learning.md) and
 [G4h](../design/prototypes/g4h-investigative-learning.md).
 
-## Current G6–G12 additions and transport safety
+## G6–G12 additions and transport safety
 
 - G6/G6b terminal actions and mortality remain opt-in game-authoritative
   fixtures. A service receipt proves an equipment operation, **not**
@@ -208,6 +211,7 @@ a blind prediction, tuned policy, or personality-quality acceptance result.
 This package is preparation only. G16a does **not** attach tags to deployed
 world messages or enable personality scoring. The approved action menu and
 actor-specific permissions are still Evennia's; a tag is never a work receipt,
-safety approval, factual observation, or grant of authority. G16c/d must
-explicitly adopt the package and bind its version/digest into the durable
-routing ledger before any controlled activation.
+safety approval, factual observation, or grant of authority. The later **G16c/d opt-in implementations do consume the shared package**
+and include its catalog digest in durable routing decisions. This does
+not enable personality scoring by default or replace Evennia's authorization;
+see the [current G16 status](../design/STATUS.md).

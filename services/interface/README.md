@@ -1,11 +1,12 @@
 # Ox human interface — intentionally deferred
 
-**Status (21 October 2026, through G12): package scaffold only.**
-P5—the read-only ship/crew observatory—remains postponed after the
-later G6–G12 experiments, memory/clock integration and journal hardening.
-There is **no running browser app, frontend, HTTP API server or
-production operator-control endpoint**. Do not confuse GitHub test
-artifacts or private JSONL journals with a user-facing interface.
+**Status (30 October 2026, after G19): package scaffold only.**
+P5—the joined world/crew observatory—remains postponed. The accepted
+G19 ship has a **separate Developer-only, read-only spatial
+terminal** ([ship documentation](../../design/ship/LIVE_TERMINAL.md)),
+but no deployed browser app joining world state with private AI cognition,
+no combined HTTP API and no production operator-control endpoint. Do not
+confuse GitHub artifacts or private JSONL journals with that future UI.
 
 ## Intended data sources
 
@@ -25,8 +26,9 @@ must not read the game or handler databases directly, independently
 simulate ship conditions, grant itself omniscience or mutate either
 component's state. The game and handler operate without the browser.
 
-For a minimal future acceptance test, show **P-01's actual Evennia
-state alongside each relevant engineer's possibly stale belief**,
+For a minimal future acceptance test, show **an installed G19 machine's
+actual Evennia state alongside an authorized engineer's possibly stale belief**,
+retaining P-01 as a legacy regression,
 a timeline of proposed vs attempted vs world-confirmed actions, and
 permission checks denying ordinary users another character's private
 cognitive records.
@@ -38,8 +40,9 @@ cognitive records.
 - No browser stack (NiceGUI, JavaScript or otherwise) is selected.
 - No stable handler inspection schema, telemetry API, operator-control
   protocol or live event stream is published.
-- Current inspectable development evidence is GitHub Actions artifacts,
-  game-world logs and handler-local checkpoint/trace files, not a UI.
+- Current development inspection includes the restricted G19 spatial
+  terminal, GitHub Actions artifacts, game logs and handler-local checkpoint
+  traces; none is a joined world-and-cognition UI.
 
 See [implementation status](../../design/STATUS.md),
 [system architecture](../../ARCHITECTURE.md) and
