@@ -208,10 +208,11 @@ the numeric independent-minus-original mean native score shifts in
 These directions were known when the tags were authored, so agreement is **not**
 a blind prediction, tuned policy, or personality-quality acceptance result.
 
-This package is preparation only. G16a does **not** attach tags to deployed
-world messages or enable personality scoring. The approved action menu and
-actor-specific permissions are still Evennia's; a tag is never a work receipt,
-safety approval, factual observation, or grant of authority. The later **G16c/d opt-in implementations do consume the shared package**
-and include its catalog digest in durable routing decisions. This does
+At the G16a milestone this package was **preparatory**: it did not attach
+tags to deployed world messages or enable personality scoring. Approved
+action menus and actor-specific permissions still belong to Evennia; a tag
+is never a receipt, safety approval, factual observation or grant of
+world authority. The later **G16c/d opt-in implementations consume the
+shared catalog** and bind its digest in durable routing decisions. This does
 not enable personality scoring by default or replace Evennia's authorization;
 see the [current G16 status](../design/STATUS.md).

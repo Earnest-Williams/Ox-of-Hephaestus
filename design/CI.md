@@ -4,9 +4,9 @@
 checked by the [Ox documentation workflow](../.github/workflows/ox-documentation.yml).
 Opening or updating any PR also triggers the separate, unconditional
 [fast PR gate](../.github/workflows/ox-fast.yml); documentation-only changes
-do not trigger the longer path-scoped gameplay and model-handling suites. These were
-previously triggered unnecessarily by `game/**`, `services/ai-handler/**`
-and `design/**` even for README-only changes.
+do not trigger the longer path-scoped gameplay and model-handling suites.
+Before path filters were refined, those suites could be triggered even by
+README-only edits under `game/**`, `services/ai-handler/**` or `design/**`.
 
 ## Event policy
 
