@@ -46,6 +46,11 @@ from world.ship_cargo_environment import (
     survey_sensitive_lot, inherit_split_care, set_cargo_target,
     step_cargo_environment,
 )
+from world.ship_persistence_integrity import (
+    ShipPersistenceError, BOUNDED_DEPARTURE_STOCKS,
+    validate_departure_stock, validate_pressure_mass,
+    validate_motion_quantities, validate_energy_custody,
+)
 from world.ship_motion_machinery import (
     DRUMS, ROTORS, RotorError, initial_rotors, set_rotor_command,
     step_rotors, motion_power_mw, rotor_gravity,
@@ -331,6 +336,7 @@ from world.ship_refuge_life_support import (
     step_refuge_scrubbers,
 )
 from world.ship_electrical_power import (
+    GENERATION_MW, SHIP_CAP_MW,
     ElectricalError, BATTERIES as POWER_BANKS,
     FLYWHEELS as POWER_FLYWHEELS,
     initial_electrical, validate_electrical, migrate_v1_electrical,
@@ -506,6 +512,12 @@ PLANT_WASTE_HEAT_KW = {
 
 class PhysicsError(ShipOperationsError):
     """Unsafe or invalid physical operation."""
+
+
+@lru_cache(maxsize=1)
+def _rated_motion_mass_contract():
+    """Immutable design maxima; parse the candidate once, not every tick."""
+    return load_candidate()["mass"]
 
 
 def _positive(value, *, zero=False, maximum=None):
@@ -3971,8 +3983,24 @@ def _cell_pressure(cell):
 def _load_cell(row):
     d = row.details
     mass = row.quantity
-    if mass is None or mass < 0:
-        raise PhysicsError("Unverified atmospheric mass")
+    if not isinstance(d, dict):
+        raise PhysicsError("Unrecognised pressure-cell measurements")
+    required_physics = {
+        "physics_oxygen_kg", "physics_co2_kg", "physics_smoke_kg",
+        "physics_fuel_kg", "physics_burn_kg_s", "physics_leak_kg_s",
+        "physics_mist_kg_s", "physics_background_kw",
+        "physics_thermal_capacity_kj_k", "physics_heat_exposure_s",
+        "physics_damage_index",
+    }
+    if (not required_physics <= set(d) or
+            any(k.startswith("physics_") and k not in required_physics
+                for k in d if isinstance(k, str))):
+        raise PhysicsError("Incomplete or invented pressure-cell physics fields")
+    try:
+        validate_pressure_mass(mass, d.get("gas_volume_m3"),
+                               d.get("temperature_k"))
+    except ShipPersistenceError as exc:
+        raise PhysicsError(str(exc)) from exc
     result = {
         "mass": mass, "oxygen": d["physics_oxygen_kg"],
         "co2": d["physics_co2_kg"], "smoke": d["physics_smoke_kg"],
@@ -4035,6 +4063,17 @@ def tick_continuous_physics(*, now_game_time=None):
         "hazardous": state("inventory", "INV-HAZARDOUS-RESIDUE", lock=True),
     }
     water_stock_before = {k: _snapshot(v) for k, v in water_stocks.items()}
+    # Every original consumable has a fitted departure holding, not a
+    # permission to accept arbitrarily inflated stocks from saved state.
+    # Waste receiver inventories are excluded: their custody grows from
+    # processing and is validated against the receiver ledger separately.
+    for stock_id in sorted(BOUNDED_DEPARTURE_STOCKS):
+        stock_row = state("inventory", stock_id, lock=True)
+        try:
+            validate_departure_stock(stock_id, stock_row.quantity,
+                                     stock_row.reference)
+        except ShipPersistenceError as exc:
+            raise PhysicsError(str(exc)) from exc
     cartridge_stock = (
         state("inventory", "INV-GEN-CART", lock=True)
         if clock.details.get("electrical") is not None else None)
@@ -4181,6 +4220,22 @@ def tick_continuous_physics(*, now_game_time=None):
     if electrical is not None:
         try:
             validate_electrical(electrical)
+            nameplates = {}
+            for name in (*electrical["banks"], *electrical["flywheels"]):
+                fitted = equipment.get(name)
+                if fitted is None:
+                    raise PhysicsError("Unfitted electrical energy store: " + name)
+                attrs = fitted.reference.get("attributes", {})
+                key = ("deliverable_MWh_nominal"
+                       if name in electrical["flywheels"] else "MWh")
+                nominal = attrs.get(key)
+                if (type(nominal) not in (int, float)
+                        or not math.isfinite(nominal) or nominal < 0):
+                    raise PhysicsError("Missing independent source rating: " + name)
+                nameplates[name] = nominal * 1000.0
+            validate_energy_custody(
+                electrical, nameplates, clock.details.get("ticks"),
+                MAX_ADVANCE_SECONDS, GENERATION_MW, SHIP_CAP_MW)
             audit_topology(water_nodes, edges, isolators, strict=True)
         except ElectricalError as exc:
             raise PhysicsError(str(exc)) from exc
@@ -4356,6 +4411,10 @@ def tick_continuous_physics(*, now_game_time=None):
         validate_rotors(rotors)
         validate_motion_safety(motion)
     except RotorError as exc:
+        raise PhysicsError(str(exc)) from exc
+    try:
+        validate_motion_quantities(motion, _rated_motion_mass_contract())
+    except ShipPersistenceError as exc:
         raise PhysicsError(str(exc)) from exc
     # Cargo shell damage can begin during rotation. Coast its actual drum
     # using existing inertia rather than applying an instantaneous brake.

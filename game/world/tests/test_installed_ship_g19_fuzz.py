@@ -451,6 +451,39 @@ class G19PersistedSafetyRegressions(_InstalledFuzzBase):
             operation="g19_crew_envelope_alarm_cleared",
             actor_dbref=self.worker.dbref).count(), 1)
 
+    def test_corrupt_authoritative_stocks_motion_and_pressure_fail_closed(self):
+        from copy import deepcopy
+        mutations = [
+            ("stock", "INV-WATER-NORMAL", "quantity", 1e30),
+            ("stock", "INV-SPARES", "quantity", 1e30),
+            ("stock", "INV-REACTION", "quantity", 1e30),
+            ("stock", "INV-FTL-FUEL", "quantity", None),
+            ("motion", None, "velocity_m_s", [1e30, 0.0, 0.0]),
+            ("motion", None, "propellant_kg", 1e30),
+            ("pressure", "PZ-BOW-CMD", "quantity", 1e30),
+        ]
+        for family, name, field, bad in mutations:
+            with self.subTest(family=family, name=name, field=field):
+                sid = transaction.savepoint()
+                try:
+                    if family == "motion":
+                        row = _clock(lock=True)
+                        d = deepcopy(row.details)
+                        d["motion"][field] = bad
+                        row.details = d
+                        row.save(update_fields=["details"])
+                    else:
+                        row = state("inventory" if family == "stock"
+                                    else "pressure", name, lock=True)
+                        setattr(row, field, bad)
+                        row.save(update_fields=[field])
+                    before = _snapshot()
+                    with self.assertRaises((PhysicsError, ValueError)):
+                        tick_continuous_physics(now_game_time=self.now + 10)
+                    self.assertEqual(_snapshot(), before)
+                finally:
+                    transaction.savepoint_rollback(sid)
+
     def test_corrupt_rotary_interlocks_and_motion_conditions_fail_closed(self):
         from copy import deepcopy
         from world.ship_motion_machinery import initial_rotors
