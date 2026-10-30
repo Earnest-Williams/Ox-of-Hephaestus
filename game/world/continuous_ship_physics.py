@@ -49,6 +49,7 @@ from world.ship_cargo_environment import (
 from world.ship_motion_machinery import (
     DRUMS, ROTORS, RotorError, initial_rotors, set_rotor_command,
     step_rotors, motion_power_mw, rotor_gravity,
+    validate_rotors, validate_motion_safety,
 )
 from world.ship_water_recycling import (
     WaterError, initial_water, step_water, validate_water,
@@ -4351,6 +4352,11 @@ def tick_continuous_physics(*, now_game_time=None):
     if not motion:
         raise PhysicsError("Ship motion state not initialised")
     rotors = dict(clock.details.get("rotors", {}))
+    try:
+        validate_rotors(rotors)
+        validate_motion_safety(motion)
+    except RotorError as exc:
+        raise PhysicsError(str(exc)) from exc
     # Cargo shell damage can begin during rotation. Coast its actual drum
     # using existing inertia rather than applying an instantaneous brake.
     if unclassified is not None:
@@ -5909,6 +5915,13 @@ def tick_continuous_physics(*, now_game_time=None):
     crew_used_o2 = 0.0
     crew_exhaled_co2 = 0.0
     crew_incapacitated = 0
+    previous_unverified = clock.details.get("crew_unverified_envelopes", {})
+    if (not isinstance(previous_unverified, dict) or any(
+            not isinstance(ref, str) or not re.fullmatch(r"#[0-9]+", ref)
+            or not isinstance(room, str) or not room
+            for ref, room in previous_unverified.items())):
+        raise PhysicsError("Unrecognised crew environmental warning ledger")
+    current_unverified = {}
     if crew_rows:
         import copy
         from evennia.objects.models import ObjectDB
@@ -5937,9 +5950,13 @@ def tick_continuous_physics(*, now_game_time=None):
                 zone = zones.get(room)
                 surveyed_cargo = (room in ORIGINAL_CARGO_SECTORS
                                   and unclassified is not None)
+                # A real installed room is not automatically breathable.
+                # Unknown, unsurveyed air supplies NO oxygen; one misplaced
+                # crew member must not stop the other 132 cells or all plant.
+                # This is exposure isolation, not permission to traverse.
                 if (not surveyed_cargo and zone not in cells
                         and zone != "VACUUM"):
-                    raise PhysicsError("Unknown life-support envelope at crew position")
+                    current_unverified[row.source_id] = room
                 state_now = copy.deepcopy(row.details)
                 # Cargo-sector air is measured and finite but is NOT an
                 # ordinary PZ-* crew pressure cell. Convert only that
@@ -5977,6 +5994,17 @@ def tick_continuous_physics(*, now_game_time=None):
                 row.revision += 1
                 row.save(update_fields=[
                     "condition", "details", "space_id", "revision"])
+            old_warning = previous_unverified.get(row.source_id)
+            new_warning = current_unverified.get(row.source_id)
+            if old_warning != new_warning:
+                CanonicalShipEvent.objects.create(
+                    component_key=row.key,
+                    operation=("g19_crew_unverified_envelope_alarm"
+                               if new_warning else "g19_crew_envelope_alarm_cleared"),
+                    before={"unverified_room": old_warning},
+                    after={"unverified_room": new_warning,
+                           "verified_breathable_supply": not bool(new_warning)},
+                    actor_dbref=row.source_id, game_time=last + seconds)
             if state_now["condition"] in {"incapacitated", "critical", "dead"}:
                 crew_incapacitated += 1
 
@@ -6859,6 +6887,7 @@ def tick_continuous_physics(*, now_game_time=None):
     d["water_suppression_kg"] += water
     d["co2_captured_kg"] = captured_co2
     d["motion"] = motion
+    d["crew_unverified_envelopes"] = current_unverified
     if instrumentation is not None:
         # Use physical end-of-tick cell/machine/breaker status. The chosen
         # source is an actual installed panel and its current power node,
@@ -7081,6 +7110,7 @@ def tick_continuous_physics(*, now_game_time=None):
         "medical_active_cases": (len(medical["cases"]) if medical is not None else None),
         "medical_completed": (medical["completed"] if medical is not None else None),
         "crew_exposure_registered": len(crew_rows),
+        "crew_unverified_envelope_alarms": dict(sorted(current_unverified.items())),
         "crew_incapacitated_or_worse": crew_incapacitated,
         "crew_o2_used_this_tick_kg": round(crew_used_o2, 7),
         "crew_co2_added_this_tick_kg": round(crew_exhaled_co2, 7),

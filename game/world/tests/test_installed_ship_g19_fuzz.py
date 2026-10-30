@@ -419,6 +419,69 @@ class CrewActionSequenceFuzz(_InstalledFuzzBase):
             transaction.savepoint_rollback(sid)
 
 
+class G19PersistedSafetyRegressions(_InstalledFuzzBase):
+    """Safety failures must not freeze unrelated systems or falsify interlocks."""
+
+    def test_unknown_envelope_is_nonbreathable_but_other_systems_keep_ticking(self):
+        from world.models import CanonicalShipEvent
+        self.go("STORE-FLUID-AFT")  # deliberate operator-like displacement
+        before = _clock().details["last_game_time"]
+        self.advance(60)
+        d = _clock().details
+        self.assertEqual(d["last_game_time"], before + 60)
+        self.assertEqual(d["crew_unverified_envelopes"][self.worker.dbref],
+                         "STORE-FLUID-AFT")
+        self.assertEqual(d["summary"]["crew_o2_used_this_tick_kg"], 0)
+        self.assertEqual(d["summary"]["crew_unverified_envelope_alarms"],
+                         {self.worker.dbref: "STORE-FLUID-AFT"})
+        health = CanonicalShipState.objects.get(
+            pk="crew_health:" + self.worker.dbref)
+        self.assertEqual(health.details["hypoxia_s"], 60)
+        self.assertEqual(CanonicalShipEvent.objects.filter(
+            operation="g19_crew_unverified_envelope_alarm",
+            actor_dbref=self.worker.dbref).count(), 1)
+        self.advance(60)
+        self.assertEqual(CanonicalShipEvent.objects.filter(
+            operation="g19_crew_unverified_envelope_alarm",
+            actor_dbref=self.worker.dbref).count(), 1)
+        self.go("ENG-CONTROL")
+        self.advance(60)
+        self.assertEqual(_clock().details["crew_unverified_envelopes"], {})
+        self.assertEqual(CanonicalShipEvent.objects.filter(
+            operation="g19_crew_envelope_alarm_cleared",
+            actor_dbref=self.worker.dbref).count(), 1)
+
+    def test_corrupt_rotary_interlocks_and_motion_conditions_fail_closed(self):
+        from copy import deepcopy
+        from world.ship_motion_machinery import initial_rotors
+        mutations = [
+            ("rotors", "DR-01", "hardlock", None),
+            ("rotors", "DR-01", "brake", 0),
+            ("rotors", "DR-01", "indexing", "false"),
+            ("rotors", "DR-01", "freight_collar", None),
+            ("rotors", "HAB", "passenger_indexer", 0),
+            ("rotors", "WR-01", "rpm", 1e30),
+            ("motion", None, "drive_condition", "nominal-ish"),
+            ("motion", None, "rcs_condition", None),
+        ]
+        for family, machine, field, bad in mutations:
+            with self.subTest(family=family, machine=machine, field=field):
+                sid = transaction.savepoint()
+                try:
+                    clock = _clock(lock=True)
+                    details = deepcopy(clock.details)
+                    target = details[family][machine] if machine else details[family]
+                    target[field] = bad
+                    clock.details = details
+                    clock.save(update_fields=["details"])
+                    before = _snapshot()
+                    with self.assertRaisesRegex(PhysicsError, "rotary|Rotor|drive|RCS|propulsion|interlock"):
+                        tick_continuous_physics(now_game_time=self.now + 10)
+                    self.assertEqual(_snapshot(), before)
+                finally:
+                    transaction.savepoint_rollback(sid)
+
+
 class _Rollback(Exception):
     """Sentinel: discard one corruption trial."""
 
