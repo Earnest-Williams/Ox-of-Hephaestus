@@ -3992,8 +3992,12 @@ def _load_cell(row):
         "physics_thermal_capacity_kj_k", "physics_heat_exposure_s",
         "physics_damage_index",
     }
+    # These optional measurements belong to a genuine installed casualty
+    # response; do not reject them as fabricated schema extensions.
+    allowed_physics = required_physics | {
+        "physics_leak_isolator_id", "physics_manual_close_game_s"}
     if (not required_physics <= set(d) or
-            any(k.startswith("physics_") and k not in required_physics
+            any(k.startswith("physics_") and k not in allowed_physics
                 for k in d if isinstance(k, str))):
         raise PhysicsError("Incomplete or invented pressure-cell physics fields")
     try:
