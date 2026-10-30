@@ -1,5 +1,10 @@
 # G18 — continuously evolving physical ship state (first opt-in slice)
 
+> **Historical milestone (merged PR #135).** Describes the first G18
+> implementation slice, not the completed current ship. Subsequent G18b,
+> G18c and G19 replaced its “next gate” statements. See
+> [G19 acceptance](G19_ACCEPTANCE_RECORD_2026-10-29.md).
+
 This increment operates **on the installed G17 v0.5 candidate** and its authoritative
 Django/Evennia records, not a competing source-of-truth and not the design-only
 reference trial. The 421 rooms, 517 access connections, 133 bounded gas cells,
