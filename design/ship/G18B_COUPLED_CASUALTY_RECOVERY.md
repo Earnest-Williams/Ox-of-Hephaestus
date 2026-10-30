@@ -1,8 +1,11 @@
 # G18b — coupled casualty and local recovery (Ox full-ship world)
 
-**Status:** PR acceptance candidate. This is a continuation of the *merged*
-G18 opt-in world physics, not a new simulator and not a change to the v0.5
-ship's spatial or reference model.
+**Historical acceptance stage:** G18b **merged as PR #136 on 25 October 2026**;
+this file preserves that incremental design and the test requirements of
+its time. G19 subsequently completed the integrated ship; use the
+[current G19 acceptance record](G19_ACCEPTANCE_RECORD_2026-10-29.md).
+This stage extended the merged G18 opt-in world physics without introducing
+a separate simulator or changing the v0.5 ship's spatial reference model.
 
 ## What is now coupled
 

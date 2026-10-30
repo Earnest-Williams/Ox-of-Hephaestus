@@ -13,10 +13,9 @@
 - No LLM server, hosted API key or GPU is required for the **deterministic**
   P4 integration tests.
 
-## Current scope versus optional trials
+## Installed full ship versus optional autonomous-crew and research modes
 
-The instructions below bring up the **seven-room operational proving ground** and the
-normal authenticated external handler. The G6 terminal-loss scenario,
+The installed game includes the **full G19 physical ship**, while the normal authenticated external Concordia/GOAP supervisor still targets the **seven-room operational proving ground**. The guide's handler commands operate that smaller fixture, rather than automatically assigning autonomous duties across 421 rooms. The G6 terminal-loss scenario,
 G7 social GOAP apartment, G8 six-client 500-decision memory experiment,
 G11 manually dispatched hosted-model A/B trial, and G12 6/20/40
 local-brain profiler are **separate, bounded research/test entry points**.
@@ -62,7 +61,11 @@ evennia shell --command="from world.bootstrap import build_ship; build_ship()"
 Connect with a MUD client to `127.0.0.1:4000`, or open
 `http://127.0.0.1:4001` for Evennia's web client. From Limbo, `board`
 enters the Bridge; then `aft`, `engineering`, `inspect pump`,
-`inspect console` and `look roster` explore the fixture.
+`inspect console` and `look roster` explore the **legacy seven-room crew
+fixture**. From Limbo, a Developer can use `board ox` to enter the
+separate **G19 full ship**; subsequent movement uses its real pressure,
+interlock and suit requirements. The normal AI supervisor still works
+with the smaller crew fixture.
 
 Stop the local server with `evennia stop` from `game/`. Development
 settings bind to loopback, disable new account registration and use

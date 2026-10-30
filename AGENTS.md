@@ -1,7 +1,7 @@
 # AGENTS.md — repository guidance
 
-This is an Evennia fork with a bounded Ox prototype, not an Evennia
-distribution. Read [status](design/STATUS.md), [architecture](ARCHITECTURE.md)
+This is an Evennia fork implementing the Ox ship simulation and a separate
+bounded autonomous-crew prototype, not an Evennia distribution. Read [status](design/STATUS.md), [architecture](ARCHITECTURE.md)
 and [setup](INSTALL.md) before changing code.
 
 ## Ox boundaries
@@ -13,6 +13,7 @@ and [setup](INSTALL.md) before changing code.
 - **Transport:** authenticated per-actor sockets; bounded, lossless unmatched-frame buffering; never treat a malformed/unverified receipt as success.
 - **Capabilities:** world owns aptitudes, psychology, 55 skills, theory and procedure ledgers; G4 learning is receipt-gated, not model-awarded.
 - **Recovery:** reconcile uncertain work under its original request ID.
+- **Ship:** G19 421-room installed physical world and 808 units are accepted; autonomous Concordia/GOAP still uses the seven-compartment proving ground. [Acceptance](design/ship/G19_ACCEPTANCE_RECORD_2026-10-29.md).
 - **Runtime:** five specialist agents, optional sixth captain; never run the legacy three-crew supervisor on the same world concurrently.
 - **PostgreSQL:** preserve commit-ordered journal sequences, exact receipt event provenance and P-01 → captain ticket → journal lock order (PRs #82–83).
 - **Evidence:** G6/G8 bounded world trials; G11 manual model A/B; G12 local 6/20/40 brain profile is not live-crew scaling.

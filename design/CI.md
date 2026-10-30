@@ -1,16 +1,18 @@
 # Ox GitHub Actions trigger policy
 
-**Current policy (19 October 2026):** changes to Markdown project documentation
-are checked by the lightweight [Ox documentation workflow](../.github/workflows/ox-documentation.yml),
-not by the real-world, multi-client or model-handling suites. These were
-previously triggered unnecessarily by `game/**`, `services/ai-handler/**`
-and `design/**` even for README-only changes.
+**Current policy (verified 30 October 2026):** Markdown-only changes are
+checked by the [Ox documentation workflow](../.github/workflows/ox-documentation.yml).
+Opening or updating any PR also triggers the separate, unconditional
+[fast PR gate](../.github/workflows/ox-fast.yml); documentation-only changes
+do not trigger the longer path-scoped gameplay and model-handling suites.
+Before path filters were refined, those suites could be triggered even by
+README-only edits under `game/**`, `services/ai-handler/**` or `design/**`.
 
 ## Event policy
 
 | Change | Expected automation |
 | --- | --- |
-| Ox Markdown documentation only | Documentation consistency, including agent-context rot, local links and the trigger-policy regression |
+| Ox Markdown documentation only | Documentation consistency **and the unconditional fast PR gate on PR events**; no slow path-scoped gameplay suites |
 | Python, fixtures, migrations, settings, or other non-Markdown code | Relevant path-scoped Ox game/handler workflows |
 | Code plus documentation | Same code workflows as for code alone **and** documentation checks |
 | A particular code workflow YAML | That workflow's tests plus the lightweight documentation/policy guard |

@@ -1,15 +1,6 @@
 # Ox playable ship — authoritative Evennia game
 
-**Status (21 October 2026):** The primary ship has seven connected rooms,
-three stateful systems, five independently authenticated technical crew
-and an optional captain. Evennia owns physical outcomes, character
-capabilities, durable social agreements and verified assessments.
-G6 adds an opt-in terminal-atmosphere scenario, not a permanent second
-ship; G7's apartment is a separate adult social GOAP fixture. G10b
-provides a read-only game-clock command. PostgreSQL PRs #82–83 protect
-journal ordering, receipt provenance and captain ticket locking.
-This remains a proving ground, not a complete cargo freighter.
-[Current milestone status](../design/STATUS.md).
+**Status (30 October 2026):** G19's installed 421-room / 517-link ship, fitted 808-equipment operational register, finite resources, damage control and world-gated character traversal are merged and accepted. The existing five-specialist Concordia/GOAP crew (optional sixth captain) still operates the separate seven-compartment, three-machine proving ground. The commands and original role examples below primarily document that smaller compatibility fixture. See [G19 ship acceptance](../design/ship/G19_ACCEPTANCE_RECORD_2026-10-29.md), [ship engineering index](../design/ship/README.md) and [current status](../design/STATUS.md).
 
 All Ox ship content is under `game/`; the inherited `evennia/` engine has
 not been converted into a different distribution.
@@ -122,7 +113,7 @@ unauthorized users, unsafe physical states and repeated effects. The
 G3d test workflow exercises these rules and a five-client decision path.
 [Boundaries and limitations](../design/prototypes/g3d-independent-rounds.md).
 
-## What is in the world
+## What is in the legacy seven-compartment crew fixture
 
 | Object | Game-owned behavior |
 | --- | --- |
@@ -132,18 +123,21 @@ G3d test workflow exercises these rules and a five-client decision path.
 | Cargo Hold | Mara Voss and cargo restraint grid C-01; local inspection, restow and certification |
 | Environmental Plant | Teo Hale and scrubber A-01; cartridge fault, isolation, replacement, verified restart |
 | Crew Mess | Navigable living/galley area, not yet a nutrition or morale simulation |
-| Machine Shop | Engineering annex and G4g supervised-training bench; fabrication and full workshop simulation remain future work |
+| Machine Shop | Legacy engineering annex and G4g supervised-training bench; the full G19 ship has separately implemented fabrication and workshop machinery |
 | Operations Console | Bridge-only readout of cargo restraint and atmosphere scrubber states |
 | Cooling Pump P-01 | `normal → low_pressure → isolated → repaired → normal`; durable event history and physical command receipts |
 | Ship roster | Active engineering duty holder, independent safety reviewer and handover state |
 | Duty Script | Persistent `world.live_clock.ShipDutyClock` checks an armed world deadline; it never calls a model |
 | World-private events | Receiver-specific `ox_event` observations and `oxinbox` replay; no cross-crew memory access |
 
-The ship now has separate bounded physical cargo and atmosphere procedures.
-There is still **no propulsion, trading economy, general cargo routing,
-manufacturing or skill-sensitive graded physical task outcome system**.
-Selected authenticated successful work now grants bounded practice in G4f. The P4e supervisor runs
-five private cognitive agents; the original P4c three-crew supervisor
+In this **legacy seven-room fixture**, cargo and atmosphere operations are
+limited to local teaching/test procedures. This fixture has no propulsion,
+freight commerce, general cargo routing or fabrication workshop; **the
+separate accepted G19 full ship does simulate propulsion, cargo mechanisms
+and workshop fabrication**. Integrating autonomous crew with the full ship
+and adding graded skill-sensitive physical task outcomes remain later work.
+Selected authenticated successful work now grants bounded practice in G4f.
+The P4e supervisor runs five private cognitive agents; the original P4c three-crew supervisor
 remains available but must not be run simultaneously on the same ship.
 
 ## Independent PostgreSQL concurrency gate (verified in merged PR #28)
@@ -280,7 +274,7 @@ historical two-argument `oxaction`/`oxreceipt` forms still target P-01.
 five-client test showed safe recovery from a lost cartridge-replacement
 acknowledgment alongside coolant, cargo, hails and world-owned handover.
 
-## Full-ship preparation boundary
+## Accepted full-ship operation and autonomous-crew boundary
 
 The full 950 m vessel model under [`design/ship/`](../design/ship/README.md) is materialised in Evennia as persistent canonical rooms and exits. Since G19, ordinary characters traverse those exits through world-owned pressure, interlock, suit and indexed-transfer gates (`world/ship_crew_access.py`), and operate full-ship machinery with the receipted `oxplantread` / `oxplant` commands. The `board ox` development entry remains Developer-only. The autonomous crew and the proving-ground commands documented below still use the seven-compartment ship. See [integration scope](../design/ship/EVENNIA_INTEGRATION.md) and the [G19 acceptance record](../design/ship/G19_ACCEPTANCE_RECORD_2026-10-29.md).
 

@@ -1,18 +1,20 @@
 # Ox AI handler — native Concordia, GOAP and live crew
 
-**Status (21 October 2026, through G12):** The normal external handler
-supports a legacy three-person and a separate five-specialist supervisor
-(optional sixth captain), authenticated characters and private Concordia
-checkpoints. G6/G7 are **opt-in experiments**, not a replacement normal
-runtime. G8–G10b introduce temporal memory, subjective reinterpretation,
-revision-protected native Concordia context and authoritative game-clock
-reads. G11's hosted-model matched-evidence A/B harness is manual; G12's
-6/20/40 native-brain profiler is not a 40-crew ship run. The handler
-still does not schedule G4g/G4h education autonomously, nor constitute
-a managed production service.
-[Current status](../../design/STATUS.md).
+**Current boundary (30 October 2026):** The normal external handler runs
+five independently authenticated specialists (optional sixth captain);
+the historical three-person supervisor is a separate compatibility mode.
+Their ordinary autonomous operations still use the **seven-compartment
+proving ground**, not the accepted G19 full-ship physics world. Private
+Concordia memory, authenticated world time, durable receipt reconciliation
+and bounded GOAP are implemented. G6/G7 scenarios, G11 hosted choice
+evaluation and G16 personality policies remain separately scoped or
+disabled by default; native G12/G16 model profiling is not a live-crew
+simulation. The handler does not autonomously schedule G4g/G4h education
+and is not a managed production service.
+[Current status](../../design/STATUS.md) ·
+[full-ship acceptance](../../design/ship/G19_ACCEPTANCE_RECORD_2026-10-29.md).
 
-## Current G6–G12 cognition, experiments and transport
+## G6–G12 accepted experiments and existing transport
 
 - **G6/G6b:** the optional continuous six-client atmospheric crisis uses
   real world receipts, finite resources, evidence-sensitive assessments,
@@ -633,7 +635,7 @@ and [inquiry protocol](../../design/prototypes/g4h-investigative-learning.md).
 1. The standard supervisor runs **five specialist crew**, with an opt-in
    sixth captain. The world implements bounded practical progression and
    two assessed conceptual activities, **not** graded physical task success,
-   autonomous teaching/study agendas, a complete freighter or unscripted
+   autonomous teaching/study agendas, full-ship autonomous operation, a freight economy or unscripted
    social intelligence.
 2. `serve` is code that can run as a separate process; no init system,
    deployment recipe, load testing or long-running uptime guarantee

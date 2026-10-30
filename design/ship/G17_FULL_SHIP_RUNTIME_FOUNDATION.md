@@ -1,5 +1,10 @@
 # G17 — full-ship operating-state foundation
 
+> **Historical milestone (merged).** This is the initial finite operational
+> register, before G18 physics and G19 completion. Current status and later
+> mechanics: [G19 acceptance](G19_ACCEPTANCE_RECORD_2026-10-29.md) and
+> [full ship index](README.md). Early “not yet” statements below are dated.
+
 ## Scope and authority
 
 The 0.5 candidate is an explicitly approved *reference model*, not a set of live readings. `world.full_ship_operations.install_candidate(operator_approved=True)` is an **operator-only installation function**. It requires the canonical 421-room world to exist, creates one persistent operational record for every authored equipment unit, access link, service node, service edge, isolator and inventory account, and never overwrites those records on a repeated call. An interrupted installation rolls back atomically.
@@ -16,7 +21,8 @@ The v0.4 room topology stays installed. The 0.5 candidate has the same 421 room 
 | Service edges | 1,181 | condition, availability setting, isolators |
 | Isolation points | 1,256 | condition, open/closed setting |
 | Inventory accounts | 15 | finite total stock in tonnes |
-| Pressure cells (separate explicit scenario) | 133 | bounded gas volume, temperature, finite air mass, pressure |\n| Installation anchor | 1 | version and category counts |
+| Pressure cells (separate explicit scenario) | 133 | bounded gas volume, temperature, finite air mass, pressure |
+| Installation anchor | 1 | version and category counts |
 
 Runtime changes append database-backed physical events with the before/after state and game time. Reference records are retained separately; old refit documentation cannot become measurements. The separate actor-addressed journal stays private and does not receive an indiscriminate ship-state broadcast.
 
