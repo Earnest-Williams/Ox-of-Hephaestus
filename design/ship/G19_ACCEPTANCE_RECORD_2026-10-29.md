@@ -9,7 +9,7 @@
 
 ## Decision
 
-**Accepted. Both blockers are fixed and every G19 workflow is green at the fix head (section 5). PR #138 can leave draft and merge.**
+**Accepted and merged.** Both blockers are fixed; PR #138 was squash-merged into `main` as `d7fc201d` on 30 October 2026 after 47/47 workflows passed at its final head `8802f8c3`.
 
 The audit at `c56990c` found two blockers. Both are now fixed on the branch.
 
@@ -126,7 +126,7 @@ GitHub Actions at `7071f815`: **35 workflows succeeded, 0 failed**, plus 43 skip
 | [Installed hull restoration #40978161195](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40978161195) | Success |
 | Documentation consistency and fast PR gate at `ae23bc9e` | Success |
 
-A supplementary local run of all 137 test modules at `7071f815` was in progress when this was written, with no failures in the first 33 modules.
+The supplementary local run of all 137 test modules at `7071f815` completed: 915 tests, one failure (the stale `test_ship_world` assertion, fixed in `8802f8c3`), and all three restart phases passed.
 
 ### PR review notes (non-blocking)
 
@@ -157,8 +157,8 @@ A supplementary local run of all 137 test modules at `7071f815` was in progress 
 
 1. ~~Push the B1 fix and documentation to PR #138.~~ Done: `7071f815`, `ae23bc9e`.
 2. ~~Confirm the G19 workflows green on the pushed head.~~ Done; see section 5.
-3. Mark PR #138 ready and merge.
-4. Run `ox-ship-world`, `ox-continuous-ship-physics` and the final campaign on `main`, then mark G19 closed in `design/STATUS.md`.
+3. ~~Mark PR #138 ready and merge.~~ Done. Leaving draft ran the 43 draft-gated workflows for the first time, and a full local run of all 137 test modules had already found the one stale assertion they would have hit (`test_ship_world` still expected Developer-only exits); it was fixed in `8802f8c3`. Merged as `d7fc201d`, whose tree is identical to `8802f8c3`.
+4. Run `ox-ship-world`, `ox-continuous-ship-physics` and the final campaign on `main`. Dispatched at merge.
 
 ## 9. Post-merge targeted fuzzing (30 October 2026)
 
