@@ -20,12 +20,14 @@ MAX_SUBLIGHT_M_S = 299_792_458.0
 
 # Independently fitted consumables. Waste receivers have separate finite
 # capacities and can *grow* from processing, so their initial zero-mass
-# inventory is intentionally not treated as an upper stock limit.
+# inventory is intentionally not treated as an upper stock limit.  Cultivation
+# can also add genuine harvested food; the food store needs its separately
+# commissioned custody/capacity checks, not a fixed departure-stock ceiling.
 BOUNDED_DEPARTURE_STOCKS = frozenset({
     "INV-WATER-NORMAL", "INV-WATER-RESERVE",
     "INV-SPARES", "INV-DC-CONSUMABLES",
     "INV-REACTION", "INV-FTL-FUEL",
-    "INV-GEN-CART", "INV-FOOD-LONG-LEG",
+    "INV-GEN-CART",
     "INV-GAS-REFILL-A", "INV-GAS-REFILL-B",
 })
 
