@@ -26,12 +26,11 @@ must not read the game or handler databases directly, independently
 simulate ship conditions, grant itself omniscience or mutate either
 component's state. The game and handler operate without the browser.
 
-For a minimal future acceptance test, show **an installed G19 machine's
-actual Evennia state alongside an authorized engineer's possibly stale belief**,
-retaining P-01 as a legacy regression,
-a timeline of proposed vs attempted vs world-confirmed actions, and
-permission checks denying ordinary users another character's private
-cognitive records.
+For a minimal future acceptance test, display **an installed G19 machine's
+actual Evennia state alongside an authorized engineer's possibly stale belief**.
+Include a timeline of proposed, attempted and world-confirmed actions,
+and deny ordinary users access to another character's private cognition.
+Retain the historical P-01 comparison as a regression scenario.
 
 ## Existing package vs future work
 

@@ -16,12 +16,14 @@
 The intended game is a working bulk-freight spacecraft, not a backdrop for
 a conversation. Humans and autonomous characters share a material world:
 equipment can fail, supplies run out, crews work under incomplete information,
-and unresolved incidents need follow-through. G19 already simulates propulsion and physical cargo handling.
+and unresolved incidents need follow-through. G19 already simulates
+propulsion and physical cargo handling.
 Freight commerce, staffing economics and graded skill outcomes remain
 separate gameplay work intended to make those engineering tradeoffs consequential.
 
-The accepted G19 full ship is the installed physical simulation; the autonomous-crew proving ground remains a smaller, separate fixture for integration tests. A character **knows**
-only observations legitimately received; their beliefs may be wrong; and
+The accepted G19 full ship is the installed physical simulation; the
+seven-compartment autonomous-crew proving ground remains a separate fixture.
+A character **knows** only observations legitimately received; their beliefs may be wrong; and
 world facts unknown even to be missing remain unknown unknowns from that
 character's perspective. An AI's statement or diagnosis cannot change
 equipment, authorize itself, invent evidence or settle a case.

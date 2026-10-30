@@ -136,8 +136,8 @@ freight commerce, general cargo routing or fabrication workshop; **the
 separate accepted G19 full ship does simulate propulsion, cargo mechanisms
 and workshop fabrication**. Integrating autonomous crew with the full ship
 and adding graded skill-sensitive physical task outcomes remain later work.
-Selected authenticated successful work now grants bounded practice in G4f. The P4e supervisor runs
-five private cognitive agents; the original P4c three-crew supervisor
+Selected authenticated successful work now grants bounded practice in G4f.
+The P4e supervisor runs five private cognitive agents; the original P4c three-crew supervisor
 remains available but must not be run simultaneously on the same ship.
 
 ## Independent PostgreSQL concurrency gate (verified in merged PR #28)
