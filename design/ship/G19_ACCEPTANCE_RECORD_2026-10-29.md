@@ -9,7 +9,7 @@
 
 ## Decision
 
-**Both blockers are fixed. Acceptance waits only on the fix-head regression results in section 5.**
+**Accepted. Both blockers are fixed and every G19 workflow is green at the fix head (section 5). PR #138 can leave draft and merge.**
 
 The audit at `c56990c` found two blockers. Both are now fixed on the branch.
 
@@ -115,7 +115,18 @@ Verified locally at `7071f815`:
 | Documentation workflow checks (context rot, local links) | Pass; 606 local references |
 | `.github/ci/check_ox_ci_scope.py` | 0 errors |
 
-**In progress:** a full local run of all 137 test modules plus the three restart phases at `7071f815`, and the GitHub Actions workflows triggered by its push, including the five-job final campaign. Their results will be recorded here before PR #138 leaves draft.
+GitHub Actions at `7071f815`: **35 workflows succeeded, 0 failed**, plus 43 skipped by the draft-PR gate. The documentation and fast PR gates were superseded by the docs push and passed at `ae23bc9e`.
+
+| Workflow | Result |
+| --- | --- |
+| [Final multi-system campaign #40978161099](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40978161099) | 5/5 jobs: pure **46/46**, installed **7/7**, adjacent **3/3**, compatibility **18/18** (14 earlier + 4 refill), restart **3/3** phases. **74/74 tests.** Restart evidence unchanged: 1060 → 1290 → 1350 s, 18 → 87 → 105 kg |
+| [Seeded endurance #40978161101](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40978161101) | Success |
+| [808 equipment-family audit #40978162517](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40978162517) | Success, with the 349/159/300 tiers |
+| [Electrical power and protection #40978161494](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40978161494) | Success |
+| [Installed hull restoration #40978161195](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40978161195) | Success |
+| Documentation consistency and fast PR gate at `ae23bc9e` | Success |
+
+A supplementary local run of all 137 test modules at `7071f815` was in progress when this was written, with no failures in the first 33 modules.
 
 ### PR review notes (non-blocking)
 
@@ -144,7 +155,7 @@ Verified locally at `7071f815`:
 
 ## 8. Path to merge
 
-1. Push `7071f815` and this documentation commit to PR #138.
-2. Let the five-job final campaign, seeded endurance, equipment-family audit and documentation workflows run on the pushed head; confirm green.
-3. Mark PR #138 ready, merge, then run `ox-ship-world`, `ox-continuous-ship-physics` and the final campaign on `main`.
-4. Record G19 as accepted and closed in `design/STATUS.md`.
+1. ~~Push the B1 fix and documentation to PR #138.~~ Done: `7071f815`, `ae23bc9e`.
+2. ~~Confirm the G19 workflows green on the pushed head.~~ Done; see section 5.
+3. Mark PR #138 ready and merge.
+4. Run `ox-ship-world`, `ox-continuous-ship-physics` and the final campaign on `main`, then mark G19 closed in `design/STATUS.md`.

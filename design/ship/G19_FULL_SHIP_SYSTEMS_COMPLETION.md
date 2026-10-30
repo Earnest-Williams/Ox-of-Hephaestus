@@ -1,6 +1,6 @@
 # G19 — full-ship systems completion (single integration PR)
 
-**Status: implementation complete.** The closure audit, its blockers and the verified results are in the [G19 acceptance record](G19_ACCEPTANCE_RECORD_2026-10-29.md). The sections below are the chronological build log; where they say a gate is pending, the acceptance record supersedes them.
+**Status: implementation complete and accepted (30 October 2026).** The closure audit, its blockers and the verified results are in the [G19 acceptance record](G19_ACCEPTANCE_RECORD_2026-10-29.md). The sections below are the chronological build log; where they say a gate is pending, the acceptance record supersedes them.
 
 ## Attended service access into existing freight enclosures
 
