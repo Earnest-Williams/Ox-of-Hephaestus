@@ -1,15 +1,6 @@
 # Ox playable ship — authoritative Evennia game
 
-**Status (21 October 2026):** The primary ship has seven connected rooms,
-three stateful systems, five independently authenticated technical crew
-and an optional captain. Evennia owns physical outcomes, character
-capabilities, durable social agreements and verified assessments.
-G6 adds an opt-in terminal-atmosphere scenario, not a permanent second
-ship; G7's apartment is a separate adult social GOAP fixture. G10b
-provides a read-only game-clock command. PostgreSQL PRs #82–83 protect
-journal ordering, receipt provenance and captain ticket locking.
-This remains a proving ground, not a complete cargo freighter.
-[Current milestone status](../design/STATUS.md).
+**Status (30 October 2026):** G19's installed 421-room / 517-link ship, fitted 808-equipment operational register, finite resources, damage control and world-gated character traversal are merged and accepted. The existing five-specialist Concordia/GOAP crew (optional sixth captain) still operates the separate seven-compartment, three-machine proving ground. The commands and original role examples below primarily document that smaller compatibility fixture. See [G19 ship acceptance](../design/ship/G19_ACCEPTANCE_RECORD_2026-10-29.md), [ship engineering index](../design/ship/README.md) and [current status](../design/STATUS.md).
 
 All Ox ship content is under `game/`; the inherited `evennia/` engine has
 not been converted into a different distribution.
@@ -280,7 +271,7 @@ historical two-argument `oxaction`/`oxreceipt` forms still target P-01.
 five-client test showed safe recovery from a lost cartridge-replacement
 acknowledgment alongside coolant, cargo, hails and world-owned handover.
 
-## Full-ship preparation boundary
+## Accepted full-ship operation and autonomous-crew boundary
 
 The full 950 m vessel model under [`design/ship/`](../design/ship/README.md) is materialised in Evennia as persistent canonical rooms and exits. Since G19, ordinary characters traverse those exits through world-owned pressure, interlock, suit and indexed-transfer gates (`world/ship_crew_access.py`), and operate full-ship machinery with the receipted `oxplantread` / `oxplant` commands. The `board ox` development entry remains Developer-only. The autonomous crew and the proving-ground commands documented below still use the seven-compartment ship. See [integration scope](../design/ship/EVENNIA_INTEGRATION.md) and the [G19 acceptance record](../design/ship/G19_ACCEPTANCE_RECORD_2026-10-29.md).
 

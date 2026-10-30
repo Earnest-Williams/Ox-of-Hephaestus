@@ -5,12 +5,7 @@ directory is the inherited Evennia manual, not the Ox implementation guide.
 
 **CI workflow and path-filter policy:** [CI.md](CI.md). Documentation-only changes should never trigger gameplay integration suites.
 
-**Authoritative current-state index:** [STATUS.md](STATUS.md), updated
-through **authenticated 40-character recovery PR #97 (22 October 2026)**. The
-[ROADMAP](ROADMAP.md) separates completed gates from pending implementation.
-Earlier ADRs, P2 scenarios and milestone plans retain their original
-historical framing; an old “not yet implemented” in one of those documents
-is not a description of today's `main`. P5 is postponed.
+**Current index:** [STATUS.md](STATUS.md), updated for G19 closure on 30 October 2026. The [current roadmap](ROADMAP.md) distinguishes engineering hardening and full-ship autonomous-crew integration from the accepted physical ship. [Archived planning and architecture](archive/README.md) retain the original dated evidence. P5 remains deferred.
 
 ## Decisions and authority
 
@@ -58,9 +53,11 @@ is not a description of today's `main`. P5 is postponed.
 - [G11 matched evidence](prototypes/g11-model-memory-ab.md) ·
   [G12 profiler](prototypes/g12-concordia-profile.md)
 
-## Prepared ship-world source
+## Installed full-ship world
 
-The current non-integrated physical vessel model lives in [`design/ship/`](ship/README.md). It defines the 950 m freighter at play-facing granularity: fixed-spine compartments, cargo drums, eight habitation arcs, utilities and isolation, internal transit and heavy logistics, the variable-gravity Engineering work rotor, damage control, external maintenance, local controls and layered backup life support. It is **design/data only in this revision**; no current `game/` bootstrap, command or handler path consumes it.
+The [ship engineering index](ship/README.md) covers the 421-room installed Evennia topology, fitted v0.5 register (808 equipment units and 133 pressure cells) and G19 accepted full-ship physics. The separate seven-compartment fixture still hosts the autonomous Concordia/GOAP crew. Read the [G19 acceptance record](ship/G19_ACCEPTANCE_RECORD_2026-10-29.md) and [post-merge fuzzing](ship/G19_FUZZ_CAMPAIGN_2026-10-30.md) for exact evidence and remaining hardening.
+
+Historical [architectures and roadmaps](archive/README.md) and [prototype reports](prototypes/README.md) are retained as dated reference material.
 
 ## Retained early scenarios
 

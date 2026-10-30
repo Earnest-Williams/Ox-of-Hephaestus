@@ -1,11 +1,13 @@
 # Ox implementation status
 
-**Snapshot: 29 October 2026.** This document is the current-state index for
+**Snapshot: 30 October 2026.** This document is the current-state index for
 Ox-specific documentation. Earlier ADRs and P2/P3 scenario documents preserve
 the design and acceptance criteria of those milestones; they are not live
 feature inventories.
 
-**Forward plan (remaining milestones):** [reliability-to-autonomy roadmap](ROADMAP.md) and [ADR 0009](decisions/0009-durable-events-and-work.md). Phase 0 planning merged in [PR #21](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/21). GitHub Issues were disabled when tracking was attempted.
+**Forward plan:** [current post-G19 roadmap](ROADMAP.md), including fuzz hardening, full-ship autonomous crew and later gameplay. Earlier project plans are archived in [design history](archive/README.md).
+
+**Latest engineering baseline:** G19 is accepted and merged, with post-merge heat drift corrected in [PR #139](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/139). The physical ship is installed; the autonomous crew still uses the smaller proving-ground fixture. See [architecture](../ARCHITECTURE.md) and [G19 acceptance](ship/G19_ACCEPTANCE_RECORD_2026-10-29.md).
 
 ## Verified implementation
 
@@ -187,7 +189,7 @@ recovery or general LLM-driven planning.
 
 G4g [PR #62](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/62) and G4h [PR #63](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/63) are now **merged and verified**, not merely proposed or under review. Together they supply one assessed supervised lesson and one firsthand investigative-method reflection. Neither is chosen autonomously by the ordinary handler.
 
-- **Evennia** owns the seven-room ship, three stateful physical systems
+- **Evennia** owns the 421-room full physical ship and the separate seven-room, three-machine proving ground
   (cooling P-01, cargo restraints C-01 and atmospheric scrubber A-01),
   the roster, role-local readouts, alarms, private recipient-specific events,
   authoritative timestamps and validated physical effects.
@@ -216,7 +218,7 @@ G4g [PR #62](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/62) and G
   provides an optional matched-evidence hosted-model pilot. These do not
   validate unconstrained independent conversation, diagnoses or intention
   inference across a general ship population.
-- This remains a **small proving-ground**, with seven compartments and up
+- Autonomous crew operation remains a **small proving-ground**, with seven compartments and up
   to six independently authenticated crew. C-01 and A-01 are locally
   actionable state machines, not general freight commerce or high-fidelity
   life support. Some genuine work can now improve practical skill and exact

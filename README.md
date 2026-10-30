@@ -1,21 +1,9 @@
 # Ox of Hephaestus
 
-**An autonomous spaceship MUD/simulation prototype built on [Evennia](https://www.evennia.com/).**
+**A shipboard systems and autonomous-crew MUD/simulation built on [Evennia](https://www.evennia.com/).**
 
 **Full-ship integration (G19, [PR #138](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/138)):** the canonical 421-room / 517-link topology and all 808 v0.5 equipment units run under one persistent Evennia physics clock. Characters traverse authored exits through world-owned pressure, interlock, suit and transfer gates, and operate machinery through receipted local commands. The autonomous Concordia/GOAP crew still runs on the seven-compartment proving ground; migrating it to the full ship is the next stage. See the [G19 acceptance record](design/ship/G19_ACCEPTANCE_RECORD_2026-10-29.md) for verified scope and open items.
 
-> **Current state — 22 October 2026 (through authenticated 40-character recovery PR #97).**
-> The primary proving-ground ship has seven compartments, three physical
-> systems, five independently authenticated technical crew and an optional
-> sixth captain. Evennia remains authoritative for their work, skills,
-> evidence and world-issued receipts. G6 adds a *separate opt-in* terminal
-> atmosphere crisis; G7 tests social GOAP and persistent bilateral agreements;
-> G8–G10b add private temporal memory, independent reinterpretation, protected
-> Concordia integration and authoritative simulation-clock reads. G11 is a
-> small matched-evidence hosted-model A/B **harness**; G12 profiles native
-> Concordia at 6/20/40 *instantiated brains*, not 40 live ship characters.
-> This is a bounded research prototype, not a deployed freighter or proof
-> of generally capable autonomous people.
 
 **Start here:** [verified implementation and limitations](design/STATUS.md) ·
 [prepared full-ship physical model](design/ship/README.md) ·
@@ -32,7 +20,7 @@ and unresolved incidents need follow-through. The ship's eventual economics,
 cargo arrangements, propulsion, staffing constraints and skills should make
 operational tradeoffs consequential.
 
-The current ship is a proving ground for that design. A character **knows**
+The accepted G19 full ship is the installed physical simulation; the autonomous-crew proving ground remains a smaller, separate fixture for integration tests. A character **knows**
 only observations legitimately received; their beliefs may be wrong; and
 world facts unknown even to be missing remain unknown unknowns from that
 character's perspective. An AI's statement or diagnosis cannot change
@@ -114,7 +102,7 @@ P5 (joined handler/world observatory) is postponed. The [full ship](design/ship/
 freight trading/economics, graded real physical task attempts,
 an acquired-attribute engine, autonomous education agendas and comprehensive
 production operations. See [status](design/STATUS.md) and
-[next acceptance gates](design/ROADMAP.md) rather than inferring features
+[active development priorities](design/ROADMAP.md) rather than inferring features
 from the long-term design or historical prototype documents.
 
 ## Repository map

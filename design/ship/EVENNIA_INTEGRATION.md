@@ -3,7 +3,7 @@
 **Stage 1: canonical spatial topology**  
 **Source model:** `ox_full_ship.json`, model v0.4
 
-The full current-installation ship model is now being introduced into the runnable Evennia world incrementally. This stage deliberately materialises spatial truth before operational semantics.
+**Historical Stage 1 integration record:** canonical spatial truth was materialised before operational semantics. G19 is now accepted and merged, so this document's future-tense stage descriptions are historical. See the [current ship index](README.md) and [G19 acceptance](G19_ACCEPTANCE_RECORD_2026-10-29.md).
 
 ## Authority boundary
 
@@ -61,7 +61,7 @@ Initial setup now builds the canonical topology first and the proving-ground fix
 
 The prototype is not the target world. It is compatibility scaffolding and should be retired only after its operational fixtures, crew locations and scenario assumptions have been migrated onto canonical spaces/equipment.
 
-## Next integration slices
+## Historical Stage 1 next steps (completed by G19 except crew migration)
 
 1. Classify canonical access links and implement pressure, EVA, rotary/indexing, hard-lock and permission/interlock traversal rules.
 2. Materialise selected high-value equipment from the 692 equipment records, starting with equipment already represented by prototype gameplay.
@@ -75,9 +75,8 @@ life-support inventories and 808 equipment units. Its physical JSON is
 not the default `ox_full_ship.json` consumed here. Promotion requires a
 separately reviewed source replacement, a version-matched wire renderer,
 verified access-rule migration and state preservation; do not conflate
-a passed design validator with deployed Evennia machinery. Stage-one can
-continue using the published v0.4 source without claiming the v0.5 systems
-are simulated.
+a passed design validator with deployed Evennia machinery. G19 now simulates the v0.5 operational register over the unchanged v0.4
+canonical topology, without silently promoting the v0.5 geometry source.
 
 ## Verification
 
