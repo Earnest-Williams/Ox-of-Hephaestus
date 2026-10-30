@@ -1,6 +1,6 @@
 # G19 — full-ship systems completion (single integration PR)
 
-**Status: implementation in progress; NOT ready for acceptance or merge.**
+**Status: implementation complete.** The closure audit, its blockers and the verified results are in the [G19 acceptance record](G19_ACCEPTANCE_RECORD_2026-10-29.md). The sections below are the chronological build log; where they say a gate is pending, the acceptance record supersedes them.
 
 ## Attended service access into existing freight enclosures
 
@@ -119,7 +119,7 @@ The three original generators draw from the **existing finite 125-tonne cartridg
 
 **CI acceptance:** [run #40435001116](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40435001116), **77/77 tests in four successful jobs** at tested code `c586378e897fe284418456331e860ead50211596`: 22 pure electricity/energy tests, 16 installed Evennia switching/storage/cartridge tests, 14 inherited G18 fire/gas/thermal casualties and 25 installed G19 water/cargo/movement compatibility tests. The [electrical operating contract](G19_ELECTRICAL_POWER_AND_RECOVERY.md) and [machine-readable acceptance](G19_ELECTRICAL_ACCEPTANCE_2026-10-27.json) distinguish accepted graph-level operation from unresolved component identity coverage.
 
-**Acceptance boundary:** The as-authored graph does not individually wire the 16 other local batteries or name dedicated electric motor feeders for the LT plant and two fire pumps; these are not credited as fabricated global electrical sources. The selected schedule is a coarse but causal game-world MW budget, not per-circuit voltage, instantaneous fault-current or physical-switchgear certification. Docked external shore-power connection has pure-kernel evidence but not a complete real-berth installed acceptance campaign. These limitations do not reopen the bounded installed distribution and finite-energy subsystem tests, but mean **whole-ship Equipment and full G19 closure remain open**. The 40-crew voyage was not run; **PR #138 remains draft and unmerged**.
+**Acceptance boundary (as of 27 October; later superseded):** At this point the as-authored graph did not individually wire the 16 other local batteries or name dedicated electric motor feeders for the LT plant and two fire pumps. G19 later added them as identified refit hardware: 16 local DC reserves and `g19_motor` feeders, including protected fire-pump alternates; see [G19 electrical power and recovery](G19_ELECTRICAL_POWER_AND_RECOVERY.md). The selected schedule is a coarse but causal game-world MW budget, not per-circuit voltage, instantaneous fault-current or physical-switchgear certification. Docked external shore-power connection has pure-kernel evidence but not a complete real-berth installed acceptance campaign. These limitations do not reopen the bounded installed distribution and finite-energy subsystem tests, but mean **whole-ship Equipment and full G19 closure remain open**. The 40-crew voyage was not run; **PR #138 remains draft and unmerged**.
 
 ### Accepted G19 implementation slice — water, waste and recycling
 
@@ -634,3 +634,15 @@ runtime `f9f46ad8`, and the [seven-case sustained casualty run
 #40958586472](https://github.com/Earnest-Williams/Ox-of-Hephaestus/actions/runs/40958586472)
 passed. The instrumentation workflow now observes `test_installed_ship_waste_repair.py`
 to prevent stale generator-work compatibility acceptance.
+
+
+## Casualty repressurisation and closure audit — 30 October 2026
+
+The closure audit at `c56990c` found one missing required ship function: a
+breached cell could be patched and restored, but its lost air could never be
+replaced. The fitted refill banks, regulators, rotary unions and the authored
+`repressurization_gas` network now operate under the installed clock: valve
+lineup by the existing `switch` action, attended start at the regulator
+station, rated metering to setpoint, exact bank debit and route/seal checks
+every step. See [casualty repressurisation](G19_ATMOSPHERE_REFILL.md) and the
+[G19 acceptance record](G19_ACCEPTANCE_RECORD_2026-10-29.md).

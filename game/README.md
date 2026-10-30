@@ -282,7 +282,7 @@ acknowledgment alongside coolant, cargo, hails and world-owned handover.
 
 ## Full-ship preparation boundary
 
-The full 950 m vessel model under [`design/ship/`](../design/ship/README.md) is now materialised in Evennia as persistent canonical rooms and Developer-only exits (stage-one spatial topology). The ordinary crew commands and operational systems documented below still use the seven-compartment proving ground; full-ship equipment, access interlocks, pressure and EVA semantics have **not** yet migrated. See [integration scope](../design/ship/EVENNIA_INTEGRATION.md).
+The full 950 m vessel model under [`design/ship/`](../design/ship/README.md) is materialised in Evennia as persistent canonical rooms and exits. Since G19, ordinary characters traverse those exits through world-owned pressure, interlock, suit and indexed-transfer gates (`world/ship_crew_access.py`), and operate full-ship machinery with the receipted `oxplantread` / `oxplant` commands. The `board ox` development entry remains Developer-only. The autonomous crew and the proving-ground commands documented below still use the seven-compartment ship. See [integration scope](../design/ship/EVENNIA_INTEGRATION.md) and the [G19 acceptance record](../design/ship/G19_ACCEPTANCE_RECORD_2026-10-29.md).
 
 ## Start the game
 

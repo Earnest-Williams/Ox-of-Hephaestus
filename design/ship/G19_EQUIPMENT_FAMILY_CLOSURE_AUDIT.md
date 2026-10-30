@@ -13,9 +13,9 @@ An unreviewed new family cannot silently pass as a generic machine.
 
 | Evidence/disposition | Fitted hardware | Families | Interpretation |
 | --- | ---: | ---: | --- |
-| Direct physics and output/control paths | **343** | 34 | Mapped to individual source/plant/process/telemetry logic, including 40 separately valved cabin fan-coils and the two finite surveyed rescue LSS units. A live contract is not a guarantee of every failure mode. |
+| Direct physics and output/control paths | **349** | 37 | Mapped to individual source/plant/process/telemetry logic, including 40 separately valved cabin fan-coils, the two finite surveyed rescue LSS units, and the refill banks, regulators and rotary unions ([casualty repressurisation](G19_ATMOSPHERE_REFILL.md)). A live contract is not a guarantee of every failure mode. |
 | Interface or material custody | **159** | 26 | Connector, pressure boundary, passive storage, mounting or bulk infrastructure generally exercised through the owning access/cargo/rotor/water subsystem rather than a second invented machine. |
-| Condition/interlock and supply hardware | **306** | 31 | Original equipment whose existence, condition, feeder, valve or receipt can affect the enclosing operation. Individual positive output is not claimed without a dedicated test. |
+| Condition/interlock and supply hardware | **300** | 28 | Original equipment whose existence, condition, feeder, valve or receipt can affect the enclosing operation. Individual positive output is not claimed without a dedicated test. |
 | Outstanding independent interactions | **0** | 0 | Real original portable or exterior machinery still requiring independently proved deployment, power/media/traction, sustained output and recovery. |
 | **As-fitted total** | **808** | **91** | Complete identity and location inventory; no fictional additions. |
 
@@ -50,7 +50,7 @@ motor batteries, physical crew occupancy, inspection measurements and
 fault recovery were exercised.
 
 This promotes the two corresponding families from `open_interaction`
-to `direct_physics`. The resulting strict audit has **343** direct-physics
+to `direct_physics`. The strict audit then had **343** direct-physics
 units, **159** interface/custody units, **306** interlocked/controlled
 units, and **0** outstanding independent interaction identities.
 This is *family coverage closure*, not blanket proof that every one
@@ -74,3 +74,12 @@ The machine inventory audit is a **coverage instrument**, not a new ship or
 parallel simulation. It should be rerun after each outstanding family is
 implemented, with the disposition of each unit changed only after relevant
 installed-world acceptance and recovery regressions pass.
+
+## Casualty repressurisation promotion (30 October 2026)
+
+The two refill banks, two regulators and two rotary unions now meter finite bank
+air into pressure cells under the installed physics clock, with exact inventory
+debit and route, seal and equipment checks every step. Their three families move
+from `controlled_hardware` to `direct_physics`. The strict audit now has **349**
+direct-physics units in 37 families, **159** interface/custody units in 26, **300**
+controlled units in 28, and 0 open. See [casualty repressurisation](G19_ATMOSPHERE_REFILL.md).

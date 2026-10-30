@@ -29,9 +29,17 @@ The builder is idempotent. An interrupted first deployment leaves the root marke
 
 ## Conservative traversal boundary
 
-Canonical access links are **Developer-only in Stage 1**. The
+> **Superseded by G19.** Canonical exits now carry `traverse:all()` and
+> `ox_integration_state = "live_world_gated"`; `CanonicalShipAccess.at_traverse`
+> delegates every non-development crossing to
+> `world.ship_crew_access.traverse_canonical_exit`, which enforces pressure,
+> interlock, suit, rotor and indexed-transfer rules and issues a work receipt.
+> The `board ox` development entry stays Developer-only. The stage-one text
+> below is kept as design history.
+
+Canonical access links were **Developer-only in Stage 1**. The
 517 authored v0.4 links have physically **bidirectional** connectivity; the
-stage-one importer constructs 1,034 Developer-only exit objects, not an
+importer constructs 1,034 exit objects, not an
 invented one-way distinction from unsupported metadata keys.
 
 This is intentional. The source model contains pressure boundaries, exterior work zones, rotating cargo drums, indexed transfers, hard-lock requirements and machinery-access conditions. Treating every graph edge as an ordinary open doorway would make the integrated ship less correct than the prepared model.
