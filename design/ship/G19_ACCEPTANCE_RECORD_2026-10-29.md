@@ -159,3 +159,8 @@ A supplementary local run of all 137 test modules at `7071f815` was in progress 
 2. ~~Confirm the G19 workflows green on the pushed head.~~ Done; see section 5.
 3. Mark PR #138 ready and merge.
 4. Run `ox-ship-world`, `ox-continuous-ship-physics` and the final campaign on `main`, then mark G19 closed in `design/STATUS.md`.
+
+## 9. Post-merge targeted fuzzing (30 October 2026)
+
+A seeded fuzzing campaign after merge found one High-severity defect that the acceptance tests could not see: crew physiology used a different gas heat capacity from the physics clock, so every occupied cell lost about 0.4 K at each tick boundary (mass was conserved, so the gas balance check passed). It is fixed, with a source-level regression guard. Open hardening items (a misplaced character halting the clock, and bounds and type checks on persisted stocks and interlock state) are listed with recommendations in the [fuzzing campaign report](G19_FUZZ_CAMPAIGN_2026-10-30.md). None is reachable by crew actions.
+

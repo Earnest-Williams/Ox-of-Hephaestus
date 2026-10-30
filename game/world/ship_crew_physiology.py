@@ -17,7 +17,11 @@ from world.ship_crew_exposure import (
 )
 
 MAX_STEP_S = 10.0
-GAS_CP_KJ_KG_K = 1.005
+# Must equal continuous_ship_physics.CP_GAS_KJ_KG_K: cell energy is defined
+# as (capacity + mass * cp) * T there, and the clock rebuilds energy from the
+# stored temperature every tick. A different cp here destroys or creates
+# heat at each tick boundary (G19 fuzz finding F4-1).
+GAS_CP_KJ_KG_K = 1.0
 AIR_R_J_KG_K = 287.05
 RESTING_HEAT_KW = 0.080
 SMOKE_HAZARD_SCALE = 100.0
