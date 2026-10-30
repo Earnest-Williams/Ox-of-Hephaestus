@@ -6,7 +6,7 @@
 
 
 **Start here:** [verified implementation and limitations](design/STATUS.md) ·
-[prepared full-ship physical model](design/ship/README.md) ·
+[live full-ship engineering index](design/ship/README.md) ·
 [install and tests](INSTALL.md) · [in-world ship guide](game/README.md) ·
 [external AI handler](services/ai-handler/README.md) ·
 [architecture and authority](ARCHITECTURE.md) · [roadmap](design/ROADMAP.md).
@@ -16,9 +16,9 @@
 The intended game is a working bulk-freight spacecraft, not a backdrop for
 a conversation. Humans and autonomous characters share a material world:
 equipment can fail, supplies run out, crews work under incomplete information,
-and unresolved incidents need follow-through. The ship's eventual economics,
-cargo arrangements, propulsion, staffing constraints and skills should make
-operational tradeoffs consequential.
+and unresolved incidents need follow-through. G19 already simulates propulsion and physical cargo handling.
+Freight commerce, staffing economics and graded skill outcomes remain
+separate gameplay work intended to make those engineering tradeoffs consequential.
 
 The accepted G19 full ship is the installed physical simulation; the autonomous-crew proving ground remains a smaller, separate fixture for integration tests. A character **knows**
 only observations legitimately received; their beliefs may be wrong; and

@@ -113,7 +113,7 @@ unauthorized users, unsafe physical states and repeated effects. The
 G3d test workflow exercises these rules and a five-client decision path.
 [Boundaries and limitations](../design/prototypes/g3d-independent-rounds.md).
 
-## What is in the world
+## What is in the legacy seven-compartment crew fixture
 
 | Object | Game-owned behavior |
 | --- | --- |
@@ -123,16 +123,19 @@ G3d test workflow exercises these rules and a five-client decision path.
 | Cargo Hold | Mara Voss and cargo restraint grid C-01; local inspection, restow and certification |
 | Environmental Plant | Teo Hale and scrubber A-01; cartridge fault, isolation, replacement, verified restart |
 | Crew Mess | Navigable living/galley area, not yet a nutrition or morale simulation |
-| Machine Shop | Engineering annex and G4g supervised-training bench; fabrication and full workshop simulation remain future work |
+| Machine Shop | Legacy engineering annex and G4g supervised-training bench; the full G19 ship has separately implemented fabrication and workshop machinery |
 | Operations Console | Bridge-only readout of cargo restraint and atmosphere scrubber states |
 | Cooling Pump P-01 | `normal → low_pressure → isolated → repaired → normal`; durable event history and physical command receipts |
 | Ship roster | Active engineering duty holder, independent safety reviewer and handover state |
 | Duty Script | Persistent `world.live_clock.ShipDutyClock` checks an armed world deadline; it never calls a model |
 | World-private events | Receiver-specific `ox_event` observations and `oxinbox` replay; no cross-crew memory access |
 
-The ship now has separate bounded physical cargo and atmosphere procedures.
-There is still **no propulsion, trading economy, general cargo routing,
-manufacturing or skill-sensitive graded physical task outcome system**.
+In this **legacy seven-room fixture**, cargo and atmosphere operations are
+limited to local teaching/test procedures. This fixture has no propulsion,
+freight commerce, general cargo routing or fabrication workshop; **the
+separate accepted G19 full ship does simulate propulsion, cargo mechanisms
+and workshop fabrication**. Integrating autonomous crew with the full ship
+and adding graded skill-sensitive physical task outcomes remain later work.
 Selected authenticated successful work now grants bounded practice in G4f. The P4e supervisor runs
 five private cognitive agents; the original P4c three-crew supervisor
 remains available but must not be run simultaneously on the same ship.
