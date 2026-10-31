@@ -424,16 +424,16 @@ class G19PersistedSafetyRegressions(_InstalledFuzzBase):
 
     def test_unknown_envelope_is_nonbreathable_but_other_systems_keep_ticking(self):
         from world.models import CanonicalShipEvent
-        self.go("STORE-FLUID-AFT")  # deliberate operator-like displacement
+        self.go("BOW-SHIELD-FOREPEAK")  # no fitted pressure cell; forced placement
         before = _clock().details["last_game_time"]
         self.advance(60)
         d = _clock().details
         self.assertEqual(d["last_game_time"], before + 60)
         self.assertEqual(d["crew_unverified_envelopes"][self.worker.dbref],
-                         "STORE-FLUID-AFT")
+                         "BOW-SHIELD-FOREPEAK")
         self.assertEqual(d["summary"]["crew_o2_used_this_tick_kg"], 0)
         self.assertEqual(d["summary"]["crew_unverified_envelope_alarms"],
-                         {self.worker.dbref: "STORE-FLUID-AFT"})
+                         {self.worker.dbref: "BOW-SHIELD-FOREPEAK"})
         health = CanonicalShipState.objects.get(
             pk="crew_health:" + self.worker.dbref)
         self.assertEqual(health.details["hypoxia_s"], 60)

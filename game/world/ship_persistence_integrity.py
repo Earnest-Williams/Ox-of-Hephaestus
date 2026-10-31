@@ -79,7 +79,7 @@ def validate_pressure_mass(mass_kg, volume_m3, temperature_k):
     return True
 
 
-def validate_motion_quantities(motion, authored_mass):
+def validate_motion_quantities(motion, authored_mass, *, water=None):
     """Reconcile the persistent motion ledger with the immutable v0.5 mass basis.
 
     Motion and the original reaction/FTL inventory rows are different legacy
@@ -96,12 +96,39 @@ def validate_motion_quantities(motion, authored_mass):
     for field, authored in key_to_ref.items():
         limit = 1000.0 * finite_number(authored_mass.get(authored), authored)
         finite_number(motion.get(field), field, maximum=limit + 1e-5)
-    # No modeled process consumes hull/structure. Losing dry mass in a
-    # saved record can increase acceleration without a resource debit.
+    # This coarse inertial "dry" account includes installed stores and scrap.
+    # Legitimate industrial/hazardous waste export debits dry mass at the
+    # accepting berth; sanitary solids and vented hydrogen debit fluids.
+    # Validate recorded departures, not an impossible fixed loaded mass.
     fitted_dry = 1000.0 * finite_number(authored_mass.get("dry_t"), "dry_t")
-    if not math.isclose(motion["dry_mass_kg"], fitted_dry,
-                        rel_tol=0, abs_tol=1e-5):
-        raise ShipPersistenceError("Ship dry mass diverged from installed hull")
+    fitted_fluids = 1000.0 * finite_number(
+        authored_mass.get("mission_and_nonpropulsive_fluids_t"),
+        "mission_and_nonpropulsive_fluids_t")
+    delivered = {"industrial": 0.0, "hazardous": 0.0, "sanitary": 0.0}
+    hydrogen_departed = 0.0
+    if water is not None:
+        try:
+            accounts = water["waste_offload"]["delivered_kg"]
+            delivered = {key: finite_number(accounts[key], "waste exported " + key)
+                         for key in delivered}
+            hydrogen_departed = finite_number(
+                water["cumulative"]["hydrogen_from_electrolysis_kg"],
+                "vented electrolysis hydrogen")
+        except (TypeError, KeyError) as exc:
+            raise ShipPersistenceError(
+                "Missing authoritative waste/hydrogen departure ledger") from exc
+    accounted_dry = delivered["industrial"] + delivered["hazardous"]
+    accounted_fluids = delivered["sanitary"] + hydrogen_departed
+    if accounted_dry > fitted_dry or accounted_fluids > fitted_fluids:
+        raise ShipPersistenceError("Offship waste or hydrogen exceeds fitted ship mass")
+    if not math.isclose(motion["dry_mass_kg"], fitted_dry - accounted_dry,
+                        rel_tol=0, abs_tol=1e-4):
+        raise ShipPersistenceError("Ship dry mass differs from recorded offship waste")
+    if not math.isclose(motion["mission_fluids_kg"],
+                        fitted_fluids - accounted_fluids,
+                        rel_tol=0, abs_tol=1e-4):
+        raise ShipPersistenceError(
+            "Ship mission fluids differ from recorded waste/hydrogen exports")
     cargo_mass = finite_number(motion.get("cargo_mass_kg"), "cargo mass")
     if cargo_mass > motion["cargo_capacity_kg"] + 1e-5:
         raise ShipPersistenceError("Cargo exceeds installed hold capacity")

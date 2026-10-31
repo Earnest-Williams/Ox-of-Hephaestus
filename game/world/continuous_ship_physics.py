@@ -4436,7 +4436,8 @@ def tick_continuous_physics(*, now_game_time=None):
     except RotorError as exc:
         raise PhysicsError(str(exc)) from exc
     try:
-        validate_motion_quantities(motion, _rated_motion_mass_contract())
+        validate_motion_quantities(motion, _rated_motion_mass_contract(),
+                                   water=water_state)
     except ShipPersistenceError as exc:
         raise PhysicsError(str(exc)) from exc
     # Cargo shell damage can begin during rotation. Coast its actual drum
@@ -6940,7 +6941,8 @@ def tick_continuous_physics(*, now_game_time=None):
     try:
         validate_rotors(rotors)
         validate_motion_safety(motion)
-        validate_motion_quantities(motion, _rated_motion_mass_contract())
+        validate_motion_quantities(motion, _rated_motion_mass_contract(),
+                                   water=water_state)
     except (RotorError, ShipPersistenceError) as exc:
         raise PhysicsError("Invalid post-tick movement: " + str(exc)) from exc
     old = _snapshot(clock)

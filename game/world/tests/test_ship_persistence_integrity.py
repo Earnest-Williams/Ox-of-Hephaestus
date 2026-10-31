@@ -72,6 +72,27 @@ class G19PersistenceRegressions(unittest.TestCase):
         with self.assertRaises(ShipPersistenceError):
             validate_motion_quantities(bad, contract())
 
+    def test_real_departure_debits_and_forged_debits(self):
+        water = {
+            "waste_offload": {"delivered_kg": {
+                "industrial": 2.0, "hazardous": 3.0, "sanitary": 4.0}},
+            "cumulative": {"hydrogen_from_electrolysis_kg": 0.5},
+        }
+        shipped = motion()
+        shipped["dry_mass_kg"] -= 5.0
+        shipped["mission_fluids_kg"] -= 4.5
+        self.assertTrue(validate_motion_quantities(shipped, contract(), water=water))
+        for field in ("dry_mass_kg", "mission_fluids_kg"):
+            corrupt = copy.deepcopy(shipped)
+            corrupt[field] -= 2.0
+            with self.subTest(account=field):
+                with self.assertRaises(ShipPersistenceError):
+                    validate_motion_quantities(corrupt, contract(), water=water)
+        forged = copy.deepcopy(water)
+        forged["waste_offload"]["delivered_kg"]["industrial"] = 1e30
+        with self.assertRaises(ShipPersistenceError):
+            validate_motion_quantities(shipped, contract(), water=forged)
+
     def test_pressure_mass_is_measured_not_unlimited(self):
         self.assertTrue(validate_pressure_mass(100.0, 100, 294))
         for mass, volume, temperature in (
