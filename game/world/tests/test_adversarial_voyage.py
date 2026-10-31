@@ -200,11 +200,11 @@ class AdversarialVoyageTests(EvenniaTestCase):
                 with self.assertRaises(SyntheticCrash):
                     with transaction.atomic():
                         emit(ship["pump"], person, "voyage_diagnostic",
-                             data={"sample": sequence, "aborted": True})
+                             data={"sample": sequence, "aborted": True}, text="Test observation.")
                         raise SyntheticCrash("before journal commit")
                 self.assertEqual(CrewEvent.objects.count(), before)
             emit(ship["pump"], person, "voyage_diagnostic",
-                 data={"sample": sequence, "aborted": False})
+                 data={"sample": sequence, "aborted": False}, text="Test observation.")
 
         for role, expected in (("officer", 153), ("cargo", 27),
                                ("environment", 0)):

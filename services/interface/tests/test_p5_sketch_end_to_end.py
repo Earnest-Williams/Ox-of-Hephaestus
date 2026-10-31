@@ -15,6 +15,7 @@ import orjson
 
 ROOT: Path = Path(__file__).resolve().parents[3]
 for extra in (
+    ROOT / "contracts",
     ROOT / "game",
     ROOT / "services" / "ai-handler" / "src",
     ROOT / "services" / "interface" / "src",
@@ -202,7 +203,10 @@ class EngineerBeliefVersusActual(unittest.TestCase):
         reading: float = cell_pressure_kpa(cell("PZ-HAB-01", 118.0))
         pages, omissions = actor_series(engineer_view(1000.0, 995.0, reading), key=KEY)
         self.assertEqual(pages[0].equipment[0].availability, "available")
-        self.assertEqual(len(pages[0].addressed_events), 1)  # empty text omitted
+        # The legacy empty-text row is omitted; a null datum is kept as null.
+        self.assertEqual(len(pages[0].addressed_events), 1)
+        self.assertIsNone(pages[0].addressed_events[0].datum_fields["datum_zone"])
+        self.assertEqual(pages[0].equipment[0].evidence.event_id, "oxevt-v2-0041")
         self.assertEqual(len(omissions.reasons), 1)
 
         record: dict[str, Any] = {}
@@ -224,7 +228,8 @@ class EngineerBeliefVersusActual(unittest.TestCase):
         self.assertLess(row["actual"], reading)
         self.assertFalse(row["verified"])  # 305 s old, valid for 60 s
         self.assertAlmostEqual(row["belief_age_s"], 305.0)
-        self.assertIn(panel_fact("LP-HAB-01", "pressure_kpa"), record["observations"])
+        stored = record["observations"][panel_fact("LP-HAB-01", "pressure_kpa")]
+        self.assertEqual(stored["evidence_id"], "oxevt-v2-0041")
 
     def test_private_cognition_is_not_shared(self) -> None:
         authorize(Grant("developer", None), ENGINEER)

@@ -367,6 +367,54 @@ class WorldReadContractTests(unittest.TestCase):
         self.bad(p)
 
 
+class PreProducerAmendmentTests(unittest.TestCase):
+    """31 Oct 2026 in-place amendments before any producer publishes."""
+
+    def bad(self, data):
+        with self.assertRaises((ValidationError, ValueError)):
+            parse_world_read_page(data)
+
+    def test_null_datum_is_a_reported_unknown_not_a_missing_key(self):
+        p = observed()
+        p["addressed_events"][0]["datum_fields"] = {
+            "datum_zone": "PZ-HUB-SVC",
+            "datum_sampled_game_s": None,
+        }
+        event = parse_world_read_page(p).addressed_events[0]
+        self.assertIn("datum_sampled_game_s", event.datum_fields)
+        self.assertIsNone(event.datum_fields["datum_sampled_game_s"])
+        p["addressed_events"][0]["datum_fields"] = {"datum_bad": {"nested": None}}
+        self.bad(p)
+
+    def panel_page(self, sampled, delivered):
+        p = observed()
+        p["equipment"][0]["availability"] = "available"
+        p["equipment"][0]["evidence"] = dict(
+            source="local_panel",
+            source_id="LP-ENG",
+            observed_game_s=sampled,
+            event_id="ALARM:18",
+        )
+        p["addressed_events"][0]["occurred_game_s"] = delivered
+        return p
+
+    def test_panel_evidence_may_cite_its_later_delivery_event(self):
+        parse_world_read_page(self.panel_page(sampled=1000.0, delivered=1018.0))
+        parse_world_read_page(self.panel_page(sampled=1018.0, delivered=1018.0))
+        # A reading cannot be delivered before the panel sampled it.
+        self.bad(self.panel_page(sampled=1018.5, delivered=1018.0))
+
+    def test_only_event_or_panel_evidence_cites_events(self):
+        p = observed()
+        p["exits"][0]["evidence"]["event_id"] = "ALARM:18"
+        self.bad(p)
+        p = observed()
+        p["equipment"][0]["evidence"] = dict(
+            source="addressed_event", source_id="ALARM:18", observed_game_s=1019.0
+        )
+        self.bad(p)
+
+
 class FrozenPayloadTests(unittest.TestCase):
     def test_event_datums_are_immutable_and_round_trip(self):
         event = parse_world_read_page(observed()).addressed_events[0]

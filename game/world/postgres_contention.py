@@ -128,7 +128,8 @@ def journal_commit_order_probe(recipient_dbref: str) -> None:
         try:
             with transaction.atomic():
                 recipient = ObjectDB.objects.get(pk=int(recipient_dbref[1:]))
-                event = emit(None, recipient, "pg_order_a")
+                event = emit(None, recipient, "pg_order_a",
+                             text="PostgreSQL journal ordering probe A.")
                 inserted_a.set()
                 assert allow_commit_a.wait(timeout=12), "A release not signalled"
             return event
@@ -141,7 +142,7 @@ def journal_commit_order_probe(recipient_dbref: str) -> None:
             assert inserted_a.wait(timeout=10), "A never inserted its event"
             recipient = ObjectDB.objects.get(pk=int(recipient_dbref[1:]))
             attempting_b.set()
-            return emit(None, recipient, "pg_order_b")
+            return emit(None, recipient, "pg_order_b", text="PostgreSQL journal ordering probe B.")
         finally:
             connections.close_all()
 
@@ -195,7 +196,8 @@ def concurrent_receipt_provenance_probe(actor_dbref: str) -> None:
         try:
             started.set()
             recipient = ObjectDB.objects.get(pk=actor.pk)
-            return emit(None, recipient, "pg_unrelated_receipt_probe")
+            return emit(None, recipient, "pg_unrelated_receipt_probe",
+                        text="PostgreSQL unrelated receipt probe.")
         finally:
             finished.set()
             connections.close_all()

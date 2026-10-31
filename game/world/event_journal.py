@@ -181,12 +181,18 @@ def migrate_legacy_events(pump=None) -> int:
     return count
 
 
-def emit(pump, recipient, kind: str, *, sender=None, data=None, text="") -> dict:
-    """Atomically append one addressed observation; notify only after commit."""
+def emit(pump, recipient, kind: str, *, text: str, sender=None, data=None) -> dict:
+    """Atomically append one addressed observation; notify only after commit.
+
+    ``text`` is required and non-empty: every addressed observation says
+    what the recipient perceived, so ox.world.read/1 can carry it unaltered.
+    """
     if recipient is None or not isinstance(recipient.dbref, str):
         raise ValueError("An authoritative recipient character is required")
     if not isinstance(kind, str) or not 1 <= len(kind) <= 64:
         raise ValueError("Invalid world event kind")
+    if not isinstance(text, str) or not text.strip():
+        raise ValueError("World event text must be non-empty")
     details = _details(data)
     with transaction.atomic():
         migrate_legacy_events(pump)
@@ -203,7 +209,7 @@ def emit(pump, recipient, kind: str, *, sender=None, data=None, text="") -> dict
             sender_dbref=sender.dbref if sender else None,
             kind=kind,
             details=details,
-            text=str(text),
+            text=text,
             game_time=float(gametime.gametime(absolute=True)),
         )
         record.event_id = f"oxevt-v2-{record.sequence:04d}"

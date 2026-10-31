@@ -24,13 +24,21 @@ enables developer access or integrates private Concordia memory.
   plausible pressure with an impossible gas charge.
 - **Authenticated addressed events include what was said.** Each actor event
   carries `text` and `datum_fields`: a bounded flat map preserving original
-  `datum_*` OOB keys and scalar values. No nested dictionaries, invented alarm
+  `datum_*` OOB keys and scalar values. `null` is allowed and means the world
+  reported the value as unknown (for example, a panel with no good sample
+  yet), which is different from an absent key. No nested dictionaries, invented alarm
   payloads or events addressed to another character. `datum_fields` is
   read-only once validated and serialises as a plain JSON object. If an
   observation cites `Evidence.source=addressed_event`, the cited event may be on
   another page of the same cursor series (as with developer pages); when it is
   on the same page it must predate the observation. The service must still
   authenticate the original addressed journal delivery.
+- **Panel readings keep their sample time.** `Evidence.source=local_panel`
+  is timed at the panel's own sample, and may cite the journal event that
+  delivered the reading to this actor (`event_id`). That delivery happens at
+  or after the sample, so when co-paged the event must not predate the
+  observation. Only `addressed_event` and `local_panel` evidence may cite an
+  event.
 - **Freshness is objective, not a caller label.** At snapshot game time,
   `available` means a usable observation sampled **at most 60 game-seconds
   ago**; `stale` means a retained last-known observation **older than 60
@@ -105,8 +113,10 @@ enables developer access or integrates private Concordia memory.
 place on 31 October 2026 rather than versioned: actual-vs-authored boundary
 setting; `unavailable` at any age; cross-page event citations; identifier
 grammar for cell room IDs; suffix-derived canonical units; P/m/V/T agreement;
-immutable event datums. Once any endpoint publishes this schema, a change to
-what validates requires a new schema version.
+immutable event datums. A second round on the same day, still before any
+producer: `null` event datums, and `local_panel` evidence citing its delivery
+event. Once any endpoint publishes this schema, a change to what validates
+requires a new schema version.
 
 Contract-only tests: `python -m unittest discover -s contracts/tests -p 'test_*.py' -v`
 after installing `python -m pip install -e ./contracts`. Schema tests do not

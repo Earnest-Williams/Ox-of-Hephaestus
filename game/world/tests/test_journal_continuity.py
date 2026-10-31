@@ -37,10 +37,12 @@ class JournalContinuityTests(EvenniaTestCase):
         cmdset = CharacterCmdSet()
         cmdset.at_cmdset_creation()
         self.assertIn("oxjournal", {cmd.key for cmd in cmdset.commands})
-        first = emit(self.pump, self.lin, "private_report", data={"case_id": "lin"})
+        first = emit(self.pump, self.lin, "private_report", data={"case_id": "lin"},
+                     text="Test observation.")
         hidden = emit(self.pump, self.ari, "private_report",
-                      data={"case_id": "ari"})
-        latest = emit(self.pump, self.lin, "private_report", data={"step": 2})
+                      data={"case_id": "ari"}, text="Test observation.")
+        latest = emit(self.pump, self.lin, "private_report", data={"step": 2},
+                      text="Test observation.")
         world = journal_certificate(self.lin, cursor=latest["sequence"])
         genesis = seed(world["generation"], self.lin.dbref)
         # The operator fixture opened the first bridge alarm *before* this
@@ -95,13 +97,13 @@ class JournalContinuityTests(EvenniaTestCase):
         before = journal_certificate(self.lin, cursor=0)
         with self.assertRaisesRegex(RuntimeError, "rolled back"):
             with transaction.atomic():
-                emit(self.pump, self.lin, "temporary_observation")
+                emit(self.pump, self.lin, "temporary_observation", text="Test observation.")
                 raise RuntimeError("rolled back")
         self.assertEqual(
             journal_certificate(self.lin, cursor=0)["head_digest"],
             before["head_digest"],
         )
-        committed = emit(self.pump, self.lin, "committed_observation")
+        committed = emit(self.pump, self.lin, "committed_observation", text="Test observation.")
         after = journal_certificate(self.lin, cursor=committed["sequence"])
         self.assertNotEqual(after["head_digest"], before["head_digest"])
 

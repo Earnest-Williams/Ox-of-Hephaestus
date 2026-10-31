@@ -248,6 +248,10 @@ def _record(agreement, actor, kind, request_id, *, text=''):
              'scope': agreement.terms['scope'], 'exchange_order': agreement.terms['exchange_order'],
              'state': agreement.state, 'history_id': entry.pk}
     counterpart = _other(agreement, actor)
+    # World-authored summary when the step carries no spoken content.
+    text = text or ('Agreement %s %s (revision %d).'
+                    % (agreement.agreement_id, kind.replace('_', ' '),
+                       agreement.revision))
     first = emit(None, actor, 'social_' + kind, sender=actor, data=extra, text=text)
     emit(None, counterpart, 'social_' + kind, sender=actor, data=extra, text=text)
     return first['event_id']

@@ -558,6 +558,7 @@ def panel_observation(
                 source="local_panel",
                 source_id=reading.panel_id,
                 observed_game_s=reading.read_game_s,
+                event_id=reading.event_id,
             ),
         )
     sampled: float = reading.sampled_game_s
@@ -577,6 +578,7 @@ def panel_observation(
             source="local_panel",
             source_id=reading.panel_id,
             observed_game_s=sampled,
+            event_id=reading.event_id,
         ),
     )
 
@@ -584,16 +586,14 @@ def panel_observation(
 def addressed_event(row: JournalRow) -> AddressedEvent | None:
     """Wire form of one journal row, or None if the contract cannot carry it.
 
-    Two journal/contract mismatches are reported, not papered over:
-    ``emit()`` defaults ``text`` to "" (contract needs >= 1 char) and allows
-    ``None`` details (contract datums are non-null).
+    ``emit()`` now requires non-empty text and the contract admits null
+    datums, so current rows always fit. Legacy rows written before that
+    change may still have empty text; they are omitted and reported.
     """
     if not row.text:
         return None
-    datums: dict[str, str | int | float | bool] = {
-        "datum_" + key: value
-        for key, value in row.details.items()
-        if value is not None and key.islower()
+    datums: dict[str, str | int | float | bool | None] = {
+        "datum_" + key: value for key, value in row.details.items() if key.islower()
     }
     try:
         return AddressedEvent(

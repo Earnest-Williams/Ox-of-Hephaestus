@@ -20,10 +20,18 @@ class CrewJournalTests(EvenniaTestCase):
         self.lin = self.ship["officer"]
         self.ari = self.ship["watch"]
 
+    def test_every_addressed_observation_has_text(self):
+        for text in ("", "   "):
+            with self.assertRaises(ValueError):
+                emit(self.pump, self.lin, "journal_trial", text=text)
+        with self.assertRaises(TypeError):
+            emit(self.pump, self.lin, "journal_trial")
+
     def test_two_thousand_events_must_paginate_without_leak(self):
         for index in range(2100):
             recipient = self.lin if index % 3 else self.ari
-            emit(self.pump, recipient, "journal_trial", data={"sample": index})
+            emit(self.pump, recipient, "journal_trial", data={"sample": index},
+                 text="Test observation.")
         self.assertEqual(CrewEvent.objects.count(), 2101)
         self.assertEqual(len(inbox(self.lin)), 128)
         self.assertEqual(len(inbox(self.ari)), 128)
@@ -49,7 +57,8 @@ class CrewJournalTests(EvenniaTestCase):
 
     def test_authenticated_command_reports_continuation(self):
         for index in range(140):
-            emit(self.pump, self.lin, "journal_trial", data={"sample": index})
+            emit(self.pump, self.lin, "journal_trial", data={"sample": index},
+                 text="Test observation.")
         command = CmdOxInbox()
         command.caller = self.lin
         command.args = "0"
@@ -87,7 +96,7 @@ class CrewJournalTests(EvenniaTestCase):
         self.assertEqual(migrate_legacy_events(self.pump), 0)
         self.assertEqual(inbox_page(self.ari)["events"][0]["event_id"], "oxevt-0010")
         self.assertEqual(CrewEvent.objects.count(), 1)
-        new = emit(self.pump, self.ari, "new_report")
+        new = emit(self.pump, self.ari, "new_report", text="Test observation.")
         self.assertTrue(new["event_id"].startswith("oxevt-v2-"))
         self.assertEqual(len(inbox_page(self.ari)["events"]), 2)
         self.assertEqual(self.pump.db.ox_private_events, [original])
@@ -98,13 +107,13 @@ class CrewJournalTests(EvenniaTestCase):
             with self.captureOnCommitCallbacks(execute=True):
                 with self.assertRaises(RuntimeError):
                     with transaction.atomic():
-                        emit(self.pump, self.lin, "rolled_back")
+                        emit(self.pump, self.lin, "rolled_back", text="Test observation.")
                         raise RuntimeError("Simulated rollback")
             notifications.assert_not_called()
         self.assertEqual(CrewEvent.objects.count(), before)
         with patch.object(self.lin, "msg") as notifications:
             with self.captureOnCommitCallbacks(execute=True):
-                emit(self.pump, self.lin, "committed")
+                emit(self.pump, self.lin, "committed", text="Test observation.")
             notifications.assert_called_once()
         self.assertEqual(CrewEvent.objects.count(), before + 1)
 
@@ -115,4 +124,4 @@ class CrewJournalTests(EvenniaTestCase):
         with self.assertRaises(ValueError):
             inbox_page(self.lin, limit=129)
         with self.assertRaises(TypeError):
-            emit(self.pump, self.lin, "bad", data={"nested": {"x": 1}})
+            emit(self.pump, self.lin, "bad", data={"nested": {"x": 1}}, text="Test observation.")

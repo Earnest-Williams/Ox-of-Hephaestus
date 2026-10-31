@@ -103,6 +103,22 @@ class TypedCapabilityTests(unittest.TestCase):
         with self.assertRaises(PermissionError):
             CapabilitySnapshot.parse(wrong, actor_dbref=ACTOR, nonce=NONCE)
 
+    def exits(self, count):
+        return [{"exit_dbref": "#%d" % (400 + i), "command": "hatch-%02d" % i,
+                 "destination_dbref": "#%d" % (900 + i),
+                 "destination_name": "Compartment %d" % i} for i in range(count)]
+
+    def test_installed_ship_exit_counts_fit_but_stay_bounded(self):
+        # The four G19 HAB arc corridors each advertise 20 exits.
+        hab_corridor = self.valid()
+        hab_corridor["exits"] = self.exits(20)
+        snap = CapabilitySnapshot.parse(hab_corridor, actor_dbref=ACTOR, nonce=NONCE)
+        self.assertEqual(len(snap.exits), 20)
+        oversized = self.valid()
+        oversized["exits"] = self.exits(65)
+        with self.assertRaises(ValueError):
+            CapabilitySnapshot.parse(oversized, actor_dbref=ACTOR, nonce=NONCE)
+
     def test_reject_malformed_and_untrusted_world_payload(self):
         for field, value in (
             ("version", 2), ("version", True), ("exits", "all"),

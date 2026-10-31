@@ -1,0 +1,10 @@
+# Optional: the Ox world-read producer (ox.world.read/1).
+#
+# Install from the repository root:
+#     python -m pip install -r game/requirements-ox.txt
+#
+# Without these packages the server still boots; only /ox/api/v1/world-read/
+# and the oxworldread command answer "unavailable" (HTTP 503 / OOB status).
+# Only game/world/world_read_projection.py imports ox_contracts in game/.
+-e ./contracts
+orjson>=3.10,<4

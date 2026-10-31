@@ -58,7 +58,9 @@ Unit = Literal[
     "%",
     "1",
 ]
-FlatDatum = str | int | float | bool
+# None is a world-reported "unknown" (e.g. a panel with no good sample yet),
+# distinct from an absent key; it is not an invented payload.
+FlatDatum = str | int | float | bool | None
 SpaceIdentifier = Annotated[str, Field(pattern=IDENTIFIER)]
 CELL_METRIC_NAMES = frozenset(
     {
@@ -352,8 +354,15 @@ class Evidence(ReadRecord):
 
     @model_validator(mode="after")
     def require_event_proof(self) -> Self:
-        if (self.source == "addressed_event") != (self.event_id is not None):
-            raise ValueError("Addressed event evidence requires its event ID only")
+        # addressed_event: learned from that event, so its ID is mandatory.
+        # local_panel: may cite the journal event that delivered the reading;
+        # the panel's own sample time stays the observation time.
+        if self.source == "addressed_event" and self.event_id is None:
+            raise ValueError("Addressed event evidence requires its event ID")
+        if self.source not in ("addressed_event", "local_panel") and (
+            self.event_id is not None
+        ):
+            raise ValueError("Only event or panel evidence may cite an event")
         return self
 
 
@@ -408,7 +417,7 @@ class AddressedEvent(ReadRecord):
     kind: str = Field(pattern=METRIC)
     occurred_game_s: float = Field(ge=0)
     text: str = Field(min_length=1, max_length=4096)
-    # Preserve the original OOB datum_* keys and only flat scalar values.
+    # Preserve the original OOB datum_* keys and only flat scalar or null values.
     datum_fields: Mapping[str, FlatDatum] = Field(
         default_factory=lambda: MappingProxyType({}), max_length=32
     )
@@ -427,8 +436,8 @@ class AddressedEvent(ReadRecord):
         for key, datum in value.items():
             if type(key) is not str or not DATUM_KEY.fullmatch(key):
                 raise ValueError("Event datums need their original datum_* keys")
-            if type(datum) not in (str, int, float, bool):
-                raise ValueError("Event datums must be scalar and non-null")
+            if datum is not None and type(datum) not in (str, int, float, bool):
+                raise ValueError("Event datums must be flat scalars or null")
             if type(datum) is float and not math.isfinite(datum):
                 raise ValueError("Event datum cannot be nonfinite")
             if type(datum) is str and len(datum) > 512:
@@ -590,10 +599,21 @@ class ActorWorldPage(WorldPage):
         # A cited event may sit on another page of the same cursor series, as
         # on developer pages; when it is co-paged it must be consistent.  The
         # service still authenticates the original addressed journal delivery.
-        if evidence.source == "addressed_event":
-            event = events.get(evidence.event_id or "")
-            if event is not None and event.occurred_game_s > evidence.observed_game_s:
-                raise ValueError("Evidence predates the cited world event")
+        if evidence.event_id is None:
+            return
+        event = events.get(evidence.event_id)
+        if event is None:
+            return
+        if (
+            evidence.source == "addressed_event"
+            and event.occurred_game_s > evidence.observed_game_s
+        ):
+            raise ValueError("Evidence predates the cited world event")
+        if (
+            evidence.source == "local_panel"
+            and event.occurred_game_s < evidence.observed_game_s
+        ):
+            raise ValueError("Panel reading delivered before it was sampled")
 
 
 WorldReadPage = Annotated[

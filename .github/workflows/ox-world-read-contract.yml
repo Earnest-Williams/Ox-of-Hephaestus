@@ -6,12 +6,22 @@ on:
     branches: [main]
     paths:
       - "contracts/**"
+      - "game/requirements-ox.txt"
+      - "game/world/world_read_projection.py"
+      - "services/ai-handler/src/ox_ai/runtime/g19_beliefs.py"
+      - "services/ai-handler/src/ox_ai/inspection/**"
+      - "services/interface/**"
       - ".github/workflows/ox-world-read-contract.yml"
       - "!**/*.md"
   push:
     branches: [main]
     paths:
       - "contracts/**"
+      - "game/requirements-ox.txt"
+      - "game/world/world_read_projection.py"
+      - "services/ai-handler/src/ox_ai/runtime/g19_beliefs.py"
+      - "services/ai-handler/src/ox_ai/inspection/**"
+      - "services/interface/**"
       - ".github/workflows/ox-world-read-contract.yml"
       - "!**/*.md"
   workflow_dispatch:
@@ -33,11 +43,37 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install shared package, formatter and type checker
-        run: python -m pip install -e ./contracts "black>=25,<27" "mypy>=1.18,<2"
+      - name: Install shared package, world-read extra, formatter and type checker
+        run: >-
+          python -m pip install -r game/requirements-ox.txt "polars>=1.20,<2"
+          "black>=25,<27" "mypy>=1.18,<2"
       - name: Pure contract regression tests
         run: python -m unittest discover -s contracts/tests -p 'test_*.py' -v
+      - name: Pure producer, belief and inspection end-to-end (no Evennia)
+        run: python -m unittest services/interface/tests/test_p5_sketch_end_to_end.py -v
       - name: Black 88 formatting gate
-        run: black -l 88 --check contracts/ox_contracts/world_read_model.py contracts/tests/test_world_read_model.py
+        run: >-
+          black -l 88 --check
+          contracts/ox_contracts/world_read_model.py
+          contracts/ox_contracts/handler_inspection.py
+          contracts/tests/test_world_read_model.py
+          game/world/world_read_projection.py
+          services/ai-handler/src/ox_ai/runtime/g19_beliefs.py
+          services/ai-handler/src/ox_ai/inspection
+          services/interface/src
+          services/interface/tests/test_p5_sketch_end_to_end.py
       - name: Strict module typing (exclude inherited package issues)
-        run: mypy --strict --follow-imports=silent contracts/ox_contracts/world_read_model.py
+        env:
+          MYPYPATH: contracts:game:services/ai-handler/src:services/interface/src
+        run: >-
+          mypy --strict --follow-imports=silent --explicit-package-bases
+          contracts/ox_contracts/world_read_model.py
+          contracts/ox_contracts/handler_inspection.py
+          game/world/world_read_projection.py
+          services/ai-handler/src/ox_ai/runtime/g19_beliefs.py
+          services/ai-handler/src/ox_ai/inspection/projection.py
+          services/ai-handler/src/ox_ai/inspection/authorization.py
+          services/ai-handler/src/ox_ai/inspection/server.py
+          services/interface/src/ox_interface/clients/world.py
+          services/interface/src/ox_interface/clients/handler.py
+          services/interface/src/ox_interface/views/belief_vs_actual.py

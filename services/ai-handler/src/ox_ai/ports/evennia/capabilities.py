@@ -16,6 +16,10 @@ from ox_ai.ports.evennia.client import EvenniaWebSocketClient
 
 
 _REF = re.compile(r"#[1-9][0-9]*")
+# Bounded, but sized for the installed G19 ship: HAB arc corridors have 20
+# exits and F2-BAY holds 41 pieces of equipment (v0.5 model, 31 Oct 2026).
+MAX_EXITS = 64
+MAX_FIXTURES = 64
 _EXIT_CMD = re.compile(r"[a-zA-Z][a-zA-Z0-9 _-]{0,63}")
 _ACTIONS = {
     "pump": frozenset(("inspect", "isolate", "repair", "commission")),
@@ -120,8 +124,8 @@ class CapabilitySnapshot:
             raise ValueError("Malformed local room identity")
         exits = payload["exits"]
         fixtures = payload["equipment"]
-        if (not isinstance(exits, list) or len(exits) > 16
-                or not isinstance(fixtures, list) or len(fixtures) > 16):
+        if (not isinstance(exits, list) or len(exits) > MAX_EXITS
+                or not isinstance(fixtures, list) or len(fixtures) > MAX_FIXTURES):
             raise ValueError("Oversized world capability advertisement")
         parsed_exits = tuple(ExitCapability.from_dict(x) for x in exits)
         parsed_fixtures = tuple(FixtureCapability.from_dict(x) for x in fixtures)

@@ -54,7 +54,8 @@ class AuthenticatedEventLookupTests(EvenniaTestCase):
         cmdset.at_cmdset_creation()
         self.assertIn("oxevent", {cmd.key for cmd in cmdset.commands})
         nonce = "a" * 32
-        own = emit(self.pump, self.lin, "evidence", data={"ticket_id": "abc"})
+        own = emit(self.pump, self.lin, "evidence", data={"ticket_id": "abc"},
+                   text="Test observation.")
         foreign = emit(self.pump, self.ari, "secret", text="Ari private report")
         found = self._reply(self._command(
             self.lin, nonce + " " + own["event_id"],
@@ -80,7 +81,7 @@ class AuthenticatedEventLookupTests(EvenniaTestCase):
         )
 
     def test_invalid_commands_never_query_world(self):
-        legitimate = emit(self.pump, self.lin, "evidence")["event_id"]
+        legitimate = emit(self.pump, self.lin, "evidence", text="Test observation.")["event_id"]
         attempts = (
             "", legitimate, "0" * 31 + " " + legitimate,
             "Z" * 32 + " " + legitimate,

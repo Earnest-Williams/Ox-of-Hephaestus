@@ -21,8 +21,6 @@ from django.views.decorators.http import require_GET
 
 from web.ox_terminal import _deny_non_developer, _locked_response
 from world.full_ship_operations import ShipOperationsError
-from world.world_read_projection import ProjectionError, StaleCursor
-from world.world_read_source import developer_page
 
 MAX_CURSOR_CHARS: int = 1024
 View = TypeVar("View", bound=Callable[..., HttpResponse])
@@ -48,6 +46,14 @@ def world_read(request: HttpRequest) -> HttpResponse:
         return HttpResponse("Cursor too long.", status=400, content_type="text/plain")
     user: Any = request.user
     viewer: str = "developer:" + str(user.pk)
+    try:
+        # Loaded on first use: see game/requirements-ox.txt.
+        from world.world_read_projection import ProjectionError, StaleCursor
+        from world.world_read_source import developer_page
+    except ImportError:
+        return HttpResponse(
+            "World read unavailable.", status=503, content_type="text/plain"
+        )
     try:
         page = developer_page(viewer, cursor)
     except StaleCursor:

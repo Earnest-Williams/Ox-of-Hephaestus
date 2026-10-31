@@ -7,18 +7,18 @@ is accepted. The reply is one OOB ``ox_world_read`` frame carrying a JSON
 envelope ``{"nonce": ..., "status": ..., "page": ...}`` so the handler can
 bind the reply to its challenge (the page model itself forbids extra keys).
 Register in ``commands/default_cmdsets.py`` beside ``oxcapabilities``.
+
+The producer and its dependencies (``game/requirements-ox.txt``) load on
+first use, so a server without them still boots and replies "unavailable".
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-import orjson
 from evennia.commands.command import Command
 
 from world.full_ship_operations import ShipOperationsError
-from world.world_read_projection import ProjectionError, StaleCursor
-from world.world_read_source import actor_page
 
 NONCE_HEX: int = 32
 
@@ -43,6 +43,20 @@ class CmdOxWorldRead(Command):
             return
         nonce: str = parts[0]
         cursor: str | None = parts[1] if len(parts) == 2 else None
+        try:
+            import orjson
+
+            from world.world_read_projection import ProjectionError, StaleCursor
+            from world.world_read_source import actor_page
+        except ImportError:
+            # Without orjson the reply is still well-formed JSON.
+            self.caller.msg(
+                ox_world_read=(
+                    ['{"nonce": "%s", "status": "unavailable", "page": null}' % nonce],
+                    {},
+                )
+            )
+            return
         envelope: dict[str, Any]
         try:
             page = actor_page(self.caller, cursor)

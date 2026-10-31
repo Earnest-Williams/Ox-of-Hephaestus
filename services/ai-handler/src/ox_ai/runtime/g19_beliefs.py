@@ -9,8 +9,8 @@ expire, which is the "possibly stale belief" the P5 test needs.
 
 Capacity: ``AgentEpistemics.CAP`` is 128 observations per actor. 116 panels ×
 8 metrics cannot fit, so facts are admitted by priority and the rest are
-reported as deferred. Raising CAP or moving G19 evidence into the indexed
-evidence store is a decision, not something to paper over here.
+reported as deferred. The planned fix keeps CAP and moves readings into the
+evidence index (``design/prototypes/p5-world-read-follow-on.md``, item 2).
 """
 
 from __future__ import annotations
@@ -105,7 +105,11 @@ def _evidence_id(kind: str, source_id: str, at: float) -> str:
 
 def _panel_facts(view: EquipmentObservation) -> list[PendingFact]:
     at: float = view.evidence.observed_game_s
-    evidence: str = _evidence_id("panel", view.equipment_id, at)
+    # Prefer the journal event that delivered the reading: the handler can
+    # re-verify it with the exact ``oxevent`` lookup.
+    evidence: str = view.evidence.event_id or _evidence_id(
+        "panel", view.equipment_id, at
+    )
     facts: list[PendingFact] = [
         PendingFact(
             fact=panel_fact(view.equipment_id, "availability"),
