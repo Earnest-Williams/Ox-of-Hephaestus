@@ -22,6 +22,28 @@ class ShipCargoTests(unittest.TestCase):
         with self.assertRaises(CargoError):
             validate_cargo(self.cargo, self.total - 1)
 
+    def test_corrupt_manifest_keys_and_nested_type_fail_as_cargo_errors(self):
+        base = self.cargo
+        corrupted = (
+            None, "invalid",
+            {**base, "fuzz_extra_field": True},
+            {**base, "lots": []},
+            {**base, "jobs": "broken"},
+            {**base, "port_jobs": []},
+            {**base, "verified_drums": [None]},
+        )
+        for bad in corrupted:
+            with self.subTest(bad=repr(bad)[:50]):
+                with self.assertRaises(CargoError):
+                    validate_cargo(bad, self.total)
+        placed = declare_cargo_lot(
+            base, lot_id="TEST", mass_kg=10, drum="DR-01",
+            azimuth_deg=0, radius_m=1)
+        for bad_lot in ("corrupt", {**placed["lots"]["TEST"], "fuzz_extra_field": True}):
+            broken = {**placed, "lots": {"TEST": bad_lot}}
+            with self.assertRaises(CargoError):
+                validate_cargo(broken, self.total)
+
     def test_unplaced_reference_mass_prevents_six_verified_drums(self):
         cargo = self.cargo
         for drum in ("DR-01", "DR-02", "DR-03", "DR-04", "DR-05"):

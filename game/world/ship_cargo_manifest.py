@@ -74,13 +74,28 @@ def onboard_mass_kg(manifest):
 
 
 def validate_cargo(manifest, motion_mass_kg):
-    if manifest.get("schema") != SCHEMA:
-        raise CargoError("Cargo ledger schema not commissioned")
+    # Physical manifest extensions must be explicitly migrated: unknown JSON
+    # fields are not a second authority for available onboard cargo.
+    if (not isinstance(manifest, dict)
+            or set(manifest) != set(initial_cargo(1.0))
+            or manifest.get("schema") != SCHEMA):
+        raise CargoError("Missing or unrecognised authoritative cargo schema")
     lots = manifest["lots"]
-    if not isinstance(lots, dict) or len(lots) > MAX_LOTS:
-        raise CargoError("Malformed or oversized manifest")
+    if (not isinstance(lots, dict) or len(lots) > MAX_LOTS
+            or not all(isinstance(manifest[key], dict) for key in
+                       ("jobs", "port_contacts", "port_jobs"))
+            or not isinstance(manifest["verified_drums"], list)
+            or any(type(name) is not str for name in manifest["verified_drums"])):
+        raise CargoError("Malformed cargo accounts or drum survey")
+    lot_keys = {"mass_kg", "drum", "location", "kind", "azimuth_rad",
+                "radius_m", "restrained"}
     for name, row in lots.items():
         _lot_id(name)
+        if (not isinstance(row, dict)
+                or not lot_keys <= set(row)
+                or not set(row) <= lot_keys | {"external_source"}
+                or row["kind"] not in {"bulk", "sled"}):
+            raise CargoError("Malformed or unrecognised cargo lot fields")
         _mass(row["mass_kg"])
         origin = row["drum"]
         if origin not in DRUMS:
@@ -124,7 +139,8 @@ def validate_cargo(manifest, motion_mass_kg):
     active_drums = set()
     active_lots = set()
     for portal, job in port_jobs.items():
-        if (not isinstance(portal, str) or
+        if (not isinstance(job, dict)
+                or not isinstance(portal, str) or
                 re.fullmatch(r"DR-0[1-6]-P[12]", portal) is None or
                 job.get("portal_id") != portal or
                 job.get("direction") not in {"load", "unload"} or
@@ -167,7 +183,9 @@ def validate_cargo(manifest, motion_mass_kg):
     if len(manifest["jobs"]) > len(DRUMS):
         raise CargoError("More concurrent freight operations than installed collars")
     for drum, job in manifest["jobs"].items():
-        if drum not in DRUMS or job["lot_id"] not in lots:
+        if (not isinstance(job, dict)
+                or not {"lot_id", "remaining_s", "direction"} <= set(job)
+                or drum not in DRUMS or job["lot_id"] not in lots):
             raise CargoError("Uninstalled freight transfer")
         if not math.isfinite(job["remaining_s"]) or job["remaining_s"] < 0:
             raise CargoError("Invalid transfer clock")
