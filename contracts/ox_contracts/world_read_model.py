@@ -53,6 +53,11 @@ Unit = Literal[
     "1",
 ]
 FlatDatum = str | int | float | bool
+CELL_METRIC_NAMES = frozenset({
+    "pressure_kpa", "oxygen_kpa", "temperature_k", "gas_mass_kg",
+    "volume_m3", "co2_fraction", "smoke_fraction", "burn_kg_s",
+    "leak_kg_s", "cell_damage",
+})
 METRIC_UNITS = {
     "pressure_kpa": "kPa",
     "oxygen_kpa": "kPa",
@@ -151,7 +156,7 @@ class SpaceActual(ReadRecord):
     @model_validator(mode="after")
     def no_duplicated_cell_readouts(self) -> Self:
         _unique_measurements(self.measurements)
-        if any(m.name in METRIC_UNITS and METRIC_UNITS[m.name] in {"kPa", "K", "kg/s", "1"} for m in self.measurements):
+        if any(m.name in CELL_METRIC_NAMES for m in self.measurements):
             raise ValueError("Cell atmosphere must be projected by cell ID")
         return self
 
