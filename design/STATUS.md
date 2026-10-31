@@ -1,13 +1,13 @@
 # Ox implementation status
 
-**Snapshot: 30 October 2026.** This document is the current-state index for
+**Snapshot: 31 October 2026.** This document is the current-state index for
 Ox-specific documentation. Earlier ADRs and P2/P3 scenario documents preserve
 the design and acceptance criteria of those milestones; they are not live
 feature inventories.
 
 **Forward plan:** [current post-G19 roadmap](ROADMAP.md), including fuzz hardening, full-ship autonomous crew and later gameplay. Earlier project plans are archived in [design history](archive/README.md).
 
-**Latest engineering baseline:** G19 is accepted and merged, with post-merge heat drift corrected in [PR #139](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/139). The physical ship is installed; the autonomous crew still uses the smaller proving-ground fixture. See [architecture](../ARCHITECTURE.md) and [G19 acceptance](ship/G19_ACCEPTANCE_RECORD_2026-10-29.md).
+**Latest engineering baseline:** G19 is accepted and merged, with post-merge heat drift corrected in [PR #139](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/139) and the fuzz findings closed in [PR #141](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/141) and [PR #144](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/144). A preparatory `ox.world.read/1` contract (no endpoint) is in `contracts/`. The physical ship is installed; the autonomous crew still uses the smaller proving-ground fixture. See [architecture](../ARCHITECTURE.md) and [G19 acceptance](ship/G19_ACCEPTANCE_RECORD_2026-10-29.md).
 
 ## Verified implementation
 
@@ -88,7 +88,7 @@ feature inventories.
 | G18 — continuous world physics | **Merged in [PR #135](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/135)**; 37/37 CI workflows green | Opt-in server-owned 10-second substeps, finite gas/species/fuel/water, electrical dispatch, cooling, smoke, fire, thermal damage, local equipment commands and common work receipts. Cross-process restart verified. Does not activate ordinary canonical-room traversal. [Scope](ship/G18_CONTINUOUS_PHYSICS.md). |
 | G18b — coupled casualties and local recovery | **Merged in [PR #136](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/136)** (`bdad297`) | Open HAB bridge pressure hatches exchange real gas/smoke; mechanically jammed-open ducts still pass gas; actual local valve closure can arrest a finite service-line leak. Authenticated HAB hatch and heat-protection reset commands receive world receipts. Multi-system seeded casualty and 80-tick fuzz regression. [Boundaries](ship/G18B_COUPLED_CASUALTY_RECOVERY.md). |
 | G18c — atmosphere source ownership | **Merged in [PR #137](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/137)** (`9085c77`) | Atmosphere source-node ownership is snapshotted once per physics tick. |
-| G19 — full-ship systems and physics | **Merged in [PR #138](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/138)** (`d7fc201d`): final campaign 74/74 + 3/3 restart phases; 47/47 workflows green at the merged head; 28/28 post-merge runs green on `main`. **Closed.** Post-merge [fuzzing](ship/G19_FUZZ_CAMPAIGN_2026-10-30.md) fixed a per-tick heat-loss defect | Electrical, atmosphere, thermal, fire, equipment, hull, water/waste, cargo/mechanics, propulsion, crew exposure, navigation/access and fault recovery on one replay-safe installed clock; gated crew traversal of all canonical exits; 808/91 equipment-family audit. [Acceptance record](ship/G19_ACCEPTANCE_RECORD_2026-10-29.md) · [scope](ship/G19_FULL_SHIP_SYSTEMS_COMPLETION.md). |
+| G19 — full-ship systems and physics | **Merged in [PR #138](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/138)** (`d7fc201d`): final campaign 74/74 + 3/3 restart phases; 47/47 workflows green at the merged head; 28/28 post-merge runs green on `main`. **Closed.** Post-merge [fuzzing](ship/G19_FUZZ_CAMPAIGN_2026-10-30.md) fixed a per-tick heat-loss defect, crew-envelope isolation and persisted-state validation (#139, #141, #144) | Electrical, atmosphere, thermal, fire, equipment, hull, water/waste, cargo/mechanics, propulsion, crew exposure, navigation/access and fault recovery on one replay-safe installed clock; gated crew traversal of all canonical exits; 808/91 equipment-family audit. [Acceptance record](ship/G19_ACCEPTANCE_RECORD_2026-10-29.md) · [scope](ship/G19_FULL_SHIP_SYSTEMS_COMPLETION.md). |
 | P5 — browser observatory | **Deferred / not built** | No browser UI, joined handler/world API, or operator dashboard |
 
 **Naming note:** the original Prototype 1 plan used “P4” for the first

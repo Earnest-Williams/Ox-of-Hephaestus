@@ -12,6 +12,11 @@ from world.ship_cargo_environment import (
     initial_cargo_environment,
     validate_cargo_environment,
 )
+from world.ship_instrumentation import (
+    InstrumentError,
+    initial_instrumentation,
+    validate_instrumentation,
+)
 from world.ship_motion_machinery import (
     MOTION_KEYS,
     RotorError,
@@ -230,6 +235,30 @@ class LedgerSchemaTests(unittest.TestCase):
             validate_cargo_environment(  # type: ignore[no-untyped-call]
                 ledger, manifest
             )
+
+
+class InstrumentHistoryTests(unittest.TestCase):
+    def test_logged_transition_cannot_postdate_last_sample(self) -> None:
+        ledger: dict[str, Any] = initial_instrumentation(  # type: ignore[no-untyped-call]
+            {"LP-TEST-A": "TEST-A-ROOM"}, {"LP-TEST-A": "PZ-TEST-A"}, start_s=1000
+        )
+        ledger["sequence"] = 1
+        ledger["alarms"] = {}
+        ledger["history"] = [
+            {
+                "seq": 1,
+                "time_s": 1000.0,
+                "alarm": "LP-TEST-A:low_pressure",
+                "transition": "raised",
+                "level": "warning",
+            }
+        ]
+        self.assertTrue(
+            validate_instrumentation(ledger)  # type: ignore[no-untyped-call]
+        )
+        ledger["history"][0]["time_s"] = 1e30
+        with self.assertRaises(InstrumentError):
+            validate_instrumentation(ledger)  # type: ignore[no-untyped-call]
 
 
 if __name__ == "__main__":
