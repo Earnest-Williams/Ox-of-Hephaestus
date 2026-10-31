@@ -5,6 +5,7 @@ observations legitimately received by the authenticated character, never from
 an omniscient snapshot with a few fields removed. Handler beliefs belong to a
 separately authenticated service.
 """
+
 from __future__ import annotations
 
 import math
@@ -29,9 +30,7 @@ DATUM_KEY = re.compile(r"datum_[a-z][a-z0-9_]{0,63}\Z")
 MAX_PAGE_ITEMS = 128
 MAX_OBSERVATION_AGE_S = 60.0
 LEGACY_FUEL_INVENTORIES = frozenset({"INV-REACTION", "INV-FTL-FUEL"})
-OPERATIONAL_FUEL_ACCOUNTS = frozenset(
-    {"motion.propellant_kg", "motion.ftl_fuel_kg"}
-)
+OPERATIONAL_FUEL_ACCOUNTS = frozenset({"motion.propellant_kg", "motion.ftl_fuel_kg"})
 
 # Explicit physical display units rather than arbitrary human descriptions.
 Unit = Literal[
@@ -53,11 +52,20 @@ Unit = Literal[
     "1",
 ]
 FlatDatum = str | int | float | bool
-CELL_METRIC_NAMES = frozenset({
-    "pressure_kpa", "oxygen_kpa", "temperature_k", "gas_mass_kg",
-    "volume_m3", "co2_fraction", "smoke_fraction", "burn_kg_s",
-    "leak_kg_s", "cell_damage",
-})
+CELL_METRIC_NAMES = frozenset(
+    {
+        "pressure_kpa",
+        "oxygen_kpa",
+        "temperature_k",
+        "gas_mass_kg",
+        "volume_m3",
+        "co2_fraction",
+        "smoke_fraction",
+        "burn_kg_s",
+        "leak_kg_s",
+        "cell_damage",
+    }
+)
 METRIC_UNITS = {
     "pressure_kpa": "kPa",
     "oxygen_kpa": "kPa",
@@ -104,11 +112,14 @@ class ModelIdentity(ReadRecord):
     topology_version: str = Field(pattern=VERSION)
     engineering_version: str = Field(pattern=VERSION)
 
-    def require_renderer(self, *, topology_version: str,
-                         engineering_version: str) -> None:
+    def require_renderer(
+        self, *, topology_version: str, engineering_version: str
+    ) -> None:
         """A drawing may overlay only a matching, explicitly reviewed model."""
-        if (topology_version != self.topology_version
-                or engineering_version != self.engineering_version):
+        if (
+            topology_version != self.topology_version
+            or engineering_version != self.engineering_version
+        ):
             raise ValueError("Drawing and installed model versions differ")
 
 
@@ -149,9 +160,7 @@ class SpaceActual(ReadRecord):
     # None means no verified commissioned gas envelope, never breathable air.
     pressure_cell_id: str | None = Field(default=None, pattern=IDENTIFIER)
     measurements: tuple[Measurement, ...] = Field(default=(), max_length=32)
-    _measurements_input = field_validator("measurements", mode="before")(
-        _array_input
-    )
+    _measurements_input = field_validator("measurements", mode="before")(_array_input)
 
     @model_validator(mode="after")
     def no_duplicated_cell_readouts(self) -> Self:
@@ -220,9 +229,7 @@ class EquipmentActual(ReadRecord):
     condition: str = Field(min_length=1, max_length=100)
     setting: str | None = Field(default=None, max_length=100)
     measurements: tuple[Measurement, ...] = Field(default=(), max_length=32)
-    _measurements_input = field_validator("measurements", mode="before")(
-        _array_input
-    )
+    _measurements_input = field_validator("measurements", mode="before")(_array_input)
 
     @model_validator(mode="after")
     def no_ambiguous_measurements(self) -> Self:
@@ -246,14 +253,17 @@ class StockActual(ReadRecord):
     @model_validator(mode="after")
     def no_false_fuel_equivalence(self) -> Self:
         if self.custodian == "motion_ledger":
-            if (self.account_id not in OPERATIONAL_FUEL_ACCOUNTS
-                    or self.accounting != "operational_balance"):
+            if (
+                self.account_id not in OPERATIONAL_FUEL_ACCOUNTS
+                or self.accounting != "operational_balance"
+            ):
                 raise ValueError("Unknown or nonoperational motion fuel account")
         elif self.account_id in LEGACY_FUEL_INVENTORIES:
             if self.accounting != "legacy_reference":
                 raise ValueError("Legacy fuel inventory cannot report available fuel")
-        elif (not self.account_id.startswith("INV-")
-              or self.accounting != "fitted_stock"):
+        elif (
+            not self.account_id.startswith("INV-") or self.accounting != "fitted_stock"
+        ):
             raise ValueError("Unrecognised inventory account or custody")
         return self
 
@@ -275,7 +285,9 @@ class AuditEvent(ReadRecord):
 class Evidence(ReadRecord):
     """Proof of observation, not evidence that the underlying fact is true."""
 
-    source: Literal["local_panel", "direct_inspection", "addressed_event", "local_capability"]
+    source: Literal[
+        "local_panel", "direct_inspection", "addressed_event", "local_capability"
+    ]
     source_id: str = Field(pattern=IDENTIFIER)
     observed_game_s: float = Field(ge=0)
     event_id: str | None = Field(default=None, pattern=IDENTIFIER)
@@ -304,9 +316,8 @@ class EquipmentObservation(ReadRecord):
     @model_validator(mode="after")
     def has_legitimate_reading_shape(self) -> Self:
         _unique_measurements(self.readings)
-        if (
-            self.availability == "unavailable"
-            and (self.reported_condition is not None or self.readings)
+        if self.availability == "unavailable" and (
+            self.reported_condition is not None or self.readings
         ):
             raise ValueError("Unavailable instrument cannot supply a new reading")
         if (
@@ -395,7 +406,9 @@ class DeveloperWorldPage(WorldPage):
     pressure_boundaries: tuple[PressureBoundaryActual, ...] = Field(
         default=(), max_length=MAX_PAGE_ITEMS
     )
-    equipment: tuple[EquipmentActual, ...] = Field(default=(), max_length=MAX_PAGE_ITEMS)
+    equipment: tuple[EquipmentActual, ...] = Field(
+        default=(), max_length=MAX_PAGE_ITEMS
+    )
     stocks: tuple[StockActual, ...] = Field(default=(), max_length=MAX_PAGE_ITEMS)
     audit_events: tuple[AuditEvent, ...] = Field(default=(), max_length=MAX_PAGE_ITEMS)
 
@@ -485,9 +498,7 @@ class ActorWorldPage(WorldPage):
             if evidence.observed_game_s > self.game_time_s:
                 raise ValueError("Observation cannot come from the future")
             age = self.game_time_s - evidence.observed_game_s
-            if (equipment.availability == "stale") != (
-                age > MAX_OBSERVATION_AGE_S
-            ):
+            if (equipment.availability == "stale") != (age > MAX_OBSERVATION_AGE_S):
                 raise ValueError("Observation freshness disagrees with sample age")
             self._verify_event_reference(evidence, events)
         for exit_view in self.exits:
