@@ -85,8 +85,12 @@ def validate_motion_quantities(motion, authored_mass):
     for field, authored in key_to_ref.items():
         limit = 1000.0 * finite_number(authored_mass.get(authored), authored)
         finite_number(motion.get(field), field, maximum=limit + 1e-5)
-    if not motion["dry_mass_kg"]:
-        raise ShipPersistenceError("Ship has no commissioned dry mass")
+    # No modeled process consumes hull/structure. Losing dry mass in a
+    # saved record can increase acceleration without a resource debit.
+    fitted_dry = 1000.0 * finite_number(authored_mass.get("dry_t"), "dry_t")
+    if not math.isclose(motion["dry_mass_kg"], fitted_dry,
+                        rel_tol=0, abs_tol=1e-5):
+        raise ShipPersistenceError("Ship dry mass diverged from installed hull")
     cargo_mass = finite_number(motion.get("cargo_mass_kg"), "cargo mass")
     if cargo_mass > motion["cargo_capacity_kg"] + 1e-5:
         raise ShipPersistenceError("Cargo exceeds installed hold capacity")

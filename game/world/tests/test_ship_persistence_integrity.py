@@ -56,6 +56,10 @@ class G19PersistenceRegressions(unittest.TestCase):
                 bad[field] = value
                 with self.assertRaises(ShipPersistenceError):
                     validate_motion_quantities(bad, contract())
+        lost_hull = motion()
+        lost_hull["dry_mass_kg"] = 1.0
+        with self.assertRaisesRegex(ShipPersistenceError, "dry mass"):
+            validate_motion_quantities(lost_hull, contract())
         bad = motion()
         bad["propellant_kg"] = 4_000_000
         bad["expended_propellant_kg"] = 2_000_000

@@ -4246,7 +4246,7 @@ def tick_continuous_physics(*, now_game_time=None):
                 electrical, nameplates, clock.details.get("ticks"),
                 MAX_ADVANCE_SECONDS, GENERATION_MW, SHIP_CAP_MW)
             audit_topology(water_nodes, edges, isolators, strict=True)
-        except ElectricalError as exc:
+        except (ElectricalError, ShipPersistenceError) as exc:
             raise PhysicsError(str(exc)) from exc
     # Only real physically open, rated links between *known* gas cells may
     # exchange mass. Unknown cargo atmosphere is never invented as vacuum.
@@ -4345,8 +4345,11 @@ def tick_continuous_physics(*, now_game_time=None):
         bank: (row.quantity or 0.0) * 1000.0 for bank, row in refill_stock.items()}
     water_state = clock.details.get("water")
     if water_state is not None:
-        validate_water(water_state, {k: v.quantity * 1000.0
-                                     for k, v in water_stocks.items()})
+        try:
+            validate_water(water_state, {k: v.quantity * 1000.0
+                                         for k, v in water_stocks.items()})
+        except (WaterError, TypeError, KeyError) as exc:
+            raise PhysicsError("Invalid installed water ledger: " + str(exc)) from exc
     water_report = None
     water_tick_report = None
     repairs = clock.details.get("repairs")
@@ -6921,6 +6924,14 @@ def tick_continuous_physics(*, now_game_time=None):
                        "duration_s": job["total_s"]},
                 actor_dbref=ref, game_time=last + seconds)
             actor.msg("The indexed personnel carriage reaches its destination.")
+    # Verify the resulting world state as well as the starting state.
+    # A valid starting ledger does not authorize a bad computed transition.
+    try:
+        validate_rotors(rotors)
+        validate_motion_safety(motion)
+        validate_motion_quantities(motion, _rated_motion_mass_contract())
+    except (RotorError, ShipPersistenceError) as exc:
+        raise PhysicsError("Invalid post-tick movement: " + str(exc)) from exc
     old = _snapshot(clock)
     d = dict(clock.details)
     if fault_cases is not None:
@@ -6954,6 +6965,13 @@ def tick_continuous_physics(*, now_game_time=None):
     d["burned_fuel_kg"] += burned
     d["water_suppression_kg"] += water
     d["co2_captured_kg"] = captured_co2
+    if electrical is not None:
+        try:
+            validate_energy_custody(
+                electrical, nameplates, d["ticks"],
+                MAX_ADVANCE_SECONDS, GENERATION_MW, SHIP_CAP_MW)
+        except ShipPersistenceError as exc:
+            raise PhysicsError("Invalid post-tick energy ledger: " + str(exc)) from exc
     d["motion"] = motion
     d["crew_unverified_envelopes"] = current_unverified
     if instrumentation is not None:

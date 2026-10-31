@@ -478,7 +478,7 @@ class G19PersistedSafetyRegressions(_InstalledFuzzBase):
                         setattr(row, field, bad)
                         row.save(update_fields=[field])
                     before = _snapshot()
-                    with self.assertRaises((PhysicsError, ValueError)):
+                    with self.assertRaises(PhysicsError):
                         tick_continuous_physics(now_game_time=self.now + 10)
                     self.assertEqual(_snapshot(), before)
                 finally:
@@ -504,7 +504,7 @@ class G19PersistedSafetyRegressions(_InstalledFuzzBase):
                         clock.details = details
                         clock.save(update_fields=["details"])
                         before = _snapshot()
-                        with self.assertRaises((PhysicsError, ValueError)):
+                        with self.assertRaises(PhysicsError):
                             tick_continuous_physics(now_game_time=self.now + 10)
                         self.assertEqual(_snapshot(), before)
                     finally:

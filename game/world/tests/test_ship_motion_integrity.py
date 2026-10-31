@@ -60,6 +60,16 @@ class MotionIntegrityRegressions(unittest.TestCase):
         with self.assertRaises(RotorError):
             validate_rotors(broken)
 
+        off_datum = copy.deepcopy(initial_rotors())
+        off_datum["DR-01"]["phase_rad"] = 0.5
+        with self.assertRaisesRegex(RotorError, "datum"):
+            validate_rotors(off_datum)
+
+        false_capture = copy.deepcopy(initial_rotors())
+        false_capture["WR-01"]["freight_collar"] = True
+        with self.assertRaisesRegex(RotorError, "retracted"):
+            validate_rotors(false_capture)
+
     def test_drive_unknown_values_rejected(self):
         safe = dict(drive_condition="inhibited", rcs_condition="operational",
                     drive_firing=False, attitude_firing=False, command="coast",

@@ -87,6 +87,12 @@ def validate_rotors(rotors):
             raise RotorError("Unrecognised rotary mode: " + name)
         rpm = row["rpm"]
         target = row["target_rpm"]
+        # A positively engaged mechanical hardlock proves datum alignment;
+        # asserting the latch with a displaced rotor is not safe.
+        if row["hardlock"]:
+            phase = row["phase_rad"] % (2 * math.pi)
+            if min(phase, (2 * math.pi - phase) % (2 * math.pi)) > 0.0100001:
+                raise RotorError("Hardlocked rotor is off its fixed datum: " + name)
         if (rpm > 0.001 and (row["hardlock"] or row["brake"]
                               or row["freight_collar"]
                               or row["passenger_indexer"])):
@@ -115,8 +121,13 @@ def validate_rotors(rotors):
         if name == "WR-01":
             radius = _rotor_number(
                 row["work_radius_m"], "workshop radius", minimum=24, maximum=75)
-            _rotor_number(row["work_target_radius_m"], "workshop target",
-                          minimum=24, maximum=75)
+            target_radius = _rotor_number(
+                row["work_target_radius_m"], "workshop target",
+                minimum=24, maximum=75)
+            if row["freight_collar"] and (
+                    abs(radius - 24.0) > 0.05 or
+                    abs(target_radius - 24.0) > 0.05):
+                raise RotorError("Workshop freight collar lacks retracted datum")
             if "stores_radius_m" in row and not math.isclose(
                     _rotor_number(row["stores_radius_m"], "stores radius"),
                     radius / 3, abs_tol=1e-6, rel_tol=0):
