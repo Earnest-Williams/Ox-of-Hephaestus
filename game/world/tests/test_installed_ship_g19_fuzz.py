@@ -419,6 +419,144 @@ class CrewActionSequenceFuzz(_InstalledFuzzBase):
             transaction.savepoint_rollback(sid)
 
 
+class G19PersistedSafetyRegressions(_InstalledFuzzBase):
+    """Safety failures must not freeze unrelated systems or falsify interlocks."""
+
+    def test_unknown_envelope_is_nonbreathable_but_other_systems_keep_ticking(self):
+        from world.models import CanonicalShipEvent
+        self.go("BOW-SHIELD-FOREPEAK")  # no fitted pressure cell; forced placement
+        before = _clock().details["last_game_time"]
+        self.advance(60)
+        d = _clock().details
+        self.assertEqual(d["last_game_time"], before + 60)
+        self.assertEqual(d["crew_unverified_envelopes"][self.worker.dbref],
+                         "BOW-SHIELD-FOREPEAK")
+        self.assertEqual(d["summary"]["crew_o2_used_this_tick_kg"], 0)
+        self.assertEqual(d["summary"]["crew_unverified_envelope_alarms"],
+                         {self.worker.dbref: "BOW-SHIELD-FOREPEAK"})
+        health = CanonicalShipState.objects.get(
+            pk="crew_health:" + self.worker.dbref)
+        self.assertEqual(health.details["hypoxia_s"], 60)
+        self.assertEqual(CanonicalShipEvent.objects.filter(
+            operation="g19_crew_unverified_envelope_alarm",
+            actor_dbref=self.worker.dbref).count(), 1)
+        self.advance(60)
+        self.assertEqual(CanonicalShipEvent.objects.filter(
+            operation="g19_crew_unverified_envelope_alarm",
+            actor_dbref=self.worker.dbref).count(), 1)
+        self.go("ENG-CONTROL")
+        self.advance(60)
+        self.assertEqual(_clock().details["crew_unverified_envelopes"], {})
+        self.assertEqual(CanonicalShipEvent.objects.filter(
+            operation="g19_crew_envelope_alarm_cleared",
+            actor_dbref=self.worker.dbref).count(), 1)
+
+    def test_corrupt_authoritative_stocks_motion_and_pressure_fail_closed(self):
+        from copy import deepcopy
+        mutations = [
+            ("stock", "INV-WATER-NORMAL", "quantity", 1e30),
+            ("stock", "INV-SPARES", "quantity", 1e30),
+            ("stock", "INV-REACTION", "quantity", 1e30),
+            ("stock", "INV-FTL-FUEL", "quantity", None),
+            ("motion", None, "velocity_m_s", [1e30, 0.0, 0.0]),
+            ("motion", None, "propellant_kg", 1e30),
+            ("pressure", "PZ-BOW-CMD", "quantity", 1e30),
+        ]
+        for family, name, field, bad in mutations:
+            with self.subTest(family=family, name=name, field=field):
+                sid = transaction.savepoint()
+                try:
+                    if family == "motion":
+                        row = _clock(lock=True)
+                        d = deepcopy(row.details)
+                        d["motion"][field] = bad
+                        row.details = d
+                        row.save(update_fields=["details"])
+                    else:
+                        row = state("inventory" if family == "stock"
+                                    else "pressure", name, lock=True)
+                        setattr(row, field, bad)
+                        row.save(update_fields=[field])
+                    before = _snapshot()
+                    with self.assertRaises(PhysicsError):
+                        tick_continuous_physics(now_game_time=self.now + 10)
+                    self.assertEqual(_snapshot(), before)
+                finally:
+                    transaction.savepoint_rollback(sid)
+
+    def test_corrupt_stock_reference_cannot_redefine_fitted_capacity(self):
+        from copy import deepcopy
+        sid = transaction.savepoint()
+        try:
+            row = state("inventory", "INV-SPARES", lock=True)
+            reference = deepcopy(row.reference)
+            reference["nominal_mass_t"] = 1e30
+            row.reference = reference
+            row.save(update_fields=["reference"])
+            before = _snapshot()
+            with self.assertRaisesRegex(PhysicsError, "fitted source"):
+                tick_continuous_physics(now_game_time=self.now + 10)
+            self.assertEqual(_snapshot(), before)
+        finally:
+            transaction.savepoint_rollback(sid)
+
+    def test_water_and_electrical_schema_corruption_is_refused_transactionally(self):
+        from copy import deepcopy
+        for ledger in ("water", "electrical"):
+            for kind in ("extra", "missing", "wrong_container"):
+                with self.subTest(ledger=ledger, kind=kind):
+                    sid = transaction.savepoint()
+                    try:
+                        clock = _clock(lock=True)
+                        details = deepcopy(clock.details)
+                        if kind == "extra":
+                            details[ledger]["fuzz_extra_field"] = True
+                        elif kind == "missing":
+                            key = ("working_kg" if ledger == "water" else "meter")
+                            del details[ledger][key]
+                        else:
+                            key = ("cumulative" if ledger == "water" else "meter")
+                            details[ledger][key] = "corrupt"
+                        clock.details = details
+                        clock.save(update_fields=["details"])
+                        before = _snapshot()
+                        with self.assertRaises(PhysicsError):
+                            tick_continuous_physics(now_game_time=self.now + 10)
+                        self.assertEqual(_snapshot(), before)
+                    finally:
+                        transaction.savepoint_rollback(sid)
+
+    def test_corrupt_rotary_interlocks_and_motion_conditions_fail_closed(self):
+        from copy import deepcopy
+        from world.ship_motion_machinery import initial_rotors
+        mutations = [
+            ("rotors", "DR-01", "hardlock", None),
+            ("rotors", "DR-01", "brake", 0),
+            ("rotors", "DR-01", "indexing", "false"),
+            ("rotors", "DR-01", "freight_collar", None),
+            ("rotors", "HAB", "passenger_indexer", 0),
+            ("rotors", "WR-01", "rpm", 1e30),
+            ("motion", None, "drive_condition", "nominal-ish"),
+            ("motion", None, "rcs_condition", None),
+        ]
+        for family, machine, field, bad in mutations:
+            with self.subTest(family=family, machine=machine, field=field):
+                sid = transaction.savepoint()
+                try:
+                    clock = _clock(lock=True)
+                    details = deepcopy(clock.details)
+                    target = details[family][machine] if machine else details[family]
+                    target[field] = bad
+                    clock.details = details
+                    clock.save(update_fields=["details"])
+                    before = _snapshot()
+                    with self.assertRaisesRegex(PhysicsError, "rotary|Rotor|drive|RCS|propulsion|interlock"):
+                        tick_continuous_physics(now_game_time=self.now + 10)
+                    self.assertEqual(_snapshot(), before)
+                finally:
+                    transaction.savepoint_rollback(sid)
+
+
 class _Rollback(Exception):
     """Sentinel: discard one corruption trial."""
 

@@ -41,8 +41,125 @@ def initial_rotors():
     }
 
 
+def _rotor_number(value, label, *, minimum=0.0, maximum=None):
+    if (type(value) not in (int, float) or not math.isfinite(value)
+            or value < minimum or (maximum is not None and value > maximum)):
+        raise RotorError("Invalid fitted rotary " + label)
+    return float(value)
+
+
+def validate_rotors(rotors):
+    """Validate persisted mechanical truth before any truthiness-based gate.
+
+    A missing/None interlock must NEVER mean 'released'.  The mode readback
+    can lag a newly issued command until the next tick, so we validate its
+    vocabulary, not an inferred mode transition.  WR-01's derived stores
+    radius was added by the G19 tick and is optional on an initial record.
+    """
+    if not isinstance(rotors, dict) or set(rotors) != set(ROTORS):
+        raise RotorError("Missing or unrecognised fitted rotary assemblies")
+    template = initial_rotors()
+    for name in ROTORS:
+        row = rotors[name]
+        required = set(template[name])
+        allowed = required | ({"stores_radius_m"} if name == "WR-01" else set())
+        if (not isinstance(row, dict) or
+                not required <= set(row) or not set(row) <= allowed):
+            raise RotorError("Incomplete or unrecognised rotary ledger: " + name)
+        for field in ("brake", "hardlock", "indexing", "freight_collar",
+                      "passenger_indexer"):
+            if type(row[field]) is not bool:
+                raise RotorError("Unverified " + name + " interlock: " + field)
+        for field in ("rpm", "target_rpm", "phase_rad", "imbalance_kg_m",
+                      "bearing_temperature_k", "bearing_hours"):
+            upper = (MAX_RPM[name] + 1e-6 if field in {"rpm", "target_rpm"}
+                     else 2 * math.pi + 1e-6 if field == "phase_rad" else None)
+            _rotor_number(row[field], name + "." + field, maximum=upper)
+        if row["bearing_temperature_k"] == 0:
+            raise RotorError("Unmeasured rotary bearing temperature")
+        if row["condition"] not in {
+                "serviceable", "worn", "degraded", "faulted",
+                "failed", "jammed", "severed"}:
+            raise RotorError("Unrecognised rotary condition: " + name)
+        if row["mode"] not in {
+                "PARKED", "INDEXING", "TRIPPED", "BRAKED", "SPINDOWN",
+                "RELEASING", "ROTATING"}:
+            raise RotorError("Unrecognised rotary mode: " + name)
+        rpm = row["rpm"]
+        target = row["target_rpm"]
+        # A positively engaged mechanical hardlock proves datum alignment;
+        # asserting the latch with a displaced rotor is not safe.
+        if row["hardlock"]:
+            phase = row["phase_rad"] % (2 * math.pi)
+            if min(phase, (2 * math.pi - phase) % (2 * math.pi)) > 0.0100001:
+                raise RotorError("Hardlocked rotor is off its fixed datum: " + name)
+        if (rpm > 0.001 and (row["hardlock"] or row["brake"]
+                              or row["freight_collar"]
+                              or row["passenger_indexer"])):
+            raise RotorError("Moving rotor has an engaged stationary lock: " + name)
+        if row["hardlock"] and target > 0:
+            raise RotorError("Hardlocked rotor has a powered run command: " + name)
+        if row["freight_collar"] and (
+                name == "HAB" or not row["hardlock"] or not row["brake"]
+                or target != 0 or row["passenger_indexer"] or row["indexing"]):
+            raise RotorError("Unverified stopped freight capture: " + name)
+        if row["passenger_indexer"] and (
+                not row["hardlock"] or not row["brake"] or target != 0
+                or row["freight_collar"] or row["indexing"]):
+            raise RotorError("Unverified indexed passenger capture: " + name)
+        if row["indexing"] and (
+                row["brake"] or row["hardlock"] or target > 0
+                or rpm > 0.001):
+            raise RotorError("Indexer moving against a rotary lock: " + name)
+        station = row["passenger_station"]
+        if name == "HAB":
+            if ((row["passenger_indexer"] and station not in {"A", "B"})
+                    or (not row["passenger_indexer"] and station is not None)):
+                raise RotorError("HAB passenger capture station is ambiguous")
+        elif station is not None:
+            raise RotorError("Non-HAB rotor claims an invented passenger station")
+        if name == "WR-01":
+            radius = _rotor_number(
+                row["work_radius_m"], "workshop radius", minimum=24, maximum=75)
+            target_radius = _rotor_number(
+                row["work_target_radius_m"], "workshop target",
+                minimum=24, maximum=75)
+            if row["freight_collar"] and (
+                    abs(radius - 24.0) > 0.05 or
+                    abs(target_radius - 24.0) > 0.05):
+                raise RotorError("Workshop freight collar lacks retracted datum")
+            if "stores_radius_m" in row and not math.isclose(
+                    _rotor_number(row["stores_radius_m"], "stores radius"),
+                    radius / 3, abs_tol=1e-6, rel_tol=0):
+                raise RotorError("Workshop stores carriage radius disagrees")
+        elif row["work_radius_m"] is not None or row["work_target_radius_m"] is not None:
+            raise RotorError("Non-workshop rotor claims movable shop geometry")
+    return True
+
+
+def validate_motion_safety(motion):
+    """Fail closed on malformed persisted drive/RCS conditions and commands."""
+    if not isinstance(motion, dict):
+        raise RotorError("Unrecognised installed propulsion ledger")
+    if motion.get("drive_condition") not in {
+            "operational", "inhibited", "thermal_trip"}:
+        raise RotorError("Unknown main-drive safety condition")
+    if motion.get("rcs_condition") not in {"operational", "inhibited"}:
+        raise RotorError("Unknown RCS safety condition")
+    for field in ("drive_firing", "attitude_firing"):
+        if type(motion.get(field)) is not bool:
+            raise RotorError("Nonboolean propulsion firing witness: " + field)
+    if motion.get("command") not in {"x+", "x-", "y+", "y-", "z+", "z-", "coast"}:
+        raise RotorError("Invalid persisted thrust command")
+    if motion.get("attitude_command") not in {
+            "pitch+", "pitch-", "yaw+", "yaw-", "roll+", "roll-", "hold"}:
+        raise RotorError("Invalid persisted attitude command")
+    return True
+
+
 def motion_power_mw(rotors):
     """Bound electric demand using actual rotary movement or braking release."""
+    validate_rotors(rotors)
     return sum(
         ROTOR_MW[name] for name, row in rotors.items()
         if abs(row["rpm"]) > 0.0001 or row["target_rpm"] > 0 or row["indexing"]
@@ -51,6 +168,7 @@ def motion_power_mw(rotors):
 
 def set_rotor_command(rotors, name, command):
     """Apply a command only after all local/role/world checks have passed."""
+    validate_rotors(rotors)
     if name not in ROTORS or name not in rotors:
         raise RotorError("Uninstalled rotor")
     rows = {k: dict(v) for k, v in rotors.items()}
@@ -141,6 +259,7 @@ def set_rotor_command(rotors, name, command):
         state["passenger_station"] = None
     else:
         raise RotorError("Unknown rotary command")
+    validate_rotors(rows)
     return rows
 
 
@@ -148,6 +267,7 @@ def step_rotors(rotors, dt, *, powered, equipment_ok=None, extension_ok=True):
     """Integrate separate rotor ramp, coasting, alignment and heat exposure."""
     if not math.isfinite(dt) or dt < 0 or dt > 60:
         raise RotorError("Invalid bounded rotary step")
+    validate_rotors(rotors)
     equipment_ok = equipment_ok or {}
     result = {}
     for name in ROTORS:
@@ -212,6 +332,7 @@ def step_rotors(rotors, dt, *, powered, equipment_ok=None, extension_ok=True):
             row["condition"] = "faulted"
             row["target_rpm"] = 0.0
         result[name] = row
+    validate_rotors(result)
     return result
 
 

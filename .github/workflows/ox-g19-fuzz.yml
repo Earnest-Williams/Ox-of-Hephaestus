@@ -48,7 +48,7 @@ jobs:
       - name: Refill ledger, metering and route fuzzing; heat-capacity consistency
         working-directory: game
         run: |
-          python -m unittest world.tests.test_g19_refill_fuzz world.tests.test_ship_heat_capacity_consistency -v
+          python -m unittest world.tests.test_g19_refill_fuzz world.tests.test_ship_heat_capacity_consistency world.tests.test_ship_motion_integrity world.tests.test_ship_persistence_integrity world.tests.test_ship_cargo_manifest -v
 
   installed:
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
@@ -78,4 +78,5 @@ jobs:
           python -m world.test_runner \
             world.tests.test_installed_ship_g19_fuzz.TickChunkingDifferentialFuzz \
             world.tests.test_installed_ship_g19_fuzz.CrewActionSequenceFuzz \
+            world.tests.test_installed_ship_g19_fuzz.G19PersistedSafetyRegressions \
             --verbosity=2

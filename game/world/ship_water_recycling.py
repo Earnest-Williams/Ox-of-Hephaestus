@@ -103,7 +103,25 @@ def validate_water(water, stocks):
     """Check every live finite receiver against its independently owned stock."""
     if not isinstance(water, dict) or not isinstance(stocks, dict):
         raise WaterError("Uncommissioned water ledger")
-    for ident in ("normal", "reserve", "sanitary", "industrial", "hazardous"):
+    template = initial_water()
+    if set(water) != set(template):
+        raise WaterError("Missing or unrecognised water custody schema")
+    # Check the structure before accessing nested ledgers. Corrupt persisted
+    # rows must raise WaterError, never an accidental KeyError/TypeError.
+    for key in ("local", "fixed", "cassettes", "cassette_sealed",
+                "filter_staged_kg", "water_train", "waste_train",
+                "decontaminate", "oxygen_outlet_verified", "cumulative"):
+        value = water[key]
+        if not isinstance(value, dict) or set(value) != set(template[key]):
+            raise WaterError("Unrecognised water account structure: " + key)
+        if key in {"local", "cassettes", "cassette_sealed"}:
+            for name, nested in value.items():
+                if not isinstance(nested, dict) or set(nested) != set(template[key][name]):
+                    raise WaterError("Unknown physical receiver: " + key)
+    required_stocks = {"normal", "reserve", "sanitary", "industrial", "hazardous"}
+    if not required_stocks <= set(stocks):
+        raise WaterError("Missing authoritative water or waste inventory")
+    for ident in required_stocks:
         _quantity(stocks[ident])
     if _quantity(water["working_kg"]) > WORKING_CAPACITY_KG + EPS:
         raise WaterError("Potable tank overfill")
