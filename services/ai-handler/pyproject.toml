@@ -18,6 +18,8 @@ concordia = [
 ]
 transport = ["websockets>=14,<16"]
 dev = ["pytest>=8,<10"]
+# P5/Priority-2 sketch: world-read port and inspection API.
+world-read = ["ox-contracts", "orjson>=3.10,<4"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
