@@ -120,5 +120,118 @@ class WorldReadContractTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 model.require_renderer(topology_version=topology,engineering_version=engineering)
 
+
+    def test_pressure_cells_span_rooms_and_boundaries_are_real_links(self):
+        p=actual()
+        p["spaces"]=[
+            dict(space_id="TEST-A",condition="serviceable",pressure_cell_id="PZ-TEST"),
+            dict(space_id="TEST-B",condition="serviceable",pressure_cell_id="PZ-TEST"),
+            dict(space_id="TEST-VOID",condition="serviceable",pressure_cell_id=None),
+        ]
+        p["pressure_cells"]=[dict(cell_id="PZ-TEST",space_ids=["TEST-A","TEST-B"],
+            pressure_kpa=101.0,oxygen_kpa=21.0,temperature_k=293.15,
+            gas_mass_kg=200.0,volume_m3=150.0)]
+        p["pressure_boundaries"]=[dict(link_id="HATCH-A",from_space_id="TEST-A",
+            to_space_id="TEST-VOID",from_cell_id="PZ-TEST",to_cell_id=None,
+            setting="closed",condition="serviceable")]
+        m=parse_world_read_page(p)
+        self.assertEqual(len(m.pressure_cells[0].space_ids),2)
+        self.assertEqual(m.pressure_boundaries[0].setting,"closed")
+        bad=copy.deepcopy(p)
+        bad["spaces"][0]["measurements"]=[
+            dict(name="pressure_kpa",unit="kPa",value=101.0)]
+        self.bad(bad)
+        bad=copy.deepcopy(p)
+        bad["spaces"][0]["pressure_cell_id"]="PZ-FORGED"
+        self.bad(bad)
+        bad=copy.deepcopy(p)
+        bad["pressure_boundaries"][0]["from_cell_id"]="PZ-FORGED"
+        self.bad(bad)
+        bad=copy.deepcopy(p)
+        bad["pressure_cells"][0]["space_ids"].append("TEST-A")
+        self.bad(bad)
+        bad=copy.deepcopy(p)
+        bad["pressure_boundaries"][0]["to_cell_id"]="PZ-TEST"
+        self.bad(bad)
+
+    def test_duplicate_metrics_and_units_are_rejected(self):
+        for readings in (
+            [dict(name="pressure_kpa",unit="kPa",value=60.0),
+             dict(name="pressure_kpa",unit="kPa",value=61.0)],
+            [dict(name="pressure_kpa",unit="furlongs",value=60.0)],
+            [dict(name="pressure_kpa",unit="kg",value=60.0)],
+        ):
+            p=actual()
+            p["equipment"][0]["measurements"]=readings
+            self.bad(p)
+        p=observed()
+        p["equipment"][0]["readings"]=[
+            dict(name="power_kw",unit="kW",value=10.0),
+            dict(name="power_kw",unit="kW",value=11.0)]
+        self.bad(p)
+
+    def test_real_addressed_event_text_and_flat_datums(self):
+        event=parse_world_read_page(observed()).addressed_events[0]
+        self.assertIn("Low pressure",event.text)
+        self.assertEqual(event.datum_fields["datum_pressure_kpa"],51.2)
+        for field in ("text", "datum_fields"):
+            p=observed()
+            if field=="text":
+                del p["addressed_events"][0]["text"]
+            else:
+                p["addressed_events"][0][field]={"datum_bad":{"nested":"no"}}
+            self.bad(p)
+        for datums in ({"unit":"furlongs"},
+                       {"datum_bad":float("inf")},
+                       {"datum_bad":[1,2]}):
+            p=observed()
+            p["addressed_events"][0]["datum_fields"]=datums
+            self.bad(p)
+
+    def test_event_evidence_must_be_on_same_page_and_not_in_future(self):
+        p=observed()
+        p["equipment"][0]["availability"]="available"
+        p["equipment"][0]["evidence"]=dict(source="addressed_event",
+            source_id="ALARM:18",event_id="ALARM:18",observed_game_s=1019.0)
+        parse_world_read_page(p)
+        bad=copy.deepcopy(p)
+        bad["equipment"][0]["evidence"]["event_id"]="MISSING:1"
+        self.bad(bad)
+        bad=copy.deepcopy(p)
+        bad["addressed_events"]=[]
+        self.bad(bad)
+        bad=copy.deepcopy(p)
+        bad["equipment"][0]["evidence"]["observed_game_s"]=1017.0
+        self.bad(bad)
+
+    def test_freshness_policy_is_age_based_not_supplied_by_client(self):
+        p=observed()
+        p["equipment"][0]["availability"]="available"
+        p["equipment"][0]["evidence"]["observed_game_s"]=960.0
+        parse_world_read_page(p)  # exactly 60 game-seconds old
+        p=observed()
+        p["equipment"][0]["availability"]="available"
+        p["equipment"][0]["evidence"]["observed_game_s"]=20.0
+        self.bad(p)  # 1000 game-seconds old
+        p=observed()
+        p["equipment"][0]["availability"]="stale"
+        p["equipment"][0]["evidence"]["observed_game_s"]=1019.0
+        self.bad(p)
+        p=observed()
+        p["equipment"][0]["availability"]="unavailable"
+        p["equipment"][0]["reported_condition"]=None
+        p["equipment"][0]["evidence"]["observed_game_s"]=1019.0
+        parse_world_read_page(p)
+        p["equipment"][0]["evidence"]["observed_game_s"]=0.0
+        self.bad(p)
+
+    def test_advertised_exit_needs_destination(self):
+        p=observed()
+        p["exits"][0]["assessment"]="advertised"
+        p["exits"][0]["to_space_id"]="HAB-ENTRY"
+        parse_world_read_page(p)
+        del p["exits"][0]["to_space_id"]
+        self.bad(p)
+
 if __name__=="__main__":
     unittest.main()
