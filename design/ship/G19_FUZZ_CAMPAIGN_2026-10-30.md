@@ -12,8 +12,8 @@
 | F2 | Refill metering | Pure, property | Pass at 50×: 400,000 cases never exceed rate, stock or setpoint |
 | F3 | Refill routes on the real v0.5 graph | Pure, differential | Pass at 50×: 30,000 random lineups and all 143 single-valve lineups match an independent union-find oracle; opening never removes and failure never adds cells |
 | F4 | Tick chunking | Installed, differential | **Finding F4-1 (High), fixed.** Pass after fix at 3× scale |
-| F5 | Crew action sequences | Installed, stateful | Pass at 3×: 360 steps, 115 successes, 96 refusals, 56 replays, 21 ID collisions, 72 ticks. **Finding F5-1 (Medium), open** |
-| F6 | Persisted-state corruption | Installed, exploratory | 332 corruptions classified. **Findings F6-1 to F6-3 (Medium/Low), open** |
+| F5 | Crew action sequences | Installed, stateful | Pass at 3×: 360 steps, 115 successes, 96 refusals, 56 replays, 21 ID collisions, 72 ticks. **Finding F5-1 (Medium), fixed in [#141](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/141)** |
+| F6 | Persisted-state corruption | Installed, exploratory | 332 corruptions classified. **Findings F6-1 to F6-3 (Medium/Low), fixed in [#141](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/141) and [#144](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/144)**; rerun below |
 
 **Fuzzer sensitivity.** Three bugs were planted in the refill kernel: metering ignoring the setpoint, routes ignoring failed equipment, and the ledger accepting over-delivery. The first two are caught. The third survives only because the ledger enforces the bound twice; with the first check removed the code still behaves identically, so there is nothing for the fuzzer to find. The setpoint mutant was missed by the first version of F2, which now biases half its cases to within two metering steps of setpoint.
 
@@ -31,13 +31,15 @@
 
 **After the fix,** chunking moves about 10⁻⁷ of a cell's mass and a few milligrams of CO₂, with no temperature difference. That residual is operator splitting: physiology integrates a call's breathing after that call's physics substeps rather than interleaved with them. F4 now asserts 10⁻⁶ relative and 10⁻⁵ kg absolute, and excludes only the per-call bookkeeping (`ticks`, `summary`, `instrumentation` sampling).
 
-### F5-1 (Medium, open): one misplaced character stops the whole clock
+### F5-1 (Medium, fixed in #141): one misplaced character stops the whole clock
 
 If a commissioned, unsuited crew member stands in a room with no pressure cell (for example `STORE-FLUID-AFT` or a generator enclosure), every physics tick raises `Unknown life-support envelope at crew position`. The entire ship's physics stops until that character is moved.
 
 Gated traversal requires a suit for those rooms, so ordinary play cannot cause this. An operator teleport, the Developer `board ox` path, or a future access bug can. Failing closed is the intended behaviour for that character, but halting every other system is disproportionate.
 
 **Recommendation:** treat that character as in an unknown, non-breathable envelope (no gas exchange, exposure accrues, an alarm is raised) and let the rest of the ship advance.
+
+**Fixed (#141).** The character gets no oxygen and accrues hypoxia; one `g19_crew_unverified_envelope_alarm` audit event is written and cleared on leaving; every other system keeps ticking. The alarm is a developer audit event, not yet a crew-visible message.
 
 ### F6: single-field corruption of persisted state
 
@@ -56,6 +58,27 @@ No crew action can produce these states (F5 holds every invariant under random c
 - **F6-1 (Medium): stock and meter bounds.** `INV-WATER-NORMAL` and `INV-SPARES` accept 10³⁰ t, `INV-REACTION` accepts infinity and `INV-FTL-FUEL` accepts `None`. Electrical meters accept absurd stored energy, and ship velocity accepts 10³⁰ m/s. The tick rejects negatives and some infinities but checks no upper bounds. The refill banks reject every corruption, because B1 reconciles them against the ledger each tick. **Recommendation:** per-stock physical maxima (authored nominal mass) and ledger reconciliation for every consumed stock.
 - **F6-2 (Medium): interlock state types.** A drum's `hardlock`, `brake`, `indexing` or `freight_collar` set to `None`, and `drive_condition` set to an arbitrary string, are accepted. A `None` hardlock reads as false and could defeat a rotor or freight interlock. **Recommendation:** validate rotor and motion state with the same strict key-set and type checks the hull and refill ledgers use.
 - **F6-3 (Low): schema strictness and error quality.** Unknown extra keys are accepted in pressure-cell details, rotors, water, cargo and electrical ledgers, and 22 corruptions crash with `TypeError` / `KeyError` rather than a `PhysicsError`. **Recommendation:** strict key sets and numeric coercion in each ledger's validator.
+
+### F6 closure and rerun (31 October 2026)
+
+[#141](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/141) fixed F6-2 (strict rotor and propulsion interlocks), the named F6-1 stocks, velocity, mass and energy bounds, and most of F6-3. Rerunning the sweep (seed `0xF6`, scale 1) on its merge left 22 persisted corruptions and one raw crash. [#144](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/144) closed them:
+
+- inert make-up banks bounded by their fitted 3.5 t, and every inventory finite;
+- pressure cells: strict key set, authored free-gas volume interval, writer-derived ceilings (fire fuel 500 kg, burn 5 kg/s, leak 50 kg/s, mist 0.5 kg/s, background heat 1 MW, damage 1.0), exact structural heat capacity, setpoint and provenance vocabulary;
+- motion ledger carries exactly its 23 commissioned fields;
+- a `None` in the cargo-climate log is a `CargoClimateError`, not a `TypeError`;
+- a trusted clock span (`armed_game_time`; game time cannot run backwards) caps energy meters, cell heat exposure and crew/suit exposure histories, so a corrupted tick counter no longer widens them;
+- instrument history events cannot postdate the ledger's last sample.
+
+| Outcome | 30 Oct | After #141 | After #144 |
+| --- | ---: | ---: | ---: |
+| Rejected (graceful) | 153 | 176 | 198 |
+| Rejected by storage | 67 | 75 | 75 |
+| Accepted, overwritten | 34 | 39 | 37 |
+| **Crashed** | **22** | **1** | **0** |
+| **Accepted and persisted** | **56** | **22** | **3** |
+
+The three remaining persisted mutations are legitimate states, not corruption: a negative attitude rate (signed), an unsurveyed cargo sector's gas set to `None` (unknown), and a stowed suit with no holder.
 
 B1 hardening from this campaign: a missing or non-numeric `scenario_initial_pressure_pa` now refuses a refill start with a `PhysicsError` instead of a `TypeError`.
 

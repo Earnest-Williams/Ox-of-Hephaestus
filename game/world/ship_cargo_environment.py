@@ -103,7 +103,11 @@ def validate_cargo_environment(ledger, manifest):
     for field in ("cooled_drums", "exposed_lots", "unmeasured_drums"):
         items = ledger["last"][field]
         expected = set(DRUMS) if field != "exposed_lots" else set(ledger["lots"])
-        if (not isinstance(items, list) or items != sorted(set(items))
+        # Type-check before sorting: a None among strings must be a
+        # CargoClimateError, never an unclassified TypeError mid-tick.
+        if (not isinstance(items, list)
+                or any(type(item) is not str for item in items)
+                or items != sorted(set(items))
                 or not set(items) <= expected):
             raise CargoClimateError("Malformed cargo-climate instrument log")
     return True

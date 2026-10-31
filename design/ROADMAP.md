@@ -11,18 +11,9 @@ The superseded long-form G1–G16 plan and 25 October G18b work-in-progress note
 - **G19 verification:** final multi-system acceptance 74/74 tests plus three independent process-restart phases, 47/47 final-head workflows and 28/28 main-branch G19 acceptance checks reported at merge.
 - **Crew:** independent Concordia/GOAP minds and real authenticated character actions currently operate a separate seven-compartment proving ground, not the full ship.
 
-## Priority 1: harden post-merge physics
+## Priority 1: harden post-merge physics — done
 
-Follow the actual seeds and reproductions in [G19 fuzzing](ship/G19_FUZZ_CAMPAIGN_2026-10-30.md):
-
-| Finding | Required next check |
-| --- | --- |
-| F5-1: one misplaced unsuited character halts the entire ship clock | Isolate unknown-envelope exposure and alarm on that character; continue advancing other ship systems |
-| F6-1: resources and meters accept implausible, nonfinite persisted values | Enforce source-specific physical stock, velocity and energy bounds; reconcile all finite inventories |
-| F6-2: rotor hardlock, brake, collar and drive state allow invalid types | Strict type/state checks, with no default-to-unlocked safety bypass |
-| F6-3: extra ledger keys and raw `TypeError`/`KeyError` | Explicit schema validation and transactional refusal in the game-world error domain |
-
-Require seeded fuzz reruns, installed-world regression, persistence tests and appropriate G19 gates; preserve existing access and conservation requirements.
+The [G19 fuzzing](ship/G19_FUZZ_CAMPAIGN_2026-10-30.md) findings are closed: F5-1 and F6-1 to F6-3 in [PR #141](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/141), and the residuals from its rerun in [PR #144](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/144). The F6 sweep now ends with 0 crashes and 3 persisted mutations, all legitimate states. Keep the seeded fuzz and persisted-safety regressions running in CI.
 
 ## Priority 2: move autonomous crew onto the actual ship
 
