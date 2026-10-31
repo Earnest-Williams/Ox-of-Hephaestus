@@ -458,18 +458,36 @@ class G19PersistedSafetyRegressions(_InstalledFuzzBase):
             ("stock", "INV-SPARES", "quantity", 1e30),
             ("stock", "INV-REACTION", "quantity", 1e30),
             ("stock", "INV-FTL-FUEL", "quantity", None),
+            ("stock", "INV-INERT-MAKEUP-A", "quantity", 1e30),
+            ("stock", "INV-INERT-MAKEUP-B", "quantity", None),
+            ("stock", "INV-WASTE-RESIDUE", "quantity", float("inf")),
             ("motion", None, "velocity_m_s", [1e30, 0.0, 0.0]),
             ("motion", None, "propellant_kg", 1e30),
+            ("motion", None, "fuzz_extra_field", 1),
             ("pressure", "PZ-BOW-CMD", "quantity", 1e30),
+            ("cell", "PZ-BOW-CMD", "physics_fuel_kg", 1e30),
+            ("cell", "PZ-BOW-CMD", "physics_background_kw", 1e30),
+            ("cell", "PZ-BOW-CMD", "physics_heat_exposure_s", 1e30),
+            ("cell", "PZ-BOW-CMD", "gas_volume_m3", 1e30),
+            ("cell", "PZ-BOW-CMD", "scenario_initial_pressure_pa", 1e30),
+            ("cell", "PZ-BOW-CMD", "fuzz_extra_field", 1),
+            ("clock", None, "armed_game_time", 1e30),
         ]
         for family, name, field, bad in mutations:
             with self.subTest(family=family, name=name, field=field):
                 sid = transaction.savepoint()
                 try:
-                    if family == "motion":
+                    if family in {"motion", "clock"}:
                         row = _clock(lock=True)
                         d = deepcopy(row.details)
-                        d["motion"][field] = bad
+                        target = d["motion"] if family == "motion" else d
+                        target[field] = bad
+                        row.details = d
+                        row.save(update_fields=["details"])
+                    elif family == "cell":
+                        row = state("pressure", name, lock=True)
+                        d = deepcopy(row.details)
+                        d[field] = bad
                         row.details = d
                         row.save(update_fields=["details"])
                     else:

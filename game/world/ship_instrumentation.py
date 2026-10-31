@@ -234,6 +234,10 @@ def validate_instrumentation(ledger, *, panel_rooms=None):
         _validate_event(event)
         if event["seq"] <= prior or event["seq"] > ledger["sequence"]:
             raise InstrumentError("Duplicate or reordered durable instrument event")
+        # Like panel samples and alarms, a logged transition cannot postdate
+        # the ledger's own last sample time.
+        if event["time_s"] > ledger["last_s"] + EPS:
+            raise InstrumentError("Instrument history event from the future")
         prior = event["seq"]
     return True
 
