@@ -25,7 +25,7 @@ STRICT = ConfigDict(extra="forbid", frozen=True, strict=True)
 IDENTIFIER = r"^[A-Za-z0-9#][A-Za-z0-9#._:/-]{0,127}$"
 VERSION = r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
 METRIC = r"^[a-z][a-z0-9_]{0,63}$"
-DATUM_KEY = re.compile(r"datum_[a-z][a-z0-9_]{0,63}\\Z")
+DATUM_KEY = re.compile(r"datum_[a-z][a-z0-9_]{0,63}\Z")
 MAX_PAGE_ITEMS = 128
 MAX_OBSERVATION_AGE_S = 60.0
 LEGACY_FUEL_INVENTORIES = frozenset({"INV-REACTION", "INV-FTL-FUEL"})
