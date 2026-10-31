@@ -50,11 +50,14 @@ from world.ship_persistence_integrity import (
     ShipPersistenceError, BOUNDED_DEPARTURE_STOCKS,
     validate_departure_stock, validate_pressure_mass,
     validate_motion_quantities, validate_energy_custody,
+    validate_inventory_quantity, validate_pressure_cell_record,
+    validate_exposure_history, clock_elapsed_bound_s,
+    fitted_cell_thermal_capacity_kj_k,
 )
 from world.ship_motion_machinery import (
     DRUMS, ROTORS, RotorError, initial_rotors, set_rotor_command,
     step_rotors, motion_power_mw, rotor_gravity,
-    validate_rotors, validate_motion_safety,
+    validate_rotors, validate_motion_safety, validate_motion_schema,
 )
 from world.ship_water_recycling import (
     WaterError, initial_water, step_water, validate_water,
@@ -521,6 +524,15 @@ def _rated_motion_mass_contract():
 
 
 @lru_cache(maxsize=1)
+def _authored_cell_volumes():
+    """Design free-gas interval per cell from the immutable pressure reference."""
+    from world.full_ship_operations import _gas_reference
+    return {row["pressure_zone_id"]: (float(row["design_free_gas_lower_m3"]),
+                                      float(row["design_free_gas_upper_m3"]))
+            for row in _gas_reference()}
+
+
+@lru_cache(maxsize=1)
 def _rated_departure_stock_nominals():
     """Read fitted inventory capacities from the source, not mutable DB metadata."""
     return {row["id"]: row["nominal_mass_t"]
@@ -741,8 +753,8 @@ def arm_continuous_physics(*, operator_approved=False, now_game_time=None):
             physics_background_kw=0.0,
             physics_heat_exposure_s=0.0,
             physics_damage_index=0.0,
-            physics_thermal_capacity_kj_k=(
-                30000.0 if cell.source_id.startswith("PZ-HAB-") else 5000.0),
+            physics_thermal_capacity_kj_k=fitted_cell_thermal_capacity_kj_k(
+                cell.source_id),
         )
         cell.details = d
         cell.revision += 1
@@ -773,6 +785,10 @@ def arm_continuous_physics(*, operator_approved=False, now_game_time=None):
         source_model=MODEL, condition="armed", setting="scenario",
         details={
             "last_game_time": started, "step_seconds": STEP_SECONDS,
+            # Trusted span for exposure and energy ceilings; game time cannot
+            # run backwards, so this bounds elapsed clock time independently
+            # of the (persisted, corruptible) tick counter.
+            "armed_game_time": started,
             "load_profile": "normal", "ticks": 0,
             "lost_to_space_kg": 0.0, "burned_fuel_kg": 0.0,
             "water_suppression_kg": 0.0,
@@ -3987,26 +4003,21 @@ def _cell_pressure(cell):
     return cell["mass"] * R_SPECIFIC_AIR * cell["temperature"] / cell["volume"]
 
 
-def _load_cell(row):
+def _load_cell(row, *, elapsed_bound_s=None):
     d = row.details
     mass = row.quantity
-    if not isinstance(d, dict):
-        raise PhysicsError("Unrecognised pressure-cell measurements")
-    required_physics = {
-        "physics_oxygen_kg", "physics_co2_kg", "physics_smoke_kg",
-        "physics_fuel_kg", "physics_burn_kg_s", "physics_leak_kg_s",
-        "physics_mist_kg_s", "physics_background_kw",
-        "physics_thermal_capacity_kj_k", "physics_heat_exposure_s",
-        "physics_damage_index",
-    }
-    # These optional measurements belong to a genuine installed casualty
-    # response; do not reject them as fabricated schema extensions.
-    allowed_physics = required_physics | {
-        "physics_leak_isolator_id", "physics_manual_close_game_s"}
-    if (not required_physics <= set(d) or
-            any(k.startswith("physics_") and k not in allowed_physics
-                for k in d if isinstance(k, str))):
-        raise PhysicsError("Incomplete or invented pressure-cell physics fields")
+    authored_volume = _authored_cell_volumes().get(row.source_id)
+    if authored_volume is None:
+        raise PhysicsError("Pressure cell has no authored gas envelope: "
+                           + str(row.source_id))
+    # Strict key set and writer-derived ceilings: only genuine installed
+    # casualty response and hull restoration add optional measurements.
+    try:
+        validate_pressure_cell_record(
+            row.source_id, d, authored_volume_m3=authored_volume,
+            elapsed_bound_s=elapsed_bound_s)
+    except ShipPersistenceError as exc:
+        raise PhysicsError(str(exc)) from exc
     try:
         validate_pressure_mass(mass, d.get("gas_volume_m3"),
                                d.get("temperature_k"))
@@ -4050,6 +4061,20 @@ def tick_continuous_physics(*, now_game_time=None):
     seconds = min(MAX_ADVANCE_SECONDS, now - last)
     if seconds <= 0:
         return {"advanced": False, "last_game_time": last}
+    # Clocks armed before the commissioning-time field existed derive a
+    # conservative (earliest possible) arming time from the tick counter once;
+    # it is then persisted and only ever checked, never re-derived.
+    armed_game_time = clock.details.get("armed_game_time")
+    if armed_game_time is None:
+        ticks_so_far = clock.details.get("ticks")
+        if type(ticks_so_far) is not int or ticks_so_far < 0:
+            raise PhysicsError("Impossible elapsed ship-clock tick counter")
+        armed_game_time = last - ticks_so_far * MAX_ADVANCE_SECONDS
+    try:
+        elapsed_bound_s = clock_elapsed_bound_s(
+            last, armed_game_time, MAX_ADVANCE_SECONDS)
+    except ShipPersistenceError as exc:
+        raise PhysicsError(str(exc)) from exc
     pressure_rows = list(CanonicalShipState.objects.select_for_update()
                          .filter(category="pressure").order_by("key"))
     if len(pressure_rows) != 133:
@@ -4094,6 +4119,13 @@ def tick_continuous_physics(*, now_game_time=None):
                 authored_nominal_t=authored)
         except ShipPersistenceError as exc:
             raise PhysicsError(str(exc)) from exc
+    # Growable receivers and food have no fixed ceiling, but every installed
+    # inventory still holds a finite, non-negative mass.
+    for stock_row in CanonicalShipState.objects.filter(category="inventory"):
+        try:
+            validate_inventory_quantity(stock_row.source_id, stock_row.quantity)
+        except ShipPersistenceError as exc:
+            raise PhysicsError(str(exc)) from exc
     cartridge_stock = (
         state("inventory", "INV-GEN-CART", lock=True)
         if clock.details.get("electrical") is not None else None)
@@ -4115,7 +4147,8 @@ def tick_continuous_physics(*, now_game_time=None):
     access_rows = list(CanonicalShipState.objects.filter(category="access"))
     equipment = {x.source_id: x for x in equipment_rows}
     zones, owners, node_zones = _topology()
-    cells = {r.source_id: _load_cell(r) for r in pressure_rows}
+    cells = {r.source_id: _load_cell(r, elapsed_bound_s=elapsed_bound_s)
+             for r in pressure_rows}
     hull = clock.details.get("hull")
     if hull is not None:
         try:
@@ -4255,7 +4288,8 @@ def tick_continuous_physics(*, now_game_time=None):
                 nameplates[name] = nominal * 1000.0
             validate_energy_custody(
                 electrical, nameplates, clock.details.get("ticks"),
-                MAX_ADVANCE_SECONDS, GENERATION_MW, SHIP_CAP_MW)
+                MAX_ADVANCE_SECONDS, GENERATION_MW, SHIP_CAP_MW,
+                elapsed_bound_s=elapsed_bound_s)
             audit_topology(water_nodes, edges, isolators, strict=True)
         except (ElectricalError, ShipPersistenceError) as exc:
             raise PhysicsError(str(exc)) from exc
@@ -4416,7 +4450,12 @@ def tick_continuous_physics(*, now_game_time=None):
     if eva is not None:
         try:
             validate_eva(eva)
-        except EVAError as exc:
+            # Worn or stowed, a suit's exposure record accrues only on the
+            # ship clock; a dose longer than the clock has run is invented.
+            for suit_id, suit in eva["suits"].items():
+                validate_exposure_history(
+                    "suit " + suit_id, suit["exposure"], elapsed_bound_s)
+        except (EVAError, ShipPersistenceError) as exc:
             raise PhysicsError(str(exc)) from exc
     major_damage = clock.details.get("major_damage")
     if major_damage is not None:
@@ -4432,6 +4471,7 @@ def tick_continuous_physics(*, now_game_time=None):
     rotors = dict(clock.details.get("rotors", {}))
     try:
         validate_rotors(rotors)
+        validate_motion_schema(motion)
         validate_motion_safety(motion)
     except RotorError as exc:
         raise PhysicsError(str(exc)) from exc
@@ -6024,7 +6064,9 @@ def tick_continuous_physics(*, now_game_time=None):
                 raise PhysicsError("Registered crew location is not an installed ship space")
             try:
                 validate_crew_health(row.details)
-            except CrewPhysiologyError as exc:
+                validate_exposure_history(
+                    "crew " + row.source_id, row.details, elapsed_bound_s)
+            except (CrewPhysiologyError, ShipPersistenceError) as exc:
                 raise PhysicsError(str(exc)) from exc
             _, worn = suit_of(eva, row.source_id) if eva is not None else (None, None)
             if worn:
@@ -6940,6 +6982,7 @@ def tick_continuous_physics(*, now_game_time=None):
     # A valid starting ledger does not authorize a bad computed transition.
     try:
         validate_rotors(rotors)
+        validate_motion_schema(motion)
         validate_motion_safety(motion)
         validate_motion_quantities(motion, _rated_motion_mass_contract(),
                                    water=water_state)
@@ -6982,11 +7025,13 @@ def tick_continuous_physics(*, now_game_time=None):
         try:
             validate_energy_custody(
                 electrical, nameplates, d["ticks"],
-                MAX_ADVANCE_SECONDS, GENERATION_MW, SHIP_CAP_MW)
+                MAX_ADVANCE_SECONDS, GENERATION_MW, SHIP_CAP_MW,
+                elapsed_bound_s=elapsed_bound_s)
         except ShipPersistenceError as exc:
             raise PhysicsError("Invalid post-tick energy ledger: " + str(exc)) from exc
     d["motion"] = motion
     d["crew_unverified_envelopes"] = current_unverified
+    d["armed_game_time"] = armed_game_time
     if instrumentation is not None:
         # Use physical end-of-tick cell/machine/breaker status. The chosen
         # source is an actual installed panel and its current power node,

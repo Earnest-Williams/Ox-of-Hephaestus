@@ -137,6 +137,26 @@ def validate_rotors(rotors):
     return True
 
 
+# Exactly the commissioned inertial ledger written by arming and by the
+# v0.5 candidate migration; anything else is an unmigrated extension.
+MOTION_KEYS = frozenset({
+    "position_m", "velocity_m_s", "dry_mass_kg", "cargo_mass_kg",
+    "cargo_capacity_kg", "ftl_fuel_kg", "expended_ftl_fuel_kg", "ftl_leg",
+    "nav_location", "mission_fluids_kg", "propellant_kg",
+    "expended_propellant_kg", "command", "drive_firing", "drive_power_mw",
+    "drive_condition", "drive_heat_kj", "drive_trip_reason", "rcs_condition",
+    "attitude_rad", "angular_velocity_rad_s", "attitude_command",
+    "attitude_firing",
+})
+
+
+def validate_motion_schema(motion: object) -> bool:
+    """The persisted inertial ledger carries exactly its commissioned fields."""
+    if not isinstance(motion, dict) or set(motion) != MOTION_KEYS:
+        raise RotorError("Missing or unrecognised propulsion ledger fields")
+    return True
+
+
 def validate_motion_safety(motion):
     """Fail closed on malformed persisted drive/RCS conditions and commands."""
     if not isinstance(motion, dict):
