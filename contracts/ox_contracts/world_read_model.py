@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import math
 import re
+from collections.abc import Mapping
+from types import MappingProxyType
 from typing import Annotated, Literal, Self
 
 from pydantic import (
@@ -17,6 +19,7 @@ from pydantic import (
     ConfigDict,
     Field,
     TypeAdapter,
+    field_serializer,
     field_validator,
     model_validator,
 )
@@ -29,6 +32,10 @@ METRIC = r"^[a-z][a-z0-9_]{0,63}$"
 DATUM_KEY = re.compile(r"datum_[a-z][a-z0-9_]{0,63}\Z")
 MAX_PAGE_ITEMS = 128
 MAX_OBSERVATION_AGE_S = 60.0
+# The world's coarse gas model: P = m * R * T / V with dry-air R (J/kg/K).
+AIR_R_J_KG_K = 287.05
+CELL_PRESSURE_REL_TOLERANCE = 0.005
+CELL_PRESSURE_ABS_TOLERANCE_KPA = 0.01
 LEGACY_FUEL_INVENTORIES = frozenset({"INV-REACTION", "INV-FTL-FUEL"})
 OPERATIONAL_FUEL_ACCOUNTS = frozenset({"motion.propellant_kg", "motion.ftl_fuel_kg"})
 
@@ -52,6 +59,7 @@ Unit = Literal[
     "1",
 ]
 FlatDatum = str | int | float | bool
+SpaceIdentifier = Annotated[str, Field(pattern=IDENTIFIER)]
 CELL_METRIC_NAMES = frozenset(
     {
         "pressure_kpa",
@@ -70,6 +78,8 @@ METRIC_UNITS = {
     "pressure_kpa": "kPa",
     "oxygen_kpa": "kPa",
     "temperature_k": "K",
+    "gas_mass_kg": "kg",
+    "volume_m3": "m3",
     "burn_kg_s": "kg/s",
     "leak_kg_s": "kg/s",
     "co2_fraction": "1",
@@ -80,6 +90,37 @@ METRIC_UNITS = {
     "nutrient_kg": "kg",
     "spoiled_food_kg": "kg",
 }
+# Any other metric whose name ends in a unit suffix must use that unit, so a
+# producer cannot publish ``tank_volume_m3`` in kelvin.  Longest suffix wins.
+METRIC_SUFFIX_UNITS = (
+    ("_kg_s", "kg/s"),
+    ("_m_s", "m/s"),
+    ("_kwh", "kWh"),
+    ("_kpa", "kPa"),
+    ("_rpm", "rpm"),
+    ("_rad", "rad"),
+    ("_pct", "%"),
+    ("_fraction", "1"),
+    ("_pa", "Pa"),
+    ("_kg", "kg"),
+    ("_m3", "m3"),
+    ("_kw", "kW"),
+    ("_mw", "MW"),
+    ("_k", "K"),
+    ("_s", "s"),
+    ("_h", "h"),
+)
+
+
+def canonical_unit_for(name: str) -> str | None:
+    """The only unit a metric name admits, or None for an unsuffixed name."""
+    known = METRIC_UNITS.get(name)
+    if known is not None:
+        return known
+    for suffix, unit in METRIC_SUFFIX_UNITS:
+        if name.endswith(suffix):
+            return unit
+    return None
 
 
 class ReadRecord(BaseModel):
@@ -148,7 +189,7 @@ class Measurement(ReadRecord):
 
     @model_validator(mode="after")
     def canonical_unit(self) -> Self:
-        known = METRIC_UNITS.get(self.name)
+        known = canonical_unit_for(self.name)
         if known is not None and self.unit != known:
             raise ValueError("Measurement unit disagrees with its physical name")
         return self
@@ -174,7 +215,7 @@ class PressureCellActual(ReadRecord):
     """One installed gas envelope can enclose several real ship spaces."""
 
     cell_id: str = Field(pattern=IDENTIFIER)
-    space_ids: tuple[str, ...] = Field(min_length=1, max_length=421)
+    space_ids: tuple[SpaceIdentifier, ...] = Field(min_length=1, max_length=421)
     pressure_kpa: float = Field(ge=0)
     oxygen_kpa: float = Field(ge=0)
     temperature_k: float = Field(gt=0)
@@ -200,6 +241,16 @@ class PressureCellActual(ReadRecord):
             raise ValueError("One room cannot be repeated inside a pressure cell")
         if self.oxygen_kpa > self.pressure_kpa + 1e-6:
             raise ValueError("Oxygen partial pressure exceeds total pressure")
+        implied_kpa = (
+            self.gas_mass_kg * AIR_R_J_KG_K * self.temperature_k / self.volume_m3
+        ) / 1000.0
+        if not math.isclose(
+            self.pressure_kpa,
+            implied_kpa,
+            rel_tol=CELL_PRESSURE_REL_TOLERANCE,
+            abs_tol=CELL_PRESSURE_ABS_TOLERANCE_KPA,
+        ):
+            raise ValueError("Cell pressure disagrees with its gas mass and volume")
         return self
 
 
@@ -211,7 +262,9 @@ class PressureBoundaryActual(ReadRecord):
     to_space_id: str = Field(pattern=IDENTIFIER)
     from_cell_id: str | None = Field(default=None, pattern=IDENTIFIER)
     to_cell_id: str | None = Field(default=None, pattern=IDENTIFIER)
-    setting: Literal["open", "closed", "closed_or_auto"]
+    # Actual state now; the authored access policy is separate design data.
+    setting: Literal["open", "closed"]
+    authored_policy: Literal["open", "closed", "closed_or_auto"] | None = None
     condition: str = Field(min_length=1, max_length=100)
 
     @model_validator(mode="after")
@@ -356,7 +409,9 @@ class AddressedEvent(ReadRecord):
     occurred_game_s: float = Field(ge=0)
     text: str = Field(min_length=1, max_length=4096)
     # Preserve the original OOB datum_* keys and only flat scalar values.
-    datum_fields: dict[str, FlatDatum] = Field(default_factory=dict, max_length=32)
+    datum_fields: Mapping[str, FlatDatum] = Field(
+        default_factory=lambda: MappingProxyType({}), max_length=32
+    )
     source: Literal["delivered_world_event"]
 
     @field_validator("occurred_game_s", mode="before")
@@ -379,6 +434,16 @@ class AddressedEvent(ReadRecord):
             if type(datum) is str and len(datum) > 512:
                 raise ValueError("Event datum string is too long")
         return value
+
+    @field_validator("datum_fields", mode="after")
+    @classmethod
+    def freeze_datums(cls, value: Mapping[str, FlatDatum]) -> Mapping[str, FlatDatum]:
+        """A frozen record must not expose a mutable payload dictionary."""
+        return MappingProxyType(dict(value))
+
+    @field_serializer("datum_fields")
+    def serialise_datums(self, value: Mapping[str, FlatDatum]) -> dict[str, FlatDatum]:
+        return dict(value)
 
 
 class WorldPage(ReadRecord):
@@ -498,8 +563,13 @@ class ActorWorldPage(WorldPage):
             if evidence.observed_game_s > self.game_time_s:
                 raise ValueError("Observation cannot come from the future")
             age = self.game_time_s - evidence.observed_game_s
-            if (equipment.availability == "stale") != (age > MAX_OBSERVATION_AGE_S):
-                raise ValueError("Observation freshness disagrees with sample age")
+            # A reading is available while young and stale once old.  A
+            # failed sample stays "unavailable" at any age: the evidence time is
+            # when the failure was last confirmed, and it is not rewritten.
+            if equipment.availability == "available" and age > MAX_OBSERVATION_AGE_S:
+                raise ValueError("An old reading cannot be reported as available")
+            if equipment.availability == "stale" and age <= MAX_OBSERVATION_AGE_S:
+                raise ValueError("A recent reading is not stale")
             self._verify_event_reference(evidence, events)
         for exit_view in self.exits:
             evidence = exit_view.evidence
@@ -517,11 +587,12 @@ class ActorWorldPage(WorldPage):
     def _verify_event_reference(
         evidence: Evidence, events: dict[str, AddressedEvent]
     ) -> None:
+        # A cited event may sit on another page of the same cursor series, as
+        # on developer pages; when it is co-paged it must be consistent.  The
+        # service still authenticates the original addressed journal delivery.
         if evidence.source == "addressed_event":
             event = events.get(evidence.event_id or "")
-            if event is None:
-                raise ValueError("Evidence references an event absent from page")
-            if event.occurred_game_s > evidence.observed_game_s:
+            if event is not None and event.occurred_game_s > evidence.observed_game_s:
                 raise ValueError("Evidence predates the cited world event")
 
 

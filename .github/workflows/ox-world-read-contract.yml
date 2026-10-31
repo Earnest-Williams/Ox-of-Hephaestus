@@ -8,6 +8,12 @@ on:
       - "contracts/**"
       - ".github/workflows/ox-world-read-contract.yml"
       - "!**/*.md"
+  push:
+    branches: [main]
+    paths:
+      - "contracts/**"
+      - ".github/workflows/ox-world-read-contract.yml"
+      - "!**/*.md"
   workflow_dispatch:
 
 concurrency:

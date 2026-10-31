@@ -204,7 +204,8 @@ class WorldReadContractTests(unittest.TestCase):
                 pressure_kpa=101.0,
                 oxygen_kpa=21.0,
                 temperature_k=293.15,
-                gas_mass_kg=200.0,
+                # 101 kPa at 293.15 K in 150 m3 under the world's dry-air model.
+                gas_mass_kg=180.041,
                 volume_m3=150.0,
             )
         ]
@@ -216,6 +217,7 @@ class WorldReadContractTests(unittest.TestCase):
                 from_cell_id="PZ-TEST",
                 to_cell_id=None,
                 setting="closed",
+                authored_policy="closed_or_auto",
                 condition="serviceable",
             )
         ]
@@ -239,6 +241,24 @@ class WorldReadContractTests(unittest.TestCase):
         bad = copy.deepcopy(p)
         bad["pressure_boundaries"][0]["to_cell_id"] = "PZ-TEST"
         self.bad(bad)
+        # A design policy is not an actual hatch state.
+        bad = copy.deepcopy(p)
+        bad["pressure_boundaries"][0]["setting"] = "closed_or_auto"
+        self.bad(bad)
+        # Room IDs inside a cell obey the identifier grammar.
+        for room in ("", "X" * 5000, "bad room"):
+            bad = copy.deepcopy(p)
+            bad["pressure_cells"][0]["space_ids"] = [room]
+            self.bad(bad)
+        # Pressure must agree with mass, temperature and volume.
+        for field, value in (
+            ("gas_mass_kg", 1e30),
+            ("volume_m3", 1.0),
+            ("pressure_kpa", 50.0),
+        ):
+            bad = copy.deepcopy(p)
+            bad["pressure_cells"][0][field] = value
+            self.bad(bad)
 
     def test_duplicate_metrics_and_units_are_rejected(self):
         for readings in (
@@ -248,6 +268,10 @@ class WorldReadContractTests(unittest.TestCase):
             ],
             [dict(name="pressure_kpa", unit="furlongs", value=60.0)],
             [dict(name="pressure_kpa", unit="kg", value=60.0)],
+            [dict(name="volume_m3", unit="K", value=3.0)],
+            [dict(name="tank_volume_m3", unit="K", value=3.0)],
+            [dict(name="pump_flow_kg_s", unit="kg", value=3.0)],
+            [dict(name="bearing_temperature_k", unit="kPa", value=300.0)],
         ):
             p = actual()
             p["equipment"][0]["measurements"] = readings
@@ -258,6 +282,14 @@ class WorldReadContractTests(unittest.TestCase):
             dict(name="power_kw", unit="kW", value=11.0),
         ]
         self.bad(p)
+        # Suffixed names take their own unit; unsuffixed names any listed unit.
+        p = actual()
+        p["equipment"][0]["measurements"] = [
+            dict(name="tank_volume_m3", unit="m3", value=3.0),
+            dict(name="pump_flow_kg_s", unit="kg/s", value=3.0),
+            dict(name="valve_position", unit="%", value=40.0),
+        ]
+        parse_world_read_page(p)
 
     def test_real_addressed_event_text_and_flat_datums(self):
         event = parse_world_read_page(observed()).addressed_events[0]
@@ -279,7 +311,7 @@ class WorldReadContractTests(unittest.TestCase):
             p["addressed_events"][0]["datum_fields"] = datums
             self.bad(p)
 
-    def test_event_evidence_must_be_on_same_page_and_not_in_future(self):
+    def test_event_evidence_is_consistent_and_may_be_paginated(self):
         p = observed()
         p["equipment"][0]["availability"] = "available"
         p["equipment"][0]["evidence"] = dict(
@@ -289,12 +321,14 @@ class WorldReadContractTests(unittest.TestCase):
             observed_game_s=1019.0,
         )
         parse_world_read_page(p)
-        bad = copy.deepcopy(p)
-        bad["equipment"][0]["evidence"]["event_id"] = "MISSING:1"
-        self.bad(bad)
-        bad = copy.deepcopy(p)
-        bad["addressed_events"] = []
-        self.bad(bad)
+        # The cited event may be on another page of the same cursor series.
+        other_page = copy.deepcopy(p)
+        other_page["equipment"][0]["evidence"]["event_id"] = "ALARM:17"
+        parse_world_read_page(other_page)
+        other_page = copy.deepcopy(p)
+        other_page["addressed_events"] = []
+        parse_world_read_page(other_page)
+        # When co-paged, the observation cannot predate the event it cites.
         bad = copy.deepcopy(p)
         bad["equipment"][0]["evidence"]["observed_game_s"] = 1017.0
         self.bad(bad)
@@ -317,7 +351,11 @@ class WorldReadContractTests(unittest.TestCase):
         p["equipment"][0]["reported_condition"] = None
         p["equipment"][0]["evidence"]["observed_game_s"] = 1019.0
         parse_world_read_page(p)
+        # A failure known for 1,020 s is still unavailable, with its real time.
         p["equipment"][0]["evidence"]["observed_game_s"] = 0.0
+        parse_world_read_page(p)
+        # ...but an unavailable instrument still supplies no reading.
+        p["equipment"][0]["reported_condition"] = "serviceable"
         self.bad(p)
 
     def test_advertised_exit_needs_destination(self):
@@ -327,6 +365,21 @@ class WorldReadContractTests(unittest.TestCase):
         parse_world_read_page(p)
         del p["exits"][0]["to_space_id"]
         self.bad(p)
+
+
+class FrozenPayloadTests(unittest.TestCase):
+    def test_event_datums_are_immutable_and_round_trip(self):
+        event = parse_world_read_page(observed()).addressed_events[0]
+        with self.assertRaises(TypeError):
+            event.datum_fields["datum_pressure_kpa"] = 0.0  # type: ignore[index]
+        model = parse_world_read_page(observed())
+        again = type(model).model_validate_json(model.model_dump_json())
+        self.assertEqual(
+            dict(again.addressed_events[0].datum_fields),
+            dict(event.datum_fields),
+        )
+        dumped = model.model_dump()
+        self.assertIs(type(dumped["addressed_events"][0]["datum_fields"]), dict)
 
 
 if __name__ == "__main__":
