@@ -78,4 +78,5 @@ jobs:
           python -m world.test_runner \
             world.tests.test_installed_ship_g19_fuzz.TickChunkingDifferentialFuzz \
             world.tests.test_installed_ship_g19_fuzz.CrewActionSequenceFuzz \
+            world.tests.test_installed_ship_g19_fuzz.G19PersistedSafetyRegressions \
             --verbosity=2
