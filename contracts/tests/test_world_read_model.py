@@ -27,13 +27,15 @@ def observed():
        "equipment":[dict(equipment_id="GEN-B", availability="stale",
                          reported_condition="serviceable",
                          evidence=dict(source="local_panel", source_id="LP-ENG",
-                                       observed_game_s=990.0))],
+                                       observed_game_s=900.0))],
        "exits":[dict(link_id="ACC-ENG-HAB",from_space_id="ENG-CONTROL",
                      assessment="unknown",
                      evidence=dict(source="local_capability", source_id="ACC-ENG-HAB",
                                    observed_game_s=1019.0))],
        "addressed_events":[dict(event_id="ALARM:18",recipient_character_id="#57",
                                 kind="life_support_warning",occurred_game_s=1018.0,
+                                text="Low pressure in service corridor",
+                                datum_fields={"datum_zone":"PZ-HUB-SVC","datum_pressure_kpa":51.2},
                                 source="delivered_world_event")]}
 
 class WorldReadContractTests(unittest.TestCase):
@@ -90,6 +92,7 @@ class WorldReadContractTests(unittest.TestCase):
             self.bad(p)
         p=observed()
         p["equipment"][0].update(availability="unavailable",reported_condition=None)
+        p["equipment"][0]["evidence"]["observed_game_s"]=1019.0
         parse_world_read_page(p)
 
     def test_pagination_duplicates_and_future(self):
