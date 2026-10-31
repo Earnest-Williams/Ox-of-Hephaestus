@@ -43,14 +43,25 @@ def finite_number(value, label, *, maximum=None):
     return float(value)
 
 
-def validate_departure_stock(identifier, quantity_t, reference):
-    """Only inventories originally stocked as consumables use a nominal cap."""
+def validate_departure_stock(identifier, quantity_t, reference, *,
+                             authored_nominal_t=None):
+    """Enforce original fitted capacity against independently authored source.
+
+    The saved quantity AND the saved reference live in mutable database rows;
+    a corrupted reference cannot increase the source's physical capacity.
+    """
     if identifier not in BOUNDED_DEPARTURE_STOCKS:
         return True
     if not isinstance(reference, dict):
         raise ShipPersistenceError("Missing fitted stock reference: " + identifier)
     rated = finite_number(reference.get("nominal_mass_t"),
                           identifier + " departure mass")
+    if authored_nominal_t is not None:
+        authored = finite_number(authored_nominal_t, identifier + " source capacity")
+        if not math.isclose(rated, authored, rel_tol=0, abs_tol=1e-8):
+            raise ShipPersistenceError("Installed stock reference differs from fitted source: "
+                                       + identifier)
+        rated = authored
     finite_number(quantity_t, identifier + " held mass", maximum=rated + 1e-8)
     return True
 

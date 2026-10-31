@@ -484,6 +484,22 @@ class G19PersistedSafetyRegressions(_InstalledFuzzBase):
                 finally:
                     transaction.savepoint_rollback(sid)
 
+    def test_corrupt_stock_reference_cannot_redefine_fitted_capacity(self):
+        from copy import deepcopy
+        sid = transaction.savepoint()
+        try:
+            row = state("inventory", "INV-SPARES", lock=True)
+            reference = deepcopy(row.reference)
+            reference["nominal_mass_t"] = 1e30
+            row.reference = reference
+            row.save(update_fields=["reference"])
+            before = _snapshot()
+            with self.assertRaisesRegex(PhysicsError, "fitted source"):
+                tick_continuous_physics(now_game_time=self.now + 10)
+            self.assertEqual(_snapshot(), before)
+        finally:
+            transaction.savepoint_rollback(sid)
+
     def test_water_and_electrical_schema_corruption_is_refused_transactionally(self):
         from copy import deepcopy
         for ledger in ("water", "electrical"):

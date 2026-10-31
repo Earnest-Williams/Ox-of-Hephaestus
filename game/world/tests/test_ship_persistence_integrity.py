@@ -38,6 +38,12 @@ class G19PersistenceRegressions(unittest.TestCase):
             "INV-SPARES", 1.0, {"nominal_mass_t": 2.0}))
         self.assertTrue(validate_departure_stock(
             "INV-WASTE-RESIDUE", 50, {"nominal_mass_t": 0.0}))
+        self.assertTrue(validate_departure_stock(
+            "INV-SPARES", 1.0, {"nominal_mass_t": 2.0}, authored_nominal_t=2.0))
+        with self.assertRaisesRegex(ShipPersistenceError, "fitted source"):
+            validate_departure_stock(
+                "INV-SPARES", 1.0, {"nominal_mass_t": 1e30},
+                authored_nominal_t=2.0)
         for value in (float("inf"), float("nan"), -1, 1e30, None, "5"):
             with self.subTest(value=value):
                 with self.assertRaises(ShipPersistenceError):

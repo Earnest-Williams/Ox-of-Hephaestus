@@ -520,6 +520,13 @@ def _rated_motion_mass_contract():
     return load_candidate()["mass"]
 
 
+@lru_cache(maxsize=1)
+def _rated_departure_stock_nominals():
+    """Read fitted inventory capacities from the source, not mutable DB metadata."""
+    return {row["id"]: row["nominal_mass_t"]
+            for row in load_candidate()["inventories"]}
+
+
 def _positive(value, *, zero=False, maximum=None):
     if (isinstance(value, bool) or not isinstance(value, (float, int))
             or not math.isfinite(value) or value < 0 or (value == 0 and not zero)
@@ -4078,9 +4085,13 @@ def tick_continuous_physics(*, now_game_time=None):
     # processing and is validated against the receiver ledger separately.
     for stock_id in sorted(BOUNDED_DEPARTURE_STOCKS):
         stock_row = state("inventory", stock_id, lock=True)
+        authored = _rated_departure_stock_nominals().get(stock_id)
+        if authored is None:
+            raise PhysicsError("Original fitted stock has no source rating: " + stock_id)
         try:
-            validate_departure_stock(stock_id, stock_row.quantity,
-                                     stock_row.reference)
+            validate_departure_stock(
+                stock_id, stock_row.quantity, stock_row.reference,
+                authored_nominal_t=authored)
         except ShipPersistenceError as exc:
             raise PhysicsError(str(exc)) from exc
     cartridge_stock = (
