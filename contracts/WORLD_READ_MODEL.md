@@ -5,6 +5,44 @@ Shared Pydantic v2 models: `ox_contracts.world_read_model`. Nothing in this
 contract authorizes a database read, bypasses Evennia command permissions,
 enables developer access or integrates private Concordia memory.
 
+## Pressure topology and event projection
+
+- **Pressure is cell-owned, not room-owned.** A developer projection has
+  `pressure_cells` with measured pressure, oxygen partial pressure, temperature,
+  gas mass, volume and the authored room membership. `spaces` reference their
+  `pressure_cell_id` (or `null` for no verified commissioned cell).
+  `pressure_boundaries` carry actual access-link identity, both endpoints'
+  cell IDs, access setting and condition. A closed hatch is not the same as a
+  healthy seal; neither a renderer nor a crew client may infer flow from its
+  displayed setting alone. Cell-wide measurements cannot be copied into each
+  room's `measurements`. The published full ship contains 133 pressure cells.
+- **Authenticated addressed events include what was said.** Each actor event
+  carries `text` and `datum_fields`: a bounded flat map preserving original
+  `datum_*` OOB keys and scalar values. No nested dictionaries, invented alarm
+  payloads or events addressed to another character. If an observation cites
+  `Evidence.source=addressed_event`, the cited `event_id` must be included
+  in `addressed_events` on the same page and must predate its observation.
+  The service must still authenticate the original addressed journal delivery.
+- **Freshness is objective, not a caller label.** At snapshot game time,
+  `available` means a usable observation sampled **at most 60 game-seconds
+  ago**; `stale` means a retained last-known observation **older than 60
+  game-seconds**; `unavailable` means a recent failed sample with no condition
+  or readings. A 1,000-second-old sample cannot be `available`. These are
+  evidence freshness states, *not* declarations that machinery is functional.
+  The exact 60-second policy is part of schema v1 and requires versioning if
+  changed. Future producers must derive, not accept, these labels.
+- **Measurements are unique per metric name.** Units are restricted to the
+  enumerated physical units, with canonical units for known metrics. Thus
+  two `pressure_kpa` readings or `unit=furlongs` cannot validate.
+- **Mass units and custody:** source **Evennia inventory quantities are in
+  tonnes (t)**; the world-read wire contract publishes `quantity_kg` in
+  **kilograms (kg)**. The producer must explicitly multiply an inventory
+  `quantity_t` by 1,000, while already-kg motion-ledger balances must
+  *not* be converted twice. Retain distinct source identifiers and custody:
+  `INV-REACTION`/`INV-FTL-FUEL` are legacy reference rows and the
+  corresponding motion-ledger balances are spendable. Do not sum or claim
+  equality before the planned receipt-backed migration.
+
 ## Rules
 
 - `developer_actual` is an explicitly privileged projection of Evennia-owned
