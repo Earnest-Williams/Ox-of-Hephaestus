@@ -14,11 +14,14 @@ from evennia.objects.models import ObjectDB
 from evennia.utils.create import create_object
 
 from world.ship_model import AccessLinkSpec, ShipWorldModel, SpaceSpec, load_ship_model
+from world import planner_stats
 from world.tagged import objects_tagged
 
 WORLD_CATEGORY = "ox_ship_world"
 ROOT_MARKER = "world-root"
 ENTRY_SPACE_ID = "CMD-PRIMARY"
+# Analyse once this many spaces exist so the rest of the build plans well.
+STATISTICS_SAMPLE_SPACES = 24
 
 
 def find_world_entity(marker: str):
@@ -172,10 +175,14 @@ def build_canonical_ship(model: ShipWorldModel | None = None) -> dict[str, Any]:
 
     spaces: dict[str, Any] = {}
     created_spaces = 0
-    for spec in model.spaces:
+    for index, spec in enumerate(model.spaces):
         room, created = _materialise_space(spec, model.model_version)
         spaces[spec.id] = room
         created_spaces += int(created)
+        if index == STATISTICS_SAMPLE_SPACES and created_spaces:
+            planner_stats.refresh()
+    if created_spaces:
+        planner_stats.refresh()
 
     created_accesses = 0
     access_objects: dict[str, Any] = {}
