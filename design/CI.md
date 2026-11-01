@@ -51,9 +51,12 @@ canonical ship is built once per design fingerprint into `ox_ship_<hash>`
 (about 70 s on a runner), vacuumed and analysed, and each test database is
 cloned from it instead of rebuilding the 421 spaces (about 93,000 queries)
 in every `setUp`. Use it only when every selected test runs on the canonical
-installed ship; builder tests with synthetic models need an empty world. On
-the G19 final campaign it cut cross-system compatibility from 42 to 16
-minutes and the installed campaign from 10 to 6.
+installed ship; builder tests with synthetic models need an empty world.
+Installed test classes set up with `ensure_canonical_ship()`, which returns
+at once on a complete ship (as server startup does) instead of re-walking
+every space and exit (about 78,000 queries per test). Together, the 38
+installed-ship workflows take 172 runner-minutes on PostgreSQL against 308
+on SQLite.
 
 ## Exceptions and limits
 
