@@ -7,7 +7,7 @@ from world.full_ship_operations import (
     install_candidate, install_pressure_cells, initialize_nominal_atmosphere,
     set_isolator, state,
 )
-from world.ship_world import build_canonical_ship, find_ship_space
+from world.ship_world import ensure_canonical_ship, find_ship_space
 from world.continuous_ship_physics import (
     PhysicsError, _clock, arm_continuous_physics,
     commission_g19_electrical, commission_g19_water,
@@ -21,7 +21,7 @@ from world.models import CanonicalShipState, WorkReceipt
 class InstalledWelding(EvenniaTestCase):
     def setUp(self):
         super().setUp()
-        build_canonical_ship()
+        ensure_canonical_ship()
         install_candidate(operator_approved=True)
         install_pressure_cells(operator_approved=True)
         initialize_nominal_atmosphere(operator_approved=True)

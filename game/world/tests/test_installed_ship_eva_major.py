@@ -2,7 +2,7 @@
 from evennia.utils.test_resources import EvenniaTestCase
 
 from world.bootstrap import build_ship
-from world.ship_world import build_canonical_ship, find_ship_space, find_world_entity
+from world.ship_world import ensure_canonical_ship, find_ship_space, find_world_entity
 from world.full_ship_operations import (
     install_candidate, install_pressure_cells, initialize_nominal_atmosphere,
     set_isolator, set_component_condition, state,
@@ -22,7 +22,7 @@ from world.models import WorkReceipt, CanonicalShipEvent
 class InstalledEVAMajorDamageTests(EvenniaTestCase):
     def setUp(self):
         super().setUp()
-        build_canonical_ship()
+        ensure_canonical_ship()
         install_candidate(operator_approved=True)
         install_pressure_cells(operator_approved=True)
         initialize_nominal_atmosphere(operator_approved=True)

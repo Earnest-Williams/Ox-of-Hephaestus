@@ -38,7 +38,7 @@ from world.full_ship_operations import (
 )
 from world.models import CanonicalShipEvent, WorkReceipt
 from world.ship_gas_refill import RATED_KG_S
-from world.ship_world import build_canonical_ship, find_ship_space
+from world.ship_world import ensure_canonical_ship, find_ship_space
 
 # (valve, room the engineer operates it from). ISO-GAS-BANK-A sits in the
 # non-breathable WATER-SHIELD-FWD tank bay; it is worked remotely from the
@@ -68,7 +68,7 @@ HAB03_LINEUP: tuple[tuple[str, str], ...] = (
 class InstalledGasRefill(EvenniaTestCase):  # type: ignore[misc]
     def setUp(self) -> None:
         super().setUp()
-        build_canonical_ship()
+        ensure_canonical_ship()
         install_candidate(operator_approved=True)
         install_pressure_cells(operator_approved=True)
         initialize_nominal_atmosphere(operator_approved=True)

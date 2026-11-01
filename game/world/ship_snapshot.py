@@ -7,7 +7,8 @@ suites. The design is fixed per commit, so the result is too: this module
 builds it once into a database named by a fingerprint of everything that
 shapes it, and test databases are then created as file-level copies
 (``CREATE DATABASE ... TEMPLATE``). Each test still rolls back its own
-transaction, and ``build_canonical_ship()`` takes its existing early return.
+transaction, and ``ensure_canonical_ship()`` in test setUp takes its early
+return, as server startup does.
 
 From game/:
     python -m world.ship_snapshot ensure   # print the template, building it

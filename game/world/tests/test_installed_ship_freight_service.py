@@ -18,13 +18,13 @@ from world.full_ship_operations import (
 from world.models import CanonicalShipEvent, WorkReceipt
 from world.ship_crew_access import CrewTransitError, traverse_canonical_exit
 from world.ship_freight_service import GATES, WORKSITES
-from world.ship_world import build_canonical_ship, find_ship_space, find_world_entity
+from world.ship_world import ensure_canonical_ship, find_ship_space, find_world_entity
 
 
 class InstalledFreightServiceAccess(EvenniaTestCase):
     def setUp(self):
         super().setUp()
-        build_canonical_ship()
+        ensure_canonical_ship()
         install_candidate(operator_approved=True)
         install_pressure_cells(operator_approved=True)
         initialize_nominal_atmosphere(operator_approved=True)

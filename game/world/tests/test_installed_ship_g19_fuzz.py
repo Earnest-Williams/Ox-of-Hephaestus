@@ -52,7 +52,7 @@ from world.full_ship_operations import (
 )
 from world.models import CanonicalShipState, WorkReceipt
 from world.ship_gas_refill import REGULATORS
-from world.ship_world import build_canonical_ship, find_ship_space
+from world.ship_world import ensure_canonical_ship, find_ship_space
 
 SCALE: Final[int] = max(1, int(os.environ.get("OX_FUZZ_SCALE", "1")))
 EXPLORE: Final[bool] = os.environ.get("OX_FUZZ_EXPLORE") == "1"
@@ -157,7 +157,7 @@ def _get(node: Any, path: tuple[Any, ...]) -> Any:
 class _InstalledFuzzBase(EvenniaTestCase):  # type: ignore[misc]
     def setUp(self) -> None:
         super().setUp()
-        build_canonical_ship()
+        ensure_canonical_ship()
         install_candidate(operator_approved=True)
         install_pressure_cells(operator_approved=True)
         initialize_nominal_atmosphere(operator_approved=True)

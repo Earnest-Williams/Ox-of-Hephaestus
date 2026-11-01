@@ -24,7 +24,7 @@ from world.full_ship_operations import (
     set_component_condition, set_isolator, state, vent_pressure_cell,
 )
 from world.models import CanonicalShipEvent, CanonicalShipState
-from world.ship_world import build_canonical_ship
+from world.ship_world import ensure_canonical_ship
 
 
 # Report any failure with its exact seed and step; no wall-clock randomness.
@@ -110,7 +110,7 @@ class FullShipStatefulFuzz(EvenniaTestCase):
 
     def setUp(self):
         super().setUp()
-        build_canonical_ship()
+        ensure_canonical_ship()
         install_candidate(operator_approved=True)
         install_pressure_cells(operator_approved=True)
         initialize_nominal_atmosphere(operator_approved=True)
