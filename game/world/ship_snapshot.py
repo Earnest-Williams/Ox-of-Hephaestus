@@ -156,6 +156,12 @@ def _build() -> None:
     from world.ship_world import build_canonical_ship
 
     build_canonical_ship()
+    # Settle the template before anything copies it: fresh statistics for
+    # the finished ship (autovacuum may have sampled it half-built, which
+    # misled the planner in every clone) and frozen, all-visible pages so
+    # clones neither rewrite hint bits nor visit the heap for index scans.
+    with connection.cursor() as cursor:
+        cursor.execute("VACUUM (FREEZE, ANALYZE)")
     connection.close()
 
 
