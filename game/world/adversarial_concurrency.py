@@ -37,9 +37,8 @@ def _race(func, *inputs):
 
 def verify_concurrent_hails_and_duties(ship):
     if (os.environ.get("OX_PG_CONCURRENCY_TEST") != "1"
-            or os.environ.get("DJANGO_SETTINGS_MODULE") !=
-            "server.conf.settings_postgres_ci"):
-        raise RuntimeError("Disposable PostgreSQL CI settings required")
+            or os.environ.get("OX_PG_DATABASE") != "ox_contention_ci"):
+        raise RuntimeError("Disposable PostgreSQL contention database required")
 
     guests = [
         create_object(

@@ -37,6 +37,50 @@ The no-dependency validator at
 guards representative documentation-only and mixed changes and checks
 that broad code-test path filters have the Markdown exclusion last.
 
+## Database
+
+Ox CI runs on PostgreSQL only ([ADR 0010](decisions/0010-postgresql-only-game-managed.md)).
+Each job uses the game-managed cluster in `game/server/pgdata/`, initialised
+on first connection from the PostgreSQL programs GitHub's Ubuntu runners
+already ship, so no service container is needed. Probes that need a
+disposable database select it with `OX_PG_DATABASE` (`ox_contention_ci`,
+`ox_g19_restart`). The inherited Evennia matrix is manual and PostgreSQL-only.
+
+Installed-ship suites pass `--prebuilt-ship` to `world.test_runner`: the
+canonical ship is built once per design fingerprint into `ox_ship_<hash>`
+(about 70 s on a runner), vacuumed and analysed, and each test database is
+cloned from it instead of rebuilding the 421 spaces (about 93,000 queries)
+in every `setUp`. Use it only when every selected test runs on the canonical
+installed ship; builder tests with synthetic models need an empty world.
+Installed test classes set up with `ensure_canonical_ship()`, which returns
+at once on a complete ship (as server startup does) instead of re-walking
+every space and exit (about 78,000 queries per test). Together, the 38
+installed-ship workflows take 172 runner-minutes on PostgreSQL against 308
+on SQLite.
+
+## World regression
+
+`ox-world-regression.yml` is the regression net for world tests: on any
+change under `game/`, `evennia/`, `design/ship/`, `contracts/` or the AI
+handler it runs every plain world test exactly once, in three installed-ship
+shards (`--prebuilt-ship`) and two proving-ground/crew shards. Feature
+workflows keep their compile and pure checks, model trials, and the jobs that
+need a live server, special settings or extra environment; they no longer
+re-run each other's world tests (previously 1,272 test runs per full PR for
+560 tests; now about 825). Acceptance evidence for a world test cites this
+workflow's run. `design/ci/check_world_test_selection.py` fails the run if a
+`game/world/tests` module is selected by no workflow; add a new module's
+label to a shard.
+
+## Model trials on the workstation
+
+The 16 local-model trial jobs use a switchable `runs-on`: GitHub's runner by
+default, or the self-hosted runner named by the repository variable
+`OX_MODEL_RUNNER` (never for fork pull requests). Setup, security and the
+CPU-only comparability rule (`OX_GGUF_GPU_LAYERS` stays `0` unless a
+separate GPU baseline is wanted) are in
+[workstation-runner](ci/workstation-runner/README.md).
+
 ## Exceptions and limits
 
 The old standalone test workflows remain explicitly manual; some tightly

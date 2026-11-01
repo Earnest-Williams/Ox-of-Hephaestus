@@ -76,3 +76,9 @@ docs/build
 
 # Ox local-only test ship Django signing secret (never version-controlled)
 game/server/conf/.local-secret
+
+# Ox game-managed PostgreSQL cluster (ADR 0010)
+game/server/pgdata/
+game/server/pgdata.sock/
+game/server/pgdata.log
+game/server/pgdata.lock

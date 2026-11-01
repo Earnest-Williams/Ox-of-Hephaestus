@@ -11,7 +11,7 @@ from world.full_ship_operations import (
     pressure_reading, vent_pressure_cell, equalize_cells,
 )
 from world.models import CanonicalShipEvent, CanonicalShipState
-from world.ship_world import build_canonical_ship
+from world.ship_world import build_canonical_ship, ensure_canonical_ship
 
 
 class FullShipOperationsTests(EvenniaTestCase):
@@ -21,7 +21,7 @@ class FullShipOperationsTests(EvenniaTestCase):
 
     def setUp(self):
         super().setUp()
-        build_canonical_ship()
+        ensure_canonical_ship()
         install_candidate(operator_approved=True)
 
     def test_installs_authoritative_complete_coverage_without_duplicating(self):

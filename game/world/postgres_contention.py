@@ -4,8 +4,11 @@ Use ONLY after migrations on a disposable test database, never a saved ship.
 Exercises independent DB connections and actual SELECT FOR UPDATE row locks.
 No model, privileged AI API, or second world-state database is involved.
 
-    OX_PG_CONCURRENCY_TEST=1 DJANGO_SETTINGS_MODULE=server.conf.settings_postgres_ci \
+    OX_PG_CONCURRENCY_TEST=1 OX_PG_DATABASE=ox_contention_ci \
         python -m world.postgres_contention
+
+It runs against a dedicated database in the game-managed cluster (ADR 0010),
+never the player's ship database.
 """
 from __future__ import annotations
 
@@ -15,8 +18,10 @@ from threading import Barrier, Event
 
 if os.environ.get("OX_PG_CONCURRENCY_TEST") != "1":
     raise RuntimeError("Refusing to run the destructive CI-only contention probe")
-if os.environ.get("DJANGO_SETTINGS_MODULE") != "server.conf.settings_postgres_ci":
-    raise RuntimeError("PostgreSQL contention probe requires its isolated settings")
+CONTENTION_DATABASE = "ox_contention_ci"
+if os.environ.get("OX_PG_DATABASE") != CONTENTION_DATABASE:
+    raise RuntimeError("Contention probe requires OX_PG_DATABASE=" + CONTENTION_DATABASE)
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "server.conf.settings")
 
 import django
 django.setup()

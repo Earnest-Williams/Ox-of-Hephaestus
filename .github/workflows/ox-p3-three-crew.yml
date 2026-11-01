@@ -55,7 +55,7 @@ jobs:
           echo "EVENNIA_SUPERUSER_PASSWORD=$OWNER" >> "$GITHUB_ENV"
           echo "EVENNIA_SUPERUSER_USERNAME=OxTrialOwner" >> "$GITHUB_ENV"
           echo "EVENNIA_SUPERUSER_EMAIL=owner@example.invalid" >> "$GITHUB_ENV"
-      - name: Test actual SQLite-backed crew permissions
+      - name: Test actual PostgreSQL-backed crew permissions
         working-directory: game
         run: |
           evennia migrate --noinput

@@ -5,12 +5,14 @@ on:
     types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - "game/**"
+      - "pyproject.toml"
       - ".github/workflows/ox-g1-postgres-contention.yml"
       - "!**/*.md"
   push:
     branches: [main]
     paths:
       - "game/**"
+      - "pyproject.toml"
       - ".github/workflows/ox-g1-postgres-contention.yml"
       - "!**/*.md"
   workflow_dispatch:
@@ -27,28 +29,11 @@ jobs:
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
     timeout-minutes: 18
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_DB: ox_ci
-          POSTGRES_USER: ox_ci
-          POSTGRES_PASSWORD: disposable_local_ci_only
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U ox_ci -d ox_ci"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
     env:
+      # ADR 0010: the game-managed cluster, using a disposable database.
       OX_PG_CONCURRENCY_TEST: "1"
-      DJANGO_SETTINGS_MODULE: server.conf.settings_postgres_ci
-      OX_CI_PG_DATABASE: ox_ci
-      OX_CI_PG_USER: ox_ci
-      OX_CI_PG_PASSWORD: disposable_local_ci_only
-      OX_CI_PG_HOST: 127.0.0.1
-      OX_CI_PG_PORT: "5432"
+      OX_PG_DATABASE: ox_contention_ci
+      DJANGO_SETTINGS_MODULE: server.conf.settings
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -60,12 +45,14 @@ jobs:
             services/ai-handler/pyproject.toml
             uv.lock
             .github/ci/cache-profiles/core.txt
-      - name: Install actual game and PostgreSQL driver
+      - name: Install actual game (includes the PostgreSQL driver)
         run: |
           python -m pip install .
-          python -m pip install "psycopg[binary]>=3.1,<4"
           python -m compileall -q game/world game/server/conf
-      - name: Apply real Django schema to disposable PostgreSQL
+      - name: Game-managed PostgreSQL launcher (ADR 0010)
+        working-directory: game
+        run: python -m unittest server.conf.oxpg.tests -v
+      - name: Apply real Django schema to the disposable game-managed database
         working-directory: game
         run: |
           python -m django migrate --noinput --skip-checks

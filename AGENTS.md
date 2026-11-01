@@ -15,7 +15,7 @@ and [setup](INSTALL.md) before changing code.
 - **Recovery:** reconcile uncertain work under its original request ID.
 - **Ship:** G19 421-room installed physical world and 808 units are accepted; autonomous Concordia/GOAP still uses the seven-compartment proving ground. [Acceptance](design/ship/G19_ACCEPTANCE_RECORD_2026-10-29.md).
 - **Runtime:** five specialist agents, optional sixth captain; never run the legacy three-crew supervisor on the same world concurrently.
-- **PostgreSQL:** preserve commit-ordered journal sequences, exact receipt event provenance and P-01 → captain ticket → journal lock order (PRs #82–83).
+- **PostgreSQL:** the only database, a private cluster the game runs itself via `game/server/conf/oxpg/` ([ADR 0010](design/decisions/0010-postgresql-only-game-managed.md)); preserve commit-ordered journal sequences, exact receipt event provenance and P-01 → captain ticket → journal lock order (PRs #82–83).
 - **Evidence:** G6/G8 bounded world trials; G11 manual model A/B; G12 local 6/20/40 brain profile is not live-crew scaling.
 - **UI:** no public API or live observatory.
 - **Scope/CI:** isolate Ox code in game/services/contracts/design/scenarios; use focused Ox checks, not the inherited engine matrix.

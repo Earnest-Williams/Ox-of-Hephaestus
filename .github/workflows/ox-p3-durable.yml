@@ -86,7 +86,7 @@ jobs:
           sleep 5
           python -m ox_ai.scenarios.p3b_goap start
           python -m ox_ai.scenarios.p3b_goap resume
-      - name: Stop game server before independent SQLite verdict
+      - name: Stop game server before independent database verdict
         if: always()
         working-directory: game
         run: evennia stop || true

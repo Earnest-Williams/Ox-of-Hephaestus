@@ -233,4 +233,3 @@ jobs:
           python -m pip install .
           python -m compileall -q game
           cd game
-          python -m world.test_runner world.tests.test_crew_presence --verbosity=2

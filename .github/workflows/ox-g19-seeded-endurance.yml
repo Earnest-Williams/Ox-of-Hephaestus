@@ -49,9 +49,3 @@ jobs:
         run: |
           export EVENNIA_SUPERUSER_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
           evennia migrate --noinput
-      - name: Exercise and verify seeded multi-system casualty sequence
-        working-directory: game
-        run: |
-          python -m world.test_runner \
-            world.tests.test_installed_ship_g19_seeded_endurance.InstalledG19SeededEndurance.${{ matrix.case }} \
-            --verbosity=2

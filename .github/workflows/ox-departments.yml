@@ -51,11 +51,6 @@ jobs:
           echo "EVENNIA_SUPERUSER_PASSWORD=$TOKEN" >> "$GITHUB_ENV"
           echo "EVENNIA_SUPERUSER_USERNAME=OxCI" >> "$GITHUB_ENV"
           echo "EVENNIA_SUPERUSER_EMAIL=oxci@example.invalid" >> "$GITHUB_ENV"
-      - name: Test specialist world rules, full-ship topology and old coolant physics
-        working-directory: game
-        run: |
-          evennia migrate --noinput
-          python -m world.test_runner world.tests.test_departments world.tests.test_ship world.tests.test_ship_model world.tests.test_ship_world world.tests.test_ship_telemetry world.tests.test_full_ship_operations world.tests.test_ox_terminal world.tests.test_autonomy --verbosity=2
       - name: Validate v0.5 candidate and install the full operational register
         working-directory: game
         run: |

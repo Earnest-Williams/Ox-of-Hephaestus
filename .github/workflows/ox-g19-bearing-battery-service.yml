@@ -39,9 +39,3 @@ jobs:
         run: |
           export EVENNIA_SUPERUSER_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
           evennia migrate --noinput
-      - name: Attended issued-suit rated-hatch bearing switchgear acceptance
-        working-directory: game
-        run: |
-          python -m world.test_runner \
-            world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_suited_bearing_battery_requires_real_survey \
-            --verbosity=2

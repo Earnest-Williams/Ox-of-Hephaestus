@@ -45,10 +45,6 @@ jobs:
       - name: Prepare database
         working-directory: game
         run: evennia migrate --noinput
-      - name: World physics and G17 regression
-        working-directory: game
-        run: |
-          python -m world.test_runner world.tests.test_coupled_casualty world.tests.test_continuous_ship_physics world.tests.test_full_ship_operations --verbosity=2
       - name: Cross-process persistence
         working-directory: game
         run: |
