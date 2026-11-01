@@ -8,9 +8,24 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 import math
+import os
 from pathlib import Path
 from typing import Any
 
+
+GPU_LAYERS_ENV = "OX_GGUF_GPU_LAYERS"
+
+
+def gpu_layers() -> int:
+    """Layers to offload to a GPU; 0 (CPU only) unless explicitly opted in.
+
+    GPU offload changes the model's floating-point results, so trial runs
+    with it set form a separate baseline from CPU runs.
+    """
+    raw: str = os.environ.get(GPU_LAYERS_ENV, "0").strip() or "0"
+    if not raw.isdigit():
+        raise ValueError(GPU_LAYERS_ENV + " must be a non-negative integer")
+    return int(raw)
 
 class DeciderGGUFChoiceModel:
     def __init__(self, gguf_path: str | Path, descriptions: Sequence[str],
@@ -45,7 +60,7 @@ class DeciderGGUFChoiceModel:
                 raise FileNotFoundError("Native Decider GGUF was not provisioned")
             engine=Decider(
                 str(path),gguf_options={
-                    "n_gpu_layers":0, "n_threads":n_threads,
+                    "n_gpu_layers":gpu_layers(), "n_threads":n_threads,
                     "n_ctx":4096, "n_batch":4096,"n_seq_max":1,
                 },
             )

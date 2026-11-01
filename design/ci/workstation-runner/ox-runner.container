@@ -1,0 +1,20 @@
+# Podman Quadlet unit: copy to ~/.config/containers/systemd/ and run
+#   systemctl --user daemon-reload && systemctl --user start ox-runner
+[Unit]
+Description=Ox model-trial GitHub Actions runner (rootless)
+
+[Container]
+Image=localhost/ox-runner:latest
+ContainerName=ox-runner
+EnvironmentFile=%h/.config/ox-runner.env
+Volume=ox-runner-config:/home/runner/actions-runner
+Volume=ox-runner-work:/home/runner/_work
+Volume=ox-runner-cache:/home/runner/.cache
+# Adjust to the workstation; no host paths are mounted.
+PodmanArgs=--cpus=12 --memory=24g
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,27 @@
+# Ox model-trial runner: GitHub's Ubuntu 24.04 environment in a rootless
+# Podman container on the workstation. See README.md.
+FROM docker.io/library/ubuntu:24.04
+
+ARG RUNNER_VERSION=2.321.0
+ENV DEBIAN_FRONTEND=noninteractive \
+    RUNNER_ALLOW_RUNASROOT=0 \
+    HF_HOME=/home/runner/.cache/huggingface \
+    PIP_CACHE_DIR=/home/runner/.cache/pip
+
+# Toolchain the trials build llama-cpp-python with, PostgreSQL 16 programs
+# for the game-managed cluster (ADR 0010) and the runner's own needs.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates curl git jq build-essential cmake pkg-config \
+        libicu74 libssl3 zstd xz-utils postgresql-16 \
+    && rm -rf /var/lib/apt/lists/*
+
+# initdb refuses root, so the runner (and every job) runs as "runner".
+RUN useradd --create-home --shell /bin/bash runner
+USER runner
+WORKDIR /home/runner/actions-runner
+RUN curl -fsSL -o runner.tgz \
+        "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz" \
+    && tar xzf runner.tgz && rm runner.tgz
+
+COPY --chown=runner:runner entrypoint.sh /home/runner/entrypoint.sh
+ENTRYPOINT ["/home/runner/entrypoint.sh"]

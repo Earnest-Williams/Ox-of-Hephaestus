@@ -72,6 +72,15 @@ workflow's run. `design/ci/check_world_test_selection.py` fails the run if a
 `game/world/tests` module is selected by no workflow; add a new module's
 label to a shard.
 
+## Model trials on the workstation
+
+The 16 local-model trial jobs use a switchable `runs-on`: GitHub's runner by
+default, or the self-hosted runner named by the repository variable
+`OX_MODEL_RUNNER` (never for fork pull requests). Setup, security and the
+CPU-only comparability rule (`OX_GGUF_GPU_LAYERS` stays `0` unless a
+separate GPU baseline is wanted) are in
+[workstation-runner](ci/workstation-runner/README.md).
+
 ## Exceptions and limits
 
 The old standalone test workflows remain explicitly manual; some tightly

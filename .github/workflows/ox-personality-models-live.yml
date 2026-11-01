@@ -12,7 +12,7 @@ concurrency:
 jobs:
   decider-live:
     name: Decider Q4 world choice and order-balanced motives
-    runs-on: ubuntu-24.04
+    runs-on: "${{ vars.OX_MODEL_RUNNER != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON(vars.OX_MODEL_RUNNER) || 'ubuntu-24.04' }}"
     timeout-minutes: 60
     env:
       OX_MODEL: decider-q4
