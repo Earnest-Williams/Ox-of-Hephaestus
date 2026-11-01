@@ -58,6 +58,3 @@ jobs:
           evennia shell --command="from world.bootstrap import build_ship; s=build_ship(); assert s['pump'].state == 'normal'; print('Created ship:', s['bridge'].key)"
           evennia shell --command="from world.bootstrap import build_ship; s=build_ship(); ok, _ = s['pump'].inject_fault(); assert ok"
           evennia shell --command="from world.bootstrap import build_ship; s=build_ship(); assert s['pump'].state == 'low_pressure'; assert len(s['pump'].db.event_history) == 1; print('Durable pump state:', s['pump'].state)"
-      - name: Run Ox ship integration tests in isolated PostgreSQL test database
-        working-directory: game
-        run: python -m world.test_runner world.tests.test_ship --verbosity=2

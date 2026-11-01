@@ -28,26 +28,3 @@ jobs:
       - name: Six real radiator pads, thermal inertia and permit safety
         working-directory: game
         run: python -m unittest world.tests.test_ship_exterior_radiators world.tests.test_ship_equipment_repair world.tests.test_ship_eva_operations -v
-  installed:
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: pyproject.toml
-      - name: Install real Evennia world
-        run: python -m pip install .
-      - name: Provision disposable ship database
-        working-directory: game
-        env:
-          EVENNIA_SUPERUSER_USERNAME: OxCI
-          EVENNIA_SUPERUSER_EMAIL: oxci@example.invalid
-        run: |
-          export EVENNIA_SUPERUSER_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
-          evennia migrate --noinput
-      - name: Real suited radiator pad traversal, return, spares and isolation fault
-        working-directory: game
-        run: python -m world.test_runner --prebuilt-ship world.tests.test_installed_ship_exterior_radiators --verbosity=2

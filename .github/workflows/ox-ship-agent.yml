@@ -68,6 +68,3 @@ jobs:
           evennia shell --command="from world.bootstrap import build_ship; ship = build_ship(); assert ship['pump']; print('OX_SHIP_BOOTSTRAP_READY')" | tee ../.ox-state/bootstrap.log
           grep -Fq 'OX_SHIP_BOOTSTRAP_READY' ../.ox-state/bootstrap.log
 
-      - name: Drive Concordia and zero-LLM GOAP through the real pump
-        working-directory: game
-        run: python -m world.test_runner world.tests.test_agent_repair world.tests.test_goap_repair --verbosity=2

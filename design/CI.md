@@ -58,6 +58,20 @@ every space and exit (about 78,000 queries per test). Together, the 38
 installed-ship workflows take 172 runner-minutes on PostgreSQL against 308
 on SQLite.
 
+## World regression
+
+`ox-world-regression.yml` is the regression net for world tests: on any
+change under `game/`, `evennia/`, `design/ship/`, `contracts/` or the AI
+handler it runs every plain world test exactly once, in three installed-ship
+shards (`--prebuilt-ship`) and two proving-ground/crew shards. Feature
+workflows keep their compile and pure checks, model trials, and the jobs that
+need a live server, special settings or extra environment; they no longer
+re-run each other's world tests (previously 1,272 test runs per full PR for
+560 tests; now about 825). Acceptance evidence for a world test cites this
+workflow's run. `design/ci/check_world_test_selection.py` fails the run if a
+`game/world/tests` module is selected by no workflow; add a new module's
+label to a shard.
+
 ## Exceptions and limits
 
 The old standalone test workflows remain explicitly manual; some tightly

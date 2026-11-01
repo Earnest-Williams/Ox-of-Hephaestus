@@ -1,0 +1,194 @@
+name: Ox world regression (every plain world test, once)
+# The single regression net for world tests (see design/CI.md). Feature
+# workflows keep their own compile/pure checks, model trials and tests that
+# need a live server, special settings or extra environment; every other
+# world test runs here exactly once, on any change that could affect it.
+on:
+  push:
+    branches: [main, g19-complete-ship-systems]
+    paths:
+      - "game/**"
+      - "evennia/**"
+      - "design/ship/**"
+      - "design/ci/**"
+      - "contracts/**"
+      - "services/ai-handler/**"
+      - "pyproject.toml"
+      - ".github/workflows/ox-world-regression.yml"
+      - "!**/*.md"
+  pull_request:
+    paths:
+      - "game/**"
+      - "evennia/**"
+      - "design/ship/**"
+      - "design/ci/**"
+      - "contracts/**"
+      - "services/ai-handler/**"
+      - "pyproject.toml"
+      - ".github/workflows/ox-world-regression.yml"
+      - "!**/*.md"
+  workflow_dispatch:
+permissions:
+  contents: read
+
+concurrency:
+  group: ox-world-regression-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  selection:
+    name: Every world test module is selected by some workflow
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python design/ci/check_world_test_selection.py
+
+  installed:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    name: Installed ship — ${{ matrix.shard }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: installed-1
+            labels: >-
+              world.tests.test_full_ship_fuzz.FullShipStatefulFuzz
+              world.tests.test_full_ship_operations
+              world.tests.test_installed_ship_cabin_fancoils
+              world.tests.test_installed_ship_electrical
+              world.tests.test_installed_ship_eva_major
+              world.tests.test_installed_ship_flywheel_maintenance
+              world.tests.test_installed_ship_freight_service
+              world.tests.test_installed_ship_generator_bays
+              world.tests.test_installed_ship_medical
+              world.tests.test_installed_ship_propulsion_bay
+              world.tests.test_installed_ship_propulsion_proof
+              world.tests.test_installed_ship_workshop_fabrication
+          - shard: installed-2
+            labels: >-
+              world.tests.test_coupled_casualty
+              world.tests.test_installed_ship_access_audit
+              world.tests.test_installed_ship_equipment_family_audit
+              world.tests.test_installed_ship_exterior_mobile
+              world.tests.test_installed_ship_food
+              world.tests.test_installed_ship_g19_final_campaign
+              world.tests.test_installed_ship_hazardous_access
+              world.tests.test_installed_ship_hull_restoration
+              world.tests.test_installed_ship_indexed_personnel
+              world.tests.test_installed_ship_instrumentation
+              world.tests.test_installed_ship_portable_air
+              world.tests.test_installed_ship_portable_damage
+              world.tests.test_installed_ship_propulsion_exterior
+              world.tests.test_installed_ship_waste_repair
+              world.tests.test_installed_ship_water_recycling
+              world.tests.test_ship_crew_access
+          - shard: installed-3
+            labels: >-
+              world.tests.test_continuous_ship_physics
+              world.tests.test_installed_ship_casualty_transport
+              world.tests.test_installed_ship_crew_physiology
+              world.tests.test_installed_ship_cultivation
+              world.tests.test_installed_ship_exterior_radiators
+              world.tests.test_installed_ship_g19_attended_fire_water_recovery
+              world.tests.test_installed_ship_g19_cross_drum_repair
+              world.tests.test_installed_ship_g19_seeded_endurance
+              world.tests.test_installed_ship_gas_refill
+              world.tests.test_installed_ship_industrial
+              world.tests.test_installed_ship_movement
+              world.tests.test_installed_ship_operational_routes
+              world.tests.test_installed_ship_rcs_proof
+              world.tests.test_installed_ship_survival_craft_air
+              world.tests.test_installed_ship_unclassified
+              world.tests.test_installed_ship_workshop_welding
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - run: python -m pip install .
+      - name: Provision the game database
+        working-directory: game
+        env:
+          EVENNIA_SUPERUSER_USERNAME: OxCI
+          EVENNIA_SUPERUSER_EMAIL: oxci@example.invalid
+        run: |
+          export EVENNIA_SUPERUSER_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+          evennia migrate --noinput
+      - name: Installed-ship tests on the prebuilt ship
+        working-directory: game
+        run: python -m world.test_runner --prebuilt-ship ${{ matrix.labels }} --verbosity=2
+
+  world:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    name: World — ${{ matrix.shard }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: world-1
+            labels: >-
+              world.tests.test_account_command_boundary
+              world.tests.test_adversarial_transactions
+              world.tests.test_adversarial_voyage
+              world.tests.test_captain_followthrough
+              world.tests.test_crew_interaction
+              world.tests.test_durable_actions
+              world.tests.test_goap_repair
+              world.tests.test_ox_terminal
+              world.tests.test_ship
+              world.tests.test_ship_cargo_manifest
+              world.tests.test_ship_ftl_navigation
+              world.tests.test_ship_telemetry
+              world.tests.test_ship_world
+              world.tests.test_supply
+              world.tests.test_terminal_failure
+          - shard: world-2
+            labels: >-
+              world.tests.test_world_clock
+              world.tests.test_agent_repair
+              world.tests.test_autonomy
+              world.tests.test_capabilities
+              world.tests.test_character_command_boundary
+              world.tests.test_character_profiles
+              world.tests.test_crew_presence
+              world.tests.test_departments
+              world.tests.test_full_ship_fuzz.FullShipCandidateMutationFuzz
+              world.tests.test_independent_questions
+              world.tests.test_independent_rounds
+              world.tests.test_investigation
+              world.tests.test_investigation_followup
+              world.tests.test_ship_model
+              world.tests.test_ship_movement
+              world.tests.test_ship_port_operations
+              world.tests.test_work_receipts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            services/ai-handler/pyproject.toml
+      - run: python -m pip install . './services/ai-handler[concordia,transport]'
+      - name: Provision the game database
+        working-directory: game
+        env:
+          EVENNIA_SUPERUSER_USERNAME: OxCI
+          EVENNIA_SUPERUSER_EMAIL: oxci@example.invalid
+        run: |
+          export EVENNIA_SUPERUSER_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+          evennia migrate --noinput
+      - name: Proving-ground, crew and authority tests
+        working-directory: game
+        run: python -m world.test_runner ${{ matrix.labels }} --verbosity=2

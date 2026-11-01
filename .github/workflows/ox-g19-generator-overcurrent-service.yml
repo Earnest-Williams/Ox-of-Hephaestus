@@ -41,9 +41,3 @@ jobs:
         run: |
           export EVENNIA_SUPERUSER_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
           evennia migrate --noinput
-      - name: Verify real generator trip reset, issued EVA suit and signed rated permit
-        working-directory: game
-        run: |
-          python -m world.test_runner --prebuilt-ship \
-            world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_real_breaker_overload_trips_and_requires_reset \
-            --verbosity=2
