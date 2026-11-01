@@ -5,7 +5,7 @@ name: Ox world regression (every plain world test, once)
 # world test runs here exactly once, on any change that could affect it.
 on:
   push:
-    branches: [main, g19-complete-ship-systems, infra/postgres-only]
+    branches: [main, g19-complete-ship-systems]
     paths:
       - "game/**"
       - "evennia/**"
