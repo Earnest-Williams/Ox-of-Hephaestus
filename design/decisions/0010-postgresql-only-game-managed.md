@@ -74,6 +74,11 @@ of memory when idle, a 41 MB empty data folder and a 0.2 s restart.
 - Fedora upgrades can move the PostgreSQL major version. Move a saved ship
   with `pg_dump` under the old version and restore under the new one, or pin
   `OX_PG_BIN`.
+- Every query is a round trip, so fixture-heavy tests are slower than on
+  SQLite (building the installed ship: 92,781 queries, about 3x). Test
+  databases turn autovacuum off, since per-test rollbacks otherwise leave
+  zero-row statistics, and installed-ship suites clone a prebuilt ship
+  (`world.ship_snapshot`, `--prebuilt-ship`) instead of building it per test.
 - The AI handler's per-actor SQLite evidence index is a disposable cache
   owned by the handler, not world state, and is unaffected.
 

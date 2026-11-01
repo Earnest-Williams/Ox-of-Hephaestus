@@ -46,6 +46,15 @@ already ship, so no service container is needed. Probes that need a
 disposable database select it with `OX_PG_DATABASE` (`ox_contention_ci`,
 `ox_g19_restart`). The inherited Evennia matrix is manual and PostgreSQL-only.
 
+Installed-ship suites pass `--prebuilt-ship` to `world.test_runner`: the
+canonical ship is built once per design fingerprint into `ox_ship_<hash>`
+(about 70 s on a runner), vacuumed and analysed, and each test database is
+cloned from it instead of rebuilding the 421 spaces (about 93,000 queries)
+in every `setUp`. Use it only when every selected test runs on the canonical
+installed ship; builder tests with synthetic models need an empty world. On
+the G19 final campaign it cut cross-system compatibility from 42 to 16
+minutes and the installed campaign from 10 to 6.
+
 ## Exceptions and limits
 
 The old standalone test workflows remain explicitly manual; some tightly
