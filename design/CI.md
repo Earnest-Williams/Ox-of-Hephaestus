@@ -37,6 +37,15 @@ The no-dependency validator at
 guards representative documentation-only and mixed changes and checks
 that broad code-test path filters have the Markdown exclusion last.
 
+## Database
+
+Ox CI runs on PostgreSQL only ([ADR 0010](decisions/0010-postgresql-only-game-managed.md)).
+Each job uses the game-managed cluster in `game/server/pgdata/`, initialised
+on first connection from the PostgreSQL programs GitHub's Ubuntu runners
+already ship, so no service container is needed. Probes that need a
+disposable database select it with `OX_PG_DATABASE` (`ox_contention_ci`,
+`ox_g19_restart`). The inherited Evennia matrix is manual and PostgreSQL-only.
+
 ## Exceptions and limits
 
 The old standalone test workflows remain explicitly manual; some tightly

@@ -103,17 +103,17 @@ jobs:
       - name: Process A - commission disposable actual ship, create casualty and exit
         working-directory: game
         env:
-          OX_G19_RESTART_DB_PATH: ${{ runner.temp }}/ox-g19-restart.sqlite3
+          OX_PG_DATABASE: ox_g19_restart
         run: python -m world.g19_process_recovery prepare
       - name: Process B - fresh interpreter, same durable database, catch up safely
         working-directory: game
         env:
-          OX_G19_RESTART_DB_PATH: ${{ runner.temp }}/ox-g19-restart.sqlite3
+          OX_PG_DATABASE: ox_g19_restart
         run: python -m world.g19_process_recovery resume
       - name: Process C - another cold interpreter verifies durable casualty and replay safety
         working-directory: game
         env:
-          OX_G19_RESTART_DB_PATH: ${{ runner.temp }}/ox-g19-restart.sqlite3
+          OX_PG_DATABASE: ox_g19_restart
         run: python -m world.g19_process_recovery confirm
 
 

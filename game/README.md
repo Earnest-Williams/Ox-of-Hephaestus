@@ -142,10 +142,11 @@ remains available but must not be run simultaneously on the same ship.
 
 ## Independent PostgreSQL concurrency gate (verified in merged PR #28)
 
-Ox's development world continues to use SQLite. The G1 concurrency
-trial uses disposable PostgreSQL 16 in GitHub Actions with the
-explicitly opt-in `server.conf.settings_postgres_ci` module.
-Only under `OX_PG_CONCURRENCY_TEST=1` can this module or its
+Ox runs on PostgreSQL only, in a cluster the game manages itself
+([ADR 0010](../design/decisions/0010-postgresql-only-game-managed.md)).
+The G1 concurrency trial uses a disposable `ox_contention_ci` database in
+that cluster. Only under `OX_PG_CONCURRENCY_TEST=1` and
+`OX_PG_DATABASE=ox_contention_ci` can its
 `python -m world.postgres_contention` probe execute.
 
 The probe checks simultaneous duplicate-ID radio submissions,
@@ -467,7 +468,7 @@ python -m world.test_runner world.tests.test_departments --verbosity=2
 
 Use `--verbosity=2`, not `-v 2` (Evennia reserves `-v` for version
 information). These tests use Django's test database. The independent
-full-server workflows validate session behavior and persisted SQLite
+full-server workflows validate session behavior and persisted PostgreSQL
 state separately. Focused CI is intentionally distinct from the large
 inherited Evennia matrix.
 

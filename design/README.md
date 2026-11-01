@@ -20,6 +20,7 @@ directory is the inherited Evennia manual, not the Ox implementation guide.
 | [ADR 0007](decisions/0007-three-crew-watch-supervision.md) | Historical mock watch supervision |
 | [ADR 0008](decisions/0008-coordinated-coolant-incident.md) | Historical mock safety signoff |
 | [ADR 0009](decisions/0009-durable-events-and-work.md) | World-issued events and durable action ledger |
+| [ADR 0010](decisions/0010-postgresql-only-game-managed.md) | PostgreSQL only, in a private cluster the game runs itself |
 
 ## Important implementation trails
 

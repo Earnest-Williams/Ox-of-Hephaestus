@@ -1,5 +1,5 @@
 # Explicit opt-in: never runs for PRs or ordinary pushes.
-# Uses an ephemeral Evennia SQLite database; no live ship or model credentials
+# Uses an ephemeral game-managed PostgreSQL database; no live ship or model credentials
 # are committed. Repository secret GEMINI_API_KEY is supplied at runtime.
 name: Ox live Gemini pump repair
 

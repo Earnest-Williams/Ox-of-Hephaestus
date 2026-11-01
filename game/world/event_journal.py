@@ -39,15 +39,16 @@ _CAPTURED_EVENTS: ContextVar[list[dict] | None] = ContextVar(
 def _serialize_journal_transaction() -> None:
     """Hold the append lock through the *outermost* writer transaction commit.
 
-    SQLite serializes writes already. Every PostgreSQL writer (including legacy
-    import) must take this lock immediately before allocating an event sequence.
-    It must never be released at a nested savepoint exit.
+    Every writer (including legacy import) must take this lock immediately
+    before allocating an event sequence. It must never be released at a nested
+    savepoint exit. Ox runs on PostgreSQL only (ADR 0010).
     """
-    if connection.vendor == "postgresql":
-        with connection.cursor() as cursor:
-            cursor.execute(
-                "SELECT pg_advisory_xact_lock(%s)", [_PG_JOURNAL_ADVISORY_LOCK],
-            )
+    if connection.vendor != "postgresql":
+        raise RuntimeError("The world journal requires PostgreSQL (ADR 0010)")
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT pg_advisory_xact_lock(%s)", [_PG_JOURNAL_ADVISORY_LOCK],
+        )
 
 
 @contextmanager

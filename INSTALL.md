@@ -8,6 +8,11 @@
 ## Prerequisites
 
 - Python **3.12+**, a virtual environment, Git and dependency access.
+- PostgreSQL's programs, installed once (no service, user or password to
+  set up; the game runs its own private database, see
+  [ADR 0010](design/decisions/0010-postgresql-only-game-managed.md)):
+  Fedora `sudo dnf install postgresql-server`, Ubuntu/Debian
+  `sudo apt install postgresql`, or `python -m pip install embedded-postgres`.
 - A local machine capable of running Evennia; ports **4000**, **4001** and
   **4002** must be available on loopback.
 - No LLM server, hosted API key or GPU is required for the **deterministic**
@@ -50,6 +55,11 @@ evennia migrate
 evennia start
 ~~~
 
+The first database connection creates and starts the game's private
+PostgreSQL cluster in `game/server/pgdata/` (about a second). Nothing listens
+on the network, and `evennia stop` shuts it down after the server; `reload`
+leaves it running. Check it with `python -m server.conf.oxpg status`.
+
 First setup runs `game/server/conf/at_initial_setup.py` and builds the
 ship without modifying the inherited `evennia/` engine. If working with
 an older game database, run once in `game/`:
@@ -82,11 +92,14 @@ python -m unittest discover -s services/ai-handler/tests -p 'test_p4a_cognition.
 python -m unittest discover -s services/ai-handler/tests -p 'test_p4b_watch_runtime.py' -v
 ~~~
 
-SQLite-backed game rule tests run from `game/`:
+Game rule tests run from `game/` against a `test_ox` database in the same
+private cluster (the plain `evennia test` launcher substitutes Evennia's
+default settings, which lack the Ox world app):
 
 ~~~sh
 cd game
-evennia test world.tests.test_ship world.tests.test_live_cooperation world.tests.test_autonomy --verbosity=2
+python -m world.test_runner world.tests.test_ship world.tests.test_live_cooperation world.tests.test_autonomy --verbosity=2
+python -m unittest server.conf.oxpg.tests -v   # the database launcher itself
 ~~~
 
 Use `--verbosity=2`; Evennia treats `-v` as its version switch.

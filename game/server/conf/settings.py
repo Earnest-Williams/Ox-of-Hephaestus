@@ -12,6 +12,33 @@ import secrets
 
 from evennia.settings_default import *  # noqa: F401,F403
 
+from .oxpg.cluster import ROLE as _PG_ROLE
+from .oxpg.cluster import PORT as _PG_PORT
+from .oxpg.cluster import layout_for as _pg_layout_for
+
+# PostgreSQL only, run by the game itself (ADR 0010). The cluster lives in
+# server/pgdata, listens on no network port and starts on first connection;
+# Evennia's cold stop shuts it down. OX_PG_DATABASE selects a disposable
+# database for CI probes; OX_PG_DATA_DIR relocates the whole cluster.
+OX_PG_DATA_DIR = os.environ.get(
+    # From this file, not Evennia's cwd-derived GAME_DIR: always game/server.
+    "OX_PG_DATA_DIR",
+    str(Path(__file__).resolve().parents[1] / "pgdata"),
+)
+_pg = _pg_layout_for(Path(OX_PG_DATA_DIR))
+DATABASES = {
+    "default": {
+        "ENGINE": "server.conf.oxpg",
+        "NAME": os.environ.get("OX_PG_DATABASE", "ox"),
+        "USER": _PG_ROLE,
+        "PASSWORD": "",
+        "HOST": str(_pg.socket_dir),
+        "PORT": str(_PG_PORT),
+        "CONN_MAX_AGE": 0,
+        "TEST": {"NAME": "test_" + os.environ.get("OX_PG_DATABASE", "ox")},
+    }
+}
+
 # Ox world owns a first-class indexed private event journal and migrations.
 # Keep the inherited engine apps; do not modify Evennia itself.
 INSTALLED_APPS = [*INSTALLED_APPS, "world.apps.OxWorldConfig"]
