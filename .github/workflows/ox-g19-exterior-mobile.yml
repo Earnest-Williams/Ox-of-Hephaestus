@@ -51,5 +51,5 @@ jobs:
           evennia migrate --noinput
       - name: Real EVA airlock robot launch, true rail travel and independent crawler recovery
         working-directory: game
-        run: python -m world.test_runner world.tests.test_installed_ship_exterior_mobile --verbosity=2
+        run: python -m world.test_runner --prebuilt-ship world.tests.test_installed_ship_exterior_mobile --verbosity=2
 

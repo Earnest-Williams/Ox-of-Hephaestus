@@ -51,7 +51,7 @@ jobs:
           evennia migrate --noinput
       - name: Finite installed craft CO2, outage, hatch and crew-work acceptance
         working-directory: game
-        run: python -m world.test_runner world.tests.test_installed_ship_survival_craft_air --verbosity=2
+        run: python -m world.test_runner --prebuilt-ship world.tests.test_installed_ship_survival_craft_air --verbosity=2
 
   compatibility:
     runs-on: ubuntu-latest
@@ -75,7 +75,7 @@ jobs:
       - name: Existing finite refuge battery and recovered EVA gas regressions
         working-directory: game
         run: |
-          python -m world.test_runner \
+          python -m world.test_runner --prebuilt-ship \
             world.tests.test_installed_ship_electrical.InstalledElectricalTests.test_refuge_backup_finite_island_and_replay \
             world.tests.test_installed_ship_eva_major.InstalledEVAMajorDamageTests.test_real_return_eva_repressurises_from_retained_gas \
             --verbosity=2

@@ -77,7 +77,7 @@ jobs:
           evennia migrate --noinput
       - name: Test real 180/300-second indexed passenger movement and hatch isolation
         working-directory: game
-        run: python -m world.test_runner world.tests.test_installed_ship_indexed_personnel --verbosity=2
+        run: python -m world.test_runner --prebuilt-ship world.tests.test_installed_ship_indexed_personnel --verbosity=2
 
   movement-compatibility:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false

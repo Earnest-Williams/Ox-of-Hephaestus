@@ -50,4 +50,4 @@ jobs:
           evennia migrate --noinput
       - name: Original generator machine, suit, rated hatch and restart
         working-directory: game
-        run: python -m world.test_runner world.tests.test_installed_ship_generator_bays --verbosity=2
+        run: python -m world.test_runner --prebuilt-ship world.tests.test_installed_ship_generator_bays --verbosity=2

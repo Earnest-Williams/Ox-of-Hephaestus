@@ -110,7 +110,7 @@ jobs:
           evennia migrate --noinput
       - name: Exercise all real electrical nodes and circuit state with characters
         working-directory: game
-        run: python -m world.test_runner world.tests.test_installed_ship_electrical world.tests.test_installed_ship_cultivation --verbosity=2
+        run: python -m world.test_runner --prebuilt-ship world.tests.test_installed_ship_electrical world.tests.test_installed_ship_cultivation --verbosity=2
 
   g18-compat:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
@@ -135,7 +135,7 @@ jobs:
           evennia migrate --noinput
       - name: Ensure G18 protection, gas, mist and failure behaviour survives
         working-directory: game
-        run: python -m world.test_runner world.tests.test_continuous_ship_physics world.tests.test_coupled_casualty --verbosity=2
+        run: python -m world.test_runner --prebuilt-ship world.tests.test_continuous_ship_physics world.tests.test_coupled_casualty --verbosity=2
 
   g19-compat:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
@@ -160,4 +160,4 @@ jobs:
           evennia migrate --noinput
       - name: Regress powered water/waste, cargo and drive
         working-directory: game
-        run: python -m world.test_runner world.tests.test_installed_ship_water_recycling world.tests.test_installed_ship_movement --verbosity=2
+        run: python -m world.test_runner --prebuilt-ship world.tests.test_installed_ship_water_recycling world.tests.test_installed_ship_movement --verbosity=2

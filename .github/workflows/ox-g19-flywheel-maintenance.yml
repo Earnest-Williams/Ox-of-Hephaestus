@@ -49,4 +49,4 @@ jobs:
           evennia migrate --noinput
       - name: Real suits, finite spares, lockout fault, four local repair scenarios
         working-directory: game
-        run: python -m world.test_runner world.tests.test_installed_ship_flywheel_maintenance --verbosity=2
+        run: python -m world.test_runner --prebuilt-ship world.tests.test_installed_ship_flywheel_maintenance --verbosity=2

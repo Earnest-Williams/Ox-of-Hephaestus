@@ -65,4 +65,4 @@ jobs:
           evennia migrate --noinput
       - name: Actual local crew hull patch and restoration
         working-directory: game
-        run: python -m world.test_runner world.tests.test_installed_ship_hull_restoration --verbosity=2
+        run: python -m world.test_runner --prebuilt-ship world.tests.test_installed_ship_hull_restoration --verbosity=2

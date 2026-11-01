@@ -79,7 +79,7 @@ jobs:
       - name: Real port offload, spare custody, repair and G19 water compatibility
         working-directory: game
         run: |
-          python -m world.test_runner world.tests.test_installed_ship_waste_repair --verbosity=2
+          python -m world.test_runner --prebuilt-ship world.tests.test_installed_ship_waste_repair --verbosity=2
 
   water-compatibility:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
@@ -105,7 +105,7 @@ jobs:
       - name: Existing installed water system must remain compatible
         working-directory: game
         run: |
-          python -m world.test_runner world.tests.test_installed_ship_water_recycling --verbosity=2
+          python -m world.test_runner --prebuilt-ship world.tests.test_installed_ship_water_recycling --verbosity=2
 
   g18-compatibility:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
@@ -131,7 +131,7 @@ jobs:
       - name: Existing full-ship fire pressure gas thermal damage and casualty regressions
         working-directory: game
         run: |
-          python -m world.test_runner world.tests.test_continuous_ship_physics world.tests.test_coupled_casualty --verbosity=2
+          python -m world.test_runner --prebuilt-ship world.tests.test_continuous_ship_physics world.tests.test_coupled_casualty --verbosity=2
 
   movement-compatibility:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
@@ -157,4 +157,4 @@ jobs:
       - name: Existing installed cargo mechanics movement and port regressions
         working-directory: game
         run: |
-          python -m world.test_runner world.tests.test_installed_ship_movement --verbosity=2
+          python -m world.test_runner --prebuilt-ship world.tests.test_installed_ship_movement --verbosity=2

@@ -58,4 +58,4 @@ jobs:
           evennia migrate --noinput
       - name: Real plume inspection, issued suits and attended 120-second EVA
         working-directory: game
-        run: python -m world.test_runner world.tests.test_installed_ship_propulsion_exterior world.tests.test_installed_ship_propulsion_proof world.tests.test_installed_ship_rcs_proof --verbosity=2
+        run: python -m world.test_runner --prebuilt-ship world.tests.test_installed_ship_propulsion_exterior world.tests.test_installed_ship_propulsion_proof world.tests.test_installed_ship_rcs_proof --verbosity=2

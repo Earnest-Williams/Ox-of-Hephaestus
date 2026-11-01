@@ -50,4 +50,4 @@ jobs:
           evennia migrate --noinput
       - name: Real suited radiator pad traversal, return, spares and isolation fault
         working-directory: game
-        run: python -m world.test_runner world.tests.test_installed_ship_exterior_radiators --verbosity=2
+        run: python -m world.test_runner --prebuilt-ship world.tests.test_installed_ship_exterior_radiators --verbosity=2

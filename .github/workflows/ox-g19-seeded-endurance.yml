@@ -52,6 +52,6 @@ jobs:
       - name: Exercise and verify seeded multi-system casualty sequence
         working-directory: game
         run: |
-          python -m world.test_runner \
+          python -m world.test_runner --prebuilt-ship \
             world.tests.test_installed_ship_g19_seeded_endurance.InstalledG19SeededEndurance.${{ matrix.case }} \
             --verbosity=2

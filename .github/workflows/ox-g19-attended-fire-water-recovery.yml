@@ -39,6 +39,6 @@ jobs:
       - name: Verify issued-suit fire-mist output and physical potable recovery
         working-directory: game
         run: |
-          python -m world.test_runner \
+          python -m world.test_runner --prebuilt-ship \
             world.tests.test_installed_ship_g19_attended_fire_water_recovery.InstalledAttendedFireWaterRecovery.test_real_issued_suit_proves_mist_and_potable_recovery \
             --verbosity=2

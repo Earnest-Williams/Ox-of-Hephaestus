@@ -82,7 +82,7 @@ jobs:
       - name: Real crew and authoritative finite-food operation
         working-directory: game
         run: |
-          python -m world.test_runner world.tests.test_installed_ship_food world.tests.test_installed_ship_cultivation --verbosity=2
+          python -m world.test_runner --prebuilt-ship world.tests.test_installed_ship_food world.tests.test_installed_ship_cultivation --verbosity=2
 
 
   compatibility:
@@ -184,4 +184,4 @@ jobs:
       - name: Preserve all previous electrical, water and human behaviour
         working-directory: game
         run: |
-          python -m world.test_runner ${{ matrix.cases }} --verbosity=2
+          python -m world.test_runner --prebuilt-ship ${{ matrix.cases }} --verbosity=2

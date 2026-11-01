@@ -50,6 +50,6 @@ jobs:
       - name: Verify suited physical patch and coupled damage invariants
         working-directory: game
         run: |
-          python -m world.test_runner \
+          python -m world.test_runner --prebuilt-ship \
             world.tests.test_installed_ship_g19_cross_drum_repair.InstalledCrossDrumCasualtyRepair.test_dr${{ matrix.drum }}_minor_shell_patch_with_shipwide_casualties \
             --verbosity=2

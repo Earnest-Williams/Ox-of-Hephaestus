@@ -49,7 +49,7 @@ jobs:
           evennia migrate --noinput
       - name: Original 48 sector crew, 12 port machinery, 3 remote void controls
         working-directory: game
-        run: python -m world.test_runner world.tests.test_installed_ship_unclassified --verbosity=2
+        run: python -m world.test_runner --prebuilt-ship world.tests.test_installed_ship_unclassified --verbosity=2
   compatibility:
     runs-on: ubuntu-latest
     timeout-minutes: 50
@@ -71,7 +71,7 @@ jobs:
           evennia migrate --noinput
       - name: Original industrial access and freight-service compatibility
         working-directory: game
-        run: python -m world.test_runner world.tests.test_installed_ship_industrial world.tests.test_installed_ship_freight_service --verbosity=2
+        run: python -m world.test_runner --prebuilt-ship world.tests.test_installed_ship_industrial world.tests.test_installed_ship_freight_service --verbosity=2
 
   adjacent_acceptance:
     runs-on: ubuntu-latest
@@ -95,7 +95,7 @@ jobs:
       - name: Adjacent hull, EVA, rescue, medical and cargo movement acceptance
         working-directory: game
         run: |
-          python -m world.test_runner \
+          python -m world.test_runner --prebuilt-ship \
             world.tests.test_installed_ship_eva_major.InstalledEVAMajorDamageTests.test_later_pressure_door_failure_revokes_major_containment \
             world.tests.test_installed_ship_casualty_transport.InstalledCasualtyCarriage.test_patient_carried_through_real_open_hatch_on_ship_time \
             world.tests.test_installed_ship_hull_restoration.InstalledHullRepairTests.test_real_timed_patch_permanent_restore_and_material_custody \

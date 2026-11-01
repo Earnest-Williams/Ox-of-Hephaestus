@@ -65,7 +65,7 @@ jobs:
       - name: Run real installed G19 water, rotating interfaces and local custody
         working-directory: game
         run: |
-          python -m world.test_runner world.tests.test_installed_ship_water_recycling --verbosity=2
+          python -m world.test_runner --prebuilt-ship world.tests.test_installed_ship_water_recycling --verbosity=2
 
   coupled-regression:
     name: Existing G18 fire, gas, thermal and damage compatibility
@@ -94,4 +94,4 @@ jobs:
       - name: Regress G18 atmosphere, thermal, fire, isolation and persistent casualty
         working-directory: game
         run: |
-          python -m world.test_runner world.tests.test_continuous_ship_physics world.tests.test_coupled_casualty --verbosity=2
+          python -m world.test_runner --prebuilt-ship world.tests.test_continuous_ship_physics world.tests.test_coupled_casualty --verbosity=2

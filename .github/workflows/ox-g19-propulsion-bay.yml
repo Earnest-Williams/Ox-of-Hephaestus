@@ -50,4 +50,4 @@ jobs:
           evennia migrate --noinput
       - name: Original rated suited entry, real controller repair and positive restart
         working-directory: game
-        run: python -m world.test_runner world.tests.test_installed_ship_propulsion_bay world.tests.test_installed_ship_propulsion_proof world.tests.test_installed_ship_propulsion_exterior --verbosity=2
+        run: python -m world.test_runner --prebuilt-ship world.tests.test_installed_ship_propulsion_bay world.tests.test_installed_ship_propulsion_proof world.tests.test_installed_ship_propulsion_exterior --verbosity=2

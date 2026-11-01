@@ -90,7 +90,7 @@ jobs:
       - name: Verify local power, pressure, machine, breaker, relay and no-oracle
         working-directory: game
         run: |
-          python -m world.test_runner world.tests.test_installed_ship_instrumentation --verbosity=2
+          python -m world.test_runner --prebuilt-ship world.tests.test_installed_ship_instrumentation --verbosity=2
 
   compatibility:
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
@@ -244,4 +244,4 @@ jobs:
       - name: Preserve existing subsystem and physical recovery tests
         working-directory: game
         run: |
-          python -m world.test_runner ${{ matrix.cases }} --verbosity=2
+          python -m world.test_runner --prebuilt-ship ${{ matrix.cases }} --verbosity=2

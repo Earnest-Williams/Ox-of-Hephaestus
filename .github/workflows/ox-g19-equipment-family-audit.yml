@@ -51,4 +51,4 @@ jobs:
           evennia migrate --noinput
       - name: Verify every installed original equipment identity and site
         working-directory: game
-        run: python -m world.test_runner world.tests.test_installed_ship_equipment_family_audit --verbosity=2
+        run: python -m world.test_runner --prebuilt-ship world.tests.test_installed_ship_equipment_family_audit --verbosity=2
