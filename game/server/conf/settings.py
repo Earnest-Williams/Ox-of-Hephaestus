@@ -38,6 +38,8 @@ DATABASES = {
         "TEST": {"NAME": "test_" + os.environ.get("OX_PG_DATABASE", "ox")},
     }
 }
+# Records why the Server goes down, so a reset keeps the database running.
+EVENNIA_SERVER_SERVICE_CLASS = "server.conf.oxpg.server_service.OxServerService"
 
 # Ox world owns a first-class indexed private event journal and migrations.
 # Keep the inherited engine apps; do not modify Evennia itself.

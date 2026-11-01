@@ -17,6 +17,7 @@ on:
       - ".github/workflows/ox-world-regression.yml"
       - "!**/*.md"
   pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - "game/**"
       - "evennia/**"

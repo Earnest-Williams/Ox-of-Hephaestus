@@ -39,10 +39,17 @@ def at_server_cold_stop() -> None:
 
     Evennia keeps writing after this hook (ticker and on-demand state, final
     runtime), so the database stops only once the reactor has shut down. A
-    reload never reaches here and keeps it running. Any later connection
-    (``evennia shell``, tests) starts it again on demand.
+    reload never reaches here and keeps it running. A reset reaches here too,
+    but the Portal starts a new Server straight away, so the database keeps
+    running for it. Any later connection (``evennia shell``, tests) starts it
+    again on demand.
     """
     from twisted.internet import reactor
+
+    from server.conf.oxpg.server_service import restarting_after_reset
+
+    if restarting_after_reset():
+        return
 
     def stop_database() -> None:
         from django.db import connections

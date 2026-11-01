@@ -11,8 +11,9 @@ Lifecycle:
   if needed and creates the requested database. It is safe to call from the
   launcher, Portal, Server, test runner and probes at once: a file lock
   serialises them.
-- ``stop()`` is called from Evennia's cold-stop hook. A ``reload`` leaves the
-  database running.
+- ``stop()`` is called from Evennia's cold-stop hook. A ``reload`` or a
+  ``reset`` (which Evennia also does once after first-start setup) leaves the
+  database running for the replacement Server.
 
 Binaries come from, in order: ``OX_PG_BIN``; the system (PATH, then Debian and
 PGDG install folders, highest major first); the optional ``embedded-postgres``
