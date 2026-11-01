@@ -103,4 +103,5 @@ jobs:
       - name: Existing real exit movement and G19 motor/cargo coupling remain compatible
         working-directory: game
         run: |
-          python -m world.test_runner world.tests.test_ship_crew_access world.tests.test_installed_ship_movement world.tests.test_ship_movement --verbosity=2
+          python -m world.test_runner --prebuilt-ship world.tests.test_ship_crew_access world.tests.test_installed_ship_movement --verbosity=2
+          python -m world.test_runner world.tests.test_ship_movement --verbosity=2

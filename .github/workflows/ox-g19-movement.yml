@@ -57,7 +57,8 @@ jobs:
       - name: Run pure motion, cargo, FTL and installed-world regressions
         working-directory: game
         run: |
-          python -m world.test_runner world.tests.test_ship_movement world.tests.test_ship_cargo_manifest world.tests.test_ship_port_operations world.tests.test_ship_ftl_navigation world.tests.test_installed_ship_movement world.tests.test_ship_crew_access --verbosity=2
+          python -m world.test_runner world.tests.test_ship_movement world.tests.test_ship_cargo_manifest world.tests.test_ship_port_operations world.tests.test_ship_ftl_navigation --verbosity=2
+          python -m world.test_runner --prebuilt-ship world.tests.test_installed_ship_movement world.tests.test_ship_crew_access --verbosity=2
 
   coupled-regression:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
