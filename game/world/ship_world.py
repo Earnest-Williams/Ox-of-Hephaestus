@@ -14,6 +14,7 @@ from evennia.objects.models import ObjectDB
 from evennia.utils.create import create_object
 
 from world.ship_model import AccessLinkSpec, ShipWorldModel, SpaceSpec, load_ship_model
+from world.tagged import objects_tagged
 
 WORLD_CATEGORY = "ox_ship_world"
 ROOT_MARKER = "world-root"
@@ -22,7 +23,7 @@ ENTRY_SPACE_ID = "CMD-PRIMARY"
 
 def find_world_entity(marker: str):
     """Resolve one canonical-world object by durable tag."""
-    matches = list(ObjectDB.objects.get_by_tag(key=marker, category=WORLD_CATEGORY))
+    matches = objects_tagged(marker, WORLD_CATEGORY)
     if len(matches) > 1:
         raise RuntimeError(f"Duplicate canonical Ox tag {marker!r}; refusing to guess")
     return matches[0] if matches else None

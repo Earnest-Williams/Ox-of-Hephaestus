@@ -25,7 +25,7 @@ def _migrated() -> bool:
     return "world_canonicalshipstate" in connection.introspection.table_names()
 
 
-def _sandbox():
+def _sandbox(phase):
     if os.environ.get("OX_G19_RESTART_CI") != "1":
         raise RuntimeError("Independent process probe requires explicit CI approval")
     root_env = os.environ.get("RUNNER_TEMP")
@@ -45,6 +45,17 @@ def _sandbox():
         raise RuntimeError("Disposable game-managed database only")
     import django
     django.setup()
+    if phase == "prepare":
+        # Migrate BEFORE Evennia's init: its game-time probe reads
+        # server_serverconfig at import and on PostgreSQL a missing table is
+        # ProgrammingError, which that probe does not tolerate. The security
+        # boundary is an EMPTY SCHEMA and absent proof.
+        from django.db import connection
+        _assert(not evidence.exists()
+                and not connection.introspection.table_names(),
+                "Process A refuses a previously migrated ship or old evidence")
+        from django.core.management import call_command
+        call_command("migrate", interactive=False, verbosity=0)
     import evennia
     evennia._init()
     return RESTART_DATABASE, evidence
@@ -56,14 +67,9 @@ def _assert(predicate, message):
 
 
 def _prepare(db, proof):
-    # The game-managed backend creates the named database on first connection.
-    # The security boundary is an EMPTY SCHEMA and absent proof.
-    from django.db import connection
-    _assert(not proof.exists()
-            and not connection.introspection.table_names(),
-            "Process A refuses a previously migrated ship or old evidence")
-    from django.core.management import call_command
-    call_command("migrate", interactive=False, verbosity=0)
+    # _sandbox("prepare") already proved the schema empty and migrated it.
+    _assert(_migrated() and not proof.exists(),
+            "Process A requires its own freshly migrated ship")
 
     from world.bootstrap import build_ship
     from world.ship_world import build_canonical_ship, find_ship_space
@@ -360,7 +366,7 @@ def _confirm(db, proof):
 def main():
     if len(sys.argv) != 2 or sys.argv[1] not in {"prepare", "resume", "confirm"}:
         raise SystemExit("Usage: python -m world.g19_process_recovery prepare|resume|confirm")
-    db, proof = _sandbox()
+    db, proof = _sandbox(sys.argv[1])
     if sys.argv[1] == "prepare":
         _prepare(db, proof)
     elif sys.argv[1] == "resume":
