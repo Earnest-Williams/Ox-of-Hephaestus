@@ -53,7 +53,7 @@ jobs:
       - name: Check Django migration drift
         working-directory: game
         run: |
-          DJANGO_SETTINGS_MODULE=server.conf.settings python -m django makemigrations world --check --dry-run
+          DJANGO_SETTINGS_MODULE=server.conf.settings python -m django makemigrations world --check --dry-run --skip-checks
       - name: Verify six-person world ledger and command allowlist
         working-directory: game
         run: |

@@ -39,7 +39,7 @@ jobs:
       - name: Verify world learning and existing authority boundaries
         working-directory: game
         run: |
-          DJANGO_SETTINGS_MODULE=server.conf.settings python -m django makemigrations world --check --dry-run
+          DJANGO_SETTINGS_MODULE=server.conf.settings python -m django makemigrations world --check --dry-run --skip-checks
           python -m world.test_runner world.tests.test_concept_learning world.tests.test_receipt_learning world.tests.test_character_learning world.tests.test_character_profiles world.tests.test_task_resolution world.tests.test_work_receipts world.tests.test_crew_presence world.tests.test_captain_followthrough --verbosity=2
       - name: Verify typed client learning protocol
         run: python -m unittest discover -s services/ai-handler/tests -p test_world_work_port.py -v

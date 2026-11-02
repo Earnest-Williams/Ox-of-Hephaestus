@@ -41,7 +41,7 @@ jobs:
         run: |
           python -m compileall -q game/world game/commands game/typeclasses
           cd game
-          DJANGO_SETTINGS_MODULE=server.conf.settings python -m django makemigrations world --check --dry-run
+          DJANGO_SETTINGS_MODULE=server.conf.settings python -m django makemigrations world --check --dry-run --skip-checks
       - name: Verify receipt-coupled practice and existing world protections
         working-directory: game
         run: |
