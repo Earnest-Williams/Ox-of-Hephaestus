@@ -7,6 +7,17 @@ directory is the inherited Evennia manual, not the Ox implementation guide.
 
 **Current index:** [STATUS.md](STATUS.md), updated for G19 closure on 30 October 2026. The [current roadmap](ROADMAP.md) distinguishes engineering hardening and full-ship autonomous-crew integration from the accepted physical ship. [Archived planning and architecture](archive/README.md) retain the original dated evidence. P5 remains deferred.
 
+## Competing player-experience proposals (not accepted)
+
+- [Proposal B — The Working Ship](interface/working-ship-alternative.md):
+  an embodied owner-captain who can operate actual machinery, delegate to
+  autonomous crew and run an open-ended freight business. **Alternative**
+  to [PR #146](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/146),
+  not an accepted implementation or replacement for it.
+- [PR #146 — The Master of the Ox](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/146):
+  a captain-first command, crew and policy dashboard, with six concept
+  screens; remains an independent competing design.
+
 ## Decisions and authority
 
 | Decision | Accepted subject |
