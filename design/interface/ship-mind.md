@@ -152,7 +152,8 @@ Every graphical view has a list or table equivalent.
 | S07 | An engineer's report and the navigation computer disagree | Both keep author, source and time; neither becomes truth until measured. |
 | S08 | Read a pressure cell through a damaged instrument | No secret ship-wide gas truth; readings stay cell-owned. |
 | S09 | A crew member is off every reachable sensor | Their location is unknown; their private state is never inferred from handler storage. |
-| S10 | Lose two of the lead mind's nine machines, then a third, then restore them | With two lost, it runs on; with three, the ship continues on local and manual control; on restore, records and uncertain work reconcile without duplicates. |
+| S10 | Lose the lead mind's machines one at a time, then three in quick succession, then restore them | Spaced losses: it reallocates parity and runs on with less capacity. Three quick losses: it goes down and the ship continues on local and manual control. On restore, records and uncertain work reconcile without duplicates. |
+| S15 | The lead mind hands a system to a capable subsystem, then takes it back | The handover and return are receipted; the subsystem runs only what it is fitted to control; nothing is commanded twice. |
 | S11 | Watch mode through an undetected fault and a delivered message | It stops only on detected or delivered events. |
 | S12 | Replace or update the gateway | New mappings take effect only through fitted, authorised, receipted work. |
 | S13 | Send a message over a failed comms route | It is not delivered, and the failure is itself a fact. |
@@ -175,9 +176,13 @@ Every graphical view has a list or table equivalent.
 **Decided:** one ship-wide backbone with segment gateways; in medias res with
 almost every gateway working; each local control station hosts its segment's
 gateway and is a crew console with local takeover; the lead mind runs on nine
-distributed machines, two acting as parity; most doors are motorised and seal
-against vacuum; entrances, the bridge and the lead mind's machine rooms have
-monitored, controlled access; a crew of 16 on three overlapping 14-hour shifts.
+distributed machines, two acting as parity, goes down only if three are lost
+in quick succession, reallocates parity at the cost of capacity and can hand
+systems to capable subsystems; most doors are motorised and seal against
+vacuum; entrances, the bridge and the lead mind's machine rooms have
+monitored, controlled access; a crew of 16 on three overlapping 14-hour shifts,
+the captain always on the main shift and the two small monitoring shifts
+rotating their members.
 
 **Open:** the exact split between captain and lead mind; whether the navigation
 computer is the right first specialist; gateway semantics in detail; what

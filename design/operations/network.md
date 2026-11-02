@@ -148,10 +148,18 @@ segment is in local control and who took it; it cannot override that.
 **Decided; New.** The lead mind runs on **nine machines distributed through
 the ship, two of them acting as parity**.
 
-- **Losing up to two machines** costs nothing but redundancy: the lead mind
-  keeps running and rebuilds onto replacements when they return.
-- **Losing a third** means the lead mind can no longer run as a whole. What it
-  becomes then — degraded, partial or stopped — is an open question.
+- **It goes down only if it loses three machines in quick succession**, before
+  it can restore parity.
+- **It reallocates parity dynamically.** After losing a machine, it turns one
+  of the remaining working machines into parity, so it can survive further
+  losses. The cost is parallel capacity: fewer machines left doing the
+  thinking. Losses spread out over time make it slower, not more fragile.
+- **It can hand control to capable subsystems.** When short of capacity, or
+  when it chooses, the lead mind relinquishes control of a system to a
+  subsystem advanced enough to run it and fitted with that system's controls
+  (a specialist AI or a capable local controller). It keeps watching what it
+  still can, and takes control back when it has capacity again.
+- Machines returning to service are rebuilt into the array.
 - **Each machine is fitted equipment** with a location, power supply, cooling,
   backbone link and condition, like anything else on the ship. A machine cut
   off from the backbone counts as lost even if it is still running.
@@ -164,8 +172,11 @@ the ship, two of them acting as parity**.
 
 1. Where are the nine machines, and what does each depend on (which power
    board, which cooling, which backbone route)?
-2. What happens when three or more machines are lost?
-3. Which segments start degraded or quirky, beyond the recorded quirks above?
+2. How quick is "quick succession": how long does restoring parity take?
+3. What does reduced capacity mean in play: slower responses, fewer systems
+   attended at once, more handed to subsystems?
+4. Which subsystems are capable enough to take over which systems?
+5. Which segments start degraded or quirky, beyond the recorded quirks above?
 3. Which crew roles may take local control of which segments?
 4. Does the backbone itself have a topology that can be cut in places (a
    route through the spine that a single fault can sever)?

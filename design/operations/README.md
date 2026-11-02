@@ -88,14 +88,18 @@ wear, failures and replacements during the voyage, not from a broken opening.
 3. **`LCS-DR-03`** (and by extension each local control station) hosts its
    segment's gateway and is a crew console with local takeover.
 4. **The lead mind's core** is distributed across nine machines around the
-   ship, two of them acting as parity ([network](network.md#the-lead-minds-core)).
+   ship, two of them acting as parity. It goes down only if it loses three in
+   quick succession; it can reallocate machines to parity at the cost of
+   capacity, and hand systems to capable subsystems
+   ([network](network.md#the-lead-minds-core)).
 5. **Doors:** most are motorised and can seal against vacuum
    ([movement](movement.md)).
 6. **Controlled access:** the ship's entrances, the bridge and the lead mind's
    machines are monitored and have controlled access.
 7. **Crew:** the ship is designed for 40 with one main watch and three skeleton
-   watches. The actual crew is 16, on three overlapping 14-hour shifts: two
-   rotating two-person shifts and one twelve-person shift
+   watches. The actual crew is 16, on three overlapping 14-hour shifts: one
+   twelve-person main shift, always including the captain, and two two-person
+   shifts, mostly monitoring, whose members rotate
    ([watch routine](watch-routine.md)).
 
 ## Related

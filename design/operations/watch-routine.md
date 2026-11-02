@@ -10,11 +10,14 @@ day.
 three skeleton watches. **The actual crew is 16**, on three overlapping 14-hour
 shifts:
 
-| Shift | People | Length |
-|---|---:|---|
-| Main shift | 12 | 14 hours |
-| Rotating shift A | 2 | 14 hours |
-| Rotating shift B | 2 | 14 hours |
+| Shift | People | Length | Who |
+|---|---:|---|---|
+| Main shift | 12 | 14 hours | Always includes the captain; most active work happens here |
+| Small shift A | 2 | 14 hours | Mostly monitoring; members rotate |
+| Small shift B | 2 | 14 hours | Mostly monitoring; members rotate |
+
+**Rotating** means the small shifts are not always the same people: crew
+members take turns on them.
 
 The habitat has 40 cabins, so 16 people have ample room, and the ECLSS runs far
 below its 40-person design.
@@ -38,8 +41,8 @@ One way the shifts could fit together, so that someone is always awake:
 | 20:00–24:00 | off | on | off | 2 |
 
 Here A runs 20:00–10:00 and B 04:00–18:00, each 14 hours, and the main shift
-runs 06:00–20:00. "Rotating" could also mean the two small shifts swap between
-day and night on a cycle; that is for you to decide.
+runs 06:00–20:00. The hours are illustrative; the shape — a long main shift and
+two small monitoring shifts covering the night — is decided.
 
 ## The shape of a day
 
@@ -85,7 +88,8 @@ standing orders to the [records](records.md).
 
 ## Open questions
 
-1. How do the two small shifts rotate, and is the example timetable right?
-2. Which roles are on which shift, and where does the captain fit?
+1. How often do crew rotate through the small shifts, and who decides the
+   rota — the captain, or the lead mind on the captain's behalf?
+2. Which roles must always be on the main shift besides the captain?
 3. Does the lead mind keep a watch itself, formally, or is it always on?
 4. What happens on rounds when a panel is dark?
