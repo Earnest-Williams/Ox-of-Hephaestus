@@ -113,15 +113,18 @@ the game decides how much of it still works.
 
 ## Travel to drum 3
 
-| From | Links | Nominal time | Note |
-|---|---|---|---|
-| `ENG-CONTROL` | 10 | about 6 minutes | Trunk A pressure doors, then the service lock |
-| `CMD-PRIMARY` | 9 | about 5.5 minutes | Trunk A forward |
+Fastest routes, counting only the authored door and transfer times:
 
-Three of those minutes are the **indexed rotary transfer** from the service
-lock to the drum hub, which needs capture confirmed and relative speed in
-limits. The LT valve is in the service lock, on the fixed side, so an engineer
-can check it **without** the transfer. Setting the target needs the transfer.
+| From | Service lock (LT valve) | `BE-05-SVC` (`LCS-DR-03`) | Gallery (skid) |
+|---|---|---|---|
+| `CMD-PRIMARY` | 140 s | 160 s | 300 s |
+| `ENG-CONTROL` | 160 s | 180 s | 320 s |
+
+Three of the gallery minutes are the **indexed rotary transfer** from the
+service lock to the drum hub, which needs capture confirmed and relative speed
+in limits. The LT valve and the local control station are on the fixed side,
+so an engineer reaches them in under three minutes **without** the transfer.
+Setting the target at the skid itself needs the transfer.
 
 ## What the slice must add
 
