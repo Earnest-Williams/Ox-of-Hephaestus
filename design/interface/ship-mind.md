@@ -182,7 +182,7 @@ systems to capable subsystems; most doors are motorised and seal against
 vacuum; entrances, the bridge and the lead mind's machine rooms have
 monitored, controlled access; a crew of 16 on three overlapping 14-hour shifts,
 the captain always on the main shift and the two small monitoring shifts
-rotating their members.
+rotating their members; a 36-hour ship's day, with everyone perpetually on call.
 
 **Open:** the exact split between captain and lead mind; whether the navigation
 computer is the right first specialist; gateway semantics in detail; what

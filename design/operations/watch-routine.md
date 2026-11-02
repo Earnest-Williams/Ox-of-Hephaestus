@@ -19,6 +19,13 @@ shifts:
 **Rotating** means the small shifts are not always the same people: crew
 members take turns on them.
 
+**The ship's day is 36 hours.** Each person works one 14-hour shift in it and
+has 22 hours off.
+
+**Everyone is perpetually on call.** Off shift is not out of reach: the lead
+mind, the captain or a shift-mate can call anyone at any hour, and being up at
+an odd hour is normal.
+
 The habitat has 40 cabins, so 16 people have ample room, and the ECLSS runs far
 below its 40-person design.
 
@@ -29,20 +36,25 @@ minds is well beyond what has been run live; the G12 local profile measured 6,
 
 ### Example timetable (to confirm)
 
-One way the shifts could fit together, so that someone is always awake:
+One way the three 14-hour shifts fit a 36-hour day, in ship hours, so that
+someone is always on duty and each handover overlaps by two hours:
 
-| Time | Main (12) | A (2) | B (2) | Awake on duty |
+| Ship time | Main (12) | A (2) | B (2) | On duty |
 |---|---|---|---|---:|
-| 00:00–04:00 | off | on | off | 2 |
-| 04:00–06:00 | off | on | on | 4 |
-| 06:00–10:00 | on | on | on | 16 |
-| 10:00–18:00 | on | off | on | 14 |
-| 18:00–20:00 | on | off | off | 12 |
-| 20:00–24:00 | off | on | off | 2 |
+| 00:00–02:00 | on | off | on | 14 |
+| 02:00–12:00 | on | off | off | 12 |
+| 12:00–14:00 | on | on | off | 14 |
+| 14:00–24:00 | off | on | off | 2 |
+| 24:00–26:00 | off | on | on | 4 |
+| 26:00–36:00 | off | off | on | 2 |
 
-Here A runs 20:00–10:00 and B 04:00–18:00, each 14 hours, and the main shift
-runs 06:00–20:00. The hours are illustrative; the shape — a long main shift and
-two small monitoring shifts covering the night — is decided.
+Main runs 00:00–14:00, A 12:00–26:00, and B 24:00 through to 02:00 of the next
+day. The hours are illustrative; the shape — a long main shift and two small
+monitoring shifts covering the rest of the 36-hour day — is decided.
+
+**Units.** Physical rates elsewhere in these chapters ("kg a day", "operating
+days", the 730-day endurance) use the standard 24-hour day. The 36-hour ship's
+day is a working schedule; it does not change the physics clock.
 
 ## The shape of a day
 
@@ -55,7 +67,8 @@ two small monitoring shifts covering the night — is decided.
 | Rounds (each shift) | Lists rooms nobody has seen and readings it can't get | A walk through assigned compartments, reading local panels |
 | Maintenance (main shift) | Schedules jobs from service intervals and conditions; stages power and access | Engineers do the work; receipts close the jobs |
 | Meals | Forecasts stock; keeps the galley powered and water safe | Someone cooks; everyone eats |
-| Rest | Quiet running; nothing non-essential near occupied cabins | Ten hours between 14-hour shifts |
+| Rest | Quiet running; nothing non-essential near occupied cabins | 22 hours off per 36-hour day, on call throughout |
+| Calls | Calls off-shift crew when a job needs them, and records each call and response | Anyone may be called at any hour |
 | Captain's time | Reports and recommendations; asks for decisions | The captain decides route, burns, freight, risk |
 
 ## Who does what

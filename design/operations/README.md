@@ -101,6 +101,7 @@ wear, failures and replacements during the voyage, not from a broken opening.
    twelve-person main shift, always including the captain, and two two-person
    shifts, mostly monitoring, whose members rotate
    ([watch routine](watch-routine.md)).
+8. **The ship's day is 36 hours**, and everyone is perpetually on call.
 
 ## Related
 
