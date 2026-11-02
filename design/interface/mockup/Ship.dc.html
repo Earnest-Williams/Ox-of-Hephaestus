@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ship policy</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans+Condensed:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E1113}
+a{color:#F0A83A}a:hover{color:#FFC56B}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid #F0A83A;outline-offset:2px}
+input[type=range]{accent-color:#F0A83A}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0E1113; color: #E8EAE7; font-family: 'IBM Plex Sans Condensed', system-ui, sans-serif; font-size: 15px; line-height: 1.4">
+
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 28px; padding: 12px 24px; border-bottom: 1px solid #2B3237; background: #12161A">
+    <div style="display: flex; flex-direction: column; gap: 2px; margin-right: auto">
+      <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.12em; color: #A3ACB1">OX OF HEPHAESTUS · MASTER'S STATION</span>
+      <span style="font-size: 20px; font-weight: 600">Day 41 · 07:43 ship time</span>
+    </div>
+    <span style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid #2B3237; border-radius: 8px; font-size: 14px"><span aria-hidden="true" style="font: 600 13px 'IBM Plex Mono', monospace; color: #7CC8E6">60×</span>Running</span>
+    <nav aria-label="Stations" style="display: flex; flex-wrap: wrap; gap: 2px">
+      <a href="Main.dc.html" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; color: #E8EAE7">Bridge</a>
+      <a href="Orders.dc.html" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; color: #E8EAE7">Orders</a>
+      <a href="Ship.dc.html" aria-current="page" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; font-weight: 600; color: #0E1113; background: #F0A83A">Ship</a>
+      <a href="Crew.dc.html" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; color: #E8EAE7">Crew</a>
+      <a href="Rota.dc.html" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; color: #E8EAE7">Rota</a>
+      <a href="Voyage.dc.html" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; color: #E8EAE7">Voyage</a>
+    </nav>
+  </header>
+
+  <main style="display: flex; flex-wrap: wrap; gap: 20px; padding: 20px 24px 40px; align-items: flex-start; max-width: 1440px; box-sizing: border-box">
+
+    <section aria-labelledby="pow-h" style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 18px; padding: 22px; border: 1px solid #2B3237; border-radius: 12px; background: #161A1D">
+      <div style="display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: flex-end">
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <h1 id="pow-h" style="margin: 0; font-size: 26px; font-weight: 600">Power budget</h1>
+          <p style="margin: 0; color: #A3ACB1; max-width: 560px">You set the budget. Mara’s team carries it out — nothing changes until she acknowledges.</p>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px">
+          <span style="font: 500 26px 'IBM Plex Mono', monospace; color: {{marginColor}}">{{used}} / {{gen}} kW</span>
+          <span style="font-size: 14px; color: {{marginColor}}">{{marginText}}</span>
+        </div>
+      </div>
+
+      <div aria-hidden="true" style="display: flex; height: 18px; border-radius: 4px; overflow: hidden; background: #0E1113; border: 1px solid #2B3237">
+        <sc-for list="{{buses}}" as="b" hint-placeholder-count="7">
+          <span style="width: {{b.pct}}%; background: {{b.color}}; border-right: 1px solid #0E1113"></span>
+        </sc-for>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 6px; padding: 14px; border-radius: 10px; background: #0E1113">
+        <label for="reactor" style="display: flex; justify-content: space-between; gap: 8px">
+          <span style="font-weight: 600">Reactor output</span>
+          <span style="font-family: 'IBM Plex Mono', monospace">{{reactor}} % · {{gen}} kW</span>
+        </label>
+        <input id="reactor" type="range" min="60" max="100" step="1" value="{{reactor}}" onChange="{{setReactor}}" style="width: 100%; height: 30px">
+        <span style="font-size: 13px; color: {{reactorNoteColor}}">{{reactorNote}}</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <sc-for list="{{buses}}" as="b" hint-placeholder-count="7">
+          <div style="display: grid; grid-template-columns: 14px minmax(140px, 1.2fr) minmax(160px, 2fr) 72px; gap: 12px; align-items: center; padding: 8px 0; border-top: 1px solid #22282C">
+            <span aria-hidden="true" style="width: 12px; height: 12px; border-radius: 3px; background: {{b.color}}"></span>
+            <label for="{{b.id}}" style="display: flex; flex-direction: column">
+              <span style="font-weight: 500">{{b.label}}</span>
+              <span style="font-size: 12px; color: #A3ACB1">{{b.note}}</span>
+            </label>
+            <input id="{{b.id}}" type="range" min="{{b.min}}" max="{{b.max}}" step="2" value="{{b.kw}}" onChange="{{b.set}}" disabled="{{b.locked}}" style="width: 100%; height: 30px">
+            <span style="font-family: 'IBM Plex Mono', monospace; text-align: right">{{b.kw}} kW</span>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+    <div style="flex: 1 1 380px; max-width: 520px; min-width: 0; display: flex; flex-direction: column; gap: 20px">
+
+      <section aria-labelledby="air-h" style="display: flex; flex-direction: column; gap: 14px; padding: 20px; border: 1px solid #2B3237; border-radius: 12px; background: #161A1D">
+        <h2 id="air-h" style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #A3ACB1">Air, warmth and food</h2>
+        <sc-for list="{{settings}}" as="x" hint-placeholder-count="4">
+          <div style="display: flex; flex-direction: column; gap: 4px">
+            <label for="{{x.id}}" style="display: flex; justify-content: space-between; gap: 8px">
+              <span style="font-weight: 500">{{x.label}}</span>
+              <span style="font-family: 'IBM Plex Mono', monospace">{{x.shown}}</span>
+            </label>
+            <input id="{{x.id}}" type="range" min="{{x.min}}" max="{{x.max}}" step="{{x.step}}" value="{{x.value}}" onChange="{{x.set}}" style="width: 100%; height: 30px">
+            <span style="font-size: 13px; color: {{x.noteColor}}">{{x.note}}</span>
+          </div>
+        </sc-for>
+      </section>
+
+      <section aria-labelledby="out-h" style="display: flex; flex-direction: column; gap: 10px; padding: 20px; border: 1px solid #2B3237; border-radius: 12px; background: #161A1D">
+        <h2 id="out-h" style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #A3ACB1">At these settings</h2>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+          <sc-for list="{{outlook}}" as="o" hint-placeholder-count="4">
+            <div style="display: flex; flex-direction: column; gap: 2px; padding: 10px; border-radius: 8px; background: #0E1113">
+              <span style="font-size: 13px; color: #A3ACB1">{{o.label}}</span>
+              <span style="font: 500 20px 'IBM Plex Mono', monospace; color: {{o.color}}">{{o.value}}</span>
+            </div>
+          </sc-for>
+        </div>
+      </section>
+
+      <section aria-labelledby="inst-h" style="display: flex; flex-direction: column; gap: 8px; padding: 20px; border: 1px solid #2B3237; border-radius: 12px; background: #161A1D">
+        <h2 id="inst-h" style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #A3ACB1">Instruments you are trusting</h2>
+        <sc-for list="{{instruments}}" as="i" hint-placeholder-count="3">
+          <div style="display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid #22282C">
+            <span style="display: flex; flex-direction: column">
+              <span>{{i.name}}</span>
+              <span style="font-size: 12px; color: {{i.noteColor}}">{{i.note}}</span>
+            </span>
+            <span style="font-family: 'IBM Plex Mono', monospace; color: {{i.noteColor}}">{{i.value}}</span>
+          </div>
+        </sc-for>
+      </section>
+
+      <div style="display: flex; flex-direction: column; gap: 8px; padding: 16px 20px; border: 1px solid {{pendingBorder}}; border-radius: 12px; background: #161A1D">
+        <span style="font-weight: 600">{{pendingTitle}}</span>
+        <sc-for list="{{changes}}" as="c" hint-placeholder-count="2">
+          <span style="font-size: 14px; color: #A3ACB1">{{c.text}}</span>
+        </sc-for>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; padding-top: 4px">
+          <button type="button" disabled="{{noChanges}}" style="min-height: 48px; padding: 0 20px; border: 0; border-radius: 8px; background: {{sendBg}}; color: #0E1113; font: 600 16px 'IBM Plex Sans Condensed', sans-serif; cursor: pointer">Send to Mara</button>
+          <button type="button" onClick="{{reset}}" style="min-height: 48px; padding: 0 16px; border: 1px solid #3A4248; border-radius: 8px; background: transparent; color: #E8EAE7; font: 500 16px 'IBM Plex Sans Condensed', sans-serif; cursor: pointer">Reset</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1060}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.base = { reactor: 92, life: 120, spin: 52, drive: 24, fab: 60, cargo: 46, sensors: 30, o2: 210, temp: 21, ration: 100 };
+    this.state = { ...this.base };
+  }
+  renderVals() {
+    const s = this.state;
+    const amber = "#F0A83A";
+    const cyan = "#7CC8E6";
+    const alert = "#FF8D72";
+    const gen = Math.round(500 * s.reactor / 100);
+    const busDefs = [
+      ["life", "Life support", "Air, water, scrubbers · floor 90 kW", 90, 150, "#7CC8E6"],
+      ["spin", "Habitat ring", "Spin motors and lighting", 30, 70, "#4F8FA8"],
+      ["cargo", "Cargo cooling", "Hold 3 cultures need 4–8 °C", 16, 90, "#D7B8F0"],
+      ["fab", "Fabrication", "Lathe, printer — Ari’s shop", 0, 80, "#B58A4A"],
+      ["sensors", "Sensors and comms", "Radar, long-range link", 16, 60, "#9AA3A8"],
+      ["drive", "Drive standby", "Keeps the drive warm for the burn", 0, 60, "#E8C79A"],
+      ["aux", "Reactor auxiliaries", "Fixed — coolant pumps", 80, 80, "#5B646A"]
+    ];
+    const kwOf = (id) => (id === "aux" ? 80 : s[id]);
+    const used = busDefs.reduce((n, b) => n + kwOf(b[0]), 0);
+    const margin = gen - used;
+    const scale = Math.max(gen, used);
+    const buses = busDefs.map(([id, label, note, min, max, color]) => ({
+      id: "bus-" + id, label, note, min, max, color,
+      kw: kwOf(id),
+      pct: (100 * kwOf(id) / scale).toFixed(2),
+      locked: id === "aux",
+      set: (e) => this.setState({ [id]: Number(e.target.value) })
+    }));
+    const marginText = margin >= 0
+      ? "Margin " + margin + " kW"
+      : "Short " + (-margin) + " kW — batteries last " + (600 / -margin).toFixed(1) + " h, then load shedding";
+    const marginColor = margin < 0 ? alert : (margin < 20 ? amber : "#E8EAE7");
+    const reactorNote = s.reactor > 95
+      ? "Mara’s standing advice: above 95 % wears pump B faster. Expect a complaint."
+      : (s.reactor < 75 ? "Low output stretches fuel but leaves little margin for a fault." : "Within Mara’s preferred band, 75–95 %.");
+    const o2 = s.o2 / 10;
+    const o2Note = o2 < 19.5 ? "Too thin: crew will tire faster and make more mistakes." : (o2 > 22.5 ? "Rich: fire spreads faster. Lin will object." : "Lin’s recommendation: 21.0 kPa.");
+    const tempNote = s.temp < 18 ? "Cold: saves power, costs comfort and sleep." : (s.temp > 24 ? "Warm: costs scrubber and cooling power." : "Comfortable.");
+    const rationNote = s.ration < 75 ? "Hunger: slower work, shorter tempers, more mistakes." : (s.ration < 90 ? "The crew will notice within a week and ask why." : "Full rations.");
+    const settings = [
+      { id: "o2", label: "Cabin oxygen", min: 185, max: 235, step: 1, value: s.o2, shown: o2.toFixed(1) + " kPa", note: o2Note, noteColor: (o2 < 19.5 || o2 > 22.5) ? amber : "#A3ACB1", set: (e) => this.setState({ o2: Number(e.target.value) }) },
+      { id: "temp", label: "Cabin temperature", min: 16, max: 26, step: 1, value: s.temp, shown: s.temp + " °C", note: tempNote, noteColor: (s.temp < 18 || s.temp > 24) ? amber : "#A3ACB1", set: (e) => this.setState({ temp: Number(e.target.value) }) },
+      { id: "ration", label: "Rations", min: 60, max: 110, step: 5, value: s.ration, shown: s.ration + " %", note: rationNote, noteColor: s.ration < 90 ? amber : "#A3ACB1", set: (e) => this.setState({ ration: Number(e.target.value) }) }
+    ];
+    const foodDays = Math.round(188 * 100 / s.ration);
+    const holdOk = s.cargo >= 40;
+    const outlook = [
+      { label: "Food lasts", value: foodDays + " days", color: foodDays < 212 ? amber : "#E8EAE7" },
+      { label: "Days to Callisto", value: "212", color: "#E8EAE7" },
+      { label: "Hold 3 can hold", value: holdOk ? "5 °C" : "won’t", color: holdOk ? cyan : alert },
+      { label: "Batteries", value: margin >= 0 ? "Charging" : "Draining", color: margin >= 0 ? "#E8EAE7" : alert }
+    ];
+    const instruments = [
+      { name: "Hold 3 temperature, sensor A", value: "8.2 °C", note: "Calibrated 40 days ago · disagrees with Ari", noteColor: amber },
+      { name: "Hold 3 temperature, sensor B", value: "—", note: "Offline since Day 37 · repair not ordered", noteColor: amber },
+      { name: "Reactor coolant flow, loop B", value: "93 %", note: "Calibrated Day 39 by Mara", noteColor: "#A3ACB1" },
+      { name: "Cabin O₂, habitat ring", value: "21.1 kPa", note: "Calibrated Day 40 by Lin", noteColor: "#A3ACB1" }
+    ];
+    const names = { reactor: ["Reactor output", "%"], life: ["Life support", " kW"], spin: ["Habitat ring", " kW"], drive: ["Drive standby", " kW"], fab: ["Fabrication", " kW"], cargo: ["Cargo cooling", " kW"], sensors: ["Sensors and comms", " kW"], temp: ["Cabin temperature", " °C"], ration: ["Rations", "%"] };
+    const changes = [];
+    Object.keys(names).forEach((k) => {
+      if (s[k] !== this.base[k]) changes.push({ text: names[k][0] + ": " + this.base[k] + names[k][1] + " → " + s[k] + names[k][1] });
+    });
+    if (s.o2 !== this.base.o2) changes.push({ text: "Cabin oxygen: 21.0 → " + o2.toFixed(1) + " kPa" });
+    const n = changes.length;
+    if (n === 0) changes.push({ text: "Move a slider to draft a change." });
+    return {
+      gen, used, marginText, marginColor, buses,
+      reactor: s.reactor,
+      reactorNote,
+      reactorNoteColor: s.reactor > 95 ? amber : "#A3ACB1",
+      setReactor: (e) => this.setState({ reactor: Number(e.target.value) }),
+      settings, outlook, instruments, changes,
+      noChanges: n === 0,
+      pendingTitle: n === 0 ? "No changes drafted" : n + " change" + (n === 1 ? "" : "s") + " drafted — Mara applies them about 10 min after she acknowledges",
+      pendingBorder: n === 0 ? "#2B3237" : amber,
+      sendBg: n === 0 ? "#5B646A" : amber,
+      reset: () => this.setState({ ...this.base })
+    };
+  }
+}
+</script>
+</body>
+</html>

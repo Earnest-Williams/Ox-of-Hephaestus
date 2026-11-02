@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Voyage and contract</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans+Condensed:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E1113}
+a{color:#F0A83A}a:hover{color:#FFC56B}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid #F0A83A;outline-offset:2px}
+input[type=range]{accent-color:#F0A83A}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0E1113; color: #E8EAE7; font-family: 'IBM Plex Sans Condensed', system-ui, sans-serif; font-size: 15px; line-height: 1.4">
+
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 28px; padding: 12px 24px; border-bottom: 1px solid #2B3237; background: #12161A">
+    <div style="display: flex; flex-direction: column; gap: 2px; margin-right: auto">
+      <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.12em; color: #A3ACB1">OX OF HEPHAESTUS · MASTER'S STATION</span>
+      <span style="font-size: 20px; font-weight: 600">Day 41 · 07:45 ship time</span>
+    </div>
+    <span style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid #2B3237; border-radius: 8px; font-size: 14px"><span aria-hidden="true" style="font: 600 13px 'IBM Plex Mono', monospace; color: #7CC8E6">60×</span>Running</span>
+    <nav aria-label="Stations" style="display: flex; flex-wrap: wrap; gap: 2px">
+      <a href="Main.dc.html" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; color: #E8EAE7">Bridge</a>
+      <a href="Orders.dc.html" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; color: #E8EAE7">Orders</a>
+      <a href="Ship.dc.html" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; color: #E8EAE7">Ship</a>
+      <a href="Crew.dc.html" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; color: #E8EAE7">Crew</a>
+      <a href="Rota.dc.html" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; color: #E8EAE7">Rota</a>
+      <a href="Voyage.dc.html" aria-current="page" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; font-weight: 600; color: #0E1113; background: #F0A83A">Voyage</a>
+    </nav>
+  </header>
+
+  <main style="display: flex; flex-direction: column; gap: 20px; padding: 20px 24px 40px; max-width: 1440px; box-sizing: border-box">
+
+    <section aria-labelledby="route-h" style="display: flex; flex-direction: column; gap: 16px; padding: 22px; border: 1px solid #2B3237; border-radius: 12px; background: #161A1D">
+      <div style="display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: flex-end">
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <h1 id="route-h" style="margin: 0; font-size: 26px; font-weight: 600">Ceres to Callisto</h1>
+          <p style="margin: 0; color: #A3ACB1">Day 41 of about {{arrival}}. Delivery due Day 255.</p>
+        </div>
+        <span style="font: 500 22px 'IBM Plex Mono', monospace; color: {{arrivalColor}}">Arrive Day {{arrival}} · {{lateText}}</span>
+      </div>
+
+      <div style="overflow-x: auto">
+        <div style="min-width: 860px; position: relative; height: 150px">
+          <span aria-hidden="true" style="position: absolute; left: 0; right: 0; top: 70px; height: 4px; border-radius: 2px; background: #2B3237"></span>
+          <span aria-hidden="true" style="position: absolute; left: 0; width: {{todayPct}}%; top: 70px; height: 4px; border-radius: 2px; background: #7CC8E6"></span>
+          <span aria-hidden="true" style="position: absolute; left: {{blackoutLeft}}%; width: {{blackoutW}}%; top: 62px; height: 20px; border-radius: 3px; background: #2A1F33; border: 1px solid #8E6FB0"></span>
+          <sc-for list="{{marks}}" as="m" hint-placeholder-count="7">
+            <span style="position: absolute; left: {{m.left}}%; top: {{m.top}}px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 4px; width: 120px; text-align: center">
+              <sc-if value="{{m.below}}" hint-placeholder-val="{{ false }}">
+                <span aria-hidden="true" style="width: 2px; height: 22px; background: {{m.color}}"></span>
+              </sc-if>
+              <span style="font-size: 13px; font-weight: 600; color: {{m.color}}">{{m.label}}</span>
+              <span style="font: 400 12px 'IBM Plex Mono', monospace; color: #8C969C">{{m.day}}</span>
+              <sc-if value="{{m.above}}" hint-placeholder-val="{{ true }}">
+                <span aria-hidden="true" style="width: 2px; height: 14px; background: {{m.color}}"></span>
+              </sc-if>
+            </span>
+          </sc-for>
+        </div>
+      </div>
+    </section>
+
+    <div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start">
+      <section aria-labelledby="plan-h" style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 16px; padding: 22px; border: 1px solid #2B3237; border-radius: 12px; background: #161A1D">
+        <h2 id="plan-h" style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #A3ACB1">The plan Iona flies</h2>
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <label for="pace" style="display: flex; justify-content: space-between; gap: 8px">
+            <span style="font-weight: 600">Pace</span>
+            <span style="font-family: 'IBM Plex Mono', monospace">{{paceLabel}}</span>
+          </label>
+          <input id="pace" type="range" min="0" max="100" step="5" value="{{pace}}" onChange="{{setPace}}" style="width: 100%; height: 30px">
+          <div style="display: flex; justify-content: space-between; font-size: 12px; color: #8C969C"><span>Save reaction mass</span><span>Arrive sooner</span></div>
+        </div>
+        <button type="button" role="switch" aria-checked="{{detourChecked}}" onClick="{{toggleDetour}}" style="display: flex; justify-content: space-between; align-items: center; gap: 16px; min-height: 56px; padding: 10px 14px; border: 1px solid {{detourBorder}}; border-radius: 10px; background: #0E1113; color: #E8EAE7; text-align: left; cursor: pointer; font-family: inherit">
+          <span style="display: flex; flex-direction: column; gap: 2px">
+            <span style="font-size: 15px; font-weight: 600">Detour to Ganymede Station for supplies</span>
+            <span style="font-size: 13px; color: #A3ACB1">Adds 9 days and 3 % reaction mass. Restocks food, seals and filters.</span>
+          </span>
+          <span aria-hidden="true" style="flex: 0 0 auto; width: 56px; height: 32px; border-radius: 16px; padding: 3px; box-sizing: border-box; display: flex; justify-content: {{detourJustify}}; background: {{detourTrack}}; border: 1px solid {{detourBorder}}"><span style="width: 24px; height: 24px; border-radius: 50%; background: {{detourKnob}}"></span></span>
+        </button>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px">
+          <sc-for list="{{results}}" as="r" hint-placeholder-count="4">
+            <div style="display: flex; flex-direction: column; gap: 2px; padding: 12px; border-radius: 8px; background: #0E1113">
+              <span style="font-size: 13px; color: #A3ACB1">{{r.label}}</span>
+              <span style="font: 500 20px 'IBM Plex Mono', monospace; color: {{r.color}}">{{r.value}}</span>
+              <span style="font-size: 12px; color: #8C969C">{{r.note}}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap">
+          <button type="button" style="min-height: 48px; padding: 0 20px; border: 0; border-radius: 8px; background: #F0A83A; color: #0E1113; font: 600 16px 'IBM Plex Sans Condensed', sans-serif; cursor: pointer">Ask Iona to plot this</button>
+          <span style="align-self: center; font-size: 13px; color: #8C969C">She replots, the crew hears why, and the next burn comes to you for approval.</span>
+        </div>
+      </section>
+
+      <section aria-labelledby="con-h" style="flex: 1 1 380px; max-width: 520px; min-width: 0; display: flex; flex-direction: column; gap: 4px; padding: 20px; border: 1px solid #2B3237; border-radius: 12px; background: #161A1D">
+        <h2 id="con-h" style="margin: 0 0 6px; font-size: 13px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #A3ACB1">The contract — what you carry and owe</h2>
+        <sc-for list="{{cargo}}" as="c" hint-placeholder-count="4">
+          <div style="display: flex; flex-direction: column; gap: 3px; padding: 10px 0; border-top: 1px solid #22282C">
+            <div style="display: flex; justify-content: space-between; gap: 10px">
+              <span style="font-weight: 600">{{c.hold}}</span>
+              <span style="font-size: 13px; color: {{c.statusColor}}">{{c.status}}</span>
+            </div>
+            <span style="font-size: 14px">{{c.what}}</span>
+            <span style="font-size: 13px; color: #8C969C">{{c.terms}}</span>
+          </div>
+        </sc-for>
+        <div style="display: flex; justify-content: space-between; gap: 10px; padding: 12px 0 0; border-top: 1px solid #22282C">
+          <span style="color: #A3ACB1">Fee on full, on-time delivery</span>
+          <span style="font-family: 'IBM Plex Mono', monospace">[CONTRACT FEE]</span>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { pace: 50, detour: false };
+  }
+  renderVals() {
+    const amber = "#F0A83A";
+    const cyan = "#7CC8E6";
+    const alert = "#FF8D72";
+    const s = this.state;
+    const span = 280;
+    const pct = (d) => (d / span * 100).toFixed(2);
+    const arrival = Math.round(253 - (s.pace - 50) * 0.4 + (s.detour ? 9 : 0));
+    const mass = Math.round((9 - (s.pace - 50) * 0.18 - (s.detour ? 3 : 0)) * 10) / 10;
+    const late = arrival - 255;
+    const foodEnd = s.detour ? 999 : 229;
+    const foodShort = arrival > foodEnd;
+    const marks = [
+      { label: "Ceres", day: "Day 0", d: 0, color: "#A3ACB1", up: true },
+      { label: "Now · burn in 6 h", day: "Day 41", d: 41, color: cyan, up: false },
+      { label: "Flip and slow", day: "Day 140", d: 140, color: "#A3ACB1", up: true },
+      { label: "No signal home", day: "Days 160–168", d: 164, color: "#C9A9E8", up: false },
+      { label: s.detour ? "Ganymede Station" : "Food runs out", day: s.detour ? "Day 196" : "Day 229", d: s.detour ? 196 : 229, color: s.detour ? cyan : alert, up: true },
+      { label: "Due", day: "Day 255", d: 255, color: amber, up: false },
+      { label: "Callisto", day: "Day " + arrival, d: arrival, color: "#E8EAE7", up: true }
+    ].map((m) => ({ ...m, left: pct(m.d), top: m.up ? 0 : 72, above: m.up, below: !m.up }));
+    const paceLabel = s.pace < 35 ? "Thrifty" : (s.pace > 65 ? "Hard" : "Balanced");
+    const results = [
+      { label: "Arrival", value: "Day " + arrival, note: late > 0 ? late + " days late" : (-late) + " days to spare", color: late > 0 ? alert : "#E8EAE7" },
+      { label: "Reaction mass left over", value: mass.toFixed(1) + " %", note: mass < 4 ? "Little room for a mistake" : "Reserve for course fixes", color: mass < 4 ? amber : "#E8EAE7" },
+      { label: "Food", value: foodShort ? "Short" : "Enough", note: foodShort ? "Runs out Day 229 at full rations" : (s.detour ? "Restocked at Ganymede" : "Lasts to arrival"), color: foodShort ? alert : cyan },
+      { label: "Late penalty", value: late > 0 ? (late * 2) + " %" : "None", note: "2 % of the fee per day", color: late > 0 ? alert : "#E8EAE7" }
+    ];
+    const cargo = [
+      { hold: "Holds 1–2", what: "Reactor components for Callisto Yard", terms: "Due Day 255 · 2 % of fee lost per day late", status: "Secure", statusColor: cyan },
+      { hold: "Hold 3", what: "Live bio-cultures", terms: "Must stay 4–8 °C · spoiled cultures forfeit their share of the fee", status: "8.2 °C — at risk", statusColor: amber },
+      { hold: "Hold 4", what: "Mixed freight, eleven consignees", terms: "No deadline · damage claims deducted", status: "Secure", statusColor: cyan },
+      { hold: "Passengers", what: "None this voyage", terms: "—", status: "", statusColor: "#8C969C" }
+    ];
+    return {
+      arrival,
+      arrivalColor: late > 0 ? alert : "#E8EAE7",
+      lateText: late > 0 ? late + " days late" : (-late) + " days early",
+      todayPct: pct(41),
+      blackoutLeft: pct(160),
+      blackoutW: pct(8),
+      marks, results, cargo,
+      pace: s.pace,
+      paceLabel,
+      setPace: (e) => this.setState({ pace: Number(e.target.value) }),
+      detourChecked: s.detour ? "true" : "false",
+      detourBorder: s.detour ? amber : "#3A4248",
+      detourTrack: s.detour ? amber : "#0E1113",
+      detourKnob: s.detour ? "#0E1113" : "#8C969C",
+      detourJustify: s.detour ? "flex-end" : "flex-start",
+      toggleDetour: () => this.setState({ detour: !s.detour })
+    };
+  }
+}
+</script>
+</body>
+</html>

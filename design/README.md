@@ -22,6 +22,8 @@ directory is the inherited Evennia manual, not the Ox implementation guide.
 | [ADR 0009](decisions/0009-durable-events-and-work.md) | World-issued events and durable action ledger |
 | [ADR 0010](decisions/0010-postgresql-only-game-managed.md) | PostgreSQL only, in a private cluster the game runs itself |
 
+**Proposed, not accepted:** [the player as Master of the Ox](interface/player-role-proposal.md) — the player's role and an interface mock-up.
+
 ## Important implementation trails
 
 - [Original prototype](prototypes/01-autonomous-crew.md) ·

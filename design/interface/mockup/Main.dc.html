@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Bridge</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans+Condensed:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E1113}
+a{color:#F0A83A}a:hover{color:#FFC56B}
+button:focus-visible,a:focus-visible{outline:2px solid #F0A83A;outline-offset:2px}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0E1113; color: #E8EAE7; font-family: 'IBM Plex Sans Condensed', system-ui, sans-serif; font-size: 15px; line-height: 1.4">
+
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 28px; padding: 12px 24px; border-bottom: 1px solid #2B3237; background: #12161A">
+    <div style="display: flex; flex-direction: column; gap: 2px; margin-right: auto">
+      <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.12em; color: #A3ACB1">OX OF HEPHAESTUS · MASTER'S STATION</span>
+      <span style="font-size: 20px; font-weight: 600">Day 41 · 07:42 ship time</span>
+    </div>
+
+    <div role="group" aria-label="Time" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
+      <div style="display: flex; gap: 2px; padding: 3px; border: 1px solid #2B3237; border-radius: 8px; background: #0E1113">
+        <sc-for list="{{speeds}}" as="s" hint-placeholder-count="5">
+          <button type="button" onClick="{{s.pick}}" aria-pressed="{{s.pressed}}" aria-label="{{s.aria}}" style="min-width: 48px; height: 40px; padding: 0 10px; border: 0; border-radius: 6px; font: 500 14px 'IBM Plex Mono', monospace; cursor: pointer; background: {{s.bg}}; color: {{s.fg}}">{{s.label}}</button>
+        </sc-for>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 1px">
+        <span style="font-size: 13px; color: #E8EAE7">{{speedNote}}</span>
+        <span style="font-size: 12px; color: #A3ACB1">Auto-pause armed: alarms · urgent requests · burn windows</span>
+      </div>
+    </div>
+
+    <nav aria-label="Stations" style="display: flex; flex-wrap: wrap; gap: 2px">
+      <a href="Main.dc.html" aria-current="page" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; font-weight: 600; color: #0E1113; background: #F0A83A">Bridge</a>
+      <a href="Orders.dc.html" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; color: #E8EAE7">Orders</a>
+      <a href="Ship.dc.html" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; color: #E8EAE7">Ship</a>
+      <a href="Crew.dc.html" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; color: #E8EAE7">Crew</a>
+      <a href="Rota.dc.html" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; color: #E8EAE7">Rota</a>
+      <a href="Voyage.dc.html" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; color: #E8EAE7">Voyage</a>
+    </nav>
+  </header>
+
+  <main style="display: flex; flex-wrap: wrap; gap: 16px; padding: 16px 24px 32px; align-items: flex-start">
+
+    <section aria-labelledby="crew-h" style="flex: 1 1 290px; max-width: 360px; min-width: 0; display: flex; flex-direction: column; gap: 10px">
+      <div style="display: flex; align-items: baseline; justify-content: space-between">
+        <h2 id="crew-h" style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #A3ACB1">Crew — as last seen</h2>
+        <a href="Orders.dc.html" style="font-size: 14px">New order</a>
+      </div>
+      <sc-for list="{{crew}}" as="c" hint-placeholder-count="6">
+        <a href="Crew.dc.html" style="display: flex; gap: 12px; padding: 12px; border: 1px solid {{c.border}}; border-radius: 10px; background: #161A1D; text-decoration: none; color: #E8EAE7">
+          <span aria-hidden="true" style="flex: 0 0 auto; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font: 600 15px 'IBM Plex Mono', monospace; background: {{c.dot}}; color: #0E1113">{{c.initial}}</span>
+          <span style="display: flex; flex-direction: column; gap: 3px; min-width: 0">
+            <span style="display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap">
+              <span style="font-size: 16px; font-weight: 600">{{c.name}}</span>
+              <span style="font-size: 13px; color: #A3ACB1">{{c.role}}</span>
+            </span>
+            <span style="font-size: 14px">{{c.doing}}</span>
+            <span style="font-size: 13px; color: #A3ACB1">{{c.where}}</span>
+            <span style="font-size: 13px; color: {{c.obsColor}}">{{c.obs}}</span>
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8C969C">{{c.seen}}</span>
+          </span>
+        </a>
+      </sc-for>
+    </section>
+
+    <section aria-labelledby="ship-h" style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+      <div style="border: 1px solid #2B3237; border-radius: 12px; background: #161A1D; padding: 16px 18px 20px; display: flex; flex-direction: column; gap: 14px">
+        <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px">
+          <h2 id="ship-h" style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #A3ACB1">The ship — bow to drive</h2>
+          <span style="font-size: 13px; color: #A3ACB1">Select a section to inspect it or send someone there</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 4px; overflow-x: auto; padding-bottom: 4px">
+          <sc-for list="{{sections}}" as="b" hint-placeholder-count="9">
+            <button type="button" aria-label="{{b.aria}}" style="flex: {{b.grow}} 0 {{b.basis}}px; height: {{b.h}}px; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; padding: 8px; border: 1px solid {{b.border}}; border-radius: 6px; background: {{b.bg}}; color: #E8EAE7; text-align: left; cursor: pointer; font-family: inherit">
+              <span style="display: flex; flex-direction: column; gap: 2px">
+                <span style="font-size: 14px; font-weight: 600">{{b.name}}</span>
+                <span style="font-size: 12px; color: {{b.subColor}}">{{b.sub}}</span>
+              </span>
+              <span style="display: flex; gap: 3px; flex-wrap: wrap">
+                <sc-for list="{{b.people}}" as="p" hint-placeholder-count="1">
+                  <span style="width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font: 600 12px 'IBM Plex Mono', monospace; background: {{p.dot}}; color: #0E1113">{{p.initial}}</span>
+                </sc-for>
+              </span>
+            </button>
+          </sc-for>
+        </div>
+        <div style="display: flex; gap: 18px; flex-wrap: wrap; font-size: 13px; color: #A3ACB1">
+          <span style="display: flex; align-items: center; gap: 6px"><span aria-hidden="true" style="width: 12px; height: 12px; border-radius: 3px; background: #3A2A12; border: 1px solid #F0A83A"></span>Needs attention</span>
+          <span style="display: flex; align-items: center; gap: 6px"><span aria-hidden="true" style="width: 12px; height: 12px; border-radius: 3px; background: #11262F; border: 1px solid #7CC8E6"></span>Work under way</span>
+          <span style="display: flex; align-items: center; gap: 6px"><span aria-hidden="true" style="width: 12px; height: 12px; border-radius: 3px; background: #1C2125; border: 1px dashed #8C969C"></span>No recent report</span>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px">
+        <sc-for list="{{glance}}" as="g" hint-placeholder-count="6">
+          <a href="Ship.dc.html" style="display: flex; flex-direction: column; gap: 4px; padding: 12px; border: 1px solid #2B3237; border-radius: 10px; background: #161A1D; color: #E8EAE7; text-decoration: none">
+            <span style="font-size: 13px; color: #A3ACB1">{{g.label}}</span>
+            <span style="font: 500 22px 'IBM Plex Mono', monospace; color: {{g.color}}">{{g.value}}</span>
+            <span style="font-size: 12px; color: #8C969C">{{g.note}}</span>
+          </a>
+        </sc-for>
+      </div>
+
+      <div style="border: 1px solid #2B3237; border-radius: 12px; background: #161A1D; padding: 14px 18px; display: flex; flex-direction: column; gap: 8px">
+        <h2 style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #A3ACB1">Ship's log</h2>
+        <ol style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column">
+          <sc-for list="{{log}}" as="l" hint-placeholder-count="6">
+            <li style="display: flex; gap: 14px; padding: 7px 0; border-top: 1px solid #22282C; align-items: baseline">
+              <span style="font: 400 13px 'IBM Plex Mono', monospace; color: #8C969C; flex: 0 0 44px">{{l.t}}</span>
+              <span style="flex: 0 0 86px; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: {{l.kindColor}}">{{l.kind}}</span>
+              <span style="font-size: 14px">{{l.text}}</span>
+            </li>
+          </sc-for>
+        </ol>
+      </div>
+    </section>
+
+    <section aria-labelledby="dec-h" style="flex: 1 1 320px; max-width: 400px; min-width: 0; display: flex; flex-direction: column; gap: 10px">
+      <h2 id="dec-h" style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #A3ACB1">Waiting on you · {{openCount}}</h2>
+      <sc-for list="{{decisions}}" as="d" hint-placeholder-count="3">
+        <article style="display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid {{d.border}}; border-radius: 10px; background: #161A1D">
+          <div style="display: flex; justify-content: space-between; gap: 8px; align-items: baseline">
+            <span style="font-weight: 600; font-size: 15px">{{d.who}}</span>
+            <span style="font: 400 12px 'IBM Plex Mono', monospace; color: {{d.dueColor}}">{{d.due}}</span>
+          </div>
+          <p style="margin: 0; font-size: 15px">{{d.text}}</p>
+          <sc-if value="{{d.open}}" hint-placeholder-val="{{ true }}">
+            <div style="display: flex; gap: 8px; flex-wrap: wrap">
+              <sc-for list="{{d.options}}" as="o" hint-placeholder-count="3">
+                <button type="button" onClick="{{o.pick}}" style="min-height: 44px; padding: 0 14px; border-radius: 8px; font: 500 15px 'IBM Plex Sans Condensed', sans-serif; cursor: pointer; border: 1px solid {{o.border}}; background: {{o.bg}}; color: {{o.fg}}">{{o.label}}</button>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{d.closed}}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px">
+              <span style="font-size: 14px; color: #7CC8E6">{{d.outcome}}</span>
+              <button type="button" onClick="{{d.undo}}" style="min-height: 44px; padding: 0 12px; border: 0; background: transparent; color: #A3ACB1; font: 400 14px 'IBM Plex Sans Condensed', sans-serif; text-decoration: underline; cursor: pointer">Undo</button>
+            </div>
+          </sc-if>
+        </article>
+      </sc-for>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1060}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { speed: "60", verdicts: {} };
+  }
+  renderVals() {
+    const amber = "#F0A83A";
+    const cyan = "#7CC8E6";
+    const alert = "#FF8D72";
+    const speedDefs = [
+      { value: "0", label: "II", aria: "Pause" },
+      { value: "1", label: "1×", aria: "Real time" },
+      { value: "10", label: "10×", aria: "Ten times" },
+      { value: "60", label: "60×", aria: "Sixty times" },
+      { value: "600", label: "600×", aria: "Six hundred times" }
+    ];
+    const speeds = speedDefs.map((s) => {
+      const on = this.state.speed === s.value;
+      return {
+        label: s.label,
+        aria: s.aria,
+        pressed: on ? "true" : "false",
+        bg: on ? amber : "transparent",
+        fg: on ? "#0E1113" : "#E8EAE7",
+        pick: () => this.setState({ speed: s.value })
+      };
+    });
+    const notes = {
+      "0": "Paused — nothing moves until you resume",
+      "1": "Running at real time — one minute per minute",
+      "10": "Running 10× — a watch passes in 24 minutes",
+      "60": "Running 60× — one ship hour per minute",
+      "600": "Running 600× — a day in 2.4 minutes"
+    };
+    const people = {
+      M: { initial: "M", dot: cyan },
+      T: { initial: "T", dot: cyan },
+      L: { initial: "L", dot: "#8C969C" },
+      I: { initial: "I", dot: cyan },
+      A: { initial: "A", dot: amber },
+      Y: { initial: "★", dot: "#E8EAE7" }
+    };
+    const crew = [
+      { initial: "★", name: "You", role: "Master", doing: "On the bridge", where: "Bow · Bridge", obs: "Awake 3 h", seen: "—", dot: "#E8EAE7", flag: false },
+      { initial: "M", name: "Mara", role: "Chief engineer", doing: "Rebuilding coolant pump B seal", where: "Reactor room 2", obs: "Looks tired · awake 15 h", seen: "Seen 4 min ago · camera", dot: cyan, flag: false, warn: true },
+      { initial: "T", name: "Teo", role: "Drive & structure", doing: "Inspecting strut 14 — your order #212", where: "Spine junction C", obs: "Steady", seen: "Live · suit telemetry", dot: cyan, flag: false },
+      { initial: "I", name: "Iona", role: "Navigator", doing: "Plotting the correction burn", where: "Bow · Navigation", obs: "Asked for a word with you", seen: "Seen 1 min ago · in person", dot: cyan, flag: false },
+      { initial: "L", name: "Lin", role: "Life support & medic", doing: "Off watch — asleep", where: "Habitat ring · Quarters", obs: "Back on watch at 12:00", seen: "Door log 5 h ago", dot: "#8C969C", flag: false },
+      { initial: "A", name: "Ari", role: "Cargo & fabrication", doing: "Last said: checking Hold 3 cooling", where: "Hold 3 (last known)", obs: "No report for 52 min", seen: "Spoke 52 min ago · intercom", dot: amber, flag: true }
+    ].map((c) => ({
+      ...c,
+      border: c.flag ? amber : "#2B3237",
+      obsColor: c.flag ? amber : (c.warn ? "#E8C79A" : "#A3ACB1")
+    }));
+    const quiet = "#1C2125";
+    const work = "#11262F";
+    const hot = "#3A2A12";
+    const sec = (name, sub, grow, basis, h, state, ppl) => ({
+      name, sub, grow, basis, h,
+      aria: name + ", " + sub,
+      bg: state === "hot" ? hot : (state === "work" ? work : quiet),
+      border: state === "hot" ? amber : (state === "work" ? cyan : (state === "unknown" ? "#8C969C" : "#2B3237")),
+      subColor: state === "hot" ? "#FFC56B" : "#A3ACB1",
+      people: ppl.map((k) => people[k])
+    });
+    const sections = [
+      sec("Bridge", "Navigation · comms", 1, 92, 120, "work", ["Y", "I"]),
+      sec("Habitat ring", "Spinning · 0.38 g", 1.6, 140, 210, "quiet", ["L"]),
+      sec("Spine A–C", "Strut 14 inspection", 1.2, 104, 84, "work", ["T"]),
+      sec("Hold 1", "Reactor parts", 1, 80, 150, "quiet", []),
+      sec("Hold 2", "Reactor parts", 1, 80, 150, "quiet", []),
+      sec("Hold 3", "Cultures · +3.1 °C/h", 1, 92, 150, "hot", ["A"]),
+      sec("Hold 4", "Mixed freight", 1, 80, 150, "quiet", []),
+      sec("Reactor", "Pump B rebuild", 1.2, 100, 130, "work", ["M"]),
+      sec("Drive", "Cold · burn in 6 h", 1, 84, 104, "quiet", [])
+    ];
+    const glance = [
+      { label: "Power", value: "412 / 460 kW", note: "Margin 48 kW · instrument", color: "#E8EAE7" },
+      { label: "Cabin oxygen", value: "21.1 kPa", note: "Target 21.0 · instrument", color: "#E8EAE7" },
+      { label: "Hold 3 temperature", value: "8.2 °C", note: "Limit 8.0 · sensor disputed", color: amber },
+      { label: "Reaction mass", value: "61 %", note: "Margin to Callisto 9 %", color: "#E8EAE7" },
+      { label: "Food", value: "188 days", note: "At full rations", color: "#E8EAE7" },
+      { label: "Spares, critical", value: "2 short", note: "Pump seals · filters", color: amber }
+    ];
+    const kc = { ORDER: amber, DONE: cyan, SAID: "#D7B8F0", READING: "#A3ACB1", WATCH: "#A3ACB1" };
+    const log = [
+      { t: "07:40", kind: "ORDER", text: "Teo started your order #212: inspect strut 14." },
+      { t: "07:31", kind: "WATCH", text: "Mara passed 15 hours awake. Rest becomes mandatory at 16." },
+      { t: "07:12", kind: "SAID", text: "Mara: “The seal’s weeping, not leaking. Yet.”" },
+      { t: "06:55", kind: "READING", text: "Hold 3 temperature 8.2 °C, up 0.4 °C in 8 min." },
+      { t: "06:50", kind: "SAID", text: "Ari: “Going to look at the Hold 3 chiller. Back in twenty.”" },
+      { t: "06:20", kind: "DONE", text: "Mara replaced CO₂ scrubber cartridge 3. Receipt logged." }
+    ].map((l) => ({ ...l, kindColor: kc[l.kind] }));
+    const defs = [
+      { id: "burn", who: "Iona · Navigator", due: "Window in 6 h", urgent: false,
+        text: "Correction burn: 14 minutes at 0.02 g. Everyone strapped in, the ring spun down. Approve the plan?",
+        options: [["Approve", "Approved — Iona is briefing the crew."], ["Delay a day", "Delayed — Iona is re-plotting for tomorrow’s window."], ["Ask why", "Iona is on her way to explain."]] },
+      { id: "pump", who: "Mara · Chief engineer", due: "Asked 20 min ago", urgent: false,
+        text: "The seal is worse than logged. I want Loop B at 70 % for nine hours while I rebuild it. Fabrication goes offline.",
+        options: [["Approve", "Approved — Mara is throttling Loop B."], ["Deny", "Denied — Mara will keep patching. She is not pleased."], ["Talk first", "Mara will come up when she reaches a stopping point."]] },
+      { id: "hold3", who: "Ship · Hold 3", due: "Now", urgent: true,
+        text: "The Hold 3 sensor reads 8.2 °C and rising. Ari went to check it 52 minutes ago and hasn’t reported.",
+        options: [["Call Ari", "Calling Ari on the intercom…"], ["Send Teo", "Teo is leaving strut 14 for Hold 3."], ["Wake Lin", "Waking Lin — she will be there in 9 min."]] }
+    ];
+    const v = this.state.verdicts;
+    const decisions = defs.map((d) => {
+      const outcome = v[d.id];
+      const open = !outcome;
+      return {
+        who: d.who,
+        due: d.due,
+        text: d.text,
+        dueColor: d.urgent ? alert : "#8C969C",
+        border: d.urgent && open ? alert : "#2B3237",
+        open,
+        closed: !open,
+        outcome: outcome || "",
+        undo: () => { const n = { ...this.state.verdicts }; delete n[d.id]; this.setState({ verdicts: n }); },
+        options: d.options.map(([label, result], i) => ({
+          label,
+          border: i === 0 ? amber : "#3A4248",
+          bg: i === 0 ? amber : "transparent",
+          fg: i === 0 ? "#0E1113" : "#E8EAE7",
+          pick: () => this.setState({ verdicts: { ...this.state.verdicts, [d.id]: result } })
+        }))
+      };
+    });
+    const openCount = decisions.filter((d) => d.open).length;
+    return { speeds, speedNote: notes[this.state.speed], crew, sections, glance, log, decisions, openCount };
+  }
+}
+</script>
+</body>
+</html>

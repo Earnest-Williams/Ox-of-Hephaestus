@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Give an order</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans+Condensed:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E1113}
+a{color:#F0A83A}a:hover{color:#FFC56B}
+button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid #F0A83A;outline-offset:2px}
+input[type=range]{accent-color:#F0A83A}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0E1113; color: #E8EAE7; font-family: 'IBM Plex Sans Condensed', system-ui, sans-serif; font-size: 15px; line-height: 1.4">
+
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 28px; padding: 12px 24px; border-bottom: 1px solid #2B3237; background: #12161A">
+    <div style="display: flex; flex-direction: column; gap: 2px; margin-right: auto">
+      <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.12em; color: #A3ACB1">OX OF HEPHAESTUS · MASTER'S STATION</span>
+      <span style="font-size: 20px; font-weight: 600">Day 41 · 07:42 ship time</span>
+    </div>
+    <span style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid #2B3237; border-radius: 8px; font-size: 14px; color: #E8EAE7"><span aria-hidden="true" style="font: 600 13px 'IBM Plex Mono', monospace; color: #F0A83A">II</span>Paused while you write an order</span>
+    <nav aria-label="Stations" style="display: flex; flex-wrap: wrap; gap: 2px">
+      <a href="Main.dc.html" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; color: #E8EAE7">Bridge</a>
+      <a href="Orders.dc.html" aria-current="page" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; font-weight: 600; color: #0E1113; background: #F0A83A">Orders</a>
+      <a href="Ship.dc.html" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; color: #E8EAE7">Ship</a>
+      <a href="Crew.dc.html" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; color: #E8EAE7">Crew</a>
+      <a href="Rota.dc.html" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; color: #E8EAE7">Rota</a>
+      <a href="Voyage.dc.html" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; color: #E8EAE7">Voyage</a>
+    </nav>
+  </header>
+
+  <main style="display: flex; flex-wrap: wrap; gap: 20px; padding: 20px 24px 40px; align-items: flex-start; max-width: 1440px; box-sizing: border-box">
+
+    <form aria-labelledby="ord-h" style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 22px; padding: 22px; border: 1px solid #2B3237; border-radius: 12px; background: #161A1D">
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <h1 id="ord-h" style="margin: 0; font-size: 26px; font-weight: 600">New order</h1>
+        <p style="margin: 0; color: #A3ACB1">Say who, what and why, and how much room they have to decide. They do the work; you live with how they read it.</p>
+      </div>
+
+      <fieldset style="border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px">
+        <legend style="padding: 0 0 8px; font-size: 13px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #A3ACB1">To</legend>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap">
+          <sc-for list="{{people}}" as="p" hint-placeholder-count="6">
+            <button type="button" onClick="{{p.pick}}" aria-pressed="{{p.pressed}}" style="min-height: 44px; padding: 0 14px; border-radius: 22px; cursor: pointer; font: 500 15px 'IBM Plex Sans Condensed', sans-serif; border: 1px solid {{p.border}}; background: {{p.bg}}; color: {{p.fg}}">{{p.label}}</button>
+          </sc-for>
+        </div>
+      </fieldset>
+
+      <fieldset style="border: 0; margin: 0; padding: 0">
+        <legend style="padding: 0 0 8px; font-size: 13px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #A3ACB1">Do</legend>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px">
+          <sc-for list="{{tasks}}" as="t" hint-placeholder-count="8">
+            <button type="button" onClick="{{t.pick}}" aria-pressed="{{t.pressed}}" style="min-height: 56px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; padding: 8px 12px; border-radius: 8px; cursor: pointer; text-align: left; font-family: inherit; border: 1px solid {{t.border}}; background: {{t.bg}}; color: #E8EAE7">
+              <span style="font-size: 15px; font-weight: 600">{{t.label}}</span>
+              <span style="font-size: 12px; color: #A3ACB1">{{t.hint}}</span>
+            </button>
+          </sc-for>
+        </div>
+      </fieldset>
+
+      <div style="display: flex; gap: 16px; flex-wrap: wrap">
+        <label style="flex: 1 1 280px; display: flex; flex-direction: column; gap: 6px">
+          <span style="font-size: 13px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #A3ACB1">Where, or on what</span>
+          <input type="text" value="Hold 3 — chiller and temperature sensors" readOnly="{{ true }}" style="min-height: 44px; padding: 0 12px; border: 1px solid #3A4248; border-radius: 8px; background: #0E1113; color: #E8EAE7; font: 400 15px 'IBM Plex Sans Condensed', sans-serif">
+        </label>
+        <label style="flex: 1 1 200px; display: flex; flex-direction: column; gap: 6px">
+          <span style="font-size: 13px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #A3ACB1">Done by</span>
+          <input type="text" value="10:00 ship time" readOnly="{{ true }}" style="min-height: 44px; padding: 0 12px; border: 1px solid #3A4248; border-radius: 8px; background: #0E1113; color: #E8EAE7; font: 400 15px 'IBM Plex Mono', monospace">
+        </label>
+      </div>
+
+      <label style="display: flex; flex-direction: column; gap: 6px">
+        <span style="font-size: 13px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #A3ACB1">Why — they will be told</span>
+        <textarea rows="2" readOnly="{{ true }}" style="padding: 10px 12px; border: 1px solid #3A4248; border-radius: 8px; background: #0E1113; color: #E8EAE7; font: 400 15px 'IBM Plex Sans Condensed', sans-serif; resize: vertical">The sensor and Ari disagree, and Ari has gone quiet. The cultures spoil above 8 °C. Find out what is really happening.</textarea>
+      </label>
+
+      <fieldset style="border: 0; margin: 0; padding: 0">
+        <legend style="padding: 0 0 8px; font-size: 13px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #A3ACB1">Priority</legend>
+        <div style="display: flex; gap: 2px; padding: 3px; border: 1px solid #2B3237; border-radius: 10px; background: #0E1113; flex-wrap: wrap">
+          <sc-for list="{{priorities}}" as="p" hint-placeholder-count="4">
+            <button type="button" onClick="{{p.pick}}" aria-pressed="{{p.pressed}}" style="flex: 1 1 120px; min-height: 44px; border: 0; border-radius: 8px; cursor: pointer; font: 500 15px 'IBM Plex Sans Condensed', sans-serif; background: {{p.bg}}; color: {{p.fg}}">{{p.label}}</button>
+          </sc-for>
+        </div>
+      </fieldset>
+
+      <div style="display: flex; gap: 24px; flex-wrap: wrap">
+        <div style="flex: 1 1 300px; display: flex; flex-direction: column; gap: 8px">
+          <label for="lat" style="display: flex; justify-content: space-between; gap: 8px; align-items: baseline">
+            <span style="font-size: 13px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #A3ACB1">Latitude</span>
+            <span style="font-size: 16px; font-weight: 600; color: #F0A83A">{{latLabel}}</span>
+          </label>
+          <input id="lat" type="range" min="0" max="4" step="1" value="{{latitude}}" onChange="{{setLat}}" style="width: 100%; height: 32px">
+          <div style="display: flex; justify-content: space-between; font-size: 12px; color: #8C969C"><span>Exactly as written</span><span>Your call</span></div>
+          <p style="margin: 0; font-size: 14px; color: #A3ACB1">{{latNote}}</p>
+        </div>
+        <div style="flex: 1 1 300px; display: flex; flex-direction: column; gap: 8px">
+          <label for="risk" style="display: flex; justify-content: space-between; gap: 8px; align-items: baseline">
+            <span style="font-size: 13px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #A3ACB1">Personal risk allowed</span>
+            <span style="font-size: 16px; font-weight: 600; color: {{riskColor}}">{{riskLabel}}</span>
+          </label>
+          <input id="risk" type="range" min="0" max="3" step="1" value="{{risk}}" onChange="{{setRisk}}" style="width: 100%; height: 32px">
+          <div style="display: flex; justify-content: space-between; font-size: 12px; color: #8C969C"><span>None</span><span>High</span></div>
+          <p style="margin: 0; font-size: 14px; color: #A3ACB1">{{riskNote}}</p>
+        </div>
+      </div>
+
+      <fieldset style="border: 0; margin: 0; padding: 0">
+        <legend style="padding: 0 0 8px; font-size: 13px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #A3ACB1">Report back when</legend>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap">
+          <sc-for list="{{reports}}" as="r" hint-placeholder-count="5">
+            <button type="button" onClick="{{r.pick}}" aria-pressed="{{r.pressed}}" style="min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 14px; border-radius: 8px; cursor: pointer; font: 400 15px 'IBM Plex Sans Condensed', sans-serif; border: 1px solid {{r.border}}; background: transparent; color: #E8EAE7">
+              <span aria-hidden="true" style="width: 16px; height: 16px; border-radius: 4px; border: 1px solid {{r.border}}; background: {{r.box}}"></span>{{r.label}}
+            </button>
+          </sc-for>
+        </div>
+      </fieldset>
+
+      <div style="display: flex; gap: 10px; flex-wrap: wrap; padding-top: 6px; border-top: 1px solid #22282C">
+        <button type="button" style="min-height: 48px; padding: 0 22px; border: 0; border-radius: 8px; background: #F0A83A; color: #0E1113; font: 600 16px 'IBM Plex Sans Condensed', sans-serif; cursor: pointer">Give the order</button>
+        <button type="button" style="min-height: 48px; padding: 0 18px; border: 1px solid #3A4248; border-radius: 8px; background: transparent; color: #E8EAE7; font: 500 16px 'IBM Plex Sans Condensed', sans-serif; cursor: pointer">Make it a standing order</button>
+        <a href="Main.dc.html" style="min-height: 48px; display: inline-flex; align-items: center; padding: 0 12px; color: #A3ACB1">Cancel</a>
+      </div>
+    </form>
+
+    <aside aria-labelledby="land-h" style="flex: 1 1 360px; max-width: 480px; min-width: 0; display: flex; flex-direction: column; gap: 14px">
+      <h2 id="land-h" style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #A3ACB1">How it will land</h2>
+      <div style="display: flex; flex-direction: column; gap: 12px; padding: 18px; border: 1px solid #2B3237; border-radius: 12px; background: #161A1D">
+        <div style="display: flex; gap: 12px; align-items: center">
+          <span aria-hidden="true" style="width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font: 600 18px 'IBM Plex Mono', monospace; background: #7CC8E6; color: #0E1113">{{who.initial}}</span>
+          <span style="display: flex; flex-direction: column">
+            <span style="font-size: 18px; font-weight: 600">{{who.name}}</span>
+            <span style="font-size: 13px; color: #A3ACB1">{{who.role}}</span>
+          </span>
+        </div>
+        <blockquote style="margin: 0; padding: 12px 14px; border-radius: 8px; background: #0E1113; font-size: 17px; line-height: 1.45">{{reply}}</blockquote>
+        <dl style="margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 8px 14px; font-size: 14px">
+          <dt style="color: #8C969C">Starts</dt><dd style="margin: 0">{{who.start}}</dd>
+          <dt style="color: #8C969C">Interrupts</dt><dd style="margin: 0">{{who.interrupts}}</dd>
+          <dt style="color: #8C969C">Skill on record</dt><dd style="margin: 0">{{who.skill}}</dd>
+          <dt style="color: #8C969C">Condition</dt><dd style="margin: 0">{{who.condition}}</dd>
+        </dl>
+      </div>
+      <sc-for list="{{warnings}}" as="w" hint-placeholder-count="1">
+        <p style="margin: 0; padding: 12px 14px; border: 1px solid #F0A83A; border-radius: 10px; background: #2A2014; font-size: 14px; color: #F5D9A8">{{w.text}}</p>
+      </sc-for>
+      <p style="margin: 0; font-size: 13px; color: #8C969C">This is a forecast from what you know about them, not a promise. Their own mind decides.</p>
+    </aside>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1060}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { who: "teo", task: "investigate", priority: 2, latitude: 2, risk: 1, reports: { blocked: true, found: true, done: true } };
+  }
+  renderVals() {
+    const amber = "#F0A83A";
+    const s = this.state;
+    const roster = {
+      teo: { initial: "T", name: "Teo", role: "Drive & structure", start: "In about 6 minutes — he is at junction C, in a suit", interrupts: "Strut 14 inspection (your order #212). Strut stays tagged.", skill: "Thermal loops — apprentice, 4 assessed jobs", condition: "Awake 6 h · steady", voice: ["Hold 3. Find out which is right, report before I touch anything. Understood.", "On it. I’ll sort out what’s wrong in Hold 3 and tell you what I changed.", "Hold 3’s mine. I’ll do what it needs and tell you after."] },
+      mara: { initial: "M", name: "Mara", role: "Chief engineer", start: "In about 12 minutes — she must make the pump seal safe first", interrupts: "Coolant pump B rebuild, half done", skill: "Thermal loops — journeyman, 31 assessed jobs", condition: "Awake 15 h · looks tired", voice: ["Fine. Seal first, ten minutes, then Hold 3, by the book.", "I’ll go. If it’s the chiller I’ll fix it; if it’s the sensor I’ll leave it and tell you.", "Leave it with me. Though Loop B won’t rebuild itself."] },
+      iona: { initial: "I", name: "Iona", role: "Navigator", start: "In about 3 minutes", interrupts: "Correction burn plot — window in 6 h, still reachable", skill: "Thermal loops — apprentice, 2 assessed jobs", condition: "Awake 4 h · wants a word with you", voice: ["Understood. I’ll check and report before acting. The burn plot will wait.", "I’ll go look. If it’s simple I’ll fix it; the plot can slip an hour.", "Going. I’ll decide when I see it and tell you."] },
+      lin: { initial: "L", name: "Lin", role: "Life support & medic", start: "In about 9 minutes — she has to be woken", interrupts: "Sleep, 5 h of 8. She will be slower at her noon watch.", skill: "Thermal loops — none logged · Medicine — master", condition: "Asleep", voice: ["…Hold 3. Yes. Give me ten minutes to wake up properly.", "I’ll go. Don’t expect a chiller expert, but I’ll find Ari.", "I’ll handle it. If Ari’s hurt, that comes first — I won’t ask."] },
+      ari: { initial: "A", name: "Ari", role: "Cargo & fabrication", start: "Unknown — not answering the intercom", interrupts: "Unknown", skill: "Thermal loops — journeyman, 18 assessed jobs", condition: "No report for 52 min", voice: ["(No answer on the intercom.)", "(No answer on the intercom.)", "(No answer on the intercom.)"] },
+      any: { initial: "?", name: "Whoever is free", role: "The ship picks: Teo is nearest with free hands", start: "In about 6 minutes", interrupts: "Strut 14 inspection", skill: "Thermal loops — apprentice", condition: "Awake 6 h · steady", voice: ["Teo: “Hold 3, by the book. Understood.”", "Teo: “On it. I’ll tell you what I changed.”", "Teo: “Hold 3’s mine.”"] }
+    };
+    const order = [["teo", "Teo"], ["mara", "Mara"], ["iona", "Iona"], ["lin", "Lin"], ["ari", "Ari"], ["any", "Whoever is free"]];
+    const people = order.map(([id, label]) => {
+      const on = s.who === id;
+      return { label, pressed: on ? "true" : "false", border: on ? amber : "#3A4248", bg: on ? amber : "transparent", fg: on ? "#0E1113" : "#E8EAE7", pick: () => this.setState({ who: id }) };
+    });
+    const taskDefs = [["investigate", "Investigate", "Find out what is true"], ["inspect", "Inspect", "Look, touch nothing"], ["repair", "Repair", "Fix a known fault"], ["move", "Move cargo", "Shift, secure, vent"], ["fabricate", "Fabricate", "Make a part"], ["teach", "Teach", "Pair with someone"], ["watch", "Stand watch", "Mind a station"], ["rest", "Rest", "Stand down"]];
+    const tasks = taskDefs.map(([id, label, hint]) => {
+      const on = s.task === id;
+      return { label, hint, pressed: on ? "true" : "false", border: on ? amber : "#3A4248", bg: on ? "#2A2014" : "transparent", pick: () => this.setState({ task: id }) };
+    });
+    const prioDefs = ["Routine", "Today", "Now", "Drop everything"];
+    const priorities = prioDefs.map((label, i) => {
+      const on = s.priority === i;
+      return { label, pressed: on ? "true" : "false", bg: on ? amber : "transparent", fg: on ? "#0E1113" : "#E8EAE7", pick: () => this.setState({ priority: i }) };
+    });
+    const latLabels = ["Exactly as written", "Ask before changing anything", "Use judgement, report changes", "Your call", "Whatever it takes"];
+    const latNotes = [
+      "They follow your method to the letter. Any surprise comes back to you as a question, and the work waits.",
+      "They may suggest a better way but will not act on it without your yes.",
+      "They adapt to what they find and tell you what they changed and why.",
+      "They own the outcome. You hear about it when it is done, or if it goes wrong.",
+      "They may break other orders, rules or equipment to get it done. Use rarely."
+    ];
+    const riskLabels = ["None", "Low", "Moderate", "High"];
+    const riskNotes = [
+      "They stop and call you before anything that could hurt them.",
+      "Routine hazards are fine; anything worse, they stop and call.",
+      "They may enter a bad atmosphere in a suit, or work near live systems.",
+      "They will put the ship before themselves — and remember that you asked."
+    ];
+    const reportDefs = [["started", "Started"], ["blocked", "Blocked"], ["found", "Found something"], ["done", "Done"], ["half", "Every 30 min"]];
+    const reports = reportDefs.map(([id, label]) => {
+      const on = !!s.reports[id];
+      return { label, pressed: on ? "true" : "false", border: on ? amber : "#3A4248", box: on ? amber : "transparent", pick: () => this.setState({ reports: { ...s.reports, [id]: !on } }) };
+    });
+    const who = roster[s.who];
+    const band = s.latitude <= 1 ? 0 : (s.latitude === 2 ? 1 : 2);
+    const warnings = [];
+    if (s.who === "ari") warnings.push({ text: "Ari has not answered for 52 minutes. This order may never arrive. Consider sending someone to find Ari first." });
+    if (s.who === "mara" && s.priority >= 2) warnings.push({ text: "Mara may push back: she has been awake 15 hours and the pump job is half done." });
+    if (s.who === "lin") warnings.push({ text: "Waking Lin early costs her rest. Expect her to be slower and shorter-tempered at noon." });
+    if (s.risk === 3) warnings.push({ text: "High personal risk is something the crew will remember you asked for." });
+    if (s.latitude === 4 && s.priority === 3) warnings.push({ text: "Whatever it takes, dropping everything: they may override safety interlocks." });
+    return {
+      people, tasks, priorities, reports, who, warnings,
+      reply: who.voice[band],
+      latitude: s.latitude,
+      latLabel: latLabels[s.latitude],
+      latNote: latNotes[s.latitude],
+      setLat: (e) => this.setState({ latitude: Number(e.target.value) }),
+      risk: s.risk,
+      riskLabel: riskLabels[s.risk],
+      riskNote: riskNotes[s.risk],
+      riskColor: s.risk >= 2 ? "#FF8D72" : amber,
+      setRisk: (e) => this.setState({ risk: Number(e.target.value) })
+    };
+  }
+}
+</script>
+</body>
+</html>

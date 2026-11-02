@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Watch rota and standing orders</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans+Condensed:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E1113}
+a{color:#F0A83A}a:hover{color:#FFC56B}
+button:focus-visible,a:focus-visible{outline:2px solid #F0A83A;outline-offset:2px}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0E1113; color: #E8EAE7; font-family: 'IBM Plex Sans Condensed', system-ui, sans-serif; font-size: 15px; line-height: 1.4">
+
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 28px; padding: 12px 24px; border-bottom: 1px solid #2B3237; background: #12161A">
+    <div style="display: flex; flex-direction: column; gap: 2px; margin-right: auto">
+      <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.12em; color: #A3ACB1">OX OF HEPHAESTUS · MASTER'S STATION</span>
+      <span style="font-size: 20px; font-weight: 600">Day 41 · 07:44 ship time</span>
+    </div>
+    <span style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid #2B3237; border-radius: 8px; font-size: 14px"><span aria-hidden="true" style="font: 600 13px 'IBM Plex Mono', monospace; color: #7CC8E6">60×</span>Running</span>
+    <nav aria-label="Stations" style="display: flex; flex-wrap: wrap; gap: 2px">
+      <a href="Main.dc.html" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; color: #E8EAE7">Bridge</a>
+      <a href="Orders.dc.html" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; color: #E8EAE7">Orders</a>
+      <a href="Ship.dc.html" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; color: #E8EAE7">Ship</a>
+      <a href="Crew.dc.html" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; color: #E8EAE7">Crew</a>
+      <a href="Rota.dc.html" aria-current="page" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; font-weight: 600; color: #0E1113; background: #F0A83A">Rota</a>
+      <a href="Voyage.dc.html" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; color: #E8EAE7">Voyage</a>
+    </nav>
+  </header>
+
+  <main style="display: flex; flex-direction: column; gap: 20px; padding: 20px 24px 40px; max-width: 1440px; box-sizing: border-box">
+
+    <section aria-labelledby="rota-h" style="display: flex; flex-direction: column; gap: 14px; padding: 22px; border: 1px solid #2B3237; border-radius: 12px; background: #161A1D">
+      <div style="display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: flex-end">
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <h1 id="rota-h" style="margin: 0; font-size: 26px; font-weight: 600">Watch rota</h1>
+          <p style="margin: 0; color: #A3ACB1">Drag a block to change it. The rota is a plan; people drift from it, and the drift is shown.</p>
+        </div>
+        <div style="display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: #A3ACB1">
+          <sc-for list="{{legend}}" as="k" hint-placeholder-count="4">
+            <span style="display: flex; align-items: center; gap: 6px"><span aria-hidden="true" style="width: 14px; height: 14px; border-radius: 3px; background: {{k.bg}}; border: 1px solid {{k.border}}"></span>{{k.label}}</span>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="overflow-x: auto">
+        <div style="min-width: 860px; display: flex; flex-direction: column; gap: 6px">
+          <div style="display: flex; gap: 12px">
+            <span style="flex: 0 0 150px"></span>
+            <div aria-hidden="true" style="flex: 1 1 auto; display: flex; justify-content: space-between; font: 400 12px 'IBM Plex Mono', monospace; color: #8C969C">
+              <span>00</span><span>03</span><span>06</span><span>09</span><span>12</span><span>15</span><span>18</span><span>21</span><span>24</span>
+            </div>
+          </div>
+          <sc-for list="{{rows}}" as="r" hint-placeholder-count="6">
+            <div style="display: flex; gap: 12px; align-items: center">
+              <span style="flex: 0 0 150px; display: flex; flex-direction: column">
+                <span style="font-weight: 600">{{r.name}}</span>
+                <span style="font-size: 12px; color: {{r.noteColor}}">{{r.note}}</span>
+              </span>
+              <div style="flex: 1 1 auto; position: relative; display: flex; height: 40px; border-radius: 6px; overflow: hidden; background: #0E1113">
+                <sc-for list="{{r.segs}}" as="g" hint-placeholder-count="4">
+                  <button type="button" aria-label="{{g.aria}}" style="width: {{g.w}}%; height: 40px; border: 1px solid {{g.border}}; border-radius: 4px; background: {{g.bg}}; color: {{g.fg}}; font: 500 12px 'IBM Plex Sans Condensed', sans-serif; text-align: left; padding: 0 6px; overflow: hidden; white-space: nowrap; cursor: grab">{{g.label}}</button>
+                </sc-for>
+                <span aria-hidden="true" style="position: absolute; left: 32.2%; top: 0; bottom: 0; width: 2px; background: #E8EAE7"></span>
+              </div>
+            </div>
+          </sc-for>
+          <div style="display: flex; gap: 12px; align-items: center; margin-top: 6px">
+            <span style="flex: 0 0 150px; font-size: 13px; font-weight: 600; color: #A3ACB1">On watch, by hour</span>
+            <div style="flex: 1 1 auto; display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); gap: 2px">
+              <sc-for list="{{coverage}}" as="c" hint-placeholder-count="24">
+                <span title="{{c.title}}" style="height: 26px; border-radius: 3px; display: flex; align-items: center; justify-content: center; font: 500 12px 'IBM Plex Mono', monospace; background: {{c.bg}}; color: {{c.fg}}">{{c.n}}</span>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p style="margin: 0; padding: 10px 14px; border: 1px solid #FF8D72; border-radius: 8px; background: #2A1814; color: #FFC2B3; font-size: 14px">Nobody is on watch 02:00–04:00. The ship runs on alarms alone for two hours a night.</p>
+    </section>
+
+    <div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start">
+      <section aria-labelledby="so-h" style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 4px; padding: 20px; border: 1px solid #2B3237; border-radius: 12px; background: #161A1D">
+        <h2 id="so-h" style="margin: 0 0 6px; font-size: 13px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #A3ACB1">Standing orders — the rules of your ship</h2>
+        <sc-for list="{{standing}}" as="s" hint-placeholder-count="6">
+          <div style="display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; border-top: 1px solid #22282C; align-items: center">
+            <span style="display: flex; flex-direction: column; gap: 2px">
+              <span>{{s.label}}</span>
+              <span style="font-size: 13px; color: #8C969C">{{s.effect}}</span>
+            </span>
+            <button type="button" role="switch" aria-checked="{{s.checked}}" aria-label="{{s.label}}" onClick="{{s.toggle}}" style="flex: 0 0 auto; width: 56px; height: 32px; border-radius: 16px; border: 1px solid {{s.border}}; background: {{s.track}}; padding: 3px; display: flex; justify-content: {{s.justify}}; cursor: pointer">
+              <span aria-hidden="true" style="width: 24px; height: 24px; border-radius: 50%; background: {{s.knob}}"></span>
+            </button>
+          </div>
+        </sc-for>
+      </section>
+
+      <section aria-labelledby="ap-h" style="flex: 1 1 360px; max-width: 480px; min-width: 0; display: flex; flex-direction: column; gap: 4px; padding: 20px; border: 1px solid #2B3237; border-radius: 12px; background: #161A1D">
+        <h2 id="ap-h" style="margin: 0 0 6px; font-size: 13px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #A3ACB1">Stop the clock when…</h2>
+        <sc-for list="{{pauses}}" as="s" hint-placeholder-count="6">
+          <div style="display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; border-top: 1px solid #22282C; align-items: center">
+            <span>{{s.label}}</span>
+            <button type="button" role="switch" aria-checked="{{s.checked}}" aria-label="{{s.label}}" onClick="{{s.toggle}}" style="flex: 0 0 auto; width: 56px; height: 32px; border-radius: 16px; border: 1px solid {{s.border}}; background: {{s.track}}; padding: 3px; display: flex; justify-content: {{s.justify}}; cursor: pointer">
+              <span aria-hidden="true" style="width: 24px; height: 24px; border-radius: 50%; background: {{s.knob}}"></span>
+            </button>
+          </div>
+        </sc-for>
+        <p style="margin: 8px 0 0; font-size: 13px; color: #8C969C">Applies when you run time faster than real time.</p>
+      </section>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = {
+      on: { seal: true, wake: true, refuse: true, rest: true, mara: false, risk: true },
+      pause: { alarm: true, urgent: true, burn: true, missing: true, blocked: false, refused: true }
+    };
+  }
+  renderVals() {
+    const amber = "#F0A83A";
+    const styles = {
+      watch: { bg: "#3A2A12", border: amber, fg: "#FFD9A0", label: "Watch" },
+      work: { bg: "#11262F", border: "#4F8FA8", fg: "#BFE6F5", label: "Work" },
+      off: { bg: "#1C2125", border: "#2B3237", fg: "#A3ACB1", label: "Off" },
+      sleep: { bg: "#0E1113", border: "#22282C", fg: "#8C969C", label: "Sleep" },
+      skipped: { bg: "#0E1113", border: "#FF8D72", fg: "#FFC2B3", label: "Sleep — skipped" }
+    };
+    const plan = [
+      ["You", "Master · on call all day", "#A3ACB1", [[0, 6, "sleep"], [6, 22, "work"], [22, 24, "off"]]],
+      ["Mara", "Missed her sleep block", "#FF8D72", [[0, 8, "skipped"], [8, 16, "work"], [16, 20, "watch"], [20, 24, "off"]]],
+      ["Teo", "On plan", "#A3ACB1", [[0, 6, "sleep"], [6, 14, "work"], [14, 18, "off"], [18, 22, "work"], [22, 24, "sleep"]]],
+      ["Iona", "On plan", "#A3ACB1", [[0, 4, "sleep"], [4, 12, "watch"], [12, 16, "work"], [16, 20, "off"], [20, 24, "sleep"]]],
+      ["Lin", "On plan", "#A3ACB1", [[0, 2, "watch"], [2, 10, "sleep"], [10, 12, "off"], [12, 16, "watch"], [16, 20, "work"], [20, 24, "watch"]]],
+      ["Ari", "Whereabouts unknown", amber, [[0, 4, "sleep"], [4, 6, "off"], [6, 16, "work"], [16, 20, "off"], [20, 24, "sleep"]]]
+    ];
+    const pad = (h) => (h < 10 ? "0" : "") + h + ":00";
+    const rows = plan.map(([name, note, noteColor, segs]) => ({
+      name, note, noteColor,
+      segs: segs.map(([a, b, k]) => ({
+        w: ((b - a) / 24 * 100).toFixed(3),
+        bg: styles[k].bg, border: styles[k].border, fg: styles[k].fg,
+        label: (b - a) >= 2 ? styles[k].label : "",
+        aria: name + ": " + styles[k].label + " " + pad(a) + " to " + pad(b)
+      }))
+    }));
+    const coverage = [];
+    for (let h = 0; h < 24; h++) {
+      let n = 0;
+      plan.forEach((p) => p[3].forEach(([a, b, k]) => { if (k === "watch" && h >= a && h < b) n++; }));
+      coverage.push({
+        n, title: pad(h) + " — " + n + " on watch",
+        bg: n === 0 ? "#3A1C16" : (n === 1 ? "#1C2125" : "#11262F"),
+        fg: n === 0 ? "#FFC2B3" : "#E8EAE7"
+      });
+    }
+    const legend = [styles.watch, styles.work, styles.off, styles.sleep];
+    const sw = (on) => ({
+      checked: on ? "true" : "false",
+      track: on ? amber : "#0E1113",
+      border: on ? amber : "#5B646A",
+      knob: on ? "#0E1113" : "#8C969C",
+      justify: on ? "flex-end" : "flex-start"
+    });
+    const soDefs = [
+      ["seal", "Anyone may seal a bulkhead without asking", "Faster in a breach. Someone may be sealed on the wrong side."],
+      ["wake", "Wake me for fire, breach, injury or a refused order", "You lose sleep; your judgement suffers if it happens often."],
+      ["refuse", "Crew may refuse an order they judge unsafe — and must say why", "Fewer accidents. Some refusals you will disagree with."],
+      ["rest", "Rest is mandatory after 16 hours awake", "Mara hits this in 40 minutes."],
+      ["mara", "While I sleep, Mara decides in my place", "Requests stop waiting for you. Her calls, not yours."],
+      ["risk", "Log every decision that puts someone at risk", "Every such call is reviewed with you at the next handover."]
+    ];
+    const standing = soDefs.map(([id, label, effect]) => ({
+      label, effect, ...sw(this.state.on[id]),
+      toggle: () => this.setState({ on: { ...this.state.on, [id]: !this.state.on[id] } })
+    }));
+    const apDefs = [["alarm", "Any alarm"], ["urgent", "A crew request marked urgent"], ["burn", "A burn window opens"], ["missing", "Someone unaccounted for over 30 min"], ["blocked", "Any order is blocked"], ["refused", "An order is refused"]];
+    const pauses = apDefs.map(([id, label]) => ({
+      label, ...sw(this.state.pause[id]),
+      toggle: () => this.setState({ pause: { ...this.state.pause, [id]: !this.state.pause[id] } })
+    }));
+    return { rows, coverage, legend, standing, pauses };
+  }
+}
+</script>
+</body>
+</html>

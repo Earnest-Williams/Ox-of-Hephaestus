@@ -1,0 +1,20 @@
+{
+  "v": 3,
+  "createdOnFiles": {"v": 1, "at": "2026-11-02T12:05:00Z"},
+  "title": "Ox Captain's Interface",
+  "launch": {"view": "canvas"},
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {"x": 0, "y": 0, "w": 1440, "h": 1060, "title": "1 · Bridge — the main play screen", "expand": "fill", "is_interactive": true},
+    "Orders.dc.html": {"x": 1520, "y": 0, "w": 1440, "h": 1060, "title": "2 · Giving an order", "expand": "fill", "is_interactive": true},
+    "Ship.dc.html": {"x": 3040, "y": 0, "w": 1440, "h": 1060, "title": "3 · Ship policy — power, air, rations", "expand": "fill", "is_interactive": true},
+    "Crew.dc.html": {"x": 0, "y": 1180, "w": 1440, "h": 1000, "title": "4 · A crew member, as you know her", "expand": "fill", "is_interactive": true},
+    "Rota.dc.html": {"x": 1520, "y": 1180, "w": 1440, "h": 1000, "title": "5 · Watch rota and standing orders", "expand": "fill", "is_interactive": true},
+    "Voyage.dc.html": {"x": 3040, "y": 1180, "w": 1440, "h": 1000, "title": "6 · Voyage and contract", "expand": "fill", "is_interactive": true}
+  },
+  "order": ["Main.dc.html", "Orders.dc.html", "Ship.dc.html", "Crew.dc.html", "Rota.dc.html", "Voyage.dc.html"],
+  "notes": {
+    "heading": {"x": 0, "y": -300, "text": "Master of the Ox — you command people, not machines", "kind": "title1", "maxW": 4480}
+  },
+  "designSystems": []
+}

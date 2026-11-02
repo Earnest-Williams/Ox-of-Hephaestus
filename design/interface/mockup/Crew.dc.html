@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Crew — Mara</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans+Condensed:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E1113}
+a{color:#F0A83A}a:hover{color:#FFC56B}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid #F0A83A;outline-offset:2px}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0E1113; color: #E8EAE7; font-family: 'IBM Plex Sans Condensed', system-ui, sans-serif; font-size: 15px; line-height: 1.4">
+
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 28px; padding: 12px 24px; border-bottom: 1px solid #2B3237; background: #12161A">
+    <div style="display: flex; flex-direction: column; gap: 2px; margin-right: auto">
+      <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.12em; color: #A3ACB1">OX OF HEPHAESTUS · MASTER'S STATION</span>
+      <span style="font-size: 20px; font-weight: 600">Day 41 · 07:44 ship time</span>
+    </div>
+    <span style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid #2B3237; border-radius: 8px; font-size: 14px"><span aria-hidden="true" style="font: 600 13px 'IBM Plex Mono', monospace; color: #7CC8E6">1×</span>Real time while you talk</span>
+    <nav aria-label="Stations" style="display: flex; flex-wrap: wrap; gap: 2px">
+      <a href="Main.dc.html" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; color: #E8EAE7">Bridge</a>
+      <a href="Orders.dc.html" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; color: #E8EAE7">Orders</a>
+      <a href="Ship.dc.html" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; color: #E8EAE7">Ship</a>
+      <a href="Crew.dc.html" aria-current="page" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; font-weight: 600; color: #0E1113; background: #F0A83A">Crew</a>
+      <a href="Rota.dc.html" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; color: #E8EAE7">Rota</a>
+      <a href="Voyage.dc.html" style="padding: 10px 14px; border-radius: 6px; text-decoration: none; color: #E8EAE7">Voyage</a>
+    </nav>
+  </header>
+
+  <main style="display: flex; flex-wrap: wrap; gap: 20px; padding: 20px 24px 40px; align-items: flex-start; max-width: 1440px; box-sizing: border-box">
+
+    <div style="flex: 1 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 20px">
+      <section aria-labelledby="who-h" style="display: flex; gap: 18px; flex-wrap: wrap; padding: 22px; border: 1px solid #2B3237; border-radius: 12px; background: #161A1D">
+        <div role="img" aria-label="Portrait placeholder" style="flex: 0 0 120px; height: 140px; border: 1px dashed #5B646A; border-radius: 10px; display: flex; align-items: center; justify-content: center; font: 500 13px 'IBM Plex Mono', monospace; color: #A3ACB1">[PORTRAIT]</div>
+        <div style="flex: 1 1 240px; display: flex; flex-direction: column; gap: 6px">
+          <h1 id="who-h" style="margin: 0; font-size: 30px; font-weight: 600">Mara</h1>
+          <span style="color: #A3ACB1">Chief engineer · signed on at Ceres, Day 0 · second voyage with you</span>
+          <span style="margin-top: 6px">Now: <strong style="font-weight: 600">rebuilding coolant pump B seal</strong> in reactor room 2</span>
+          <span style="font-size: 13px; color: #8C969C">Seen 4 min ago on the reactor-room camera</span>
+        </div>
+      </section>
+
+      <section aria-labelledby="see-h" style="display: flex; flex-direction: column; gap: 4px; padding: 20px; border: 1px solid #2B3237; border-radius: 12px; background: #161A1D">
+        <h2 id="see-h" style="margin: 0 0 6px; font-size: 13px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #A3ACB1">What you can tell</h2>
+        <sc-for list="{{observed}}" as="o" hint-placeholder-count="5">
+          <div style="display: flex; justify-content: space-between; gap: 14px; padding: 8px 0; border-top: 1px solid #22282C; flex-wrap: wrap">
+            <span style="color: {{o.color}}">{{o.text}}</span>
+            <span style="font-size: 13px; color: #8C969C">{{o.source}}</span>
+          </div>
+        </sc-for>
+        <p style="margin: 8px 0 0; font-size: 13px; color: #8C969C">No mood meter. You know what you have seen, what the logs show and what others have told you.</p>
+      </section>
+
+      <div style="display: flex; gap: 20px; flex-wrap: wrap">
+        <section aria-labelledby="sk-h" style="flex: 1 1 260px; display: flex; flex-direction: column; gap: 4px; padding: 20px; border: 1px solid #2B3237; border-radius: 12px; background: #161A1D">
+          <h2 id="sk-h" style="margin: 0 0 6px; font-size: 13px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #A3ACB1">Logbook — proven by work</h2>
+          <sc-for list="{{skills}}" as="k" hint-placeholder-count="5">
+            <div style="display: flex; flex-direction: column; gap: 4px; padding: 8px 0; border-top: 1px solid #22282C">
+              <div style="display: flex; justify-content: space-between; gap: 8px">
+                <span>{{k.name}}</span>
+                <span style="font-size: 14px; color: #7CC8E6">{{k.rank}}</span>
+              </div>
+              <div aria-hidden="true" style="height: 4px; border-radius: 2px; background: #0E1113"><div style="width: {{k.pct}}%; height: 4px; border-radius: 2px; background: #4F8FA8"></div></div>
+              <span style="font-size: 12px; color: #8C969C">{{k.detail}}</span>
+            </div>
+          </sc-for>
+        </section>
+
+        <section aria-labelledby="bt-h" style="flex: 1 1 260px; display: flex; flex-direction: column; gap: 4px; padding: 20px; border: 1px solid #2B3237; border-radius: 12px; background: #161A1D">
+          <h2 id="bt-h" style="margin: 0 0 6px; font-size: 13px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #A3ACB1">Between you</h2>
+          <sc-for list="{{history}}" as="h" hint-placeholder-count="4">
+            <div style="display: flex; gap: 12px; padding: 8px 0; border-top: 1px solid #22282C">
+              <span style="flex: 0 0 52px; font: 400 13px 'IBM Plex Mono', monospace; color: #8C969C">{{h.day}}</span>
+              <span style="font-size: 14px">{{h.text}}</span>
+            </div>
+          </sc-for>
+          <p style="margin: 8px 0 0; font-size: 13px; color: #8C969C">She remembers these too — her own way.</p>
+        </section>
+      </div>
+    </div>
+
+    <section aria-labelledby="talk-h" style="flex: 1 1 400px; max-width: 520px; min-width: 0; display: flex; flex-direction: column; gap: 14px; padding: 20px; border: 1px solid #2B3237; border-radius: 12px; background: #161A1D">
+      <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 8px">
+        <h2 id="talk-h" style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #A3ACB1">Talk to her</h2>
+        <span style="font-size: 13px; color: #8C969C">By intercom · she keeps working</span>
+      </div>
+      <ol style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px">
+        <sc-for list="{{transcript}}" as="m" hint-placeholder-count="3">
+          <li style="display: flex; flex-direction: column; gap: 2px; align-self: {{m.align}}; max-width: 88%; padding: 10px 12px; border-radius: 10px; background: {{m.bg}}">
+            <span style="font-size: 12px; color: #A3ACB1">{{m.who}}</span>
+            <span style="font-size: 15px">{{m.text}}</span>
+          </li>
+        </sc-for>
+      </ol>
+      <div style="display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid #22282C">
+        <span style="font-size: 13px; color: #A3ACB1">Say…</span>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap">
+          <sc-for list="{{intents}}" as="i" hint-placeholder-count="6">
+            <button type="button" onClick="{{i.pick}}" disabled="{{i.used}}" style="min-height: 44px; padding: 6px 14px; border-radius: 22px; cursor: pointer; text-align: left; font: 400 15px 'IBM Plex Sans Condensed', sans-serif; border: 1px solid {{i.border}}; background: transparent; color: {{i.fg}}">{{i.label}}</button>
+          </sc-for>
+        </div>
+        <label style="display: flex; flex-direction: column; gap: 6px; margin-top: 4px">
+          <span style="font-size: 13px; color: #A3ACB1">Or in your own words</span>
+          <input type="text" placeholder="Type what you’d say to Mara…" style="min-height: 44px; padding: 0 12px; border: 1px solid #3A4248; border-radius: 8px; background: #0E1113; color: #E8EAE7; font: 400 15px 'IBM Plex Sans Condensed', sans-serif">
+        </label>
+      </div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { said: [] };
+  }
+  renderVals() {
+    const amber = "#F0A83A";
+    const observed = [
+      { text: "Awake 15 h 20 min", source: "Door and bunk logs", color: amber },
+      { text: "Last ate 9 hours ago", source: "Galley log", color: amber },
+      { text: "Favouring her left wrist", source: "Lin’s note, yesterday", color: "#E8EAE7" },
+      { text: "Short with Teo at the 06:00 handover", source: "You saw it", color: "#E8EAE7" },
+      { text: "Pump seal work on schedule", source: "Her own report, 07:12", color: "#E8EAE7" }
+    ];
+    const skills = [
+      { name: "Reactor systems", rank: "Master", pct: 100, detail: "112 assessed jobs · no failures this voyage" },
+      { name: "Thermal loops", rank: "Journeyman", pct: 62, detail: "31 assessed jobs · 7 of 12 toward master" },
+      { name: "EVA", rank: "Certified", pct: 45, detail: "Last suited work Day 22" },
+      { name: "Teaching", rank: "Apprentice", pct: 20, detail: "Taught Ari scrubber swaps, Day 30 — Ari now does them alone" }
+    ];
+    const history = [
+      { day: "Day 38", text: "You approved her request for a full rest day." },
+      { day: "Day 33", text: "You overrode her and kept the pump running through the fault. It held." },
+      { day: "Day 21", text: "You thanked her on the open channel for the radiator repair." },
+      { day: "Day 4", text: "She asked to be told why, not just what. You agreed." }
+    ];
+    const intentDefs = [
+      ["how", "How are you holding up?", "Fine. Tired. Ask me again after the seal’s in.", false],
+      ["rest", "Finish the seal, then rest. That’s an order.", "…Understood. Lin can watch the loop. Thanks, Captain.", false],
+      ["thanks", "Good work on the scrubbers yesterday.", "It was Ari did most of it. I just watched.", false],
+      ["teo", "What happened with Teo this morning?", "He logged the strut as done when it wasn’t. I said so. Loudly.", false],
+      ["teach", "When you’re rested, teach Ari the pump job.", "Ari’s ready for it. Day after tomorrow.", false],
+      ["burn", "Iona wants a burn in six hours. Can the drive do it?", "Drive, yes. Pump B, I’d rather not find out. Give me nine hours.", true]
+    ];
+    const said = this.state.said;
+    const base = [
+      { who: "Mara", text: "Seal’s weeping, not leaking. Yet.", mine: false },
+      { who: "You", text: "How long?", mine: false, you: true },
+      { who: "Mara", text: "Four hours if nothing else breaks. Something else always breaks.", mine: false }
+    ];
+    const extra = [];
+    said.forEach((id) => {
+      const d = intentDefs.find((x) => x[0] === id);
+      extra.push({ who: "You", text: d[1], you: true });
+      extra.push({ who: "Mara", text: d[2], you: false });
+    });
+    const transcript = base.concat(extra).map((m) => ({
+      who: m.who, text: m.text,
+      align: m.you ? "flex-end" : "flex-start",
+      bg: m.you ? "#2A2014" : "#0E1113"
+    }));
+    const intents = intentDefs.map(([id, label, , hot]) => {
+      const used = said.indexOf(id) >= 0;
+      return {
+        label, used,
+        border: used ? "#2B3237" : (hot ? amber : "#3A4248"),
+        fg: used ? "#8C969C" : "#E8EAE7",
+        pick: () => this.setState({ said: this.state.said.concat([id]) })
+      };
+    });
+    return { observed, skills, history, transcript, intents };
+  }
+}
+</script>
+</body>
+</html>
