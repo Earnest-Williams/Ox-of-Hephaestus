@@ -79,7 +79,7 @@ design data.
 
 ## Open questions
 
-1. Which doors and hatches can the lead mind close remotely in a breach? The
-   access data has no remote flag for doors.
-2. How many people are aboard at the start, and does the ECLSS run at a
-   small-crew setting?
+1. Most doors are motorised and seal against vacuum, so the lead mind can close
+   most boundaries in a breach; which ones can't it reach?
+2. With 16 aboard against a 40-person design, does one ECLSS train run while
+   the other stands by?

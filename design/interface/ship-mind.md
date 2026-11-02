@@ -152,7 +152,7 @@ Every graphical view has a list or table equivalent.
 | S07 | An engineer's report and the navigation computer disagree | Both keep author, source and time; neither becomes truth until measured. |
 | S08 | Read a pressure cell through a damaged instrument | No secret ship-wide gas truth; readings stay cell-owned. |
 | S09 | A crew member is off every reachable sensor | Their location is unknown; their private state is never inferred from handler storage. |
-| S10 | Power down the lead mind's core, then restore it | The ship continues on local and manual control; records and uncertain work reconcile without duplicates. |
+| S10 | Lose two of the lead mind's nine machines, then a third, then restore them | With two lost, it runs on; with three, the ship continues on local and manual control; on restore, records and uncertain work reconcile without duplicates. |
 | S11 | Watch mode through an undetected fault and a delivered message | It stops only on detected or delivered events. |
 | S12 | Replace or update the gateway | New mappings take effect only through fitted, authorised, receipted work. |
 | S13 | Send a message over a failed comms route | It is not delivered, and the failure is itself a fact. |
@@ -174,7 +174,10 @@ Every graphical view has a list or table equivalent.
 
 **Decided:** one ship-wide backbone with segment gateways; in medias res with
 almost every gateway working; each local control station hosts its segment's
-gateway and is a crew console with local takeover.
+gateway and is a crew console with local takeover; the lead mind runs on nine
+distributed machines, two acting as parity; most doors are motorised and seal
+against vacuum; entrances, the bridge and the lead mind's machine rooms have
+monitored, controlled access; a crew of 16 on three overlapping 14-hour shifts.
 
 **Open:** the exact split between captain and lead mind; whether the navigation
 computer is the right first specialist; gateway semantics in detail; what

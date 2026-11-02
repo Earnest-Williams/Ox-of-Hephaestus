@@ -39,7 +39,7 @@ something happened and the world could know it, it belongs in a record here.
 
 | Record | What it holds | Why |
 |---|---|---|
-| **Access log** | Each door, hatch and lock: opened, closed, by switch or by hand, from which side, when; who, where an identity reader exists | Ordinary movement through doors is not recorded today. |
+| **Access log** | Each motorised door, hatch and lock: opened, closed, sealed, by switch, by the lead mind or by hand, from which side, when. **Who** only at controlled-access points: the ship's entrances, the bridge and the lead mind's machine rooms | Ordinary movement through doors is not recorded today. |
 | **Location history** | Where each person was last seen, by which source, and when | Built from the access log, cameras, suits and panels; never complete. |
 | **Gateway traffic** | Per gateway: readings passed, commands requested, accepted, attempted and refused, link-state changes, mapping revisions | The core of provenance on the network. |
 | **Local control log** | Takeovers, hand-backs and emergency trips at each local control station, with who and why if given | Required by the local-control contract ("local takeover is logged"). |

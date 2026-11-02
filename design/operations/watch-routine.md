@@ -6,10 +6,40 @@ day.
 
 ## The crew aboard
 
-**Runtime:** the autonomous crew is five specialists and an optional sixth
-captain — still on the seven-compartment proving ground, not yet the installed
-ship. The ship's habitat is fitted for 40 (40 cabins), so a small crew has
-ample room and the ECLSS runs far below capacity.
+**Decided.** The ship is designed for a crew of 40, with one main watch and
+three skeleton watches. **The actual crew is 16**, on three overlapping 14-hour
+shifts:
+
+| Shift | People | Length |
+|---|---:|---|
+| Main shift | 12 | 14 hours |
+| Rotating shift A | 2 | 14 hours |
+| Rotating shift B | 2 | 14 hours |
+
+The habitat has 40 cabins, so 16 people have ample room, and the ECLSS runs far
+below its 40-person design.
+
+**Runtime today:** the autonomous crew is five specialists and an optional
+captain, still on the seven-compartment proving ground. Sixteen autonomous
+minds is well beyond what has been run live; the G12 local profile measured 6,
+20 and 40 brains, but not as a live crew.
+
+### Example timetable (to confirm)
+
+One way the shifts could fit together, so that someone is always awake:
+
+| Time | Main (12) | A (2) | B (2) | Awake on duty |
+|---|---|---|---|---:|
+| 00:00–04:00 | off | on | off | 2 |
+| 04:00–06:00 | off | on | on | 4 |
+| 06:00–10:00 | on | on | on | 16 |
+| 10:00–18:00 | on | off | on | 14 |
+| 18:00–20:00 | on | off | off | 12 |
+| 20:00–24:00 | off | on | off | 2 |
+
+Here A runs 20:00–10:00 and B 04:00–18:00, each 14 hours, and the main shift
+runs 06:00–20:00. "Rotating" could also mean the two small shifts swap between
+day and night on a cycle; that is for you to decide.
 
 ## The shape of a day
 
@@ -18,11 +48,11 @@ ample room and the ECLSS runs far below capacity.
 | Time | Lead mind | Crew |
 |---|---|---|
 | Continuous | Runs every system it reaches; keeps records; holds course | — |
-| Watch handovers (three a day) | Summarises the last watch: changes, open alarms, work due | The incoming watch-keeper reads it; the outgoing one leaves notes |
-| Rounds (each watch) | Lists rooms nobody has seen and readings it can't get | A walk through assigned compartments, reading local panels |
-| Maintenance (day watch) | Schedules jobs from service intervals and conditions; stages power and access | Engineers do the work; receipts close the jobs |
-| Meals (three a day) | Forecasts stock; keeps the galley powered and water safe | Someone cooks; everyone eats |
-| Sleep | Quiet running; nothing non-essential scheduled near cabins | Eight hours off |
+| Shift handovers | Summarises the last shift: changes, open alarms, work due | The incoming shift reads it; the outgoing one leaves notes |
+| Rounds (each shift) | Lists rooms nobody has seen and readings it can't get | A walk through assigned compartments, reading local panels |
+| Maintenance (main shift) | Schedules jobs from service intervals and conditions; stages power and access | Engineers do the work; receipts close the jobs |
+| Meals | Forecasts stock; keeps the galley powered and water safe | Someone cooks; everyone eats |
+| Rest | Quiet running; nothing non-essential near occupied cabins | Ten hours between 14-hour shifts |
 | Captain's time | Reports and recommendations; asks for decisions | The captain decides route, burns, freight, risk |
 
 ## Who does what
@@ -55,6 +85,7 @@ standing orders to the [records](records.md).
 
 ## Open questions
 
-1. How many watches, and who keeps them with so small a crew?
-2. Does the lead mind keep a watch itself, formally, or is it always on?
-3. What happens on rounds when a panel is dark?
+1. How do the two small shifts rotate, and is the example timetable right?
+2. Which roles are on which shift, and where does the captain fit?
+3. Does the lead mind keep a watch itself, formally, or is it always on?
+4. What happens on rounds when a panel is dark?

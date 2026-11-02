@@ -143,11 +143,29 @@ can:
 Takeover and hand-back are receipted and logged. The lead mind sees that a
 segment is in local control and who took it; it cannot override that.
 
+## The lead mind's core
+
+**Decided; New.** The lead mind runs on **nine machines distributed through
+the ship, two of them acting as parity**.
+
+- **Losing up to two machines** costs nothing but redundancy: the lead mind
+  keeps running and rebuilds onto replacements when they return.
+- **Losing a third** means the lead mind can no longer run as a whole. What it
+  becomes then — degraded, partial or stopped — is an open question.
+- **Each machine is fitted equipment** with a location, power supply, cooling,
+  backbone link and condition, like anything else on the ship. A machine cut
+  off from the backbone counts as lost even if it is still running.
+- **Each machine's room is monitored and has controlled access**, so every
+  entry is recorded with who entered.
+- When the lead mind is down entirely, the ship keeps running on local
+  controllers and local control (principle 6).
+
 ## Open questions
 
-1. Where is the lead mind's core, and what does it need (power, cooling,
-   protected supply)?
-2. Which segments start degraded or quirky, beyond the recorded quirks above?
+1. Where are the nine machines, and what does each depend on (which power
+   board, which cooling, which backbone route)?
+2. What happens when three or more machines are lost?
+3. Which segments start degraded or quirky, beyond the recorded quirks above?
 3. Which crew roles may take local control of which segments?
 4. Does the backbone itself have a topology that can be cut in places (a
    route through the spine that a single fault can sever)?

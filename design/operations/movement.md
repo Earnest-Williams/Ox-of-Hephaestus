@@ -32,8 +32,12 @@ and the installed design data.
 
 **New:**
 
-- **Doors and hatches** wherever they are motorised and reachable: opening on
-  request, closing behind, holding pressure boundaries.
+- **Doors and hatches.** **Decided:** most doors are motorised and can seal
+  against vacuum. The lead mind opens them on request, closes them behind,
+  holds pressure boundaries and seals sections in a breach.
+- **Controlled access.** **Decided:** the ship's entrances, the bridge and the
+  lead mind's machine rooms are monitored and have controlled access. There the
+  lead mind knows who passed; elsewhere it knows only that a door moved.
 - **Carts and sleds:** dispatching carts, sequencing sled movements with drum
   stops and freight collars ([cargo](cargo.md)).
 - **Indexed transfers:** preparing the rotor (stop, index, hardlock) so a
@@ -74,8 +78,8 @@ and the installed design data.
 
 ## Open questions
 
-1. Which doors are motorised and on the network, and which have identity
-   readers?
-2. Do cameras exist, and where? Today the ship's only sensors are panels and
-   suits.
+1. Which doors are *not* motorised? The design data needs a flag per access
+   link.
+2. What does monitoring mean at a controlled point: identity reader, camera,
+   or both?
 3. Are carts modelled as vehicles, or only as faster walking?
