@@ -29,13 +29,22 @@ collection of machines, minds and humans work together.
 
 ## Why this fits the Ox
 
-The installed ship already tells this story. Her 116 fitted local panels are
-deliberately local: each reads only its own room, and no workstation reads the
-whole ship ([G19 instrumentation](../ship/G19_INSTRUMENTATION_AND_RECOVERY.md)).
-The only thing that crosses the ship is the protected fire relay from the eight
-habitat sections to three command and engineering rooms. A mind installed in
-such a ship starts nearly blind and grows its reach one fitted link at a time.
-That is the progression, and it is also the ship's history.
+The installed ship already tells this story. Her design records describe an
+original plant-control network, a refit generator that "uses a gateway" to it,
+559 valves and breakers built for remote operation, and 33 local control
+stations meant to keep working when the network is down
+([drum 3 fit-out survey](drum3-fitout-survey.md)). Equipment from five eras —
+original build, life-extension refits, accommodation refits, port repairs and
+the current fit — sits side by side. That patchwork is where the gateways and
+their quirks come from.
+
+**The game starts in medias res.** The ship is under way and humming: one
+ship-wide backbone network, with gateways joining each segment to it, and
+almost all of them working. You are not restoring a dead ship. You are keeping
+a working one working while parts wear, fail, get replaced at port and come
+back speaking a slightly different dialect. Her 116 local panels still read
+only their own rooms, so the crew keep their own view of the ship that does
+not depend on you ([G19 instrumentation](../ship/G19_INSTRUMENTATION_AND_RECOVERY.md)).
 
 It also uses what the project does best: physics and instruments owned by the
 world, with honest provenance and receipts, and crew who think for themselves.
@@ -89,9 +98,10 @@ agreements, never as a meter.
 | **Conventional automation** | Breakers, relays, permissives | Observed and commanded only where actually wired. |
 | **Manual equipment** | Isolation valves, lashings, seals | Needs a person, or much later a drone. |
 
-**Start small and grow.** The first slice has one gateway with one real
-translation flaw, one local controller and at most one specialist AI. More are
-added only once that proves fun. Each specialist AI is another Concordia mind
+**Build small and grow.** The game starts with nearly everything connected, but
+the *first slice we build* models one gateway with one real translation flaw,
+one local controller and at most one specialist AI. More are modelled only once
+that proves fun. Each specialist AI is another Concordia mind
 on the same local hardware as the crew, so it has to earn its place.
 
 ## Gateways
@@ -166,8 +176,9 @@ for the ship's mind (keep cold-chain lots in band; never open a cargo boundary
 without a pressure check; wake the captain for any injury). The captain judges
 how well you interpreted it.
 
-Progress is **coherence, not omnipotence**: fitting and repairing gateways,
-calibrating instruments, learning an old specialist's dialect, deciding whether
+Progress is **coherence, not omnipotence**: keeping gateways working as they
+wear and fail, integrating parts that come back from port speaking a newer
+dialect, calibrating instruments, learning an old specialist's habits, deciding whether
 to keep a quirky old controller or replace it with one that speaks a better
 protocol, building standing agreements with the captain and crew, and much
 later limited maintenance drones. Manual islands and incompatibilities remain
@@ -208,8 +219,11 @@ plant-control network" (named in the generator B refit record), the
 **Added for the slice (proposed):** the plant-control network modelled as
 world-owned links, with one gateway at `LCS-DR-03` carrying the skid's
 operating state, cooling output, cargo temperature and target to the lead
-mind's core, and the LT valve as the one remote actuator. The skid's own
-controller stays local with its own fallback. The navigation computer is the
+mind's core, and the LT valve as the one remote actuator. `LCS-DR-03` also
+becomes a crew console: someone there can read the skid, change its target and
+take the drum into **local control**, which locks out remote commands —
+including yours — until they hand it back. The skid's own controller stays
+local with its own fallback. The navigation computer is the
 one specialist AI, as new equipment.
 
 **The moment.** Drum 3's translated status reads `RUN`; you learned two voyages
@@ -223,10 +237,12 @@ cooled first.
   state, confirm the LT valve is open (or reopen it, if your delegated
   authority covers it), rerun the cargo-heat estimate against the burn plan,
   ask the navigation computer for its margins.
-- **What you must ask for:** an engineer. The LT valve and its local panel are
-  in the service lock, about five minutes from the bridge. The skid itself is
-  three minutes further, through the indexed rotary transfer into the drum;
-  only there can someone read it directly and set the target by hand.
+- **What you must ask for:** an engineer. The drum's control station and the
+  LT valve are both on the fixed side, about five minutes from the bridge; from
+  the station they can read the skid and change its target. Entering the drum
+  to inspect the skid itself costs three more minutes through the indexed
+  rotary transfer. And if the engineer decides your diagnosis is wrong, they
+  can take the drum into local control and shut you out of it.
 - **What the captain decides:** delay the burn and spend reaction mass and
   schedule, or burn on time and accept the cargo risk. The navigation computer
   objects to any delay, in its own terms.
@@ -265,13 +281,14 @@ Every graphical view has a list or table equivalent.
 2. **The lead-mind player:** an authenticated player with no body, whose
    perception is a new sensor-and-gateway-scoped read view. It must not reuse
    the developer view or expose any character's private beliefs.
-3. **One gateway and one local controller:** a segment of the plant-control
-   network and a gateway at `LCS-DR-03` with typed mappings, one deliberate
-   semantic flaw (`RUN`), link and power faults; the skid keeps regulating if
-   the link drops.
-4. **One remote action and one hand-only task:** `ISO-DR-03-LT-IF`, operable
-   only through a working network path under the existing interlocks, and the
-   gallery setpoint that only an engineer at the skid can change.
+3. **The backbone, one gateway and one local controller:** the ship-wide
+   backbone and the drum 3 segment's gateway at `LCS-DR-03`, with typed
+   mappings, one deliberate semantic flaw (`RUN`), link and power faults; the
+   skid keeps regulating if the link drops.
+4. **One remote action, one crew console and one hand-only task:**
+   `ISO-DR-03-LT-IF`, operable only through a working network path under the
+   existing interlocks; `LCS-DR-03` as a crew console with local takeover; and
+   an inspection inside the drum that only an engineer can do.
 5. **The human partners:** the migrated autonomous captain, or a clearly
    labelled test double until migration, able to ask, dispute and decide; one
    engineer with real travel and work limits.
@@ -297,14 +314,18 @@ Every graphical view has a list or table equivalent.
 | S11 | Watch mode through an undetected fault and a delivered message | It stops only on detected or delivered events; all progression is kept. |
 | S12 | Replace or update the gateway | New mappings take effect only through fitted, authorised, receipted work. |
 | S13 | Send a message over a failed comms route | It is not delivered, and the failure is itself a fact you can trigger on. |
+| S14 | A crew member takes drum 3 into local control at `LCS-DR-03` | Remote commands to the drum, including the lead mind's, are refused until control is handed back; the takeover and hand-back are receipted. |
 
 ## Risks
 
 - **Systems administration.** Keep ordinary controllers autonomous; build play
   around consequential discrepancies, priorities and persuasion, not packet
   inspection.
-- **The god-mind trap.** Fitted links, ageing data, manual islands and the
-  captain's authority must stay real.
+- **The god-mind trap.** Starting with almost everything connected makes the
+  mind capable from the first minute. The checks must stay real: 533 isolators
+  are manual-only, panels and local stations give the crew their own view, any
+  station can be taken into local control, data ages, and the captain's
+  authority holds.
 - **Machines crowding out the crew.** Keep specialist AIs few; the crew remain
   the main relationships.
 - **Puzzles that run out.** Gateway faults must arise from modelled causes, not
@@ -317,6 +338,15 @@ Every graphical view has a list or table equivalent.
   interface and the handler interpret or request, never act as a second physics
   authority.
 
+## Decided
+
+1. **Network:** one ship-wide backbone, with gateways joining each segment to
+   it.
+2. **Starting state:** in medias res. Almost every gateway works and the ship is
+   humming; trouble comes from wear, failures and replacements during play.
+3. **`LCS-DR-03`:** a gateway host and a crew console with local takeover.
+   Automatic protection (trips, fallback settings on link loss) comes later.
+
 ## Decisions still open
 
 1. The exact split between the captain's command and the lead mind's delegated
@@ -324,9 +354,8 @@ Every graphical view has a list or table equivalent.
 2. Whether the navigation computer is the right first specialist.
 3. Gateway semantics in detail: versioning, arbitration, staleness and recovery.
 4. What persists of the lead mind across power loss, and its own voice.
-5. How the plant-control network is modelled (one damaged network, or
-   segments of different generations joined by gateways) and which of the 559
-   remote-flagged isolators are reachable at the start.
+5. Which few gateways are degraded or quirky at the start, so the ship hums but
+   is not perfect.
 
 ## References
 

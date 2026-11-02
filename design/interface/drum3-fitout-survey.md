@@ -125,11 +125,12 @@ can check it **without** the transfer. Setting the target needs the transfer.
 
 ## What the slice must add
 
-1. **The plant-control network and one gateway.** Model the original network
-   as world-owned links. Put the gateway at `LCS-DR-03`, the drum's
+1. **The backbone and one gateway.** Model the ship-wide backbone as
+   world-owned links. Put drum 3's segment gateway at `LCS-DR-03`, the drum's
    mixed-generation local control station, translating its skid status into
    the network's terms. This replaces the earlier idea of a gateway at
-   `LP-CARGO-CTRL-FWD`.
+   `LP-CARGO-CTRL-FWD`. `LCS-DR-03` is also a crew console with local
+   takeover.
 2. **One remote action.** `ISO-DR-03-LT-IF` is already flagged remotely
    operable, so it is the honest first actuator: honour the flag only through
    a working network path and gateway, under the existing interlocks.
@@ -141,12 +142,12 @@ can check it **without** the transfer. Setting the target needs the transfer.
 5. **Commissioning:** an operator survey of drum 3 and one cold-chain lot
    before the incident.
 
-## Questions for the design
+## Decisions taken after the survey
 
-- Should the plant-control network be one network with damage, or several
-  segments of different generations joined by gateways? The data suggests the
-  second.
-- Which of the 559 remote-flagged isolators should actually be reachable at
-  the start? A small set keeps the "nearly blind" opening.
-- Does `LCS-DR-03` get its own controller behaviour (local takeover, trip), or
-  stay a passive gateway host in the first slice?
+- **Network:** one ship-wide backbone, with gateways joining each segment to it.
+- **Starting state:** in medias res; almost every gateway works, so most of the
+  559 remote-flagged isolators are reachable from the first minute. The game
+  decides which few are degraded or quirky.
+- **`LCS-DR-03`:** a gateway host and a crew console with local takeover, so an
+  engineer can read and set the skid from the fixed side and can lock out
+  remote commands. Automatic trips and fallback settings come later.
