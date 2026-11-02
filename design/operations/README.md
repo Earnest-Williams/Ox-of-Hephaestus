@@ -70,10 +70,10 @@ wear, failures and replacements during the voyage, not from a broken opening.
 | [Cargo](cargo.md) | Drums, cargo climate, freight handling, rotation | Drafted |
 | [Cooling](cooling.md) | LT and HT loops, radiators, the shared heat budget | Drafted |
 | [Air](air.md) | Atmosphere, pressure cells, ECLSS trains, emergency oxygen | Drafted |
-| Water and waste | Potable, grey and black water; recycling; disposal | To write |
-| Food | Cultivation, stores, galley | To write |
+| [Water and waste](water-and-waste.md) | Potable, grey and black water; recycling; disposal | Drafted |
+| [Food](food.md) | Cultivation, stores, galley | Drafted |
 | [Movement](movement.md) | Trunks, doors, locks, indexed transfers, logistics tube | Drafted |
-| Propulsion and navigation | Drive, RCS, helm, FTL readiness | To write |
+| [Propulsion and navigation](propulsion-and-navigation.md) | Drive, RCS, helm, FTL readiness | Drafted |
 | Fire and damage control | Fire main, lockers, casualty response | To write |
 | Medical | Physiology, treatment, casualty transport | To write |
 | Communications | Comms nodes, alarms relay, intercoms | To write |
