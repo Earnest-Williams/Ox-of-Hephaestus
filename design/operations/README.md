@@ -1,6 +1,6 @@
 # Ship operations: how the lead mind runs the Ox
 
-**Status:** design specification in progress, 2 November 2026. Not
+**Status:** first complete draft, 2 November 2026. Not
 implemented except where marked **Runtime**.
 
 This specification describes how the Ox runs when her lead mind, the ship's
@@ -74,11 +74,11 @@ wear, failures and replacements during the voyage, not from a broken opening.
 | [Food](food.md) | Cultivation, stores, galley | Drafted |
 | [Movement](movement.md) | Trunks, doors, locks, indexed transfers, logistics tube | Drafted |
 | [Propulsion and navigation](propulsion-and-navigation.md) | Drive, RCS, helm, FTL readiness | Drafted |
-| Fire and damage control | Fire main, lockers, casualty response | To write |
-| Medical | Physiology, treatment, casualty transport | To write |
-| Communications | Comms nodes, alarms relay, intercoms | To write |
-| Workshop and exterior | Fabrication, welding, exterior rail and EVA | To write |
-| Watch routine | How a day runs; the split between lead mind and crew | To write |
+| [Fire and damage control](fire-and-damage-control.md) | Fire main, lockers, casualty response | Drafted |
+| [Medical](medical.md) | Physiology, treatment, casualty transport | Drafted |
+| [Communications](communications.md) | Comms nodes, alarms relay, intercoms | Drafted |
+| [Workshop and exterior](workshop-and-exterior.md) | Fabrication, welding, exterior rail and EVA | Drafted |
+| [Watch routine](watch-routine.md) | How a day runs; the split between lead mind and crew | Drafted |
 
 ## Decided
 
