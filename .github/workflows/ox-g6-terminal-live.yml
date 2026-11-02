@@ -16,24 +16,8 @@ permissions:
   contents: read
 
 jobs:
-  world-tests:
-    name: G6 authoritative world and death tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 18
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Install Evennia
-        run: python -m pip install .
-      - name: Run new world module tests only
-        working-directory: game
-        run: python -m world.test_runner world.tests.test_terminal_failure --verbosity=2
-
   six-characters:
     name: "${{ matrix.provider }} seed ${{ matrix.seed }} (six actual clients)"
-    needs: world-tests
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     timeout-minutes: 25

@@ -24,7 +24,7 @@ jobs:
   g11-world-seed:
     name: "G11 real Evennia seed ${{ matrix.seed }}"
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
-    runs-on: ubuntu-latest
+    runs-on: "${{ vars.OX_MODEL_RUNNER != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON(vars.OX_MODEL_RUNNER) || 'ubuntu-latest' }}"
     timeout-minutes: 105
     strategy:
       fail-fast: false

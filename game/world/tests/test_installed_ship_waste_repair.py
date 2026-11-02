@@ -14,7 +14,7 @@ from world.full_ship_operations import (
     install_candidate, install_pressure_cells, initialize_nominal_atmosphere,
     set_component_condition, set_isolator, state,
 )
-from world.ship_world import build_canonical_ship, find_ship_space
+from world.ship_world import ensure_canonical_ship, find_ship_space
 from world.models import WorkReceipt, CanonicalShipEvent, CanonicalShipState
 from world.ship_crew_access import CrewTransitError
 
@@ -22,7 +22,7 @@ from world.ship_crew_access import CrewTransitError
 class InstalledWasteAndRepairTests(EvenniaTestCase):
     def setUp(self):
         super().setUp()
-        build_canonical_ship()
+        ensure_canonical_ship()
         install_candidate(operator_approved=True)
         install_pressure_cells(operator_approved=True)
         initialize_nominal_atmosphere(operator_approved=True)

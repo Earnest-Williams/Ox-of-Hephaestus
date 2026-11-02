@@ -34,7 +34,7 @@ concurrency:
 jobs:
   g9-six-real-clients:
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
-    runs-on: ubuntu-latest
+    runs-on: "${{ vars.OX_MODEL_RUNNER != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON(vars.OX_MODEL_RUNNER) || 'ubuntu-latest' }}"
     timeout-minutes: 90
     env:
       OX_G8_LIVE_CI: "1"

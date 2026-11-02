@@ -51,7 +51,7 @@ jobs:
 
   decider-q4:
     needs: [source-verified-fixture]
-    runs-on: ubuntu-latest
+    runs-on: "${{ vars.OX_MODEL_RUNNER != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON(vars.OX_MODEL_RUNNER) || 'ubuntu-latest' }}"
     timeout-minutes: 120
     env:
       MODEL_DIR: .ox-state/g16h/decider-weights
@@ -136,7 +136,7 @@ jobs:
 
   qwen4b:
     needs: [source-verified-fixture]
-    runs-on: ubuntu-latest
+    runs-on: "${{ vars.OX_MODEL_RUNNER != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON(vars.OX_MODEL_RUNNER) || 'ubuntu-latest' }}"
     timeout-minutes: 90
     env:
       MODEL_PATH: .ox-model-cache/Qwen3.5-4B-Q4_K_M.gguf

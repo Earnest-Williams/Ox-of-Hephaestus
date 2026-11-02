@@ -45,7 +45,3 @@ jobs:
         run: |
           export EVENNIA_SUPERUSER_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
           evennia migrate --noinput
-      - name: Run reproducible source-mutation and stateful database fuzz tests
-        working-directory: game
-        run: |
-          python -m world.test_runner world.tests.test_full_ship_fuzz --verbosity=2

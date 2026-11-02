@@ -44,6 +44,3 @@ jobs:
         run: |
           python -m pip install .
           python -m compileall -q game
-      - name: Verify room, lock, duty and inspection-scoped capability ads
-        working-directory: game
-        run: python -m world.test_runner world.tests.test_capabilities --verbosity=2

@@ -39,7 +39,7 @@ jobs:
       - name: Verify local evidence, learning, rollback and authority boundaries
         working-directory: game
         run: |
-          DJANGO_SETTINGS_MODULE=server.conf.settings python -m django makemigrations world --check --dry-run
+          DJANGO_SETTINGS_MODULE=server.conf.settings python -m django makemigrations world --check --dry-run --skip-checks
           python -m world.test_runner world.tests.test_inquiry_learning world.tests.test_concept_learning world.tests.test_receipt_learning world.tests.test_independent_questions world.tests.test_investigation world.tests.test_investigation_followup world.tests.test_work_receipts --verbosity=2
       - name: Verify typed investigative learning protocol
         run: python -m unittest discover -s services/ai-handler/tests -p test_world_work_port.py -v

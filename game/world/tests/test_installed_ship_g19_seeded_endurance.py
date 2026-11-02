@@ -23,7 +23,7 @@ from world.full_ship_operations import (
     set_component_condition, set_isolator, state,
 )
 from world.models import CanonicalShipEvent, WorkReceipt
-from world.ship_world import build_canonical_ship, find_ship_space
+from world.ship_world import ensure_canonical_ship, find_ship_space
 from world.ship_cargo_manifest import DRUMS
 from world.ship_unclassified_spaces import SECTORS
 from world.continuous_ship_physics import (
@@ -44,7 +44,7 @@ class InstalledG19SeededEndurance(EvenniaTestCase):
 
     def setUp(self):
         super().setUp()
-        build_canonical_ship()
+        ensure_canonical_ship()
         install_candidate(operator_approved=True)
         install_pressure_cells(operator_approved=True)
         initialize_nominal_atmosphere(operator_approved=True)

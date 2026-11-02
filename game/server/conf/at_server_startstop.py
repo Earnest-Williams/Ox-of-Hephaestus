@@ -35,4 +35,29 @@ def at_server_cold_start() -> None:
 
 
 def at_server_cold_stop() -> None:
-    """Called before a cold shutdown."""
+    """Called before a cold shutdown: stop the game's private database last.
+
+    Evennia keeps writing after this hook (ticker and on-demand state, final
+    runtime), so the database stops only once the reactor has shut down. A
+    reload never reaches here and keeps it running. A reset reaches here too,
+    but the Portal starts a new Server straight away, so the database keeps
+    running for it. Any later connection (``evennia shell``, tests) starts it
+    again on demand.
+    """
+    from twisted.internet import reactor
+
+    from server.conf.oxpg.server_service import restarting_after_reset
+
+    if restarting_after_reset():
+        return
+
+    def stop_database() -> None:
+        from django.db import connections
+
+        from server.conf.oxpg.base import cluster_layout
+        from server.conf.oxpg.cluster import stop
+
+        connections.close_all()
+        stop(cluster_layout())
+
+    reactor.addSystemEventTrigger("after", "shutdown", stop_database)

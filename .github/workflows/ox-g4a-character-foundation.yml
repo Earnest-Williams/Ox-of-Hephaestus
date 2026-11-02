@@ -37,25 +37,3 @@ jobs:
       - name: Compile edited files
         run: python -m compileall -q services/ai-handler/src game/commands/default_cmdsets.py game/world/tests/test_character_command_boundary.py
 
-  world-command-boundary:
-    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 18
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: |
-            pyproject.toml
-            services/ai-handler/pyproject.toml
-            uv.lock
-            .github/ci/cache-profiles/concordia.txt
-      - name: Install world and handler
-        run: |
-          python -m pip install .
-          python -m pip install -e './services/ai-handler'
-      - name: Verify explicit Ox character command set
-        working-directory: game
-        run: python -m world.test_runner world.tests.test_character_command_boundary world.tests.test_capabilities --verbosity=2

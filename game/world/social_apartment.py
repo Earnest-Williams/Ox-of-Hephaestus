@@ -11,14 +11,15 @@ import json
 import os
 from pathlib import Path
 
-from evennia.objects.models import ObjectDB
 from evennia.utils.create import create_object
+
+from world.tagged import objects_tagged
 
 CATEGORY = "ox_social_goap_v1"
 
 
 def _object(marker: str):
-    matches = list(ObjectDB.objects.get_by_tag(key=marker, category=CATEGORY))
+    matches = objects_tagged(marker, CATEGORY)
     if len(matches) > 1:
         raise RuntimeError(f"Duplicated social fixture tag: {marker}")
     return matches[0] if matches else None

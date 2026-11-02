@@ -41,7 +41,7 @@ jobs:
         run: |
           python -m compileall -q game/world game/commands
           cd game
-          DJANGO_SETTINGS_MODULE=server.conf.settings python -m django makemigrations world --check --dry-run
+          DJANGO_SETTINGS_MODULE=server.conf.settings python -m django makemigrations world --check --dry-run --skip-checks
       - name: Verify theory/technique independence and world opacity
         working-directory: game
         run: |

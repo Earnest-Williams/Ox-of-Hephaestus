@@ -1,9 +1,10 @@
 # Retained from upstream Evennia for an *explicit* compatibility investigation.
-# Ox does NOT run this 3-Python x 3-database matrix on pushes or pull requests.
+# Ox does NOT run this matrix on pushes or pull requests. Ox supports
+# PostgreSQL only (ADR 0010), so the SQLite and MySQL jobs were removed.
 # Prefer ox-scaffold.yml and ox-evennia-smoke.yml for ordinary development.
 # No upstream Docker image publishing occurs in this fork.
 
-name: Evennia upstream compatibility matrix (manual)
+name: Evennia upstream compatibility matrix (manual, PostgreSQL)
 
 on:
   workflow_dispatch:
@@ -12,82 +13,6 @@ permissions:
   contents: read
 
 jobs:
-  test-sqlite:
-    name: Test (SQLite)
-    runs-on: ubuntu-latest
-
-    strategy:
-      fail-fast: true
-      matrix:
-        python-version: ["3.12", "3.13", "3.14"]
-        include:
-          - python-version: "3.12"
-            coverage-test: true
-
-    timeout-minutes: 30
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up database (sqlite3)
-        uses: ./.github/actions/setup-database
-        with:
-          database: sqlite3
-        timeout-minutes: 5
-
-      - name: Run tests
-        uses: ./.github/actions/run-tests
-        with:
-          python-version: ${{ matrix.python-version }}
-          testing-db: sqlite3
-          coverage-test: ${{ matrix.coverage-test == true && 'true' || 'false' }}
-          needs-postgres-package: "false"
-          needs-mysql-package: "false"
-          coveralls-token: ${{ secrets.COVERALLS_REPO_TOKEN }}
-
-  test-mysql:
-    name: Test (MySQL)
-    runs-on: ubuntu-latest
-
-    strategy:
-      fail-fast: true
-      matrix:
-        python-version: ["3.12", "3.13", "3.14"]
-
-    timeout-minutes: 35
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up MySQL
-        uses: shogo82148/actions-setup-mysql@v1
-        with:
-          mysql-version: "8.0"
-          root-password: root_password
-          user: evennia
-          password: password
-          my-cnf: |
-            [mysqld]
-            character-set-server=utf8mb3
-            collation-server=utf8mb3_unicode_ci
-            innodb_default_row_format=DYNAMIC
-            innodb_file_per_table=1
-
-      - name: Set up database (mysql)
-        uses: ./.github/actions/setup-database
-        with:
-          database: mysql
-        timeout-minutes: 5
-
-      - name: Run tests
-        uses: ./.github/actions/run-tests
-        with:
-          python-version: ${{ matrix.python-version }}
-          testing-db: mysql
-          coverage-test: "false"
-          needs-postgres-package: "false"
-          needs-mysql-package: "true"
-
   test-postgresql:
     name: Test (PostgreSQL)
     runs-on: ubuntu-latest
@@ -136,4 +61,3 @@ jobs:
           testing-db: postgresql
           coverage-test: "false"
           needs-postgres-package: "true"
-          needs-mysql-package: "false"

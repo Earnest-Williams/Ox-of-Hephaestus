@@ -1,11 +1,12 @@
 """Independent Python-process G19 persistence/recovery acceptance harness.
 
 This is NOT a gameplay command, a simulated voyage, or an operator restart.
-It refuses all databases except a specifically named, disposable SQLite
-file under GitHub Actions' RUNNER_TEMP, with explicit CI opt-in.
+It refuses all databases except one specifically named, disposable database
+(``ox_g19_restart``) in the game-managed PostgreSQL cluster (ADR 0010), with
+explicit CI opt-in; its evidence file lives under RUNNER_TEMP.
 
-Two distinct commands/processes share ONLY durable SQLite world objects and
-a small expected-evidence JSON file. They never share module-level state.
+Two distinct commands/processes share ONLY durable PostgreSQL world objects
+and a small expected-evidence JSON file. They never share module-level state.
 """
 from __future__ import annotations
 
@@ -15,34 +16,49 @@ import sys
 from pathlib import Path
 
 
-def _sandbox():
+RESTART_DATABASE = "ox_g19_restart"
+
+
+def _migrated() -> bool:
+    """The durable world exists once its schema does."""
+    from django.db import connection
+    return "world_canonicalshipstate" in connection.introspection.table_names()
+
+
+def _sandbox(phase):
     if os.environ.get("OX_G19_RESTART_CI") != "1":
         raise RuntimeError("Independent process probe requires explicit CI approval")
     root_env = os.environ.get("RUNNER_TEMP")
     if not root_env:
         raise RuntimeError("Runner temporary directory is required")
     root = Path(root_env).resolve(strict=True)
-    name = os.environ.get("OX_G19_RESTART_DB_PATH", "")
-    if not name:
-        raise RuntimeError("Missing explicitly selected isolated database")
-    db = Path(name).resolve()
-    if db.parent != root or db.name != "ox-g19-restart.sqlite3":
-        raise RuntimeError("Refusing access to any existing ship database")
+    if os.environ.get("OX_PG_DATABASE") != RESTART_DATABASE:
+        raise RuntimeError("Refusing access to any existing ship database; set "
+                           "OX_PG_DATABASE=" + RESTART_DATABASE)
     evidence = root / "ox-g19-restart-proof.json"
     os.environ["DJANGO_SETTINGS_MODULE"] = "server.conf.settings"
 
-    # Override the SQLite file BEFORE Django's first connection is made.
-    # This avoids starting a server or modifying game/server/evennia.db3.
     from django.conf import settings
     databases = settings.DATABASES
-    if "sqlite3" not in databases["default"]["ENGINE"]:
-        raise RuntimeError("Disposable SQLite only; never a live Postgres connection")
-    databases["default"]["NAME"] = str(db)
+    if (databases["default"]["ENGINE"] != "server.conf.oxpg"
+            or databases["default"]["NAME"] != RESTART_DATABASE):
+        raise RuntimeError("Disposable game-managed database only")
     import django
     django.setup()
+    if phase == "prepare":
+        # Migrate BEFORE Evennia's init: its game-time probe reads
+        # server_serverconfig at import and on PostgreSQL a missing table is
+        # ProgrammingError, which that probe does not tolerate. The security
+        # boundary is an EMPTY SCHEMA and absent proof.
+        from django.db import connection
+        _assert(not evidence.exists()
+                and not connection.introspection.table_names(),
+                "Process A refuses a previously migrated ship or old evidence")
+        from django.core.management import call_command
+        call_command("migrate", interactive=False, verbosity=0)
     import evennia
     evennia._init()
-    return db, evidence
+    return RESTART_DATABASE, evidence
 
 
 def _assert(predicate, message):
@@ -51,15 +67,9 @@ def _assert(predicate, message):
 
 
 def _prepare(db, proof):
-    # Django/Evennia setup may create an empty SQLite file simply by
-    # probing the game-time offset before migrations. The security boundary
-    # is an EMPTY SCHEMA and absent proof, not the file's existence.
-    from django.db import connection
-    _assert(not proof.exists()
-            and not connection.introspection.table_names(),
-            "Process A refuses a previously migrated ship or old evidence")
-    from django.core.management import call_command
-    call_command("migrate", interactive=False, verbosity=0)
+    # _sandbox("prepare") already proved the schema empty and migrated it.
+    _assert(_migrated() and not proof.exists(),
+            "Process A requires its own freshly migrated ship")
 
     from world.bootstrap import build_ship
     from world.ship_world import build_canonical_ship, find_ship_space
@@ -154,7 +164,7 @@ def _prepare(db, proof):
 
 
 def _resume(db, proof):
-    _assert(db.is_file() and proof.is_file(),
+    _assert(_migrated() and proof.is_file(),
             "Process B must reload existing durable physical records")
     expected = json.loads(proof.read_text(encoding="utf-8"))
     from evennia.objects.models import ObjectDB
@@ -266,7 +276,7 @@ def _resume(db, proof):
 
 def _confirm(db, proof):
     """A third fresh interpreter proves a second cold rebind is lossless."""
-    _assert(db.is_file() and proof.is_file(),
+    _assert(_migrated() and proof.is_file(),
             "Process C requires the exact prior disposable ship")
     expected = json.loads(proof.read_text(encoding="utf-8"))
     _assert("resume_last_s" in expected,
@@ -356,7 +366,7 @@ def _confirm(db, proof):
 def main():
     if len(sys.argv) != 2 or sys.argv[1] not in {"prepare", "resume", "confirm"}:
         raise SystemExit("Usage: python -m world.g19_process_recovery prepare|resume|confirm")
-    db, proof = _sandbox()
+    db, proof = _sandbox(sys.argv[1])
     if sys.argv[1] == "prepare":
         _prepare(db, proof)
     elif sys.argv[1] == "resume":

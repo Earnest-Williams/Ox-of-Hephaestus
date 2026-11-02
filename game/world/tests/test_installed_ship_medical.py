@@ -1,7 +1,7 @@
 """Installed HAB-04 first aid with actual Evennia workers."""
 from evennia.utils.test_resources import EvenniaTestCase
 from world.bootstrap import build_ship
-from world.ship_world import build_canonical_ship, find_ship_space
+from world.ship_world import ensure_canonical_ship, find_ship_space
 from world.full_ship_operations import install_candidate, install_pressure_cells, initialize_nominal_atmosphere, set_isolator
 from world.continuous_ship_physics import PhysicsError, arm_continuous_physics, commission_g19_medical, commission_g19_crew_physiology, crew_physical_action, tick_continuous_physics, _clock
 from world.models import CanonicalShipState, WorkReceipt
@@ -9,7 +9,7 @@ from world.models import CanonicalShipState, WorkReceipt
 class InstalledMedical(EvenniaTestCase):
     def setUp(self):
         super().setUp()
-        build_canonical_ship()
+        ensure_canonical_ship()
         install_candidate(operator_approved=True)
         install_pressure_cells(operator_approved=True)
         initialize_nominal_atmosphere(operator_approved=True)

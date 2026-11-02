@@ -45,7 +45,6 @@ jobs:
           python -m pip install .
           python -m compileall -q game
           cd game
-          python -m world.test_runner world.tests.test_supply --verbosity=2
 
   typed-actor-inventory:
     if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false) && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}

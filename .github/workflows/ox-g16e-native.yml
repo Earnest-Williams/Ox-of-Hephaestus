@@ -25,7 +25,7 @@ concurrency:
 jobs:
   g16e-native-persona:
     name: "G16e native procedural/independent arms: ${{ matrix.role }}"
-    runs-on: ubuntu-latest
+    runs-on: "${{ vars.OX_MODEL_RUNNER != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON(vars.OX_MODEL_RUNNER) || 'ubuntu-latest' }}"
     timeout-minutes: 150
     strategy:
       fail-fast: false

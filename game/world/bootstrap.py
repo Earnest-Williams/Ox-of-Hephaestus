@@ -9,6 +9,8 @@ from __future__ import annotations
 from evennia.objects.models import ObjectDB
 from evennia.utils.create import create_object
 
+from world.tagged import objects_tagged
+
 FIXTURE_CATEGORY = "ox_ship_prototype"
 
 CREW_MARKERS = ("crew-chief", "crew-watch", "crew-bridge", "crew-cargo", "crew-environment", "crew-captain")
@@ -16,7 +18,7 @@ CREW_MARKERS = ("crew-chief", "crew-watch", "crew-bridge", "crew-cargo", "crew-e
 
 def find_fixture(marker: str):
     """Resolve one Ox-owned entity by durable Evennia tag, not by display name."""
-    matches = list(ObjectDB.objects.get_by_tag(key=marker, category=FIXTURE_CATEGORY))
+    matches = objects_tagged(marker, FIXTURE_CATEGORY)
     if len(matches) > 1:
         raise RuntimeError(f"Duplicate Ox fixture tag {marker!r}; refusing to guess")
     return matches[0] if matches else None

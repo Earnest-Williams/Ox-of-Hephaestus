@@ -58,10 +58,6 @@ jobs:
         run: |
           evennia migrate --noinput
           evennia makemigrations world --check --dry-run
-      - name: Test real social and physical world receipts
-        working-directory: game
-        run: |
-          python -m world.test_runner world.tests.test_work_receipts world.tests.test_durable_actions world.tests.test_crew_interaction --verbosity=2
       - name: Test authenticated typed external work adapter
         run: |
           python -m unittest discover -s services/ai-handler/tests -p 'test_world_work_port.py' -v

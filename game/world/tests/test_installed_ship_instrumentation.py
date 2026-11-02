@@ -13,7 +13,7 @@ from world.full_ship_operations import (
     install_candidate, install_pressure_cells, initialize_nominal_atmosphere,
     set_isolator, set_component_condition, state,
 )
-from world.ship_world import build_canonical_ship, find_ship_space
+from world.ship_world import ensure_canonical_ship, find_ship_space
 from world.models import CanonicalShipState, WorkReceipt
 from world.continuous_ship_physics import (
     PhysicsError, arm_continuous_physics, commission_g19_electrical,
@@ -26,7 +26,7 @@ from world.ship_instrumentation import alarm_key
 class InstalledInstrumentationTests(EvenniaTestCase):
     def setUp(self):
         super().setUp()
-        build_canonical_ship()
+        ensure_canonical_ship()
         install_candidate(operator_approved=True)
         install_pressure_cells(operator_approved=True)
         initialize_nominal_atmosphere(operator_approved=True)

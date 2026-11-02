@@ -81,7 +81,7 @@ jobs:
       - name: Tick-chunking differential and crew-action sequence fuzzing
         working-directory: game
         run: |
-          python -m world.test_runner \
+          python -m world.test_runner --prebuilt-ship \
             world.tests.test_installed_ship_g19_fuzz.TickChunkingDifferentialFuzz \
             world.tests.test_installed_ship_g19_fuzz.CrewActionSequenceFuzz \
             world.tests.test_installed_ship_g19_fuzz.G19PersistedSafetyRegressions \
