@@ -68,11 +68,11 @@ wear, failures and replacements during the voyage, not from a broken opening.
 | [Records](records.md) | Every record the ship keeps, and its status | Drafted |
 | [Power](power.md) | Generation, storage, distribution, protection | Drafted |
 | [Cargo](cargo.md) | Drums, cargo climate, freight handling, rotation | Drafted |
-| Cooling | LT and HT loops, radiators, the shared heat budget | To write |
-| Air | Atmosphere, pressure cells, ECLSS trains, emergency oxygen | To write |
+| [Cooling](cooling.md) | LT and HT loops, radiators, the shared heat budget | Drafted |
+| [Air](air.md) | Atmosphere, pressure cells, ECLSS trains, emergency oxygen | Drafted |
 | Water and waste | Potable, grey and black water; recycling; disposal | To write |
 | Food | Cultivation, stores, galley | To write |
-| Movement | Trunks, doors, locks, indexed transfers, logistics tube | To write |
+| [Movement](movement.md) | Trunks, doors, locks, indexed transfers, logistics tube | Drafted |
 | Propulsion and navigation | Drive, RCS, helm, FTL readiness | To write |
 | Fire and damage control | Fire main, lockers, casualty response | To write |
 | Medical | Physiology, treatment, casualty transport | To write |
