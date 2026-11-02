@@ -199,25 +199,34 @@ drum 3.
 - The thermal target is changed only by an engineer at the drum's gallery skid,
   through a receipted local service operation. **There is no remote control.**
 
-**Added for the slice (proposed, not fitted):** a cargo-control gateway at the
-forward cargo control panel (`LP-CARGO-CTRL-FWD`) carrying drum 3's skid
-status, cargo temperature and distribution-board current to the lead mind's
-core. The skid's own controller stays a local controller with its own fallback.
-The navigation computer is the one specialist AI.
+**Already in the design data, not yet in the runtime:** an "original
+plant-control network" (named in the generator B refit record), the
+`LCS-DR-03` local machinery control station, and the LT valve
+`ISO-DR-03-LT-IF` flagged as remotely operable. See the
+[drum 3 fit-out survey](drum3-fitout-survey.md).
+
+**Added for the slice (proposed):** the plant-control network modelled as
+world-owned links, with one gateway at `LCS-DR-03` carrying the skid's
+operating state, cooling output, cargo temperature and target to the lead
+mind's core, and the LT valve as the one remote actuator. The skid's own
+controller stays local with its own fallback. The navigation computer is the
+one specialist AI, as new equipment.
 
 **The moment.** Drum 3's translated status reads `RUN`; you learned two voyages
-ago that this skid's `RUN` means "start latched", not "cooling". Its cargo
-temperature, measured, is climbing towards the top of the cold-chain band. The
-board current is lower than a running skid should draw. The navigation computer
-wants to start a burn in two hours, and you know propulsion takes LT capacity
-first.
+ago that this gateway maps the skid's "operating" to `RUN`, which says nothing
+about delivered cooling. The cargo temperature is climbing towards the top of
+the cold-chain band, and the reported cooling output is low. The navigation
+computer wants to start a burn in two hours, and you know the drive's heat is
+cooled first.
 
 - **What you can do yourself:** compare sources, check the gateway's link
-  state, rerun the cargo-heat estimate against the burn plan, ask the
-  navigation computer for its margins.
-- **What you must ask for:** an engineer to go to the drum 3 gallery — through
-  the drum's service lock, which takes time — to check the skid and the LT isolation
-  valve, and set the target by hand if needed.
+  state, confirm the LT valve is open (or reopen it, if your delegated
+  authority covers it), rerun the cargo-heat estimate against the burn plan,
+  ask the navigation computer for its margins.
+- **What you must ask for:** an engineer. The LT valve and its local panel are
+  in the service lock, about five minutes from the bridge. The skid itself is
+  three minutes further, through the indexed rotary transfer into the drum;
+  only there can someone read it directly and set the target by hand.
 - **What the captain decides:** delay the burn and spend reaction mass and
   schedule, or burn on time and accept the cargo risk. The navigation computer
   objects to any delay, in its own terms.
@@ -252,17 +261,17 @@ Every graphical view has a list or table equivalent.
 
 ## First playable slice
 
-1. **Fit-out survey:** confirm drum 3's skid, circulation pack, LT interface,
-   valve, board, gallery cell and the nearest panels; record what is manual.
+1. **Fit-out survey:** done — see the [drum 3 fit-out survey](drum3-fitout-survey.md).
 2. **The lead-mind player:** an authenticated player with no body, whose
    perception is a new sensor-and-gateway-scoped read view. It must not reuse
    the developer view or expose any character's private beliefs.
-3. **One gateway and one local controller:** the cargo-control gateway with
-   typed mappings, one deliberate semantic flaw (`RUN`), link and power faults;
-   the skid controller keeps regulating if the link drops.
-4. **One remote action and one hand-only task:** a bounded, receipted command
-   through the gateway where it is fitted and permitted, and the gallery
-   setpoint or valve check that only an engineer can do.
+3. **One gateway and one local controller:** a segment of the plant-control
+   network and a gateway at `LCS-DR-03` with typed mappings, one deliberate
+   semantic flaw (`RUN`), link and power faults; the skid keeps regulating if
+   the link drops.
+4. **One remote action and one hand-only task:** `ISO-DR-03-LT-IF`, operable
+   only through a working network path under the existing interlocks, and the
+   gallery setpoint that only an engineer at the skid can change.
 5. **The human partners:** the migrated autonomous captain, or a clearly
    labelled test double until migration, able to ask, dispute and decide; one
    engineer with real travel and work limits.
@@ -315,8 +324,9 @@ Every graphical view has a list or table equivalent.
 2. Whether the navigation computer is the right first specialist.
 3. Gateway semantics in detail: versioning, arbitration, staleness and recovery.
 4. What persists of the lead mind across power loss, and its own voice.
-5. Whether the cargo-control gateway at `LP-CARGO-CTRL-FWD` is the right first
-   fitting, once the survey is done.
+5. How the plant-control network is modelled (one damaged network, or
+   segments of different generations joined by gateways) and which of the 559
+   remote-flagged isolators are reachable at the start.
 
 ## References
 
