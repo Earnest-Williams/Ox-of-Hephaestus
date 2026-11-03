@@ -15,7 +15,7 @@ propulsion contract.
 | `FTL-TRANSLATION-FIELD` | FTL field system in `FTL-SVC` (life-extension refit); 0.2 MW auxiliaries, 150 kW of field heat | Runtime |
 | `DEBRIS-RADAR-FWD` | Forward debris sensor, gen-3 replacement | Data |
 | Local control | `LCS-PROP` (propulsion safing, feed, service), `LCS-FTL` (field safing, readiness) | Data |
-| Navigation computer | **Decided:** a specialist AI, reasonably capable, on the backbone directly with no gateway. None is fitted in the design data yet; navigation planning there is a local panel (`LP-NAV-PLANNING`) | New |
+| Navigation computer | **Decided:** a specialist AI, reasonably capable, on the backbone directly with no gateway, fitted on the bridge (`CMD-PRIMARY`). Not yet in the design data, where navigation planning is a local panel (`LP-NAV-PLANNING`) | New |
 
 ## Normal
 
@@ -47,9 +47,11 @@ and burns, can disagree with the lead mind, and can hold course and carry out
 an approved burn on its own when the lead mind hands navigation to it.
 
 It has **no personality by default**: it reasons about navigation, not about
-people or loyalties. It has the capacity to run one. Installing a personality
-is a change to fitted equipment like any other: physical or network access to
-the computer, and a record of the change (**New**).
+people or loyalties. It has the capacity to run one. **Decided:** a personality
+can be installed or removed **only at the machine itself, on the bridge** —
+not over the network. So the lead mind cannot do it directly; it needs a
+person on the bridge. Every install or removal is recorded as a change to
+fitted equipment (**New**).
 
 ## What needs hands
 
@@ -82,6 +84,7 @@ the computer, and a record of the change (**New**).
 
 ## Open questions
 
-1. Where is the navigation computer fitted, and what does it depend on?
+1. What does the navigation computer depend on besides the bridge's power and
+   the backbone?
 2. How much of the helm does the lead mind hold without the captain on the
    bridge?

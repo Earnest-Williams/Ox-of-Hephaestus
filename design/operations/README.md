@@ -107,7 +107,8 @@ wear, failures and replacements during the voyage, not from a broken opening.
 9. **The lead mind's core layout** is accepted as proposed; exact numbers
    are settled in playtesting ([core](lead-mind-core.md)).
 10. **The navigation computer** is a specialist AI, reasonably capable, on the
-   backbone with no gateway.
+   backbone with no gateway, fitted on the bridge. It has no personality by
+   default; one can be installed or removed only at the machine.
 
 ## Related
 
