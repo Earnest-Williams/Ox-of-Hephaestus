@@ -48,6 +48,7 @@ something happened and the world could know it, it belongs in a record here.
 | **Sensor histories** | Time series per channel at stated retention, with gaps marked as gaps | Alarms alone don't show trends. |
 | **Maintenance history** | Scheduled, deferred, done and verified, per unit, across all machinery, not only the 26 secondary machines | So "due", "overdue" and "worn early" are measurable. |
 | **Consumables ledger** | Per person and per space where measurable: oxygen, water, food, medical supplies | So stores can be accounted for and forecast to the end of the voyage. |
+| **Core log** | Machine state, parity layout, rebuilds, and every handover of a system to a subsystem and back | So the lead mind's own health and delegations are facts, not claims. |
 | **The lead mind's model** | Its expectations: what each command should change, what each reading should be | So mismatches between expectation and world are themselves records. |
 
 ## Who can read what

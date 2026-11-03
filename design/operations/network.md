@@ -160,6 +160,9 @@ the ship, two of them acting as parity**.
   (a specialist AI or a capable local controller). It keeps watching what it
   still can, and takes control back when it has capacity again.
 - Machines returning to service are rebuilt into the array.
+
+Placement, dependencies, parity timing, capacity and handover candidates are
+proposed in [the lead mind's core](lead-mind-core.md).
 - **Each machine is fitted equipment** with a location, power supply, cooling,
   backbone link and condition, like anything else on the ship. A machine cut
   off from the backbone counts as lost even if it is still running.

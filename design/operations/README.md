@@ -65,6 +65,7 @@ wear, failures and replacements during the voyage, not from a broken opening.
 | Chapter | Contents | State |
 |---|---|---|
 | [Network](network.md) | Backbone, segments and gateways; what is remote and what is manual; local takeover | Drafted |
+| [Lead mind's core](lead-mind-core.md) | The nine machines: placement, dependencies, parity, capacity, handover | Proposed |
 | [Records](records.md) | Every record the ship keeps, and its status | Drafted |
 | [Power](power.md) | Generation, storage, distribution, protection | Drafted |
 | [Cargo](cargo.md) | Drums, cargo climate, freight handling, rotation | Drafted |
