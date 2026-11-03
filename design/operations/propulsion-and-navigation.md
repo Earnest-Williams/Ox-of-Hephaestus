@@ -15,7 +15,7 @@ propulsion contract.
 | `FTL-TRANSLATION-FIELD` | FTL field system in `FTL-SVC` (life-extension refit); 0.2 MW auxiliaries, 150 kW of field heat | Runtime |
 | `DEBRIS-RADAR-FWD` | Forward debris sensor, gen-3 replacement | Data |
 | Local control | `LCS-PROP` (propulsion safing, feed, service), `LCS-FTL` (field safing, readiness) | Data |
-| Navigation computer | None fitted; navigation planning is a local panel (`LP-NAV-PLANNING`) | Data (absence) |
+| Navigation computer | **Decided:** a specialist AI, reasonably capable, on the backbone directly with no gateway. None is fitted in the design data yet; navigation planning there is a local panel (`LP-NAV-PLANNING`) | New |
 
 ## Normal
 
@@ -40,6 +40,11 @@ propulsion contract.
 - **Debris watch** through the forward radar, where its segment reaches.
 
 Route, destination and when to burn are the captain's decisions.
+
+**The navigation computer** is a reasonably capable specialist AI that speaks
+the backbone's own protocol, so it needs no gateway. It proposes trajectories
+and burns, can disagree with the lead mind, and can hold course and carry out
+an approved burn on its own when the lead mind hands navigation to it.
 
 ## What needs hands
 
@@ -72,6 +77,6 @@ Route, destination and when to burn are the captain's decisions.
 
 ## Open questions
 
-1. Is the navigation computer added as the first specialist AI, and where?
+1. Where is the navigation computer fitted, and what does it depend on?
 2. How much of the helm does the lead mind hold without the captain on the
    bridge?

@@ -9,8 +9,10 @@ working machines into parity at the cost of capacity; it can hand systems to
 subsystems capable of running them; every machine room has monitored,
 controlled access.
 
-**Everything else here is a proposal (New)** for confirmation. The design data
-has no computing equipment or machine rooms today.
+**Accepted (New), 3 November 2026:** the placement, parity and capacity
+model and handover table below. Exact numbers — rebuild time, capacity steps —
+are starting values to be settled in playtesting. The design data has no
+computing equipment or machine rooms today.
 
 ## Placement rule
 
@@ -86,7 +88,7 @@ harder to kill and slower to think.
 | Air | The ECLSS trains' own controls; train B's gen-3 controls are the most capable | Hold oxygen and CO₂ targets in their own zones | Coordinating circulation between zones |
 | Cooling | `LCS-LT`, `LCS-HT` | Run pumps and radiators; drive first | Planning the heat budget against burns and cargo |
 | Cargo | Each drum's `LCS-DR-xx` and skid controller | Hold the last target; hold rotation | Pre-cooling, rebalancing, freight scheduling |
-| Navigation | The navigation computer (proposed specialist AI) | Hold course; carry out an approved burn | Weighing burns against heat, cargo and crew |
+| Navigation | The navigation computer (specialist AI, decided) | Hold course; carry out an approved burn | Weighing burns against heat, cargo and crew |
 | Fire | `LCS-FIRE-FWD`, `LCS-FIRE-AFT` | Run pumps and cross-ties | Coordinated isolation of utilities and ventilation |
 
 Every handover and return is receipted (acceptance test S15). A subsystem runs
@@ -100,8 +102,6 @@ remote command log and a new **core log**.
 
 ## Open questions
 
-1. Is this placement right, or should the forward spine be empty and the hub
-   take three?
-2. Are 15-minute rebuilds and the capacity table about right?
-3. Should the navigation computer be the first specialist AI, given it is the
-   only proposed subsystem able to take over navigation?
+1. Where does the forward-spine machine's feeder come from, and does making
+   `XCON-GAP-23` controlled-access cost the crew a useful short cut?
+2. Rebuild time and capacity steps: tune in playtesting.

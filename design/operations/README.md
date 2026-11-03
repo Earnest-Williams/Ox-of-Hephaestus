@@ -65,7 +65,7 @@ wear, failures and replacements during the voyage, not from a broken opening.
 | Chapter | Contents | State |
 |---|---|---|
 | [Network](network.md) | Backbone, segments and gateways; what is remote and what is manual; local takeover | Drafted |
-| [Lead mind's core](lead-mind-core.md) | The nine machines: placement, dependencies, parity, capacity, handover | Proposed |
+| [Lead mind's core](lead-mind-core.md) | The nine machines: placement, dependencies, parity, capacity, handover | Accepted; numbers to tune |
 | [Records](records.md) | Every record the ship keeps, and its status | Drafted |
 | [Power](power.md) | Generation, storage, distribution, protection | Drafted |
 | [Cargo](cargo.md) | Drums, cargo climate, freight handling, rotation | Drafted |
@@ -104,6 +104,10 @@ wear, failures and replacements during the voyage, not from a broken opening.
    ([watch routine](watch-routine.md)).
 8. **The ship's day is 36 hours**, and everyone is perpetually on call: a staffing
    convention, not being awake; emergencies never wait for off-shift crew.
+9. **The lead mind's core layout** is accepted as proposed; exact numbers
+   are settled in playtesting ([core](lead-mind-core.md)).
+10. **The navigation computer** is a specialist AI, reasonably capable, on the
+   backbone with no gateway.
 
 ## Related
 
