@@ -80,6 +80,7 @@ wear, failures and replacements during the voyage, not from a broken opening.
 | [Communications](communications.md) | Comms nodes, alarms relay, intercoms | Drafted |
 | [Workshop and exterior](workshop-and-exterior.md) | Fabrication, welding, exterior rail and EVA | Drafted |
 | [Watch routine](watch-routine.md) | How a day runs; the split between lead mind and crew | Drafted |
+| [Build plan](build-plan.md) | The order in which this becomes game code; the first pull request | Plan |
 
 ## Decided
 

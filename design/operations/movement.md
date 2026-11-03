@@ -70,11 +70,15 @@ and the installed design data.
 
 - **Indexed transfers (Runtime):** request, start, completion and who moved.
 - **Freight transfers (Runtime):** receipts and manifest changes.
-- **Ordinary movement: not recorded today.** The game moves characters through
-  exits without a record. The [records](records.md) proposal adds an **access
-  log** (each door: opened, closed, by switch or hand, from which side, when,
-  and who where an identity reader exists) and a **location history** built
-  from it (**New**).
+- **Every traversal (Runtime):** each move through a canonical exit already
+  creates a world event (`crew_traverse`: who, from, to, game time) and a work
+  receipt. That is the world's truth, with identity, and no character or the
+  lead mind can read it whole.
+- **The lead mind's access log (New)** is a scoped view of those events: that a
+  motorised door moved, when, and in which direction, everywhere it reaches;
+  **who** only at controlled-access points (entrances, the bridge, the lead
+  mind's machine rooms). A **location history** is built from it, never
+  complete. See [records](records.md).
 
 ## Open questions
 

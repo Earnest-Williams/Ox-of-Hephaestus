@@ -27,6 +27,7 @@ something happened and the world could know it, it belongs in a record here.
 | **Food chain** | Stock per store, items taken and delivered, meals cooked, served and eaten (receipted), refuse mass carried and deposited, crop biomass | [Food operations](../ship/G19_FOOD_OPERATIONS_AND_ACCEPTANCE.md) |
 | **Cargo climate** | Per drum: temperature, target, cooling output; per sensitive lot: quality, time out of band | [Cargo](cargo.md) |
 | **Cargo manifest** | Lots, positions, splits, transfers; manifest hash in clock snapshots | [Movement and rotary operations](../ship/G19_MOVEMENT_AND_ROTARY_OPERATIONS.md) |
+| **Traversals** | Every move through a canonical exit: who, from, to, game time, with a receipt | `CanonicalShipEvent` (`crew_traverse`), `WorkReceipt` |
 | **Indexed transfers** | Each drum, workshop or habitat transfer: request, start, completion, who moved | [Indexed personnel transfer](../ship/G19_INDEXED_PERSONNEL_TRANSFER.md) |
 | **Inventory and supply** | Items, custody, supply orders | `InventoryItem`, `SupplyOrder` |
 | **Investigations** | A case's latent cause, sampled evidence, reports and assessments, kept out of observations unless relayed | `InvestigationCase` |
@@ -39,7 +40,7 @@ something happened and the world could know it, it belongs in a record here.
 
 | Record | What it holds | Why |
 |---|---|---|
-| **Access log** | Each motorised door, hatch and lock: opened, closed, sealed, by switch, by the lead mind or by hand, from which side, when. **Who** only at controlled-access points: the ship's entrances, the bridge and the lead mind's machine rooms | Ordinary movement through doors is not recorded today. |
+| **Access log** | The lead mind's view of door movements: each motorised door, hatch and lock opened, closed or sealed, by switch, by the lead mind or by hand, from which side, when. **Who** only at controlled-access points: the ship's entrances, the bridge and the lead mind's machine rooms | The world already records every traversal with identity (`crew_traverse` events and receipts); this is the scoped view the lead mind is entitled to. |
 | **Location history** | Where each person was last seen, by which source, and when | Built from the access log, cameras, suits and panels; never complete. |
 | **Gateway traffic** | Per gateway: readings passed, commands requested, accepted, attempted and refused, link-state changes, mapping revisions | The core of provenance on the network. |
 | **Local control log** | Takeovers, hand-backs and emergency trips at each local control station, with who and why if given | Required by the local-control contract ("local takeover is logged"). |
