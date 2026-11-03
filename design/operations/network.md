@@ -60,7 +60,7 @@ habitat and command segments are proposed.
 | Fire main ×2 | `LCS-FIRE-FWD`, `LCS-FIRE-AFT` | Fire pumps and cross-connects | Data |
 | Habitat sections ×8 | `HAB-01-COMMS-NODE` … `HAB-08-COMMS-NODE` | Cabins, cabin panels, local services in each section | New (hosts are Data) |
 | Command | Command and engineering rooms | Bridge, engineering control, navigation, comms, cargo control | New |
-| Navigation computer | None: on the backbone directly | Specialist AI; speaks the backbone's own protocol | Decided (New) |
+| Navigation computer | None: on the backbone directly | Specialist AI; speaks the backbone's own protocol; no personality by default, but capable of running one | Decided (New) |
 | Water | To be decided | Potable, grey and black water | New: no local control station covers water |
 
 Assigning each of the 1,092 isolation points to a segment is **New** work.

@@ -46,6 +46,11 @@ the backbone's own protocol, so it needs no gateway. It proposes trajectories
 and burns, can disagree with the lead mind, and can hold course and carry out
 an approved burn on its own when the lead mind hands navigation to it.
 
+It has **no personality by default**: it reasons about navigation, not about
+people or loyalties. It has the capacity to run one. Installing a personality
+is a change to fitted equipment like any other: physical or network access to
+the computer, and a record of the change (**New**).
+
 ## What needs hands
 
 **Runtime:**

@@ -66,7 +66,7 @@ beats remote command.
 | Kind | Example | How the lead mind deals with it |
 |---|---|---|
 | **Lead mind** | — | Its own model and records; never world truth. |
-| **Specialist AI** | The navigation computer: reasonably capable, on the backbone with no gateway | A colleague who can disagree. |
+| **Specialist AI** | The navigation computer: reasonably capable, on the backbone with no gateway, no personality by default | A colleague who can disagree on its own subject. |
 | **Local controller** | A cargo thermal skid's control loop | A limited vocabulary through a gateway; keeps running if the lead mind is offline. |
 | **Conventional automation** | Breakers, relays, permissives | Observed and commanded where wired. |
 | **Manual equipment** | 533 manual-only valves and breakers | Needs a person. |
