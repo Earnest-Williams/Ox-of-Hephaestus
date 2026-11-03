@@ -22,9 +22,11 @@ members take turns on them.
 **The ship's day is 36 hours.** Each person works one 14-hour shift in it and
 has 22 hours off.
 
-**Everyone is perpetually on call.** Off shift is not out of reach: the lead
-mind, the captain or a shift-mate can call anyone at any hour, and being up at
-an odd hour is normal.
+**Everyone is perpetually on call.** This is a way of counting staff, not a
+state of being awake. Off-shift crew rest and sleep normally; they can be
+woken when a job genuinely needs them. Nothing waits for them: an emergency
+is handled at once by whoever is on duty, the lead mind and the ship's own
+automation, and off-shift people are called in to help if needed.
 
 The habitat has 40 cabins, so 16 people have ample room, and the ECLSS runs far
 below its 40-person design.
@@ -67,8 +69,8 @@ day is a working schedule; it does not change the physics clock.
 | Rounds (each shift) | Lists rooms nobody has seen and readings it can't get | A walk through assigned compartments, reading local panels |
 | Maintenance (main shift) | Schedules jobs from service intervals and conditions; stages power and access | Engineers do the work; receipts close the jobs |
 | Meals | Forecasts stock; keeps the galley powered and water safe | Someone cooks; everyone eats |
-| Rest | Quiet running; nothing non-essential near occupied cabins | 22 hours off per 36-hour day, on call throughout |
-| Calls | Calls off-shift crew when a job needs them, and records each call and response | Anyone may be called at any hour |
+| Rest | Quiet running; nothing non-essential near occupied cabins | 22 hours off per 36-hour day, mostly asleep or resting |
+| Calls | Wakes off-shift crew only when a job needs them, and records each call and response | Called in when needed; never waited for in an emergency |
 | Captain's time | Reports and recommendations; asks for decisions | The captain decides route, burns, freight, risk |
 
 ## Who does what
