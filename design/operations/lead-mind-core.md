@@ -21,9 +21,13 @@ fault should be able to take out three at once**:
 
 - **No more than two machines per region** of the ship, so cutting the backbone
   between regions can isolate at most two.
-- **No two machines on the same power board.** Today every room panel in the
-  bow and aft hangs off main board B (`DB-B-BOW`, `DB-B-AFT`), so the machines
-  need their own feeds.
+- **No two machines on the same final distribution board.** Today bow and
+  aft room panels hang off board B (`DB-B-BOW`, `DB-B-AFT`); the new machine
+  feeders must not inherit those common room-panel failure points.
+- **No single distribution fault may remove more than two machines.**
+  Separate outgoing cables alone do not suffice when they still traverse
+  the same bus, isolation switch, converter or reserve. The existing
+  `PWR-PROT` protected bus is one such common failure point.
 - **No more than two machines sharing a cooling path.**
 - **Two backbone routes everywhere**, one along each personnel trunk (A and B),
   so a single cut never isolates a region.
@@ -48,14 +52,43 @@ making it controlled-access closes a short cut between trunks A and B. An
 alternative is to leave the forward spine empty and accept three machines in the
 hub, where backbone routes are most redundant.
 
+**Power supply design (New, not fitted):** the nine machines require at
+least five separately isolated, locally buffered power islands, with at
+most two machines assigned to any one island. A candidate arrangement is
+islands for machines **1-2 (bow)**, **3 (forward spine)**, **4-5 (hub)**,
+**6-7 (habitat)** and **8-9 (aft)**. The table above shows the rooms'
+*existing panel feeds*, not approved routes for the lead mind. The
+protected `PWR-PROT` bus and `BAT-COMMON-PROT` battery cannot be the sole
+upstream supply or common reserve for these islands.
+
 **Each machine gets (New):**
 
-- its own feeder from the protected bus with A/B selection, and a short battery
-  ride-through, so a board trip or a feeder changeover doesn't drop it;
+- a dedicated final feeder and breaker from its assigned isolated island,
+  with no shared final distribution board with another machine;
+- genuinely diverse A/B supply paths into the island (with safe transfer)
+  and **island-local** energy storage sufficient to bridge the designed
+  failure/reconfiguration interval. Neither feed may depend on a failed
+  shared `PWR-PROT` node; an A/B selector *downstream* of that bus gives no
+  redundancy against its failure. Any required independent switchgear,
+  feeders and reserves must be added to the ship data, not assumed fitted;
 - cooling from its room's air handling, with its own over-temperature
   shutdown;
 - two backbone links, one to each trunk route;
 - a monitored, controlled-access door that records who entered.
+
+## Power fault-domain acceptance
+
+**New acceptance criterion, before core implementation:** map each
+machine's actual node/edge/isolator path, selected source and local
+reserve. Run a single-fault sweep of power buses, feeders, switches,
+converters and shared energy stores (including a sustained `PWR-PROT`
+fault). After permitted transfer and within the specified island reserve
+autonomy, each single fault must leave **at least seven of nine machines**
+powered and connected; otherwise the proposed layout violates the
+two-machine fault-domain rule. Specify and test reserve duration and
+recovery behaviour; a ship-wide loss of all generating and stored energy
+cannot be solved by a finite ride-through battery. This is a design
+requirement, **not** an assertion that the existing power graph passes.
 
 ## Parity and capacity
 

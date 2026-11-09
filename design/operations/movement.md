@@ -74,11 +74,14 @@ and the installed design data.
   creates a world event (`crew_traverse`: who, from, to, game time) and a work
   receipt. That is the world's truth, with identity, and no character or the
   lead mind can read it whole.
-- **The lead mind's access log (New)** is a scoped view of those events: that a
-  motorised door moved, when, and in which direction, everywhere it reaches;
-  **who** only at controlled-access points (entrances, the bridge, the lead
-  mind's machine rooms). A **location history** is built from it, never
-  complete. See [records](records.md).
+- **The lead mind's access log (New)** combines completed `crew_traverse`
+  crossings, actual `crew_hatch` open/close changes (even without passage),
+  and `crew_indexed_transfer_complete` arrivals. It records a door state
+  change only if the hatch's before/after state differs, and direction only
+  for passages. Visibility requires a reachable source; **who** appears
+  only at controlled-access points (entrances, bridge and machine rooms).
+  Future remote motorised door and seal operations need new world events.
+  **Location history** remains incomplete. See [records](records.md).
 
 ## Open questions
 

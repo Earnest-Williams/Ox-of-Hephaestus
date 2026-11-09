@@ -40,7 +40,7 @@ something happened and the world could know it, it belongs in a record here.
 
 | Record | What it holds | Why |
 |---|---|---|
-| **Access log** | The lead mind's view of door movements: each motorised door, hatch and lock opened, closed or sealed, by switch, by the lead mind or by hand, from which side, when. **Who** only at controlled-access points: the ship's entrances, the bridge and the lead mind's machine rooms | The world already records every traversal with identity (`crew_traverse` events and receipts); this is the scoped view the lead mind is entitled to. |
+| **Access log** | Network-scoped door/hatch operations and completed passages: `crew_traverse` for ordinary crossing, changed-state `crew_hatch` for attended open/close (even without crossing), and `crew_indexed_transfer_complete` for timed arrival. Remote motorised/seal events are New | Existing event sources have stable world IDs and actor/time; the lead mind's projection reveals identity only at controlled-access points, and never invents state from a passage or an unreachable event. |
 | **Location history** | Where each person was last seen, by which source, and when | Built from the access log, cameras, suits and panels; never complete. |
 | **Gateway traffic** | Per gateway: readings passed, commands requested, accepted, attempted and refused, link-state changes, mapping revisions | The core of provenance on the network. |
 | **Local control log** | Takeovers, hand-backs and emergency trips at each local control station, with who and why if given | Required by the local-control contract ("local takeover is logged"). |
