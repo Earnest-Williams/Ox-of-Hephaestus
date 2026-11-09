@@ -28,10 +28,14 @@
           "breaker": "ISO-MIND-BOW-A",
           "route_domains": [
             "PWR-MSB-A",
+            "EDGE-DB-A-BOW",
+            "ISO-DB-A-BOW",
             "TRUNK-A-BOW",
+            "NODE-DB-A-BOW",
             "MIND-BOW-A-CABLE"
           ],
-          "selected": true
+          "selected": true,
+          "tap_node": "NODE-DB-A-BOW"
         },
         {
           "source": "B",
@@ -39,10 +43,14 @@
           "breaker": "ISO-MIND-BOW-B",
           "route_domains": [
             "PWR-MSB-B",
+            "EDGE-DB-B-BOW",
+            "ISO-DB-B-BOW",
             "TRUNK-B-BOW",
+            "NODE-DB-B-BOW",
             "MIND-BOW-B-CABLE"
           ],
-          "selected": false
+          "selected": false,
+          "tap_node": "NODE-DB-B-BOW"
         }
       ],
       "machines": [
@@ -93,10 +101,14 @@
           "breaker": "ISO-MIND-FWD-SPINE-A",
           "route_domains": [
             "PWR-MSB-A",
+            "EDGE-DB-A-GAP-23",
+            "ISO-DB-A-GAP-23",
             "TRUNK-A-GAP-23",
+            "NODE-DB-A-GAP-23",
             "MIND-FWD-SPINE-A-CABLE"
           ],
-          "selected": true
+          "selected": true,
+          "tap_node": "NODE-DB-A-GAP-23"
         },
         {
           "source": "B",
@@ -104,10 +116,14 @@
           "breaker": "ISO-MIND-FWD-SPINE-B",
           "route_domains": [
             "PWR-MSB-B",
+            "EDGE-DB-B-GAP-23",
+            "ISO-DB-B-GAP-23",
             "TRUNK-B-GAP-23",
+            "NODE-DB-B-GAP-23",
             "MIND-FWD-SPINE-B-CABLE"
           ],
-          "selected": false
+          "selected": false,
+          "tap_node": "NODE-DB-B-GAP-23"
         }
       ],
       "machines": [
@@ -145,10 +161,14 @@
           "breaker": "ISO-MIND-HUB-A",
           "route_domains": [
             "PWR-MSB-A",
+            "EDGE-DB-A-HAB-HUB-SERVICES",
+            "ISO-DB-A-HAB-HUB-SERVICES",
             "TRUNK-A-HAB-HUB-SERVICES",
+            "NODE-DB-A-HAB-HUB-SERVICES",
             "MIND-HUB-A-CABLE"
           ],
-          "selected": true
+          "selected": true,
+          "tap_node": "NODE-DB-A-HAB-HUB-SERVICES"
         },
         {
           "source": "B",
@@ -156,10 +176,14 @@
           "breaker": "ISO-MIND-HUB-B",
           "route_domains": [
             "PWR-MSB-B",
+            "EDGE-DB-B-HAB-HUB-SERVICES",
+            "ISO-DB-B-HAB-HUB-SERVICES",
             "TRUNK-B-HAB-HUB-SERVICES",
+            "NODE-DB-B-HAB-HUB-SERVICES",
             "MIND-HUB-B-CABLE"
           ],
-          "selected": false
+          "selected": false,
+          "tap_node": "NODE-DB-B-HAB-HUB-SERVICES"
         }
       ],
       "machines": [
@@ -210,10 +234,16 @@
           "breaker": "ISO-MIND-HAB-A",
           "route_domains": [
             "PWR-MSB-A",
-            "HAB-POWER-INTERFACE-A",
+            "EDGE-ROT-PWR-A",
+            "ISO-ROT-PWR-A",
+            "NODE-ROT-PWR-A",
+            "EDGE-HAB-04-A-IN",
+            "ISO-HAB-04-A-IN",
+            "NODE-HAB-04-PDB-A",
             "MIND-HAB-A-CABLE"
           ],
-          "selected": true
+          "selected": true,
+          "tap_node": "NODE-HAB-04-PDB-A"
         },
         {
           "source": "B",
@@ -221,10 +251,32 @@
           "breaker": "ISO-MIND-HAB-B",
           "route_domains": [
             "PWR-MSB-B",
-            "HAB-POWER-INTERFACE-B",
+            "EDGE-ROT-PWR-B",
+            "ISO-ROT-PWR-B",
+            "NODE-ROT-PWR-B",
+            "EDGE-HAB-08-B-IN",
+            "ISO-HAB-08-B-IN",
+            "NODE-HAB-08-PDB-B",
+            "EDGE-PWR-B-BR-07",
+            "ISO-PWR-B-BR-07-HAB-07",
+            "ISO-PWR-B-BR-07-HAB-08",
+            "NODE-HAB-07-PDB-B",
+            "EDGE-PWR-B-BR-06",
+            "ISO-PWR-B-BR-06-HAB-06",
+            "ISO-PWR-B-BR-06-HAB-07",
+            "NODE-HAB-06-PDB-B",
+            "EDGE-PWR-B-BR-05",
+            "ISO-PWR-B-BR-05-HAB-05",
+            "ISO-PWR-B-BR-05-HAB-06",
+            "NODE-HAB-05-PDB-B",
+            "EDGE-PWR-B-BR-04",
+            "ISO-PWR-B-BR-04-HAB-04",
+            "ISO-PWR-B-BR-04-HAB-05",
+            "NODE-HAB-04-PDB-B",
             "MIND-HAB-B-CABLE"
           ],
-          "selected": false
+          "selected": false,
+          "tap_node": "NODE-HAB-04-PDB-B"
         }
       ],
       "machines": [
@@ -275,10 +327,14 @@
           "breaker": "ISO-MIND-AFT-A",
           "route_domains": [
             "PWR-MSB-A",
+            "EDGE-DB-A-AFT",
+            "ISO-DB-A-AFT",
             "TRUNK-A-AFT",
+            "NODE-DB-A-AFT",
             "MIND-AFT-A-CABLE"
           ],
-          "selected": true
+          "selected": true,
+          "tap_node": "NODE-DB-A-AFT"
         },
         {
           "source": "B",
@@ -286,10 +342,14 @@
           "breaker": "ISO-MIND-AFT-B",
           "route_domains": [
             "PWR-MSB-B",
+            "EDGE-DB-B-AFT",
+            "ISO-DB-B-AFT",
             "TRUNK-B-AFT",
+            "NODE-DB-B-AFT",
             "MIND-AFT-B-CABLE"
           ],
-          "selected": false
+          "selected": false,
+          "tap_node": "NODE-DB-B-AFT"
         }
       ],
       "machines": [
