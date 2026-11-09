@@ -401,3 +401,82 @@ def proposed_world_rows(design):
                  "kind": "breaker", "current_state": "closed",
                  "manual_operation": True, "remote_operable": False}, "closed")
     return rows
+
+
+def validate_fitted_source_routes(design, ship):
+    """Trace all ten A/B candidate taps against actual v0.5 power rows.
+
+    A feeder may be proposed only when the upstream existing route is a
+    real, continuous and physically isolatable path. Bridge feeders are
+    bidirectional in G19; all other edges are walked in their authored
+    direction. This does NOT install the last, new MIND-* cable or verify its
+    routing, source transfer switch, or current carrying capacity.
+    """
+    validate_design(design)
+    _check(isinstance(ship, dict)
+           and ship.get("schema_version") == "ox.ship-world/0.1",
+           "Incorrect installed-ship source authority")
+    for section in ("spaces", "service_nodes", "service_edges", "isolation_points"):
+        _check(isinstance(ship.get(section), list),
+               "Fitted source lacks " + section)
+    spaces = {s["id"] for s in ship["spaces"]}
+    nodes = {n["id"]: n for n in ship["service_nodes"] if n["network"] == "power"}
+    edges = {e["id"]: e for e in ship["service_edges"] if e["network"] == "power"}
+    switches = {s["id"]: s for s in ship["isolation_points"]
+                if s["network"] == "power"}
+    _check(len(nodes) == 438 and len(edges) == 450 and len(switches) == 466,
+           "Expected historical G19 power-register topology is missing")
+    _check(all(node in nodes for node in UPSTREAM.values()),
+           "Main-board sources are not authored in G19")
+    count = 0
+    traversed = set()
+    for island in design["islands"]:
+        _check(island["control_room"] in spaces,
+               "Proposed island service room is not on the ship")
+        for machine in island["machines"]:
+            _check(machine["room"] in spaces, "Compute room is not on the ship")
+        for feed in island["inputs"]:
+            expected = UPSTREAM[feed["source"]]
+            route = feed["route_domains"]
+            _check(route[0] == expected
+                   and feed.get("tap_node") in nodes,
+                   "Proposed input has no verified existing tap node")
+            path_node = expected
+            original_edges = 0
+            for token in route[1:]:
+                if token.startswith("MIND-"):
+                    # MIND-* denotes the new, separately fabricated cable.
+                    # Its physical routing must be surveyed before install.
+                    continue
+                if token.startswith("EDGE-"):
+                    _check(token in edges, "Candidate invents a fitted conductor: " + token)
+                    edge = edges[token]
+                    _check(set(edge["isolator_ids"]) <= set(route)
+                           and all(i in switches for i in edge["isolator_ids"]),
+                           "Candidate route hides a real upstream breaker")
+                    _check(all(room in spaces for room in edge.get("route_spaces", [])),
+                           "Authored feeder path traverses a nonexistent space")
+                    if edge["from_node"] == path_node:
+                        path_node = edge["to_node"]
+                    elif edge.get("kind") == "bridge_feeder" and edge["to_node"] == path_node:
+                        path_node = edge["from_node"]
+                    else:
+                        raise MindPowerError(
+                            "Broken upstream electrical route at " + token)
+                    traversed.add(token)
+                    original_edges += 1
+                elif token.startswith("ISO-"):
+                    _check(token in switches, "Unfitted upstream isolator: " + token)
+                elif token.startswith(("NODE-", "PWR-")):
+                    _check(token in nodes, "Unfitted upstream electrical node: " + token)
+                    _check(token == path_node, "Path node is not actually connected: " + token)
+                else:
+                    _check(token in spaces, "Proposed cable corridor not on ship: " + token)
+            _check(original_edges > 0 and feed["tap_node"] == path_node,
+                   "Candidate input does not reach its existing tapped board")
+            count += 1
+    return {"candidate_islands": len(design["islands"]),
+            "candidate_machines": MACHINE_COUNT,
+            "independent_input_routes": count,
+            "original_feeders_traced": len(traversed),
+            "future_world_rows": len(proposed_world_rows(design))}
