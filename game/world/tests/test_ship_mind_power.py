@@ -2,13 +2,14 @@
 from __future__ import annotations
 
 import copy
+import json
 import unittest
 
 from world.ship_mind_power import (
     MIN_SURVIVORS, MindPowerError, default_design_path, fault_components,
     initial_reserve_ledger, live_machines, load_design, proposed_world_rows,
     single_fault_sweep, spend_reserve, survey_reserve, validate_design,
-    validate_reserve_ledger,
+    validate_reserve_ledger, validate_fitted_source_routes,
 )
 
 
@@ -70,6 +71,36 @@ class CorePowerTopologyTests(unittest.TestCase):
         self.assertEqual(len(live_machines(
             self.design, energized_main_nodes=set(),
             surveyed_reserves=reserves)), 7)
+
+    def test_ten_candidate_taps_follow_existing_installed_g19_paths(self):
+        ship_file = default_design_path().with_name("ox_full_ship_v0.5_candidate.json")
+        fitted = json.loads(ship_file.read_text(encoding="utf-8"))
+        report = validate_fitted_source_routes(self.design, fitted)
+        self.assertEqual(report["independent_input_routes"], 10)
+        self.assertEqual(report["candidate_machines"], 9)
+        self.assertEqual(report["candidate_islands"], 5)
+        self.assertEqual(report["future_world_rows"], 86)
+        self.assertGreaterEqual(report["original_feeders_traced"], 12)
+        hab = next(i for i in self.design["islands"] if i["region"] == "HAB")
+        b = next(f for f in hab["inputs"] if f["source"] == "B")
+        self.assertIn("EDGE-ROT-PWR-B", b["route_domains"])
+        self.assertIn("EDGE-PWR-B-BR-07", b["route_domains"])
+        self.assertIn("EDGE-PWR-B-BR-04", b["route_domains"])
+        self.assertEqual(b["tap_node"], "NODE-HAB-04-PDB-B")
+
+    def test_false_legacy_path_or_hidden_isolator_fails_source_proof(self):
+        fitted = json.loads(default_design_path().with_name(
+            "ox_full_ship_v0.5_candidate.json").read_text(encoding="utf-8"))
+        damaged = copy.deepcopy(self.design)
+        feed = damaged["islands"][0]["inputs"][0]
+        feed["route_domains"][1] = "EDGE-DB-A-DR-01"
+        with self.assertRaises(MindPowerError):
+            validate_fitted_source_routes(damaged, fitted)
+        damaged = copy.deepcopy(self.design)
+        feed = damaged["islands"][0]["inputs"][0]
+        feed["route_domains"].remove("ISO-DB-A-BOW")
+        with self.assertRaises(MindPowerError):
+            validate_fitted_source_routes(damaged, fitted)
 
     def test_protected_bus_or_battery_never_energises_an_island(self):
         elements = set(fault_components(self.design))
