@@ -1,0 +1,47 @@
+name: Ox G19 lead-mind power-island contracts
+
+on:
+  push:
+    branches: [g19/lead-mind-power-islands]
+    paths:
+      - "design/ship/lead_mind_power_islands.json"
+      - "game/world/ship_mind_power.py"
+      - "game/world/tests/test_ship_mind_power.py"
+      - ".github/workflows/ox-lead-mind-power.yml"
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - "design/ship/lead_mind_power_islands.json"
+      - "game/world/ship_mind_power.py"
+      - "game/world/tests/test_ship_mind_power.py"
+      - ".github/workflows/ox-lead-mind-power.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ox-mind-power-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  candidate:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    name: Pure fault-domain and finite reserve contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile power-island and inherited G19 electrical code
+        run: |
+          python -m compileall -q game/world/ship_mind_power.py game/world/ship_electrical_power.py game/world/tests/test_ship_mind_power.py
+      - name: Validate scoped CI workflow conventions
+        run: python .github/ci/check_ox_ci_scope.py
+      - name: Exercise all candidate fault domains and measured reserves
+        working-directory: game
+        run: python -m unittest world.tests.test_ship_mind_power world.tests.test_ship_electrical_power -v
+      - name: Preserve unmodified published and G19 candidate topology
+        run: python design/ship/check_v05_candidate.py
