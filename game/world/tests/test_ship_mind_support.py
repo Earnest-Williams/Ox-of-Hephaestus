@@ -30,7 +30,8 @@ class ShipSupportDesignTests(unittest.TestCase):
         report=validate_support(self.support,self.design,self.ship)
         self.assertEqual(report,{
             "backbone_spans":44,"machine_drops":18,
-            "rotary_data_couplers":2,"thermal_islands":5,"machines":9})
+            "rotary_data_couplers":2,"thermal_islands":5,"machines":9,
+            "gateway_hosts":1,"secured_racks":1})
         self.assertEqual(len(connected_machines(self.support)),9)
         self.assertEqual(len(fault_domains(self.support)) > 90,True)
 
@@ -140,13 +141,37 @@ class ShipSupportDesignTests(unittest.TestCase):
         self.assertEqual(len(connected_machines(
             self.support,available_machines={"MIND-01","MIND-02"})),2)
 
+    def test_gateway_is_only_unverified_hardware_not_remote_permission(self):
+        gateway=self.support["gateway_candidates"][0]
+        self.assertFalse(gateway["remote_authority"])
+        self.assertFalse(gateway["command_enabled"])
+        self.assertEqual(gateway["mapping_revision"],0)
+        self.assertEqual(gateway["host_equipment"],"LCS-DR-03")
+        self.assertEqual(gateway["room"],"BE-05-SVC")
+        a,b=gateway["rail_drops"]
+        self.assertIn("TRUNK-B-DR-03",a["route_spaces"])
+        self.assertIn("TRUNK-B-DR-03",b["route_spaces"])
+        rows=proposed_support_rows(self.support,self.design,self.ship)
+        fitted=rows["equipment:GW-LCS-DR-03"]["reference"]
+        self.assertFalse(fitted["remote_authority"])
+        self.assertFalse(fitted["power_verified"])
+        self.assertFalse(fitted["command_enabled"])
+        rack=rows["equipment:MIND-03-SECURE-RACK"]["reference"]
+        self.assertFalse(rack["reader_commissioned"])
+        self.assertEqual(rack["passage_doors_unchanged"],
+            ["ACC-XCON-GAP-23-A","ACC-XCON-GAP-23-B"])
+        unsafe=copy.deepcopy(self.support)
+        unsafe["gateway_candidates"][0]["remote_authority"]=True
+        with self.assertRaises(MindPowerError):
+            validate_support(unsafe,self.design,self.ship)
+
     def test_proposed_rows_are_new_fitted_data_not_power_authority(self):
         rows=proposed_support_rows(self.support,self.design,self.ship)
-        self.assertEqual(len(rows),147)
-        self.assertEqual(sum(x["category"]=="node" for x in rows.values()),64)
-        self.assertEqual(sum(x["category"]=="edge" for x in rows.values()),62)
-        self.assertEqual(sum(x["category"]=="equipment" for x in rows.values()),21)
-        self.assertEqual(len({x["key"] for x in rows.values()}),147)
+        self.assertEqual(len(rows),153)
+        self.assertEqual(sum(x["category"]=="node" for x in rows.values()),66)
+        self.assertEqual(sum(x["category"]=="edge" for x in rows.values()),64)
+        self.assertEqual(sum(x["category"]=="equipment" for x in rows.values()),23)
+        self.assertEqual(len({x["key"] for x in rows.values()}),153)
         self.assertTrue(
             {row["source_id"] for row in rows.values()}
             <= set(fault_domains(self.support)))
