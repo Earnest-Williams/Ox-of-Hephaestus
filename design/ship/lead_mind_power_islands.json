@@ -1,7 +1,7 @@
 {
   "schema_version": "ox.lead-mind-power/1",
   "status": "DESIGN_CANDIDATE_NOT_RUNTIME_AUTHORITY",
-  "notes": "Independent new load system; does not change the inherited 438/450/466 G19 grid. Physical path segments remain proposed until surveyed and installed in Evennia. PWR-PROT and BAT-COMMON-PROT are excluded.",
+  "notes": "Independent new load system; does not change the inherited 438/450/466 G19 grid. Physical path segments remain proposed until surveyed and installed in Evennia. PWR-PROT and BAT-COMMON-PROT are excluded. The new cable corridors are traced through canonical access-link geometry, but are proposed cable routes, not a claim of physically surveyed or commissioned cable installation.",
   "transfer_seconds": 15,
   "required_ride_through_seconds": 120,
   "source_nodes": {
@@ -35,7 +35,11 @@
             "MIND-BOW-A-CABLE"
           ],
           "selected": true,
-          "tap_node": "NODE-DB-A-BOW"
+          "tap_node": "NODE-DB-A-BOW",
+          "proposed_cable_route_spaces": [
+            "TRUNK-A-BOW",
+            "ENV-FWD"
+          ]
         },
         {
           "source": "B",
@@ -50,7 +54,13 @@
             "MIND-BOW-B-CABLE"
           ],
           "selected": false,
-          "tap_node": "NODE-DB-B-BOW"
+          "tap_node": "NODE-DB-B-BOW",
+          "proposed_cable_route_spaces": [
+            "TRUNK-B-BOW",
+            "XCON-BOW",
+            "TRUNK-A-BOW",
+            "ENV-FWD"
+          ]
         }
       ],
       "machines": [
@@ -65,6 +75,13 @@
           "backbone_links": [
             "NET-MIND-01-A",
             "NET-MIND-01-B"
+          ],
+          "proposed_final_route_spaces": [
+            "ENV-FWD",
+            "TRUNK-A-BOW",
+            "XCON-BOW",
+            "TRUNK-B-BOW",
+            "COMMS-FWD"
           ]
         },
         {
@@ -78,6 +95,9 @@
           "backbone_links": [
             "NET-MIND-02-A",
             "NET-MIND-02-B"
+          ],
+          "proposed_final_route_spaces": [
+            "ENV-FWD"
           ]
         }
       ]
@@ -108,7 +128,11 @@
             "MIND-FWD-SPINE-A-CABLE"
           ],
           "selected": true,
-          "tap_node": "NODE-DB-A-GAP-23"
+          "tap_node": "NODE-DB-A-GAP-23",
+          "proposed_cable_route_spaces": [
+            "TRUNK-A-GAP-23",
+            "XCON-GAP-23"
+          ]
         },
         {
           "source": "B",
@@ -123,7 +147,11 @@
             "MIND-FWD-SPINE-B-CABLE"
           ],
           "selected": false,
-          "tap_node": "NODE-DB-B-GAP-23"
+          "tap_node": "NODE-DB-B-GAP-23",
+          "proposed_cable_route_spaces": [
+            "TRUNK-B-GAP-23",
+            "XCON-GAP-23"
+          ]
         }
       ],
       "machines": [
@@ -138,6 +166,9 @@
           "backbone_links": [
             "NET-MIND-03-A",
             "NET-MIND-03-B"
+          ],
+          "proposed_final_route_spaces": [
+            "XCON-GAP-23"
           ]
         }
       ]
@@ -168,7 +199,11 @@
             "MIND-HUB-A-CABLE"
           ],
           "selected": true,
-          "tap_node": "NODE-DB-A-HAB-HUB-SERVICES"
+          "tap_node": "NODE-DB-A-HAB-HUB-SERVICES",
+          "proposed_cable_route_spaces": [
+            "TRUNK-A-HAB-HUB-SERVICES",
+            "HUB-MAINT-BAY"
+          ]
         },
         {
           "source": "B",
@@ -183,7 +218,13 @@
             "MIND-HUB-B-CABLE"
           ],
           "selected": false,
-          "tap_node": "NODE-DB-B-HAB-HUB-SERVICES"
+          "tap_node": "NODE-DB-B-HAB-HUB-SERVICES",
+          "proposed_cable_route_spaces": [
+            "TRUNK-B-HAB-HUB-SERVICES",
+            "XCON-HAB-HUB-SERVICES",
+            "TRUNK-A-HAB-HUB-SERVICES",
+            "HUB-MAINT-BAY"
+          ]
         }
       ],
       "machines": [
@@ -198,6 +239,9 @@
           "backbone_links": [
             "NET-MIND-04-A",
             "NET-MIND-04-B"
+          ],
+          "proposed_final_route_spaces": [
+            "HUB-MAINT-BAY"
           ]
         },
         {
@@ -211,6 +255,12 @@
           "backbone_links": [
             "NET-MIND-05-A",
             "NET-MIND-05-B"
+          ],
+          "proposed_final_route_spaces": [
+            "HUB-MAINT-BAY",
+            "TRUNK-A-HAB-HUB-SERVICES",
+            "ENG-CONTROL",
+            "SHOP-ELEC"
           ]
         }
       ]
@@ -243,7 +293,12 @@
             "MIND-HAB-A-CABLE"
           ],
           "selected": true,
-          "tap_node": "NODE-HAB-04-PDB-A"
+          "tap_node": "NODE-HAB-04-PDB-A",
+          "proposed_cable_route_spaces": [
+            "HAB-04-SERVICE-GALLERY",
+            "HAB-04-COR",
+            "HAB-04-ENV-SAT"
+          ]
         },
         {
           "source": "B",
@@ -276,7 +331,12 @@
             "MIND-HAB-B-CABLE"
           ],
           "selected": false,
-          "tap_node": "NODE-HAB-04-PDB-B"
+          "tap_node": "NODE-HAB-04-PDB-B",
+          "proposed_cable_route_spaces": [
+            "HAB-04-SERVICE-GALLERY",
+            "HAB-04-COR",
+            "HAB-04-ENV-SAT"
+          ]
         }
       ],
       "machines": [
@@ -291,6 +351,9 @@
           "backbone_links": [
             "NET-MIND-06-A",
             "NET-MIND-06-B"
+          ],
+          "proposed_final_route_spaces": [
+            "HAB-04-ENV-SAT"
           ]
         },
         {
@@ -304,6 +367,24 @@
           "backbone_links": [
             "NET-MIND-07-A",
             "NET-MIND-07-B"
+          ],
+          "proposed_final_route_spaces": [
+            "HAB-04-ENV-SAT",
+            "HAB-04-COR",
+            "HAB-04-VEST-CW",
+            "BR-04",
+            "HAB-05-VEST-CCW",
+            "HAB-05-COR",
+            "HAB-05-VEST-CW",
+            "BR-05",
+            "HAB-06-VEST-CCW",
+            "HAB-06-COR",
+            "HAB-06-VEST-CW",
+            "BR-06",
+            "HAB-07-VEST-CCW",
+            "HAB-07-COR",
+            "HAB-07-SERVICE-GALLERY",
+            "HAB-07-SG1-CUPBOARD"
           ]
         }
       ]
@@ -334,7 +415,13 @@
             "MIND-AFT-A-CABLE"
           ],
           "selected": true,
-          "tap_node": "NODE-DB-A-AFT"
+          "tap_node": "NODE-DB-A-AFT",
+          "proposed_cable_route_spaces": [
+            "TRUNK-A-AFT",
+            "XCON-AFT",
+            "TRUNK-B-AFT",
+            "ENV-AFT"
+          ]
         },
         {
           "source": "B",
@@ -349,7 +436,11 @@
             "MIND-AFT-B-CABLE"
           ],
           "selected": false,
-          "tap_node": "NODE-DB-B-AFT"
+          "tap_node": "NODE-DB-B-AFT",
+          "proposed_cable_route_spaces": [
+            "TRUNK-B-AFT",
+            "ENV-AFT"
+          ]
         }
       ],
       "machines": [
@@ -364,6 +455,9 @@
           "backbone_links": [
             "NET-MIND-08-A",
             "NET-MIND-08-B"
+          ],
+          "proposed_final_route_spaces": [
+            "ENV-AFT"
           ]
         },
         {
@@ -377,6 +471,13 @@
           "backbone_links": [
             "NET-MIND-09-A",
             "NET-MIND-09-B"
+          ],
+          "proposed_final_route_spaces": [
+            "ENV-AFT",
+            "TRUNK-B-AFT",
+            "XCON-AFT",
+            "TRUNK-A-AFT",
+            "COMMS-AFT"
           ]
         }
       ]
