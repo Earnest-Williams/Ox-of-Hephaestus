@@ -10,7 +10,7 @@ from evennia.utils.test_resources import EvenniaTestCase
 from world.ship_world import ensure_canonical_ship
 from world.full_ship_operations import (
     install_candidate, install_pressure_cells, initialize_nominal_atmosphere,
-    set_isolator, set_component_condition, state,
+    set_isolator, set_component_condition, state, load_candidate,
 )
 from world.models import CanonicalShipState, CanonicalShipEvent
 from world.ship_mind_power import load_design
@@ -186,8 +186,7 @@ class InstalledMindPowerTests(EvenniaTestCase):
             operator_approved=True)["commissioned"])
         self.assertEqual(len(installed_network_cohort(
             CanonicalShipState,support,self.design,
-            __import__("world.full_ship_operations",fromlist=["load_candidate"]
-                       ).load_candidate(),
+            load_candidate(),
             machines={"MIND-%02d"%n for n in range(1,10)})),9)
         self.assertTrue(validate_cooling_ledger(
             support,_clock().details["mind_cooling"]))
@@ -198,14 +197,12 @@ class InstalledMindPowerTests(EvenniaTestCase):
         set_component_condition("equipment","NET-ROT-A","failed",operator=True)
         self.assertEqual(len(installed_network_cohort(
             CanonicalShipState,support,self.design,
-            __import__("world.full_ship_operations",fromlist=["load_candidate"]
-                       ).load_candidate(),
+            load_candidate(),
             machines={"MIND-%02d"%n for n in range(1,10)})),9)
         set_component_condition("equipment","NET-ROT-B","failed",operator=True)
         self.assertEqual(len(installed_network_cohort(
             CanonicalShipState,support,self.design,
-            __import__("world.full_ship_operations",fromlist=["load_candidate"]
-                       ).load_candidate(),
+            load_candidate(),
             machines={"MIND-%02d"%n for n in range(1,10)})),7)
 
     def test_surveyed_cold_ride_through_and_local_thermal_trip_are_clock_owned(self):
