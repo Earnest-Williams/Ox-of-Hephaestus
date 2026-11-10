@@ -5803,6 +5803,11 @@ def tick_continuous_physics(*, now_game_time=None):
                 _event(alternative, "g19_mind_power_transfer_complete", new_contact)
             mind_grid_mw = mind_power["last"]["grid_served_mw"]
             mind_charge_mw = mind_power["last"]["grid_charge_mw"]
+            # A physically connected compute feeder IS a live consumer
+            # even if all original room circuits are intentionally open.
+            # Otherwise step_energy would discard real machine draw.
+            if mind_grid_mw > 0:
+                power["has_live_load"] = True
             power["requested_mw"] += mind_grid_mw + mind_charge_mw
             power["dispatched_mw"] += mind_grid_mw + mind_charge_mw
         if refuge_scrubbers is not None:
