@@ -217,12 +217,12 @@ def live_machines(design, *, failed=(), energized_main_nodes=None,
         if not grid_ok and not reserve_ok:
             continue
         for machine in island["machines"]:
-            if not bad.intersection((
+            if (not bad.intersection((
                     machine["id"], machine["terminal_node"],
                     machine["feeder"], machine["isolator"],
                     machine["cooling_domain"]))
                     and not bad.intersection(machine["proposed_final_route_spaces"])
-                    and any(link not in bad for link in machine["backbone_links"]):
+                    and any(link not in bad for link in machine["backbone_links"])):
                 alive.add(machine["id"])
     return frozenset(alive)
 
