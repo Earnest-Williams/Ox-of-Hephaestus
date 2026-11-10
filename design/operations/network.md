@@ -191,3 +191,25 @@ proposed in [the lead mind's core](lead-mind-core.md).
    tested proposed geometry, **not** evidence that all gateways are already
    fitted, energised, or able to command machinery. See
    [ADR 0011](../decisions/0011-ship-control-support-overlays.md).
+
+## First physical support slice — draft PR #151
+
+The physical support overlay includes 23 distinct fixed-spine compartments on
+each of the A/B rails. Each machine has two independent endpoint cables.
+Two new continuously rated rotary data couplers reach different HAB sections;
+the indexed personnel capsules do **not** constitute a data connection.
+
+The first new gateway is `GW-LCS-DR-03`, hosted at the original
+`LCS-DR-03` in `BE-05-SVC`. The A-side spur crosses
+`LOGI-STOP-DR-03` and `TRUNK-B-DR-03`, while the B-side spur comes
+directly from `TRUNK-B-DR-03`. Thus a local casualty can isolate this
+*one segment* despite an intact A backbone. The drum's local controller
+continues independently. This is deliberately **not** described as
+physically disjoint last-metre gateway cabling.
+
+The gateway is installed only as physically identifiable hardware:
+mapping revision 0, unknown protocol, power unverified and **remote commands
+disabled**. Connectivity does not imply understanding or authority. The
+first telemetry mapping and `ISO-DR-03-LT-IF` actuation belong to later
+packages, after their own interlock and takeover tests. See
+[ADR 0011](../decisions/0011-ship-control-support-overlays.md).
