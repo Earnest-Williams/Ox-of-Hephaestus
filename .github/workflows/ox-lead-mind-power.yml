@@ -42,7 +42,7 @@ concurrency:
 
 jobs:
   candidate:
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    # Draft infrastructure changes need acceptance evidence before review.
     name: Pure fault-domain and finite reserve contracts
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -63,7 +63,6 @@ jobs:
         run: python design/ship/check_v05_candidate.py
 
   installed:
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
     needs: candidate
     name: Fitted Evennia contacts, persistent clock and G19 energy custody
     runs-on: ubuntu-latest
