@@ -19,7 +19,8 @@
         "id": "BAT-MIND-BOW",
         "capacity_kwh": 1,
         "initial_kwh": 1,
-        "max_discharge_kw": 8
+        "max_discharge_kw": 8,
+        "max_charge_kw": 2
       },
       "inputs": [
         {
@@ -112,7 +113,8 @@
         "id": "BAT-MIND-FWD-SPINE",
         "capacity_kwh": 1,
         "initial_kwh": 1,
-        "max_discharge_kw": 8
+        "max_discharge_kw": 8,
+        "max_charge_kw": 2
       },
       "inputs": [
         {
@@ -183,7 +185,8 @@
         "id": "BAT-MIND-HUB",
         "capacity_kwh": 1,
         "initial_kwh": 1,
-        "max_discharge_kw": 8
+        "max_discharge_kw": 8,
+        "max_charge_kw": 2
       },
       "inputs": [
         {
@@ -275,7 +278,8 @@
         "id": "BAT-MIND-HAB",
         "capacity_kwh": 1,
         "initial_kwh": 1,
-        "max_discharge_kw": 8
+        "max_discharge_kw": 8,
+        "max_charge_kw": 2
       },
       "inputs": [
         {
@@ -399,7 +403,8 @@
         "id": "BAT-MIND-AFT",
         "capacity_kwh": 1,
         "initial_kwh": 1,
-        "max_discharge_kw": 8
+        "max_discharge_kw": 8,
+        "max_charge_kw": 2
       },
       "inputs": [
         {
