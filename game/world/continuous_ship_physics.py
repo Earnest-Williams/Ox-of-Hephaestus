@@ -277,7 +277,7 @@ from world.ship_mind_runtime import (
 from world.ship_mind_support import (
     load_support as load_mind_support,
     initial_cooling_ledger, validate_cooling_ledger,
-    survey_cooling_buffer, step_cooling_buffer, MindPowerError as _SupportError,
+    survey_cooling_buffer, step_cooling_buffer, connected_machines,
 )
 from world.ship_mind_support_world import (
     install_control_support, installed_support_rows,
@@ -4352,8 +4352,12 @@ def tick_continuous_physics(*, now_game_time=None):
     electrical = clock.details.get("electrical")
     local_backup = clock.details.get("local_backup")
     mind_power = clock.details.get("mind_power")
+    mind_cooling = clock.details.get("mind_cooling")
     mind_design = None
     mind_rows = None
+    mind_support = None
+    mind_support_rows = None
+    mind_support_last = None
     if mind_power is not None:
         if electrical is None:
             raise PhysicsError("Mind-power island installed without G19 dispatch")
@@ -4366,6 +4370,17 @@ def tick_continuous_physics(*, now_game_time=None):
             row.key: row for row in
             [*water_nodes, *edges, *isolators.values(), *equipment_rows]
         }
+    if mind_cooling is not None:
+        if mind_power is None:
+            raise PhysicsError("Ship-control cooling cannot run without fitted compute power")
+        mind_support = load_mind_support()
+        try:
+            validate_cooling_ledger(mind_support,mind_cooling)
+            mind_support_rows = installed_support_rows(
+                CanonicalShipState,mind_support,mind_design,load_candidate())
+        except MindPowerError as exc:
+            raise PhysicsError(str(exc)) from exc
+        mind_support_last=clock.details.get("mind_support_last")
     if local_backup is not None:
         try:
             validate_local_backup(local_backup)
@@ -5900,6 +5915,84 @@ def tick_continuous_physics(*, now_game_time=None):
                 power["has_live_load"] = True
             power["requested_mw"] += mind_grid_mw + mind_charge_mw
             power["dispatched_mw"] += mind_grid_mw + mind_charge_mw
+        # The ship-control network has no remote permissions until the
+        # separately commissioned gateway/authority layer exists. Power,
+        # connectivity and thermally safe operation are three distinct facts.
+        # Heat from electrically powered compute modules is accounted even
+        # when no coolant has been surveyed: an uncontained part enters the
+        # real room gas cell and latches its source equipment off.
+        if mind_cooling is not None:
+            online=set(mind_power["last"]["powered"])
+            bad_cooling={
+                name for name in (
+                    [pod["independent_buffer_id"] for pod in
+                     mind_support["cooling_islands"]]
+                    + [pod["heat_rejector_id"] for pod in
+                       mind_support["cooling_islands"]]
+                    + [plate for pod in mind_support["cooling_islands"]
+                       for plate in pod["individual_cold_plates"]])
+                if mind_support_rows["equipment:"+name].condition in _BROKEN
+            }
+            try:
+                mind_cooling, thermal_trips, thermal_receipts = step_cooling_buffer(
+                    mind_support,mind_cooling,
+                    operating_machines=online,seconds=dt,
+                    failed=bad_cooling)
+                networked=connected_machines(
+                    mind_support,available_machines=online,
+                    physical_rows=mind_support_rows)
+            except MindPowerError as exc:
+                raise PhysicsError(str(exc)) from exc
+            # Heat without a physical sink has not vanished. Distribute
+            # each island's uncontained heat across its actually energised
+            # machines' original ship pressure cells.
+            for pod in mind_support["cooling_islands"]:
+                uncontained=thermal_receipts[pod["id"]]["unabsorbed_kj"]
+                running=[machine for machine in pod["machines"]
+                         if machine in online]
+                if not running or uncontained<=0:
+                    continue
+                for machine in running:
+                    fitted=equipment.get(machine)
+                    if fitted is None:
+                        raise PhysicsError("Cooling heat has no fitted machine room")
+                    zone=zones.get(fitted.space_id)
+                    gas=cells.get(zone)
+                    if gas is None:
+                        raise PhysicsError("Cooling heat has no installed pressure cell")
+                    gas["energy"] += uncontained / len(running)
+                    gas["temperature"] = gas["energy"] / (
+                        gas["capacity"] + gas["mass"] * CP_GAS_KJ_KG_K)
+            overheated=set(thermal_trips)
+            for machine in sorted(online):
+                fitted=equipment.get(machine)
+                if fitted is None:
+                    raise PhysicsError("The electrical machine lacks its fitted chassis")
+                gas=cells.get(zones.get(fitted.space_id))
+                pod=next(pod for pod in mind_support["cooling_islands"]
+                         if machine in pod["machines"])
+                if gas is None or gas["temperature"] >= pod[
+                        "monitored_shutdown_temperature_k"]:
+                    overheated.add(machine)
+            for machine in sorted(overheated):
+                item=equipment[machine]
+                if item.condition in _BROKEN:
+                    continue
+                previous=_snapshot(item)
+                item.condition="faulted"
+                updates=dict(item.details)
+                updates["physics_mind_thermal_trip"]=True
+                updates["physics_trip_game_time"]=last+duration
+                item.details=updates
+                item.revision+=1
+                changed_equipment.add(item.key)
+                _event(item,"g19_mind_thermal_protection_trip",previous)
+            mind_support_last={
+                "networked": sorted(networked),
+                "compute_ready": sorted(set(networked)-overheated),
+                "thermal_shutdown": sorted(overheated),
+                "observed_s": last+duration,
+            }
         if refuge_scrubbers is not None:
             # The actual normal refuge air load or the individually surveyed
             # and fully supplied local DC battery may drive its own package.
@@ -7388,6 +7481,13 @@ def tick_continuous_physics(*, now_game_time=None):
     if mind_power is not None:
         validate_mind_runtime(mind_design, mind_power)
         d["mind_power"] = mind_power
+    if mind_cooling is not None:
+        try:
+            validate_cooling_ledger(mind_support,mind_cooling)
+        except MindPowerError as exc:
+            raise PhysicsError(str(exc)) from exc
+        d["mind_cooling"] = mind_cooling
+        d["mind_support_last"] = mind_support_last
     if refuge_scrubbers is not None:
         d["refuge_scrubbers"] = refuge_scrubbers
     if refuge_media is not None:
