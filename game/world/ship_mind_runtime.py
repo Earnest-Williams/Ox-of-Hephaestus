@@ -51,7 +51,9 @@ def _conducting_edge(rows, name, *, selected=True):
         return False
     for iso in row.reference.get("isolator_ids", []):
         contact = rows.get("isolator:" + iso)
-        if not _working(contact) or contact.setting != "closed":
+        if (not _working(contact) or contact.setting != "closed"
+                or (getattr(contact, "details", None) or {}).get(
+                    "physics_power_trip_latched") is True):
             return False
     return True
 
@@ -149,7 +151,9 @@ def _existing_source_usable(feed, rows, g19_nodes):
                 return False
         elif item.startswith("ISO-"):
             contact = rows.get("isolator:" + item)
-            if not _working(contact) or contact.setting != "closed":
+            if (not _working(contact) or contact.setting != "closed"
+                or (getattr(contact, "details", None) or {}).get(
+                    "physics_power_trip_latched") is True):
                 return False
         elif item.startswith(("NODE-", "PWR-")):
             node = rows.get("node:" + item)
