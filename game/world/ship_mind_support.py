@@ -384,24 +384,32 @@ def step_cooling_buffer(support,ledger,*,operating_machines,seconds,
     receipts={}
     for pod in support["cooling_islands"]:
         running=set(pod["machines"]) & active
-        heat=pod["heat_rate_kw"] * len(running) / len(pod["machines"]) * dt
+        per_machine_kw=pod["heat_rate_kw"] / len(pod["machines"])
+        heat=per_machine_kw * len(running) * dt
+        failed_plates={
+            machine for plate,machine in zip(
+                pod["individual_cold_plates"],pod["machines"])
+            if plate in bad and machine in running}
+        plate_heat=per_machine_kw * len(failed_plates) * dt
+        sound_heat=heat - plate_heat
         rejected_rate=_number(rejects.get(pod["id"],0))
         _require(rejected_rate<=pod["peak_rejection_kw"],
                  "Rejector output exceeded actual nameplate")
         reject_ok=pod["heat_rejector_id"] not in bad
-        rejected=min(heat,rejected_rate*dt) if reject_ok else 0
+        rejected=min(sound_heat,rejected_rate*dt) if reject_ok else 0
         bank=new["units"][pod["independent_buffer_id"]]
         capacity=(bank["free_kj"] if bank["surveyed"]
                   and pod["independent_buffer_id"] not in bad else 0)
-        stored=min(heat-rejected,capacity)
+        stored=min(sound_heat-rejected,capacity)
         bank["free_kj"]-=stored
         bank["absorbed_kj"]+=stored
         bank["rejected_kj"]+=rejected
-        bad_heat=max(0,heat-rejected-stored)
+        bad_heat=max(0,sound_heat-rejected-stored)+plate_heat
         bank["unabsorbed_kj"]+=bad_heat
         bank["generated_kj"]+=heat
-        if bad_heat>1e-8:
-            trips.update(running)
+        trips.update(failed_plates)
+        if sound_heat-rejected-stored>1e-8:
+            trips.update(running-failed_plates)
         receipts[pod["id"]]={
             "generated_kj":heat,"rejected_kj":rejected,
             "absorbed_kj":stored,"unabsorbed_kj":bad_heat}
