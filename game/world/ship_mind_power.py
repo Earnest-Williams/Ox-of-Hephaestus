@@ -97,6 +97,8 @@ def validate_design(design):
         for machine in island["machines"]:
             _check(isinstance(machine, dict), "Invalid compute machine")
             for field in ("id", "terminal_node", "feeder", "isolator",
+                          "final_board", "final_board_node",
+                          "board_feeder", "board_isolator",
                           "cooling_domain"):
                 unique(machine.get(field))
             _check(isinstance(machine.get("room"), str) and machine["room"],
@@ -172,6 +174,8 @@ def fault_components(design):
         for machine in island["machines"]:
             elements.update((machine["id"], machine["terminal_node"],
                              machine["feeder"], machine["isolator"],
+                             machine["final_board"], machine["final_board_node"],
+                             machine["board_feeder"], machine["board_isolator"],
                              machine["cooling_domain"]))
             elements.update(machine["backbone_links"])
             elements.update(machine["proposed_final_route_spaces"])
@@ -221,6 +225,8 @@ def live_machines(design, *, failed=(), energized_main_nodes=None,
             if (not bad.intersection((
                     machine["id"], machine["terminal_node"],
                     machine["feeder"], machine["isolator"],
+                    machine["final_board"], machine["final_board_node"],
+                    machine["board_feeder"], machine["board_isolator"],
                     machine["cooling_domain"]))
                     and not bad.intersection(machine["proposed_final_route_spaces"])
                     and any(link not in bad for link in machine["backbone_links"])):
@@ -413,6 +419,27 @@ def proposed_world_rows(design):
                  "kind": "breaker", "current_state": "closed",
                  "manual_operation": True, "remote_operable": False}, "closed")
         for machine in island["machines"]:
+            # A separate faultable and replaceable final distribution board
+            # for each machine; the island bus is NOT a shared final board.
+            add("equipment", machine["final_board"], machine["room"],
+                {"id": machine["final_board"], "family": "mind_final_distribution",
+                 "island": island["id"], "load": machine["id"]})
+            add("node", machine["final_board_node"], machine["room"],
+                {"id": machine["final_board_node"], "network": "mind_power",
+                 "kind": "independent_final_distribution",
+                 "owner_type": "equipment",
+                 "owner_id": machine["final_board"]})
+            add("edge", machine["board_feeder"], machine["room"],
+                {"id": machine["board_feeder"], "network": "mind_power",
+                 "kind": "island_to_final_board",
+                 "from_node": bus, "to_node": machine["final_board_node"],
+                 "isolator_ids": [machine["board_isolator"]],
+                 "route_spaces": list(machine["proposed_final_route_spaces"])},
+                "available")
+            add("isolator", machine["board_isolator"], machine["room"],
+                {"id": machine["board_isolator"], "network": "mind_power",
+                 "kind": "breaker", "current_state": "closed",
+                 "manual_operation": True, "remote_operable": False}, "closed")
             add("equipment", machine["id"], machine["room"],
                 {"id": machine["id"], "family": "lead_mind_compute",
                  "island": island["id"], "load_kw": machine["load_kw"],
@@ -424,10 +451,11 @@ def proposed_world_rows(design):
                  "owner_id": machine["id"]})
             add("edge", machine["feeder"], machine["room"],
                 {"id": machine["feeder"], "network": "mind_power",
-                 "kind": "dedicated_compute_feeder", "from_node": bus,
+                 "kind": "dedicated_compute_feeder",
+                 "from_node": machine["final_board_node"],
                  "to_node": machine["terminal_node"],
                  "isolator_ids": [machine["isolator"]],
-                 "route_spaces": list(machine["proposed_final_route_spaces"])}, "available")
+                 "route_spaces": [machine["room"]]}, "available")
             add("isolator", machine["isolator"], machine["room"],
                 {"id": machine["isolator"], "network": "mind_power",
                  "kind": "breaker", "current_state": "closed",
