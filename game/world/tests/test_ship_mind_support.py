@@ -65,8 +65,7 @@ class ShipSupportDesignTests(unittest.TestCase):
                  if l["id"] in {"ACC-XCON-GAP-23-A","ACC-XCON-GAP-23-B"}]
         self.assertEqual(len(matches),2)
         self.assertEqual({l["to"] for l in matches},
-                         {"TRUNK-A-GAP-23","TRUNK-B-GAP-23"}
-                         if False else {"XCON-GAP-23","TRUNK-B-GAP-23"})
+                         {"XCON-GAP-23","TRUNK-B-GAP-23"})
         self.assertIn("passable",self.support["design_decisions"][
             "rack_cross_connection"])
 
