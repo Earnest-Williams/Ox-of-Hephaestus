@@ -168,8 +168,11 @@ def _input_usable(feed, rows, g19_nodes):
 
 def _machine_usable(machine, rows):
     equipment = rows.get("equipment:" + machine["id"])
-    return bool(_working(equipment)
+    final_board = rows.get("equipment:" + machine["final_board"])
+    return bool(_working(equipment) and _working(final_board)
+                and _working(rows.get("node:" + machine["final_board_node"]))
                 and _working(rows.get("node:" + machine["terminal_node"]))
+                and _conducting_edge(rows, machine["board_feeder"])
                 and _conducting_edge(rows, machine["feeder"]))
 
 
