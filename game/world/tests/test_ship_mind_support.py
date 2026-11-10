@@ -147,6 +147,9 @@ class ShipSupportDesignTests(unittest.TestCase):
         self.assertEqual(sum(x["category"]=="edge" for x in rows.values()),62)
         self.assertEqual(sum(x["category"]=="equipment" for x in rows.values()),21)
         self.assertEqual(len({x["key"] for x in rows.values()}),147)
+        self.assertTrue(
+            {row["source_id"] for row in rows.values()}
+            <= set(fault_domains(self.support)))
         for r in rows.values():
             self.assertEqual(r["source_model"],"ox.ship-support/1")
             if r["category"] in {"edge","node"}:
