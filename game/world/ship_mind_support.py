@@ -192,6 +192,58 @@ def validate_support(support, power, ship):
     _require(plates == {m["cooling_domain"] for isl in power["islands"]
                         for m in isl["machines"]},
              "Uncooled machine cannot be counted in survival claims")
+    rack=support.get("secured_rack")
+    _require(isinstance(rack,dict) and
+             (rack.get("id"),rack.get("machine"),rack.get("room"),
+              rack.get("physical_lock_mode"),rack.get("reader_commissioned"),
+              rack.get("status")) == (
+                "MIND-03-SECURE-RACK","MIND-03","XCON-GAP-23",
+                "rack_only",False,"CANDIDATE_NO_ACCESS_READER"),
+             "Protected rack must never lock the cross-trunk room")
+    doors={x["id"]:x for x in ship["access_links"]}
+    _require(rack.get("passage_doors")==[
+                "ACC-XCON-GAP-23-A","ACC-XCON-GAP-23-B"]
+             and all(name in doors for name in rack["passage_doors"])
+             and all("XCON-GAP-23" in (
+                    doors[name]["from"],doors[name]["to"])
+                     for name in rack["passage_doors"]),
+             "Monitored rack must preserve both real crew through-routes")
+
+    gateways=support.get("gateway_candidates")
+    _require(isinstance(gateways,list) and len(gateways)==1,
+             "First mixed-generation gateway host not defined")
+    gateway=gateways[0]
+    equipment={x["id"]:x for x in ship["equipment"]}
+    host=equipment.get(gateway.get("host_equipment"))
+    _require(gateway.get("id")=="GW-LCS-DR-03"
+             and gateway.get("segment_id")=="SEG-DR-03"
+             and gateway.get("room")=="BE-05-SVC"
+             and host is not None and host["kind"]=="local_control_station"
+             and host["space_id"]==gateway["room"]
+             and gateway.get("generation")=="mixed"
+             and gateway.get("remote_authority") is False
+             and gateway.get("command_enabled") is False
+             and gateway.get("mapping_revision")==0
+             and gateway.get("protocol_mapping")=="unknown",
+             "Original drum-3 gateway must be a disabled physical host")
+    _require(set(gateway.get("monitored_devices",[]))=={
+                "DR-03-CARGO-HX","DR-03-CARGO-GAS","ISO-DR-03-LT-IF"},
+             "First gateway must not add unrelated remote control")
+    gateway_drops=gateway.get("rail_drops")
+    _require(isinstance(gateway_drops,list) and len(gateway_drops)==2
+             and {x.get("rail") for x in gateway_drops}=={"A","B"},
+             "Gateway must preserve distinct but locally fallible cable paths")
+    for gd in gateway_drops:
+        rail=gd["rail"];path=gd.get("route_spaces")
+        _require(gd.get("id")=="NET-GW-DROP-"+rail+"-DR-03"
+                 and gd.get("anchor_room")=="TRUNK-"+rail+"-DR-03"
+                 and isinstance(path,list) and len(path)>=2
+                 and path[0]==gd["anchor_room"]
+                 and path[-1]==gateway["room"]
+                 and all(x in room_map for x in path)
+                 and all((x,y) in passages for x,y in zip(path,path[1:])),
+                 "Gateway branch claims a cable through nonexistent geometry")
+
     decision = support.get("design_decisions") or {}
     _require(decision.get("original_ship_untouched") is True
              and "XCON-GAP-23" in decision.get("rack_cross_connection", "")
@@ -199,7 +251,8 @@ def validate_support(support, power, ship):
              "Cross-trunk passage must not be locked to protect machine 3")
     return {"backbone_spans": 44, "machine_drops": 18,
             "rotary_data_couplers": 2, "thermal_islands": 5,
-            "machines": len(expected)}
+            "machines": len(expected),
+            "gateway_hosts":1, "secured_racks":1}
 
 
 def fault_domains(support):
@@ -215,6 +268,12 @@ def fault_domains(support):
         result.update((drop["id"], _nic_node(drop["rail"], drop["machine"]),
                        drop["machine"]))
         result.update(drop["route_spaces"])
+    result.add(support["secured_rack"]["id"])
+    for gateway in support["gateway_candidates"]:
+        result.add(gateway["id"])
+        for drop in gateway["rail_drops"]:
+            result.update((drop["id"],"NET-GW-NIC-"+drop["rail"]+"-DR-03"))
+            result.update(drop["route_spaces"])
     for pod in support["cooling_islands"]:
         result.update((pod["independent_buffer_id"], pod["heat_rejector_id"]))
         result.update(pod["individual_cold_plates"])
@@ -466,6 +525,36 @@ def proposed_support_rows(support, power, ship):
             "to_node":nic,"isolator_ids":[],
             "route_spaces":d["route_spaces"],
             "rotary_coupler":d["rotary_coupler"]}, "available")
+    rack=support["secured_rack"]
+    add("equipment",rack["id"],rack["room"],{
+        "id":rack["id"],"family":"local_compute_security_enclosure",
+        "owner_id":rack["machine"],
+        "passage_doors_unchanged":list(rack["passage_doors"]),
+        "access_point_id":rack["access_point"],
+        "reader_commissioned":False})
+    for gateway in support["gateway_candidates"]:
+        add("equipment",gateway["id"],gateway["room"],{
+            "id":gateway["id"],"family":"ship_control_gateway",
+            "host_equipment":gateway["host_equipment"],
+            "segment_id":gateway["segment_id"],
+            "generation":gateway["generation"],
+            "protocol_mapping":gateway["protocol_mapping"],
+            "mapping_revision":gateway["mapping_revision"],
+            "remote_authority":False,"command_enabled":False,
+            "power_verified":False})
+        for drop in gateway["rail_drops"]:
+            nic="NET-GW-NIC-"+drop["rail"]+"-DR-03"
+            add("node",nic,gateway["room"],{
+                "id":nic,"network":"mind_data",
+                "kind":"unverified_gateway_transceiver",
+                "owner_type":"equipment","owner_id":gateway["id"]})
+            add("edge",drop["id"],gateway["room"],{
+                "id":drop["id"],"network":"mind_data",
+                "kind":"gateway_fibre_drop",
+                "from_node":_rail_node(drop["rail"],drop["anchor_room"]),
+                "to_node":nic,"isolator_ids":[],
+                "route_spaces":list(drop["route_spaces"])},
+                "available")
     for pod in support["cooling_islands"]:
         room=pod["service_room"]
         for key,family in [(pod["independent_buffer_id"],"mind_cold_buffer"),
