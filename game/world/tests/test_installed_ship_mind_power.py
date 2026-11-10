@@ -643,6 +643,14 @@ class InstalledMindPowerTests(EvenniaTestCase):
         self.assertEqual(len(_clock().details["mind_support_last"]["compute_ready"]), 9)
         self.assertEqual(state("isolator", "ISO-DR-03-LT-IF").setting, original_valve)
         consumed = gateway["served_kwh"]
+        with transaction.atomic():
+            source = state("equipment", "DR-03-CARGO-HX", lock=True)
+            source.space_id = "BE-05-SVC"
+            source.save(update_fields=["space_id"])
+            with self.assertRaises(PhysicsError):
+                self.advance(1060)
+            self.assertEqual(_clock().details["last_game_time"],1050)
+            transaction.set_rollback(True)
         set_isolator("ISO-PWR-GW-LCS-DR-03", "open", operator=True)
         self.advance(1060)
         self.assertFalse(_clock().details["mind_gateway"]["last"]["powered"])

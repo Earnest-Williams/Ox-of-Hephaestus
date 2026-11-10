@@ -17,6 +17,7 @@ from world.ship_control_gateway import (
     survey_gateway_power,
     translate_gateway_samples,
     validate_gateway,
+    validate_gateway_sources,
     verify_gateway_protocol,
 )
 from world.ship_mind_power import MindPowerError, default_design_path, load_design
@@ -99,6 +100,32 @@ class GatewayInfrastructureTests(unittest.TestCase):
             }
             for key in SOURCES
         }
+
+    def test_gateway_sources_keep_original_identity_location_and_reference(self):
+        """A tampered device record cannot acquire a verified telemetry identity."""
+        keys = set(SOURCES) | {"equipment:LCS-DR-03", "equipment:LP-BE-05-SVC"}
+        rows = {}
+        for section, category in (("equipment", "equipment"), ("isolation_points", "isolator")):
+            for ref in self.ship[section]:
+                key = category + ":" + ref["id"]
+                if key in keys:
+                    rows[key] = SimpleNamespace(
+                        key=key,
+                        category=category,
+                        source_id=ref["id"],
+                        space_id=ref["space_id"],
+                        source_model=self.ship["model_version"],
+                        reference=copy.deepcopy(ref),
+                    )
+        self.assertTrue(validate_gateway_sources(rows, self.ship))
+        row = rows[SOURCES[0]]
+        row.space_id = "BE-05-SVC"
+        with self.assertRaises(MindPowerError):
+            validate_gateway_sources(rows, self.ship)
+        row.space_id = row.reference["space_id"]
+        row.reference["kind"] = "invented_sensor"
+        with self.assertRaises(MindPowerError):
+            validate_gateway_sources(rows, self.ship)
 
     def test_unmeasured_supply_cannot_sample_or_draw_and_bad_tap_is_refused(self):
         """A gateway equipment record is neither energy nor protocol proof."""

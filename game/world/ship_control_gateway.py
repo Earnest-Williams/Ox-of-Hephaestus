@@ -134,7 +134,33 @@ def fitted_gateway_power(world_state, support, ship, *, install=False):
             ),
             "Gateway circuit provenance changed: " + key,
         )
+    original_keys = set(SOURCES) | {"equipment:LCS-DR-03", "equipment:LP-BE-05-SVC"}
+    originals = {r.key: r for r in world_state.objects.filter(key__in=sorted(original_keys))}
+    validate_gateway_sources(originals, ship)
     return found, created
+
+
+def validate_gateway_sources(rows, ship):
+    """Reject relabelled, moved or substituted original local-controller sources."""
+    expected = {
+        category + ":" + r["id"]: r
+        for section, category in (("equipment", "equipment"), ("isolation_points", "isolator"))
+        for r in ship[section]
+    }
+    keys = set(SOURCES) | {"equipment:LCS-DR-03", "equipment:LP-BE-05-SVC"}
+    _require(keys <= set(rows), "Original gateway host, panel or telemetry source disappeared")
+    for key in sorted(keys):
+        row, ref = rows[key], expected[key]
+        category, name = key.split(":", 1)
+        _require(
+            row.source_model == ship["model_version"]
+            and row.category == category
+            and row.source_id == name
+            and row.space_id == ref["space_id"]
+            and row.reference == ref,
+            "Gateway source provenance changed: " + key,
+        )
+    return True
 
 
 def initial_gateway():
