@@ -1,0 +1,500 @@
+{
+  "schema_version": "ox.ship-support/1",
+  "status": "DESIGN_CANDIDATE_NOT_RUNTIME_AUTHORITY",
+  "source_ship_model": "ox.ship-world/0.1",
+  "base_power_schema": "ox.lead-mind-power/1",
+  "design_decisions": {
+    "rack_cross_connection": "MIND-03 enclosed in monitored lockable rack inside XCON-GAP-23; crossing remains passable on both trunks, no new pressure cell or whole-room lock",
+    "original_ship_untouched": true,
+    "medium": "two independent passive optical multi-drop rail loops with local active transceivers contained in the power-metered compute units; no central switch as a single point of failure",
+    "rated_rotary_links": "Two new continuously rated A/B data couplers independent of the existing indexed passenger capsules; the passenger passage is not a data cable",
+    "gateway_policy": "No remotely operable isolator becomes network-actuated by fitting backbone alone; world permissions, gateway and local takeover must be separately commissioned",
+    "thermal_policy": "Five independent local finite thermal buffers; no lead-mind machine counted operational until actual cooling and connection have been established. Central LT loss does not confer unlimited heat absorption."
+  },
+  "backbone": {
+    "rail_rooms": {
+      "A": [
+        "TRUNK-A-BOW",
+        "TRUNK-A-DR-01",
+        "TRUNK-A-GAP-12",
+        "TRUNK-A-DR-02",
+        "TRUNK-A-GAP-23",
+        "TRUNK-A-DR-03",
+        "TRUNK-A-BE-06-ENVELOPE",
+        "TRUNK-A-F1-DRUM-BUFFER",
+        "TRUNK-A-F1",
+        "TRUNK-A-FWD-RESERVE",
+        "TRUNK-A-F1-HAB-BUFFER",
+        "TRUNK-A-HAB-HUB-SERVICES",
+        "TRUNK-A-F2-HAB-BUFFER",
+        "TRUNK-A-AFT-RESERVE",
+        "TRUNK-A-F2",
+        "TRUNK-A-F2-DRUM-BUFFER",
+        "TRUNK-A-BE-07-ENVELOPE",
+        "TRUNK-A-DR-04",
+        "TRUNK-A-GAP-45",
+        "TRUNK-A-DR-05",
+        "TRUNK-A-GAP-56",
+        "TRUNK-A-DR-06",
+        "TRUNK-A-AFT"
+      ],
+      "B": [
+        "TRUNK-B-BOW",
+        "TRUNK-B-DR-01",
+        "TRUNK-B-GAP-12",
+        "TRUNK-B-DR-02",
+        "TRUNK-B-GAP-23",
+        "TRUNK-B-DR-03",
+        "TRUNK-B-BE-06-ENVELOPE",
+        "TRUNK-B-F1-DRUM-BUFFER",
+        "TRUNK-B-F1",
+        "TRUNK-B-FWD-RESERVE",
+        "TRUNK-B-F1-HAB-BUFFER",
+        "TRUNK-B-HAB-HUB-SERVICES",
+        "TRUNK-B-F2-HAB-BUFFER",
+        "TRUNK-B-AFT-RESERVE",
+        "TRUNK-B-F2",
+        "TRUNK-B-F2-DRUM-BUFFER",
+        "TRUNK-B-BE-07-ENVELOPE",
+        "TRUNK-B-DR-04",
+        "TRUNK-B-GAP-45",
+        "TRUNK-B-DR-05",
+        "TRUNK-B-GAP-56",
+        "TRUNK-B-DR-06",
+        "TRUNK-B-AFT"
+      ]
+    },
+    "couplers": [
+      {
+        "id": "NET-ROT-A",
+        "rail": "A",
+        "fixed_room": "HUB-FIXED-A",
+        "rotating_room": "HAB-04-COR",
+        "kind": "continuous_rotary_data_coupler",
+        "physical_status": "NEW_UNCOMMISSIONED"
+      },
+      {
+        "id": "NET-ROT-B",
+        "rail": "B",
+        "fixed_room": "HUB-FIXED-B",
+        "rotating_room": "HAB-08-COR",
+        "kind": "continuous_rotary_data_coupler",
+        "physical_status": "NEW_UNCOMMISSIONED"
+      }
+    ],
+    "drops": [
+      {
+        "id": "NET-DROP-A-MIND-01",
+        "machine": "MIND-01",
+        "rail": "A",
+        "region": "BOW",
+        "anchor_room": "TRUNK-A-BOW",
+        "machine_room": "COMMS-FWD",
+        "route_spaces": [
+          "TRUNK-A-BOW",
+          "XCON-BOW",
+          "TRUNK-B-BOW",
+          "COMMS-FWD"
+        ],
+        "rotary_coupler": null
+      },
+      {
+        "id": "NET-DROP-B-MIND-01",
+        "machine": "MIND-01",
+        "rail": "B",
+        "region": "BOW",
+        "anchor_room": "TRUNK-B-BOW",
+        "machine_room": "COMMS-FWD",
+        "route_spaces": [
+          "TRUNK-B-BOW",
+          "COMMS-FWD"
+        ],
+        "rotary_coupler": null
+      },
+      {
+        "id": "NET-DROP-A-MIND-02",
+        "machine": "MIND-02",
+        "rail": "A",
+        "region": "BOW",
+        "anchor_room": "TRUNK-A-BOW",
+        "machine_room": "ENV-FWD",
+        "route_spaces": [
+          "TRUNK-A-BOW",
+          "ENV-FWD"
+        ],
+        "rotary_coupler": null
+      },
+      {
+        "id": "NET-DROP-B-MIND-02",
+        "machine": "MIND-02",
+        "rail": "B",
+        "region": "BOW",
+        "anchor_room": "TRUNK-B-BOW",
+        "machine_room": "ENV-FWD",
+        "route_spaces": [
+          "TRUNK-B-BOW",
+          "XCON-BOW",
+          "TRUNK-A-BOW",
+          "ENV-FWD"
+        ],
+        "rotary_coupler": null
+      },
+      {
+        "id": "NET-DROP-A-MIND-03",
+        "machine": "MIND-03",
+        "rail": "A",
+        "region": "FWD-SPINE",
+        "anchor_room": "TRUNK-A-GAP-23",
+        "machine_room": "XCON-GAP-23",
+        "route_spaces": [
+          "TRUNK-A-GAP-23",
+          "XCON-GAP-23"
+        ],
+        "rotary_coupler": null
+      },
+      {
+        "id": "NET-DROP-B-MIND-03",
+        "machine": "MIND-03",
+        "rail": "B",
+        "region": "FWD-SPINE",
+        "anchor_room": "TRUNK-B-GAP-23",
+        "machine_room": "XCON-GAP-23",
+        "route_spaces": [
+          "TRUNK-B-GAP-23",
+          "XCON-GAP-23"
+        ],
+        "rotary_coupler": null
+      },
+      {
+        "id": "NET-DROP-A-MIND-04",
+        "machine": "MIND-04",
+        "rail": "A",
+        "region": "HUB",
+        "anchor_room": "TRUNK-A-HAB-HUB-SERVICES",
+        "machine_room": "HUB-MAINT-BAY",
+        "route_spaces": [
+          "TRUNK-A-HAB-HUB-SERVICES",
+          "HUB-MAINT-BAY"
+        ],
+        "rotary_coupler": null
+      },
+      {
+        "id": "NET-DROP-B-MIND-04",
+        "machine": "MIND-04",
+        "rail": "B",
+        "region": "HUB",
+        "anchor_room": "TRUNK-B-HAB-HUB-SERVICES",
+        "machine_room": "HUB-MAINT-BAY",
+        "route_spaces": [
+          "TRUNK-B-HAB-HUB-SERVICES",
+          "XCON-HAB-HUB-SERVICES",
+          "TRUNK-A-HAB-HUB-SERVICES",
+          "HUB-MAINT-BAY"
+        ],
+        "rotary_coupler": null
+      },
+      {
+        "id": "NET-DROP-A-MIND-05",
+        "machine": "MIND-05",
+        "rail": "A",
+        "region": "HUB",
+        "anchor_room": "TRUNK-A-HAB-HUB-SERVICES",
+        "machine_room": "SHOP-ELEC",
+        "route_spaces": [
+          "TRUNK-A-HAB-HUB-SERVICES",
+          "ENG-CONTROL",
+          "SHOP-ELEC"
+        ],
+        "rotary_coupler": null
+      },
+      {
+        "id": "NET-DROP-B-MIND-05",
+        "machine": "MIND-05",
+        "rail": "B",
+        "region": "HUB",
+        "anchor_room": "TRUNK-B-HAB-HUB-SERVICES",
+        "machine_room": "SHOP-ELEC",
+        "route_spaces": [
+          "TRUNK-B-HAB-HUB-SERVICES",
+          "SHOP-ELEC"
+        ],
+        "rotary_coupler": null
+      },
+      {
+        "id": "NET-DROP-A-MIND-06",
+        "machine": "MIND-06",
+        "rail": "A",
+        "region": "HAB",
+        "anchor_room": "TRUNK-A-HAB-HUB-SERVICES",
+        "machine_room": "HAB-04-ENV-SAT",
+        "route_spaces": [
+          "TRUNK-A-HAB-HUB-SERVICES",
+          "HUB-FIXED-A",
+          "HAB-04-COR",
+          "HAB-04-ENV-SAT"
+        ],
+        "rotary_coupler": "NET-ROT-A"
+      },
+      {
+        "id": "NET-DROP-B-MIND-06",
+        "machine": "MIND-06",
+        "rail": "B",
+        "region": "HAB",
+        "anchor_room": "TRUNK-B-HAB-HUB-SERVICES",
+        "machine_room": "HAB-04-ENV-SAT",
+        "route_spaces": [
+          "TRUNK-B-HAB-HUB-SERVICES",
+          "HUB-FIXED-B",
+          "HAB-08-COR",
+          "HAB-08-VEST-CW",
+          "BR-08",
+          "HAB-01-VEST-CCW",
+          "HAB-01-COR",
+          "HAB-01-VEST-CW",
+          "BR-01",
+          "HAB-02-VEST-CCW",
+          "HAB-02-COR",
+          "HAB-02-VEST-CW",
+          "BR-02",
+          "HAB-03-VEST-CCW",
+          "HAB-03-COR",
+          "HAB-03-VEST-CW",
+          "BR-03",
+          "HAB-04-VEST-CCW",
+          "HAB-04-COR",
+          "HAB-04-ENV-SAT"
+        ],
+        "rotary_coupler": "NET-ROT-B"
+      },
+      {
+        "id": "NET-DROP-A-MIND-07",
+        "machine": "MIND-07",
+        "rail": "A",
+        "region": "HAB",
+        "anchor_room": "TRUNK-A-HAB-HUB-SERVICES",
+        "machine_room": "HAB-07-SG1-CUPBOARD",
+        "route_spaces": [
+          "TRUNK-A-HAB-HUB-SERVICES",
+          "HUB-FIXED-A",
+          "HAB-04-COR",
+          "HAB-04-VEST-CW",
+          "BR-04",
+          "HAB-05-VEST-CCW",
+          "HAB-05-COR",
+          "HAB-05-VEST-CW",
+          "BR-05",
+          "HAB-06-VEST-CCW",
+          "HAB-06-COR",
+          "HAB-06-VEST-CW",
+          "BR-06",
+          "HAB-07-VEST-CCW",
+          "HAB-07-COR",
+          "HAB-07-SERVICE-GALLERY",
+          "HAB-07-SG1-CUPBOARD"
+        ],
+        "rotary_coupler": "NET-ROT-A"
+      },
+      {
+        "id": "NET-DROP-B-MIND-07",
+        "machine": "MIND-07",
+        "rail": "B",
+        "region": "HAB",
+        "anchor_room": "TRUNK-B-HAB-HUB-SERVICES",
+        "machine_room": "HAB-07-SG1-CUPBOARD",
+        "route_spaces": [
+          "TRUNK-B-HAB-HUB-SERVICES",
+          "HUB-FIXED-B",
+          "HAB-08-COR",
+          "HAB-08-VEST-CCW",
+          "BR-07",
+          "HAB-07-VEST-CW",
+          "HAB-07-COR",
+          "HAB-07-SERVICE-GALLERY",
+          "HAB-07-SG1-CUPBOARD"
+        ],
+        "rotary_coupler": "NET-ROT-B"
+      },
+      {
+        "id": "NET-DROP-A-MIND-08",
+        "machine": "MIND-08",
+        "rail": "A",
+        "region": "AFT",
+        "anchor_room": "TRUNK-A-AFT",
+        "machine_room": "ENV-AFT",
+        "route_spaces": [
+          "TRUNK-A-AFT",
+          "XCON-AFT",
+          "TRUNK-B-AFT",
+          "ENV-AFT"
+        ],
+        "rotary_coupler": null
+      },
+      {
+        "id": "NET-DROP-B-MIND-08",
+        "machine": "MIND-08",
+        "rail": "B",
+        "region": "AFT",
+        "anchor_room": "TRUNK-B-AFT",
+        "machine_room": "ENV-AFT",
+        "route_spaces": [
+          "TRUNK-B-AFT",
+          "ENV-AFT"
+        ],
+        "rotary_coupler": null
+      },
+      {
+        "id": "NET-DROP-A-MIND-09",
+        "machine": "MIND-09",
+        "rail": "A",
+        "region": "AFT",
+        "anchor_room": "TRUNK-A-AFT",
+        "machine_room": "COMMS-AFT",
+        "route_spaces": [
+          "TRUNK-A-AFT",
+          "COMMS-AFT"
+        ],
+        "rotary_coupler": null
+      },
+      {
+        "id": "NET-DROP-B-MIND-09",
+        "machine": "MIND-09",
+        "rail": "B",
+        "region": "AFT",
+        "anchor_room": "TRUNK-B-AFT",
+        "machine_room": "COMMS-AFT",
+        "route_spaces": [
+          "TRUNK-B-AFT",
+          "XCON-AFT",
+          "TRUNK-A-AFT",
+          "COMMS-AFT"
+        ],
+        "rotary_coupler": null
+      }
+    ]
+  },
+  "cooling_islands": [
+    {
+      "id": "THERM-MIND-ISL-BOW",
+      "region": "BOW",
+      "service_room": "ENV-FWD",
+      "machines": [
+        "MIND-01",
+        "MIND-02"
+      ],
+      "individual_cold_plates": [
+        "COOL-MIND-01",
+        "COOL-MIND-02"
+      ],
+      "independent_buffer_id": "BUF-MIND-ISL-BOW",
+      "heat_rejector_id": "REJECT-MIND-ISL-BOW",
+      "heat_rate_kw": 4,
+      "peak_rejection_kw": 5,
+      "buffer_nameplate_kj": 720,
+      "ride_through_seconds": 120,
+      "monitored_shutdown_temperature_k": 328.15,
+      "normal_temperature_min_k": 278.15,
+      "normal_temperature_max_k": 313.15,
+      "normal_heat_sink": "local room air/low-temperature utility when physically available",
+      "independence_rule": "Finite local absorption remains available without central LT plant, subject to surveyed capacity and actual machine state",
+      "status": "CANDIDATE_UNSURVEYED"
+    },
+    {
+      "id": "THERM-MIND-ISL-FWD-SPINE",
+      "region": "FWD-SPINE",
+      "service_room": "XCON-GAP-23",
+      "machines": [
+        "MIND-03"
+      ],
+      "individual_cold_plates": [
+        "COOL-MIND-03"
+      ],
+      "independent_buffer_id": "BUF-MIND-ISL-FWD-SPINE",
+      "heat_rejector_id": "REJECT-MIND-ISL-FWD-SPINE",
+      "heat_rate_kw": 2,
+      "peak_rejection_kw": 2.5,
+      "buffer_nameplate_kj": 720,
+      "ride_through_seconds": 120,
+      "monitored_shutdown_temperature_k": 328.15,
+      "normal_temperature_min_k": 278.15,
+      "normal_temperature_max_k": 313.15,
+      "normal_heat_sink": "local room air/low-temperature utility when physically available",
+      "independence_rule": "Finite local absorption remains available without central LT plant, subject to surveyed capacity and actual machine state",
+      "status": "CANDIDATE_UNSURVEYED"
+    },
+    {
+      "id": "THERM-MIND-ISL-HUB",
+      "region": "HUB",
+      "service_room": "HUB-MAINT-BAY",
+      "machines": [
+        "MIND-04",
+        "MIND-05"
+      ],
+      "individual_cold_plates": [
+        "COOL-MIND-04",
+        "COOL-MIND-05"
+      ],
+      "independent_buffer_id": "BUF-MIND-ISL-HUB",
+      "heat_rejector_id": "REJECT-MIND-ISL-HUB",
+      "heat_rate_kw": 4,
+      "peak_rejection_kw": 5,
+      "buffer_nameplate_kj": 720,
+      "ride_through_seconds": 120,
+      "monitored_shutdown_temperature_k": 328.15,
+      "normal_temperature_min_k": 278.15,
+      "normal_temperature_max_k": 313.15,
+      "normal_heat_sink": "local room air/low-temperature utility when physically available",
+      "independence_rule": "Finite local absorption remains available without central LT plant, subject to surveyed capacity and actual machine state",
+      "status": "CANDIDATE_UNSURVEYED"
+    },
+    {
+      "id": "THERM-MIND-ISL-HAB",
+      "region": "HAB",
+      "service_room": "HAB-04-ENV-SAT",
+      "machines": [
+        "MIND-06",
+        "MIND-07"
+      ],
+      "individual_cold_plates": [
+        "COOL-MIND-06",
+        "COOL-MIND-07"
+      ],
+      "independent_buffer_id": "BUF-MIND-ISL-HAB",
+      "heat_rejector_id": "REJECT-MIND-ISL-HAB",
+      "heat_rate_kw": 4,
+      "peak_rejection_kw": 5,
+      "buffer_nameplate_kj": 720,
+      "ride_through_seconds": 120,
+      "monitored_shutdown_temperature_k": 328.15,
+      "normal_temperature_min_k": 278.15,
+      "normal_temperature_max_k": 313.15,
+      "normal_heat_sink": "local room air/low-temperature utility when physically available",
+      "independence_rule": "Finite local absorption remains available without central LT plant, subject to surveyed capacity and actual machine state",
+      "status": "CANDIDATE_UNSURVEYED"
+    },
+    {
+      "id": "THERM-MIND-ISL-AFT",
+      "region": "AFT",
+      "service_room": "ENV-AFT",
+      "machines": [
+        "MIND-08",
+        "MIND-09"
+      ],
+      "individual_cold_plates": [
+        "COOL-MIND-08",
+        "COOL-MIND-09"
+      ],
+      "independent_buffer_id": "BUF-MIND-ISL-AFT",
+      "heat_rejector_id": "REJECT-MIND-ISL-AFT",
+      "heat_rate_kw": 4,
+      "peak_rejection_kw": 5,
+      "buffer_nameplate_kj": 720,
+      "ride_through_seconds": 120,
+      "monitored_shutdown_temperature_k": 328.15,
+      "normal_temperature_min_k": 278.15,
+      "normal_temperature_max_k": 313.15,
+      "normal_heat_sink": "local room air/low-temperature utility when physically available",
+      "independence_rule": "Finite local absorption remains available without central LT plant, subject to surveyed capacity and actual machine state",
+      "status": "CANDIDATE_UNSURVEYED"
+    }
+  ]
+}
