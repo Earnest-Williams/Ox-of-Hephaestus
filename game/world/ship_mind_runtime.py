@@ -22,6 +22,7 @@ from world.ship_mind_power import (
     validate_fitted_source_routes,
     validate_reserve_ledger,
 )
+from world.ship_mind_service import AUXILIARY_KW, machine_mode, thermal_trip_only
 
 BROKEN = frozenset({"faulted", "failed", "severed", "jammed", "destroyed"})
 METER_FIELDS = frozenset({
@@ -178,11 +179,16 @@ def _input_usable(feed, rows, g19_nodes):
 def _machine_usable(machine, rows):
     equipment = rows.get("equipment:" + machine["id"])
     final_board = rows.get("equipment:" + machine["final_board"])
-    return bool(_working(equipment) and _working(final_board)
-                and _working(rows.get("node:" + machine["final_board_node"]))
-                and _working(rows.get("node:" + machine["terminal_node"]))
-                and _conducting_edge(rows, machine["board_feeder"])
-                and _conducting_edge(rows, machine["feeder"]))
+    return bool(
+        equipment is not None
+        and machine_mode(equipment) != "stopped"
+        and (_working(equipment) or thermal_trip_only(equipment))
+        and _working(final_board)
+        and _working(rows.get("node:" + machine["final_board_node"]))
+        and _working(rows.get("node:" + machine["terminal_node"]))
+        and _conducting_edge(rows, machine["board_feeder"])
+        and _conducting_edge(rows, machine["feeder"])
+    )
 
 
 def _reserve_usable(island, rows, account):
@@ -241,6 +247,7 @@ def tick_mind_power(design, account, *, rows, g19_power, seconds, loads_enabled=
     changed_contacts = []
     online = []
     offline = []
+    cooling_only = []
     grid_kw = 0.0
     charge_kw = 0.0
     delivered_heat = {m["id"]: 0.0 for island in design["islands"] for m in island["machines"]}
@@ -279,7 +286,15 @@ def tick_mind_power(design, account, *, rows, g19_power, seconds, loads_enabled=
         active_machines = [
             m for m in island["machines"] if loads_enabled and healthy and _machine_usable(m, rows)
         ]
-        demand_kw = sum(m["load_kw"] for m in active_machines)
+        loads = {
+            m["id"]: (
+                AUXILIARY_KW
+                if machine_mode(rows["equipment:" + m["id"]]) == "cooldown"
+                else m["load_kw"]
+            )
+            for m in active_machines
+        }
+        demand_kw = sum(loads.values())
         should_grid = bool(active_ready and demand_kw <= available_kw + 1e-9)
         bank = new["reserve"]["units"][island["local_reserve"]["id"]]
         grid_served_kw = demand_kw if should_grid else 0.0
@@ -305,9 +320,17 @@ def tick_mind_power(design, account, *, rows, g19_power, seconds, loads_enabled=
             new["meter"]["unserved_kwh"] += max(0.0, demand_kw * dt / 3600 - delivered)
         if demand_kw:
             for machine in active_machines:
-                delivered_heat[machine["id"]] = delivered * 3600.0 * machine["load_kw"] / demand_kw
+                delivered_heat[machine["id"]] = (
+                    delivered * 3600.0 * loads[machine["id"]] / demand_kw
+                )
         if powered:
-            online.extend(m["id"] for m in active_machines)
+            cooling_only.extend(
+                m["id"]
+                for m in active_machines
+                if machine_mode(rows["equipment:" + m["id"]]) == "cooldown"
+            )
+            online.extend(m["id"] for m in active_machines if m["id"] not in cooling_only)
+            offline.extend(m["id"] for m in active_machines if m["id"] in cooling_only)
         else:
             offline.extend(m["id"] for m in active_machines)
         offline.extend(m["id"] for m in island["machines"] if m not in active_machines)
@@ -334,6 +357,7 @@ def tick_mind_power(design, account, *, rows, g19_power, seconds, loads_enabled=
         "seconds": dt,
         "powered": sorted(online),
         "unpowered": sorted(offline),
+        "cooling_only": sorted(cooling_only),
         "grid_served_mw": grid_kw / 1000.0,
         "grid_charge_mw": charge_kw / 1000.0,
         "transfers_completed": [[a, b] for a, b in changed_contacts],

@@ -26,12 +26,15 @@ on:
       - "design/ship/lead_mind_support_topology.json"
       - "game/world/ship_mind_power.py"
       - "game/world/ship_mind_runtime.py"
+      - "game/world/ship_mind_service.py"
+      - "game/commands/ship_physics.py"
       - "game/world/ship_mind_support.py"
       - "game/world/ship_mind_support_world.py"
       - "game/world/ship_control_gateway.py"
       - "game/world/continuous_ship_physics.py"
       - "game/world/tests/test_ship_mind_power.py"
       - "game/world/tests/test_ship_mind_runtime.py"
+      - "game/world/tests/test_ship_mind_service.py"
       - "game/world/tests/test_ship_mind_support.py"
       - "game/world/tests/test_ship_control_gateway.py"
       - "game/world/tests/test_installed_ship_mind_power.py"
@@ -61,12 +64,15 @@ on:
       - "design/ship/lead_mind_support_topology.json"
       - "game/world/ship_mind_power.py"
       - "game/world/ship_mind_runtime.py"
+      - "game/world/ship_mind_service.py"
+      - "game/commands/ship_physics.py"
       - "game/world/ship_mind_support.py"
       - "game/world/ship_mind_support_world.py"
       - "game/world/ship_control_gateway.py"
       - "game/world/continuous_ship_physics.py"
       - "game/world/tests/test_ship_mind_power.py"
       - "game/world/tests/test_ship_mind_runtime.py"
+      - "game/world/tests/test_ship_mind_service.py"
       - "game/world/tests/test_ship_mind_support.py"
       - "game/world/tests/test_ship_control_gateway.py"
       - "game/world/tests/test_installed_ship_mind_power.py"
@@ -93,12 +99,12 @@ jobs:
           python-version: "3.12"
       - name: Compile power-island and inherited G19 electrical code
         run: |
-          python -m compileall -q game/world/ship_mind_power.py game/world/ship_mind_runtime.py game/world/ship_mind_support.py game/world/ship_mind_support_world.py game/world/ship_electrical_power.py game/world/ship_control_gateway.py game/world/tests/test_ship_control_gateway.py game/world/continuous_ship_physics.py game/world/tests/test_installed_ship_mind_power.py game/world/tests/test_ship_mind_power.py game/world/tests/test_ship_mind_runtime.py game/world/tests/test_ship_mind_support.py
+          python -m compileall -q game/world/ship_mind_power.py game/world/ship_mind_runtime.py game/world/ship_mind_service.py game/world/tests/test_ship_mind_service.py game/world/ship_mind_support.py game/world/ship_mind_support_world.py game/world/ship_electrical_power.py game/world/ship_control_gateway.py game/world/tests/test_ship_control_gateway.py game/world/continuous_ship_physics.py game/world/tests/test_installed_ship_mind_power.py game/world/tests/test_ship_mind_power.py game/world/tests/test_ship_mind_runtime.py game/world/tests/test_ship_mind_support.py
       - name: Validate scoped CI workflow conventions
         run: python .github/ci/check_ox_ci_scope.py
       - name: Exercise all candidate fault domains and measured reserves
         working-directory: game
-        run: python -m unittest world.tests.test_ship_mind_power world.tests.test_ship_mind_runtime world.tests.test_ship_mind_support world.tests.test_ship_electrical_power world.tests.test_ship_auxiliary_electrical world.tests.test_ship_control_gateway -v
+        run: python -m unittest world.tests.test_ship_mind_power world.tests.test_ship_mind_runtime world.tests.test_ship_mind_service world.tests.test_ship_mind_support world.tests.test_ship_electrical_power world.tests.test_ship_auxiliary_electrical world.tests.test_ship_control_gateway -v
       - name: Preserve unmodified published and G19 candidate topology
         run: python design/ship/check_v05_candidate.py
 
@@ -108,7 +114,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        slice: [power-network-cooling, read-only-gateway, review-regressions]
+        slice: [power-network-cooling, read-only-gateway, review-regressions, thermal-recovery]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -125,7 +131,7 @@ jobs:
       - name: Run actual ship installation and casualty regressions
         if: matrix.slice == 'power-network-cooling'
         working-directory: game
-        run: python -m world.test_runner world.tests.test_installed_ship_mind_power world.tests.test_installed_ship_cabin_fancoils.InstalledCabinFanCoils.test_live_original_power_and_lt_valves_create_positive_cabin_output --exclude-tag=g19_gateway --exclude-tag=g19_infrastructure_review --verbosity=2
+        run: python -m world.test_runner world.tests.test_installed_ship_mind_power world.tests.test_installed_ship_cabin_fancoils.InstalledCabinFanCoils.test_live_original_power_and_lt_valves_create_positive_cabin_output --exclude-tag=g19_gateway --exclude-tag=g19_infrastructure_review --exclude-tag=g19_mind_recovery --verbosity=2
       - name: Run independent gateway power, protocol and thermal acceptance
         if: matrix.slice == 'read-only-gateway'
         working-directory: game
@@ -134,3 +140,7 @@ jobs:
         if: matrix.slice == 'review-regressions'
         working-directory: game
         run: python -m world.test_runner world.tests.test_installed_ship_mind_power --tag=g19_infrastructure_review --verbosity=2
+      - name: Run attended thermal recovery and restart acceptance
+        if: matrix.slice == 'thermal-recovery'
+        working-directory: game
+        run: python -m world.test_runner world.tests.test_installed_ship_mind_power --tag=g19_mind_recovery --verbosity=2

@@ -274,6 +274,15 @@ from world.ship_mind_runtime import (
     install_mind_circuits, initial_mind_runtime,
     validate_mind_runtime, tick_mind_power,
 )
+from world.ship_mind_service import MACHINE_IDS as MIND_MACHINE_IDS
+from world.ship_mind_service import PROOF_SECONDS as MIND_PROOF_SECONDS
+from world.ship_mind_service import RIDE_THROUGH_SECONDS
+from world.ship_mind_service import SERVICE_KEY as MIND_SERVICE_KEY
+from world.ship_mind_service import advance_cooldown, changed_service, machine_mode
+from world.ship_mind_service import request_service as request_mind_service
+from world.ship_mind_service import service_signature as mind_service_signature
+from world.ship_mind_service import service_state as mind_service_state
+from world.ship_mind_service import thermal_trip_only
 from world.ship_mind_support import (
     air_rejection_rates,
     connected_machines,
@@ -2761,8 +2770,10 @@ def commission_g19_crew_physiology(*, actor_dbrefs, operator_approved=False):
         raise PhysicsError("Specify real crew actors to enrol")
     if len(actor_dbrefs) > 40 or len(set(actor_dbrefs)) != len(actor_dbrefs):
         raise PhysicsError("Duplicate or unbounded individual enrolment")
-    from evennia.objects.models import ObjectDB
     from world.ship_world import find_ship_space
+
+    from evennia.objects.models import ObjectDB
+
     zones = _topology()[0]
     newly = 0
     for ref in actor_dbrefs:
@@ -6203,7 +6214,8 @@ def tick_continuous_physics(*, now_game_time=None):
                     physical_rows=mind_support_rows,
                     connection_rows=mind_lt_rows,
                     connected_lt_nodes=connected_lt,
-                    powered_machines=set(mind_power["last"]["powered"]),
+                    powered_machines=set(mind_power["last"]["powered"])
+                    | set(mind_power["last"]["cooling_only"]),
                     cooling_budget_kw=total_cool_kw,
                     requested_kw=cooling_requests,
                 )
@@ -6378,6 +6390,7 @@ def tick_continuous_physics(*, now_game_time=None):
         # real room gas cell and latches its source equipment off.
         if mind_cooling is not None:
             online=set(mind_power["last"]["powered"])
+            cooling_only = set(mind_power["last"]["cooling_only"])
             bad_cooling={
                 name for name in (
                     [pod["independent_buffer_id"] for pod in
@@ -6395,7 +6408,7 @@ def tick_continuous_physics(*, now_game_time=None):
                     cells=cells,
                     room_zones=zones,
                     seconds=dt,
-                    powered_machines=online,
+                    powered_machines=online | cooling_only,
                     requested_kw=cooling_requests,
                 )
                 lt_rates = mind_lt_rates
@@ -6469,14 +6482,83 @@ def tick_continuous_physics(*, now_game_time=None):
                 updates=dict(item.details)
                 updates["physics_mind_thermal_trip"]=True
                 updates["physics_trip_game_time"]=last+duration
+                updates["physics_mind_trip_revision"] = item.revision + 1
+                updates[MIND_SERVICE_KEY] = changed_service(item, "stopped")
                 item.details=updates
                 item.revision+=1
                 changed_equipment.add(item.key)
                 _event(item,"g19_mind_thermal_protection_trip",previous)
+            # Auxiliary-only operation is metered above, but never admitted
+            # to networked compute. Only actual rejected heat earns evidence.
+            cooling_rows = {**mind_rows, **mind_support_rows, **mind_lt_rows}
+            signatures = {}
+            for machine in sorted(MIND_MACHINE_IDS):
+                item = equipment[machine]
+                if mind_service_state(item)["mode"] != "cooldown":
+                    continue
+                pod = next(p for p in mind_support["cooling_islands"] if machine in p["machines"])
+                if pod["id"] not in signatures:
+                    signatures[pod["id"]] = mind_service_signature(
+                        cooling_rows, clock.details["load_profile"], pod
+                    )
+                signature = signatures[pod["id"]]
+                gas = cells.get(zones.get(item.space_id))
+                bank = mind_cooling["units"][pod["independent_buffer_id"]]
+                receipt = thermal_receipts[pod["id"]]
+                parts = [
+                    pod["independent_buffer_id"],
+                    pod["heat_rejector_id"],
+                    *pod["individual_cold_plates"],
+                ]
+                rated = (
+                    mind_support_rows["equipment:" + pod["heat_rejector_id"]]
+                    .details.get("cooling_survey", {})
+                    .get("measured_kw", 0)
+                )
+                normal = bool(
+                    gas
+                    and pod["normal_temperature_min_k"]
+                    <= gas["temperature"]
+                    < pod["normal_temperature_max_k"]
+                )
+                good = bool(
+                    machine in cooling_only
+                    and normal
+                    and not set(parts) & bad_cooling
+                    and bank["surveyed"]
+                    and bank["free_kj"] >= pod["heat_rate_kw"] * RIDE_THROUGH_SECONDS
+                    and rated >= pod["heat_rate_kw"]
+                    and receipt["rejected_kj"] >= receipt["generated_kj"] > 0
+                    and receipt["unabsorbed_kj"] <= 1e-8
+                )
+                hazardous = bool(
+                    machine in overheated
+                    or gas is None
+                    or gas["temperature"] >= pod["monitored_shutdown_temperature_k"]
+                )
+                previous = _snapshot(item)
+                updated = advance_cooldown(
+                    item,
+                    seconds=dt,
+                    now_s=last + duration,
+                    good=good,
+                    hazardous=hazardous,
+                    signature=signature,
+                )
+                _apply_mind_service(item, updated)
+                changed_equipment.add(item.key)
+                if (
+                    previous["physics"][MIND_SERVICE_KEY]["verified_s"]
+                    < MIND_PROOF_SECONDS
+                    <= updated["verified_s"]
+                    or updated["mode"] == "stopped"
+                ):
+                    _event(item, "g19_mind_cooldown_observed", previous)
             mind_support_last = {
                 "networked": sorted(networked),
                 "compute_ready": sorted(set(networked) - overheated),
                 "thermal_shutdown": sorted(overheated),
+                "cooling_only": sorted(cooling_only),
                 "observed_s": last + duration,
                 "thermal_receipts": thermal_receipts,
                 "lt_reserved_kw": mind_lt_reserved_kw,
@@ -6913,6 +6995,7 @@ def tick_continuous_physics(*, now_game_time=None):
     current_unverified = {}
     if crew_rows:
         import copy
+
         from evennia.objects.models import ObjectDB
         ids = [int(row.source_id[1:]) for row in crew_rows
                if re.fullmatch(r"#[0-9]+", row.source_id or "")]
@@ -7126,8 +7209,10 @@ def tick_continuous_physics(*, now_game_time=None):
     rescue = clock.details.get("rescue")
     if rescue is not None:
         validate_rescue(rescue)
-        from evennia.objects.models import ObjectDB
         from world.ship_world import find_ship_space
+
+        from evennia.objects.models import ObjectDB
+
         involved = {ref for patient, j in rescue["jobs"].items()
                     for ref in (patient, j["lead"], j["helper"])}
         actor_ids = [int(ref[1:]) for ref in involved]
@@ -7226,8 +7311,10 @@ def tick_continuous_physics(*, now_game_time=None):
     bay_access = clock.details.get("bay_access")
     if bay_access is not None:
         validate_bay_access(bay_access)
-        from evennia.objects.models import ObjectDB
         from world.ship_world import find_ship_space
+
+        from evennia.objects.models import ObjectDB
+
         ids = [int(ref[1:]) for ref in bay_access["jobs"]]
         workers = {a.dbref: a for a in ObjectDB.objects.filter(id__in=ids)}
         bay_doors = {a.source_id: a for a in access_rows}
@@ -7733,8 +7820,10 @@ def tick_continuous_physics(*, now_game_time=None):
     # A failed actuator, lost power, unsafe air, or lost hardlock PAUSES work;
     # no inhabitant is teleported to a drum on a failed cycle.
     if eva is not None and eva["transits"]:
-        from evennia.objects.models import ObjectDB
         from world.ship_world import find_ship_space
+
+        from evennia.objects.models import ObjectDB
+
         for actor_key, transit in tuple(eva["transits"].items()):
             if transit["remaining_s"] > 1e-8:
                 continue
@@ -7783,8 +7872,10 @@ def tick_continuous_physics(*, now_game_time=None):
                 actor_dbref=actor_key, game_time=last + seconds)
             traveler.msg("Your suited exterior transfer has reached its worksite.")
     if personnel_transfers is not None and personnel_transfers["jobs"]:
-        from evennia.objects.models import ObjectDB
         from world.ship_world import find_ship_space
+
+        from evennia.objects.models import ObjectDB
+
         by_access = {item.source_id: item for item in access_rows}
         by_pressure = {item.source_id: item for item in pressure_rows}
         ready_links = set()
@@ -8554,6 +8645,18 @@ def _receipt(event, request_id, actor, action, target):
     }
 
 
+def _apply_mind_service(item, record):
+    """Update only the local service controller; preserve all material meters."""
+    details = dict(item.details)
+    details[MIND_SERVICE_KEY] = record
+    if details.get("physics_mind_thermal_trip") is True and (
+        thermal_trip_only(item) or item.condition == "serviceable"
+    ):
+        details["physics_mind_trip_revision"] = record["row_revision"]
+    item.details = details
+    item.revision = record["row_revision"]
+
+
 @transaction.atomic
 def crew_physical_action(actor, request_id, action, target, value):
     """Real local control with global, durable request-ID deduplication.
@@ -8756,6 +8859,7 @@ def crew_physical_action(actor, request_id, action, target, value):
         # a physical repair or sealed waste movement. Deduplicated historic
         # receipts above remain replayable without issuing a second action.
         from world.ship_crew_access import _health_gate
+
         # The two assigned carriers must be able to ABORT a carriage
         # without first leaving the running job that immobilises them.
         if not (action == "rescue" and value == "cancel"):
@@ -9689,9 +9793,11 @@ def crew_physical_action(actor, request_id, action, target, value):
                 if len(parts) != 3:
                     raise PhysicsError("Rescue needs <helper-dbref>:<link-id>:<direction>")
                 helper_ref, link, direction = parts
-                from evennia.objects.models import ObjectDB
-                from world.ship_world import find_world_entity, find_ship_space
                 from world.ship_crew_access import _clearance
+                from world.ship_world import find_ship_space, find_world_entity
+
+                from evennia.objects.models import ObjectDB
+
                 if not re.fullmatch(r"#[0-9]+", helper_ref):
                     raise PhysicsError("Two identifiable carriers required")
                 helper = ObjectDB.objects.filter(id=int(helper_ref[1:])).first()
@@ -10967,8 +11073,10 @@ def crew_physical_action(actor, request_id, action, target, value):
                     motion=d["motion"], hardware_ready=sound)
             else:
                 _crew_at(actor, PROPULSION_STATION)
-                from evennia.objects.models import ObjectDB
                 from world.ship_world import find_ship_space
+
+                from evennia.objects.models import ObjectDB
+
                 face = find_ship_space(PROPULSION_FACE)
                 occupied = bool(face and any(
                     getattr(person.db, "crew_role", None) for person in
@@ -11020,8 +11128,10 @@ def crew_physical_action(actor, request_id, action, target, value):
                     ledger, radiator=target, actor=actor.dbref,
                     game_time=d["last_game_time"])
             else:
-                from evennia.objects.models import ObjectDB
                 from world.ship_world import find_ship_space
+
+                from evennia.objects.models import ObjectDB
+
                 outside = find_ship_space(spec["face"])
                 # A fitted room contains exit and fixture objects as well
                 # as people. Only actual living crew bodies hold a work face
@@ -11433,8 +11543,10 @@ def crew_physical_action(actor, request_id, action, target, value):
             if (target not in ledger["secured_links"]
                     or door.setting != "open"):
                 raise PhysicsError("No matching live service access to release")
-            from evennia.objects.models import ObjectDB
             from world.ship_world import find_ship_space
+
+            from evennia.objects.models import ObjectDB
+
             workroom = find_ship_space(site)
             if workroom is None:
                 raise PhysicsError("Fitted service compartment disappeared")
@@ -11933,7 +12045,117 @@ def crew_physical_action(actor, request_id, action, target, value):
             item.revision += 1
             item.save(update_fields=["setting", "revision"])
     elif action == "service":
-        if target in REFUGE_PACKS:
+        if target in MIND_MACHINE_IDS:
+            item = state("equipment", target, lock=True)
+            _crew_at(actor, item.space_id)
+            from world.ship_crew_access import _health_gate
+
+            _health_gate(actor)
+            zone = _topology()[0].get(item.space_id)
+            if not zone or not _air_safe(state("pressure", zone, lock=True)):
+                raise PhysicsError("Computer service requires safe local air and temperature")
+            clock = _clock(lock=True)
+            design, support = load_mind_power_design(), load_mind_support()
+            if clock.details.get("mind_cooling") is None:
+                raise PhysicsError("Fit thermal protection before computer service")
+            before = _snapshot(item)
+            # Old trips already have immutable world evidence. Bind only
+            # that exact still-unmodified equipment revision during attendance.
+            if (
+                value == "cooldown"
+                and item.condition == "faulted"
+                and item.details.get("physics_mind_thermal_trip") is True
+                and item.details.get("physics_mind_trip_revision") is None
+            ):
+                original = CanonicalShipEvent.objects.filter(
+                    component_key=item.key,
+                    operation="g19_mind_thermal_protection_trip",
+                    after__revision=item.revision,
+                    after__physics__physics_mind_thermal_trip=True,
+                ).exists()
+                if original:
+                    item.details = dict(item.details, physics_mind_trip_revision=item.revision)
+            try:
+                installed_support_rows(CanonicalShipState, support, design, load_candidate())
+                validate_cooling_ledger(support, clock.details["mind_cooling"])
+                rows = {
+                    r.key: r
+                    for r in CanonicalShipState.objects.filter(
+                        category__in=["equipment", "node", "edge", "isolator"]
+                    )
+                }
+                # The dispatcher validates every power row, even for a dry
+                # preflight. No returned account or contact is committed here.
+                tick_mind_power(
+                    design,
+                    clock.details["mind_power"],
+                    rows=rows,
+                    g19_power={
+                        "nodes": set(),
+                        "main_available_mw": 0,
+                        "producer_available_mw": 0,
+                        "requested_mw": 0,
+                    },
+                    seconds=1,
+                    loads_enabled=False,
+                )
+                pod = next(p for p in support["cooling_islands"] if target in p["machines"])
+                signature = mind_service_signature(rows, clock.details["load_profile"], pod)
+                record = request_mind_service(
+                    item,
+                    value,
+                    now_s=clock.details["last_game_time"],
+                    signature=signature,
+                    pod=pod,
+                    bank=clock.details["mind_cooling"]["units"][pod["independent_buffer_id"]],
+                    temperature_k=state("pressure", zone).details["temperature_k"],
+                )
+                if value == "restart":
+                    # Check the full compute demand on the actual live
+                    # sources without spending a second speculative joule.
+                    import copy
+
+                    probe_rows = dict(rows)
+                    probe = copy.copy(item)
+                    probe.condition = "serviceable"
+                    probe.details = dict(item.details)
+                    probe.details.pop("physics_mind_thermal_trip", None)
+                    probe.details[MIND_SERVICE_KEY] = dict(record, row_revision=item.revision)
+                    probe_rows[item.key] = probe
+                    grid = _power(
+                        {r.source_id: r for r in rows.values() if r.category == "equipment"},
+                        [r for r in rows.values() if r.category == "edge"],
+                        {r.source_id: r for r in rows.values() if r.category == "isolator"},
+                        clock.details["load_profile"],
+                        ledger=clock.details["electrical"],
+                        moored=contacts_active(clock.details["cargo"]),
+                    )
+                    proposed, _ = tick_mind_power(
+                        design,
+                        clock.details["mind_power"],
+                        rows=probe_rows,
+                        g19_power=grid,
+                        seconds=10,
+                    )
+                    if target not in proposed["last"]["powered"]:
+                        raise MindPowerError(
+                            "Restart requires an available full-load electrical supply"
+                        )
+            except MindPowerError as exc:
+                raise PhysicsError(str(exc)) from exc
+            if value == "restart":
+                item.condition = "serviceable"
+                item.details = dict(item.details)
+                item.details.pop("physics_mind_thermal_trip", None)
+                item.details.pop("physics_mind_trip_revision", None)
+                item.details.pop("physics_trip_game_time", None)
+            _apply_mind_service(item, record)
+            item.save(update_fields=["details", "condition", "revision"])
+            selftest_evidence = {
+                "mode": record["mode"],
+                "observed_s": clock.details["last_game_time"],
+            }
+        elif target in REFUGE_PACKS:
             if not isinstance(value, str) or not value.startswith("refill:"):
                 raise PhysicsError("Refuge filter needs refill:<kg> of surveyed local media")
             item = state("equipment", target, lock=True)
@@ -12100,6 +12322,7 @@ def crew_physical_action(actor, request_id, action, target, value):
         item = state("pressure", target, lock=True)
         _, owners, _ = _topology()
         from world.ship_world import find_ship_space
+
         # The outlet is at the actual HAB pressure cell, not any remote room.
         if not getattr(actor, "location", None):
             raise PermissionError("Local worker required")
@@ -12147,6 +12370,31 @@ def local_physics_readout(actor, target):
     room = getattr(getattr(location, "db", None), "ox_space_id", None)
     if not room:
         raise PermissionError("Stand at an installed ship compartment")
+    if target in MIND_MACHINE_IDS:
+        item = state("equipment", target)
+        _crew_at(actor, item.space_id)
+        details = _clock().details
+        if details.get("mind_cooling") is None:
+            raise PhysicsError("Computer thermal gauges are not commissioned")
+        pod = next(p for p in load_mind_support()["cooling_islands"] if target in p["machines"])
+        controller = mind_service_state(item)
+        last = details["mind_power"]["last"]
+        ready = details["mind_support_last"].get("compute_ready", [])
+        return {
+            "id": target,
+            "condition": item.condition,
+            "mode": machine_mode(item),
+            "last_tick_computing": target in ready,
+            "last_tick_auxiliary_powered": target in last.get("cooling_only", []),
+            "power_observed_s": details["last_game_time"],
+            "thermal_trip_latched": item.details.get("physics_mind_thermal_trip") is True,
+            "verified_cooldown_s": controller["verified_s"],
+            "observed_s": controller["observed_s"],
+            "buffer_free_kj": details["mind_cooling"]["units"][pod["independent_buffer_id"]][
+                "free_kj"
+            ],
+            "scope": "local computer and its shared thermal buffer",
+        }
     if target == "gas_refill":
         # Regulator-station gauges: own bank stock, own downstream job only.
         bank = next((k for k, s in REFILL_REGULATORS.items()

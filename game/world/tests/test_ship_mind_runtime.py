@@ -18,6 +18,7 @@ from world.ship_mind_runtime import (
     tick_mind_power,
     validate_mind_runtime,
 )
+from world.ship_mind_service import SERVICE_KEY, changed_service
 
 def prepared():
     design = load_design()
@@ -77,6 +78,41 @@ class MindRuntimePhysicsTests(unittest.TestCase):
             seconds=seconds)
         apply(self.rows, contacts)
         return self.account["last"], contacts
+
+    def test_cooling_auxiliaries_are_billed_without_admitting_compute(self):
+        """A tripped processor's 50 W service supply uses its actual final feeder."""
+        row = self.rows["equipment:MIND-01"]
+        row.revision = 1
+        row.condition = "faulted"
+        record = changed_service(row, "cooldown")
+        row.revision = record["row_revision"]
+        row.details = {
+            SERVICE_KEY: record,
+            "physics_mind_thermal_trip": True,
+            "physics_mind_trip_revision": row.revision,
+        }
+        last, _ = self.step()
+        self.assertNotIn("MIND-01", last["powered"])
+        self.assertEqual(last["cooling_only"], ["MIND-01"])
+        self.assertAlmostEqual(last["delivered_heat_kj"]["MIND-01"], 0.5)
+        self.assertAlmostEqual(last["grid_served_mw"], 0.01605)
+        machine = self.design["islands"][0]["machines"][0]
+        self.rows["isolator:" + machine["isolator"]].setting = "open"
+        last, _ = self.step()
+        self.assertEqual(last["cooling_only"], [])
+        self.assertEqual(last["delivered_heat_kj"]["MIND-01"], 0)
+        self.rows["isolator:" + machine["isolator"]].setting = "closed"
+        row.revision += 1
+        last, _ = self.step()
+        self.assertEqual(last["cooling_only"], [])
+
+    def test_thermal_latch_survives_a_generic_condition_change(self):
+        """A normal condition flag alone cannot bypass a retained thermal latch."""
+        row = self.rows["equipment:MIND-01"]
+        row.details = {"physics_mind_thermal_trip": True}
+        last, _ = self.step()
+        self.assertNotIn("MIND-01", last["powered"])
+        self.assertEqual(last["delivered_heat_kj"]["MIND-01"], 0)
 
     def test_unfitted_thermal_protection_interlocks_all_compute_loads(self):
         """Fitting a power circuit cannot start computers before protection exists."""

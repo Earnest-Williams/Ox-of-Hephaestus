@@ -91,7 +91,6 @@ checks, plus an installed electrical and ship-clock integration gate.
   drum-3 controller registers and segment-local fallback acceptance.
 - Which local roles may take control of each segment and exact remote
   authority grants.
-- Supervised cooldown/restart after a latched computer thermal trip.
 - Access-reader fitting to the rack and other controlled machinery rooms.
 - Parity, rebuild timing, cognition, and the lead-mind player interface.
 
@@ -119,3 +118,9 @@ prototype has a functioning ship-wide AI.
 - The focused infrastructure workflow runs on drafts so physical acceptance
   can be completed before marking the construction PR ready. Other expensive
   draft suites retain their existing deferral policy.
+- Attended local computer service now provides metered 50 W auxiliary-only
+  cooldown, real buffer recovery, a 30-second measured observation interval
+  and a separate full-load restart check. The thermal latch survives power
+  restoration and cooldown. Only a fresh local engineering command can clear
+  it, without erasing heat, electricity or persistent physical damage. An
+  immutable matching trip event admits legacy trips without resetting them.

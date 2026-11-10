@@ -22,6 +22,7 @@ from world.continuous_ship_physics import (
     commission_g19_mind_power,
     commission_g19_mind_support,
     crew_physical_action,
+    local_physics_readout,
     survey_g19_data_path,
     survey_g19_gateway_power,
     survey_g19_heat_rejector,
@@ -44,6 +45,7 @@ from world.ship_control_gateway import PROFILE as GATEWAY_PROFILE
 from world.ship_electrical_power import audit_topology
 from world.ship_mind_power import load_design
 from world.ship_mind_runtime import validate_mind_runtime
+from world.ship_mind_service import SERVICE_KEY
 from world.ship_mind_support import (
     data_penetrations,
     load_support,
@@ -713,6 +715,151 @@ class InstalledMindPowerTests(EvenniaTestCase):
             self.advance(1020)
         # Transaction rollback preserves the previous clock epoch.
         self.assertEqual(_clock().details["last_game_time"], 1010)
+
+    def prepare_thermal_recovery(self, *, air=False):
+        """Trip the real bow computers against a measured nearly full buffer."""
+        self.installed()
+        commission_g19_mind_support(operator_approved=True)
+        support = load_support()
+        bow = support["cooling_islands"][0]
+        for pod in support["cooling_islands"]:
+            survey_g19_mind_cooling(
+                operator_approved=True,
+                buffer_id=pod["independent_buffer_id"],
+                capacity_kj=720,
+                free_kj=1 if pod == bow else 720,
+            )
+        self.online_generator("GEN-M")
+        self.close_authored_input("A")
+        self.survey_network()
+        self.advance(1010)
+        self.assertTrue(state("equipment", "MIND-01").details["physics_mind_thermal_trip"])
+        self.assertEqual(
+            _clock().details["mind_cooling"]["units"][bow["independent_buffer_id"]]["free_kj"], 0
+        )
+        if air:
+            survey_g19_heat_rejector(
+                operator_approved=True,
+                rejector_id=bow["heat_rejector_id"],
+                measured_kw=5,
+                evidence_id="attended-air-recovery",
+                sink_kind="air",
+            )
+        else:
+            self.power_lt_plant()
+            self.survey_lt_rejection()
+        worker = build_ship()["watch"]
+        self.assertTrue(worker.move_to(find_ship_space("COMMS-FWD"), quiet=True))
+        return worker, bow
+
+    @tag("g19_mind_recovery")
+    def test_attended_cooldown_recovers_finite_heat_then_rejoins_the_network(self):
+        """Actual rejection, retained latches and a new attended restart are required."""
+        worker, bow = self.prepare_thermal_recovery()
+        before = _clock().details["mind_power"]["meter"]
+        receipt = crew_physical_action(worker, "b1" * 16, "service", "MIND-01", "cooldown")
+        self.assertEqual(receipt["selftest"]["mode"], "cooldown")
+        self.assertEqual(_clock().details["mind_power"]["meter"], before)
+        self.assertEqual(
+            crew_physical_action(worker, "b1" * 16, "service", "MIND-01", "cooldown"), receipt
+        )
+        self.advance(1020)
+        power = _clock().details["mind_power"]["last"]
+        self.assertEqual(power["cooling_only"], ["MIND-01"])
+        self.assertNotIn("MIND-01", power["powered"])
+        self.assertAlmostEqual(power["delivered_heat_kj"]["MIND-01"], 0.5)
+        self.assertAlmostEqual(power["grid_served_mw"], 0.01405)
+        self.assertNotIn("MIND-01", _clock().details["mind_support_last"]["compute_ready"])
+        self.advance(1110)
+        with self.assertRaises(PhysicsError):
+            crew_physical_action(worker, "b2" * 16, "service", "MIND-01", "restart")
+        self.advance(1130)
+        reading = local_physics_readout(worker, "MIND-01")
+        self.assertEqual(reading["verified_cooldown_s"], 30)
+        self.assertTrue(reading["thermal_trip_latched"])
+        bank = _clock().details["mind_cooling"]["units"][bow["independent_buffer_id"]]
+        self.assertAlmostEqual(bank["free_kj"], 594)
+        self.assertAlmostEqual(bank["recovered_kj"], 594)
+        self.assertAlmostEqual(bank["generated_kj"], 46)
+        meters = _clock().details["mind_cooling"]
+        restarted = crew_physical_action(worker, "b2" * 16, "service", "MIND-01", "restart")
+        self.assertEqual(restarted["selftest"]["mode"], "running")
+        self.assertEqual(_clock().details["mind_cooling"], meters)
+        self.advance(1140)
+        self.assertIn("MIND-01", _clock().details["mind_support_last"]["compute_ready"])
+        self.assertNotIn("MIND-02", _clock().details["mind_support_last"]["compute_ready"])
+        self.assertEqual(state("equipment", "MIND-02").condition, "faulted")
+        crew_physical_action(worker, "b3" * 16, "service", "MIND-01", "stop")
+        self.assertEqual(
+            crew_physical_action(worker, "b2" * 16, "service", "MIND-01", "restart"), restarted
+        )
+        self.assertEqual(state("equipment", "MIND-01").details[SERVICE_KEY]["mode"], "stopped")
+
+    @tag("g19_mind_recovery")
+    def test_cooldown_cannot_hide_supply_loss_changed_hardware_or_damage(self):
+        """Lost power cancels proof; subsequent physical faults never become a reset."""
+        worker, bow = self.prepare_thermal_recovery()
+        crew_physical_action(worker, "c1" * 16, "service", "MIND-01", "cooldown")
+        self.advance(1130)
+        self.assertEqual(local_physics_readout(worker, "MIND-01")["verified_cooldown_s"], 30)
+        breaker = self.design["islands"][0]["machines"][0]["isolator"]
+        set_isolator(breaker, "open", operator=True)
+        with self.assertRaises(PhysicsError):
+            crew_physical_action(worker, "c2" * 16, "service", "MIND-01", "restart")
+        before = _clock().details["mind_cooling"]["units"][bow["independent_buffer_id"]]["free_kj"]
+        self.advance(1140)
+        self.assertEqual(local_physics_readout(worker, "MIND-01")["verified_cooldown_s"], 0)
+        self.assertEqual(
+            _clock().details["mind_cooling"]["units"][bow["independent_buffer_id"]]["free_kj"],
+            before,
+        )
+        set_isolator(breaker, "closed", operator=True)
+        self.advance(1170)
+        self.assertEqual(local_physics_readout(worker, "MIND-01")["verified_cooldown_s"], 30)
+        set_isolator(breaker, "open", operator=True)
+        set_isolator(breaker, "closed", operator=True)
+        with self.assertRaises(PhysicsError):
+            crew_physical_action(worker, "c2" * 16, "service", "MIND-01", "restart")
+        set_component_condition("equipment", "MIND-01", "failed", operator=True)
+        set_component_condition("equipment", "MIND-01", "faulted", operator=True)
+        # The same condition label is a new physical revision, not the old trip.
+        self.advance(1180)
+        damaged = state("equipment", "MIND-01")
+        self.assertEqual(damaged.details[SERVICE_KEY]["mode"], "stopped")
+        self.assertNotEqual(damaged.details["physics_mind_trip_revision"], damaged.revision)
+        with self.assertRaises(PhysicsError):
+            crew_physical_action(worker, "c3" * 16, "service", "MIND-01", "cooldown")
+
+    @tag("g19_mind_recovery")
+    def test_air_cooldown_legacy_trip_and_attended_authority(self):
+        """A recorded old trip can recover using actual air transfer and qualified hands."""
+        worker, bow = self.prepare_thermal_recovery(air=True)
+        row = state("equipment", "MIND-01", lock=True)
+        legacy = dict(row.details)
+        legacy.pop(SERVICE_KEY)
+        legacy.pop("physics_mind_trip_revision")
+        row.details = legacy
+        row.save(update_fields=["details"])
+        self.assertTrue(worker.move_to(find_ship_space("COMMS-AFT"), quiet=True))
+        with self.assertRaises(PermissionError):
+            crew_physical_action(worker, "d1" * 16, "service", "MIND-01", "cooldown")
+        self.assertTrue(worker.move_to(find_ship_space("COMMS-FWD"), quiet=True))
+        worker.db.crew_role = "cook"
+        with self.assertRaises(PermissionError):
+            crew_physical_action(worker, "d1" * 16, "service", "MIND-01", "cooldown")
+        worker.db.crew_role = "watch_engineer"
+        worker.db.ox_terminal_dead = True
+        with self.assertRaises(PermissionError):
+            crew_physical_action(worker, "d1" * 16, "service", "MIND-01", "cooldown")
+        worker.db.ox_terminal_dead = False
+        crew_physical_action(worker, "d1" * 16, "service", "MIND-01", "cooldown")
+        zone = _topology()[0][bow["service_room"]]
+        before_k = state("pressure", zone).details["temperature_k"]
+        self.advance(1130)
+        self.assertGreater(state("pressure", zone).details["temperature_k"], before_k)
+        self.assertEqual(local_physics_readout(worker, "MIND-01")["verified_cooldown_s"], 30)
+        crew_physical_action(worker, "d2" * 16, "service", "MIND-01", "restart")
+        self.assertFalse(state("equipment", "MIND-01").details.get("physics_mind_thermal_trip"))
 
     @tag("g19_infrastructure_review")
     def test_power_installation_waits_for_thermal_protection(self):

@@ -133,6 +133,36 @@ Physical and thermal surveys are invalidated by component changes; a repair
 does not silently re-certify its path. Repeating support commissioning after
 a thermal trip preserves the fault and the consumed buffer inventory.
 
-This supports finite outage recovery; supervised computer restart after a
-latched thermal trip remains subsequent operations work. See
-[ADR 0011](../decisions/0011-ship-control-support-overlays.md).
+## Attended computer recovery
+
+The local controller now supports `oxplant <request-id> service MIND-01
+cooldown`, `restart` and `stop` for each fitted computer. A qualified engineer
+must attend its actual room in safe air and be physically fit for work. The
+existing world work receipt makes a replay return the original outcome;
+replaying an old restart after a later stop does not start the computer again.
+
+`cooldown` inhibits computation and powers only the module's 50 W cooling
+auxiliaries through its original final feeder and island reserve. That draw
+is included within the module's normal 2 kW rating. The ordinary electrical
+and heat meters charge every delivered joule. Restored LT rejection or a
+surveyed air rejector removes stored heat over game time; no command refills
+a thermal buffer or clears its heat history. A cooling-only module contributes
+neither a computing endpoint nor gateway connectivity.
+
+Restart requires 30 consecutive observed seconds with powered auxiliaries,
+healthy cold plates and buffer, measured heat rejection, normal local
+temperature, and at least 120 seconds of recovered headroom at the whole
+island's rated heat load. The rejector's measured rating must cover that
+load. A source or cooling-path change invalidates the evidence; an outage
+resets the observation interval, and uncontained auxiliary heat stops the
+cooldown controller. The engineer must then issue a new `restart`, which
+checks full-load electrical supply before clearing only the thermal latch.
+Actual computation becomes visible on the next world tick.
+
+`oxplantread MIND-01` shows the local controller mode, retained trip, observed
+cooldown interval and shared buffer headroom. Power/computing readings carry
+the last physics observation time. Persistent damage cannot be cleared by
+this procedure. Older trips can enter cooldown only when their immutable
+trip event still matches the unmodified equipment revision.
+
+See [ADR 0011](../decisions/0011-ship-control-support-overlays.md).
