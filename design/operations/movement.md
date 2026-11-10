@@ -90,3 +90,13 @@ and the installed design data.
 2. What does monitoring mean at a controlled point: identity reader, camera,
    or both?
 3. Are carts modelled as vehicles, or only as faster walking?
+
+## Forward spine: equipment security without blocking passage
+
+The proposed machine at `XCON-GAP-23` must not convert the original
+cross-trunk passage into a locked compartment. Its *rack* is a separate
+monitored access point; the passage and both original access links remain
+in service. The machine-room controlled-access design therefore needs a
+rack access event in addition to ordinary traversal events, not fabricated
+door crossings. This is the [ADR 0011](../decisions/0011-ship-control-support-overlays.md)
+candidate in PR #151, pending physical reader installation.
