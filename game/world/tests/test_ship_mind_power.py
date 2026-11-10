@@ -81,7 +81,7 @@ class CorePowerTopologyTests(unittest.TestCase):
         self.assertEqual(report["candidate_machine_final_routes_verified"], 9)
         self.assertEqual(report["candidate_machines"], 9)
         self.assertEqual(report["candidate_islands"], 5)
-        self.assertEqual(report["future_world_rows"], 86)
+        self.assertEqual(report["future_world_rows"], 96)
         self.assertGreaterEqual(report["original_feeders_traced"], 12)
         hab = next(i for i in self.design["islands"] if i["region"] == "HAB")
         b = next(f for f in hab["inputs"] if f["source"] == "B")
@@ -184,16 +184,16 @@ class CorePowerTopologyTests(unittest.TestCase):
 
     def test_candidate_world_rows_have_explicit_separate_contacts(self):
         rows = proposed_world_rows(self.design)
-        self.assertEqual(len(rows), 86)
+        self.assertEqual(len(rows), 96)
         self.assertEqual(sum(row["category"] == "equipment"
                              for row in rows.values()), 19)
         self.assertEqual(sum(row["category"] == "node"
                              for row in rows.values()), 19)
         self.assertEqual(sum(row["category"] == "edge"
-                             for row in rows.values()), 24)
+                             for row in rows.values()), 29)
         self.assertEqual(sum(row["category"] == "isolator"
-                             for row in rows.values()), 24)
-        self.assertEqual(len({row["key"] for row in rows.values()}), 86)
+                             for row in rows.values()), 29)
+        self.assertEqual(len({row["key"] for row in rows.values()}), 96)
         for row in rows.values():
             self.assertEqual(row["source_model"], "ox.lead-mind-power/1")
             if row["category"] in ("node", "edge", "isolator"):
