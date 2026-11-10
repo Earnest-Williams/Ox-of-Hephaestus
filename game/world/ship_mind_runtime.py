@@ -305,10 +305,6 @@ def tick_mind_power(design, account, *, rows, g19_power, seconds):
                 amount = limit * dt / 3600.0
                 bank["charge_kwh"] += amount
                 bank["charged_kwh"] += amount
-                new["reserve"]["meter"]["charged_kwh"] = (
-                    new["reserve"]["meter"].get("charged_kwh", 0.0) + amount
-                    if "charged_kwh" in new["reserve"]["meter"]
-                    else amount)
                 available_kw -= limit
                 producing_kw -= limit
                 charge_kw += limit
