@@ -189,7 +189,9 @@ def main() -> int:
         for block in blocks:
             if block.startswith("  ") and len(re.findall(r"(?m)^    if:", block)) > 1:
                 failures.append(f"{workflow.name} contains duplicate job if keys")
-        if workflow.name not in (DOCUMENTATION, "ox-fast.yml") and "  pull_request:" in pre:
+        # This focused infrastructure gate must produce evidence while its
+        # construction PR is still draft. Other expensive suites stay deferred.
+        if workflow.name not in (DOCUMENTATION, "ox-fast.yml", "ox-lead-mind-power.yml") and "  pull_request:" in pre:
             if "ready_for_review" not in pre:
                 failures.append(f"{workflow.name} must trigger when a draft becomes ready")
             if "github.event.pull_request.draft == false" not in body:
