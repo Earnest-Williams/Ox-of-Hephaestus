@@ -274,6 +274,15 @@ from world.ship_mind_runtime import (
     install_mind_circuits, initial_mind_runtime,
     validate_mind_runtime, tick_mind_power,
 )
+from world.ship_mind_support import (
+    load_support as load_mind_support,
+    initial_cooling_ledger, validate_cooling_ledger,
+    survey_cooling_buffer, step_cooling_buffer, MindPowerError as _SupportError,
+)
+from world.ship_mind_support_world import (
+    install_control_support, installed_support_rows,
+    installed_network_cohort,
+)
 from world.ship_equipment_wear import (
     initial_equipment_wear, validate_equipment_wear,
     survey_existing_wear, step_equipment_wear,
@@ -598,6 +607,15 @@ def _snapshot(item):
     # Earlier clock snapshots omitted motion and made a successfully
     # receipted helm/rotor operation indistinguishable from a no-op.
     if item.key == CLOCK_KEY:
+        if item.details.get("mind_cooling") is not None:
+            result["mind_cooling"] = {
+                "buffers": {
+                    name: {"surveyed": value["surveyed"],
+                           "free_kj": value["free_kj"]}
+                    for name, value in item.details["mind_cooling"]["units"].items()
+                },
+                "last": item.details.get("mind_support_last"),
+            }
         if item.details.get("mind_power") is not None:
             mind = item.details["mind_power"]
             result["mind_power"] = {
@@ -1049,6 +1067,78 @@ def survey_g19_mind_reserve(*, operator_approved=False, reserve_id,
     clock.save(update_fields=["details", "revision"])
     _event(clock, "g19_mind_power_reserve_surveyed", before)
     return {"surveyed": reserve_id, "measured_charge_kwh": charge_kwh}
+
+
+@transaction.atomic
+def commission_g19_mind_support(*, operator_approved=False):
+    """Fit independent physical data rails and thermal pods, no remote authority.
+
+    The nine machine power terminals must already have been commissioned.
+    No central network principal, gateway automation, remote device permission,
+    newly discovered heat sink, or pre-charged coolant is fabricated.
+    """
+    if not operator_approved:
+        raise PermissionError("Ship-control support fitting is operator-only")
+    _require_installed()
+    clock = _clock(lock=True)
+    if clock.details.get("mind_power") is None:
+        raise PhysicsError("Fit the real nine-machine island equipment first")
+    power_design = load_mind_power_design()
+    support = load_mind_support()
+    try:
+        result = install_control_support(
+            CanonicalShipState,support,power_design,load_candidate())
+        prior=clock.details.get("mind_cooling")
+        if prior is not None:
+            if result["created"]:
+                raise MindPowerError(
+                    "Previously commissioned data and cooling hardware disappeared")
+            validate_cooling_ledger(support,prior)
+            return {"commissioned":False,**result}
+        before=_snapshot(clock)
+        detail=dict(clock.details)
+        detail["mind_cooling"]=initial_cooling_ledger(support)
+        detail["mind_support_last"]={
+            "networked":[],"compute_ready":[],"thermal_shutdown":[],
+            "observed_s":detail["last_game_time"]}
+        clock.details=detail
+        clock.revision+=1
+        clock.save(update_fields=["details","revision"])
+        _event(clock,"g19_ship_control_support_installed",before)
+        return {"commissioned":True,**result,
+                "measured_cooling_capacity_kj":0.0}
+    except MindPowerError as exc:
+        raise PhysicsError(str(exc)) from exc
+
+
+@transaction.atomic
+def survey_g19_mind_cooling(*, operator_approved=False,
+                            buffer_id, capacity_kj, free_kj):
+    """Measure real cold headroom exactly once, without resetting used heat."""
+    if not operator_approved:
+        raise PermissionError("Measured cooling-survey authority is operator-only")
+    clock=_clock(lock=True)
+    if clock.details.get("mind_cooling") is None:
+        raise PhysicsError("Commission ship-control support before surveying buffers")
+    buffer=state("equipment",buffer_id,lock=True)
+    if (buffer.source_model != "ox.ship-support/1"
+            or buffer.condition in _BROKEN):
+        raise PhysicsError("No intact installed local cold buffer at that identifier")
+    support=load_mind_support()
+    try:
+        ledger=survey_cooling_buffer(
+            support,clock.details["mind_cooling"],buffer_id,
+            capacity_kj=capacity_kj,free_kj=free_kj)
+    except MindPowerError as exc:
+        raise PhysicsError(str(exc)) from exc
+    before=_snapshot(clock)
+    detail=dict(clock.details)
+    detail["mind_cooling"]=ledger
+    clock.details=detail
+    clock.revision+=1
+    clock.save(update_fields=["details","revision"])
+    _event(clock,"g19_mind_cooling_buffer_surveyed",before)
+    return {"surveyed":buffer_id,"measured_free_kj":free_kj}
 
 
 @transaction.atomic
