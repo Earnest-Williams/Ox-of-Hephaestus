@@ -7,7 +7,7 @@ import unittest
 
 from world.ship_mind_power import (
     MindPowerError, load_design, default_design_path,
-    live_machines,
+    live_machines, fault_components,
 )
 from world.ship_mind_support import (
     connected_machines, default_support_path, fault_domains,
@@ -43,6 +43,41 @@ class ShipSupportDesignTests(unittest.TestCase):
                       "TRUNK-B-GAP-23","NET-SPAN-A-13"):
             self.assertIn(token,result)
             self.assertLessEqual(result[token],2)
+
+    def test_joint_single_fault_power_network_and_two_minute_cooling(self):
+        # A common room, source board, rotary coupler or machine-final part
+        # can affect power and data simultaneously. Proving each graph alone
+        # is insufficient; evaluate their intersection with finite heat
+        # and reserves over the entire required 120-second interval.
+        reserves={
+            isl["local_reserve"]["id"]:1.0 for isl in self.design["islands"]}
+        coolant=initial_cooling_ledger(self.support)
+        for pod in self.support["cooling_islands"]:
+            coolant=survey_cooling_buffer(
+                self.support,coolant,pod["independent_buffer_id"],
+                capacity_kj=720,free_kj=720)
+        domains=sorted(set(fault_components(self.design))
+                       |set(fault_domains(self.support)))
+        self.assertGreater(len(domains),140)
+        for domain in domains:
+            with self.subTest(single_fault=domain):
+                live=live_machines(
+                    self.design,failed={domain},
+                    surveyed_reserves=reserves)
+                thermal=copy.deepcopy(coolant)
+                failed=set()
+                for _ in range(2):
+                    thermal,trips,_=step_cooling_buffer(
+                        self.support,thermal,
+                        operating_machines=live,
+                        seconds=60,failed={domain})
+                    failed.update(trips)
+                connected=connected_machines(
+                    self.support,faults={domain},
+                    available_machines=set(live)-failed)
+                self.assertGreaterEqual(
+                    len(connected),7,
+                    "Joint 120-second failure removed too many: "+domain)
 
     def test_two_independent_hab_crossings_not_passenger_indexer(self):
         drops=[d for d in self.support["backbone"]["drops"]
