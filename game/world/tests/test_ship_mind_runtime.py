@@ -176,6 +176,53 @@ class MindRuntimePhysicsTests(unittest.TestCase):
         result, _ = self.step()
         self.assertEqual(len(result["powered"]), 7)
 
+    def test_every_new_fitted_hardware_failure_keeps_seven_on_measured_backup(self):
+        # Sweep the *runtime* identity set, not only the candidate domain
+        # names. Charge is explicit and private to each of five islands.
+        surveyed = initial_mind_runtime(self.design)
+        for island in self.design["islands"]:
+            reserve = island["local_reserve"]
+            surveyed["reserve"] = survey_reserve(
+                self.design, surveyed["reserve"], reserve["id"],
+                capacity_kwh=.5, charge_kwh=.5)
+        for key in sorted(proposed_world_rows(self.design)):
+            with self.subTest(failed=key):
+                rows = dict(self.rows)
+                row = copy.copy(rows[key])
+                row.condition = "failed"
+                rows[key] = row
+                account, _ = tick_mind_power(
+                    self.design, surveyed, rows=rows,
+                    g19_power=self.g19, seconds=10)
+                self.assertGreaterEqual(len(account["last"]["powered"]), 7)
+
+    def test_failed_battery_terminal_cannot_supply_or_accept_charge(self):
+        island = self.design["islands"][0]
+        reserve = island["local_reserve"]
+        self.account["reserve"] = survey_reserve(
+            self.design, self.account["reserve"], reserve["id"],
+            capacity_kwh=.5, charge_kwh=.25)
+        self.rows["node:NODE-" + reserve["id"]].condition = "failed"
+        self.g19["nodes"].clear()
+        last, _ = self.step()
+        self.assertNotIn(island["machines"][0]["id"], last["powered"])
+        self.assertNotIn(island["machines"][1]["id"], last["powered"])
+        self.assertEqual(self.account["meter"]["reserve_served_kwh"], 0)
+        self.g19["nodes"] = prepared()[2]["nodes"]
+        last, _ = self.step()
+        self.assertEqual(last["grid_charge_mw"], 0)
+
+    def test_latched_original_g19_contact_is_not_healthy_closed_power(self):
+        island = self.design["islands"][0]
+        feed = island["inputs"][0]
+        original = next(x for x in feed["route_domains"] if x.startswith("ISO-"))
+        contact = self.rows["isolator:" + original]
+        self.assertEqual(contact.setting, "closed")
+        contact.details = {"physics_power_trip_latched": True}
+        last, _ = self.step()
+        self.assertEqual(len(last["powered"]), 7)
+        self.assertIn(island["id"], self.account["pending"])
+
     def test_grid_shortfall_never_credits_more_power_to_mind(self):
         self.g19["main_available_mw"] = 1.35
         last, _ = self.step()
