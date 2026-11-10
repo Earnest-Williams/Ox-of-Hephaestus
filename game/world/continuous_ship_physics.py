@@ -5806,7 +5806,7 @@ def tick_continuous_physics(*, now_game_time=None):
             # A physically connected compute feeder IS a live consumer
             # even if all original room circuits are intentionally open.
             # Otherwise step_energy would discard real machine draw.
-            if mind_grid_mw > 0:
+            if mind_grid_mw > 0 or mind_charge_mw > 0:
                 power["has_live_load"] = True
             power["requested_mw"] += mind_grid_mw + mind_charge_mw
             power["dispatched_mw"] += mind_grid_mw + mind_charge_mw
@@ -5853,10 +5853,19 @@ def tick_continuous_physics(*, now_game_time=None):
                 raise PhysicsError(str(exc)) from exc
         if electrical is not None:
             try:
+                previous_grid_served_kwh = electrical["meter"]["served_kwh"]
                 electrical = step_energy(
                     electrical, power, dt,
                     actual_requested_mw=power["requested_mw"],
                     external_charge_mw=local_charge_mw + mind_charge_mw)
+                # Compute service is never an unbilled side channel:
+                # the G19 generator/storage service meter must include
+                # at least the newly powered computers on this tick.
+                if (mind_power is not None and
+                        electrical["meter"]["served_kwh"]
+                        - previous_grid_served_kwh + 1e-7
+                        < mind_power["last"]["grid_served_mw"] * dt / 3.6):
+                    raise PhysicsError("Lead-mind grid load escaped G19 energy custody")
                 if not math.isclose(
                         electrical["last"]["local_battery_recharged_kwh"],
                         (local_charge_mw + mind_charge_mw) * dt / 3.6,
