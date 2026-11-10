@@ -4,18 +4,34 @@ from __future__ import annotations
 import copy
 import json
 import unittest
+from types import SimpleNamespace
 
 from world.ship_mind_power import (
-    MindPowerError, load_design, default_design_path,
-    live_machines, fault_components,
+    MindPowerError,
+    default_design_path,
+    fault_components,
+    live_machines,
+    load_design,
 )
 from world.ship_mind_support import (
-    connected_machines, default_support_path, fault_domains,
-    initial_cooling_ledger, load_support, proposed_support_rows,
-    single_fault_network_sweep, step_cooling_buffer, survey_cooling_buffer,
-    validate_cooling_ledger, validate_support,
+    air_rejection_rates,
+    connected_machines,
+    data_penetrations,
+    default_support_path,
+    fault_domains,
+    initial_cooling_ledger,
+    load_support,
+    lt_rejection_rates,
+    migrate_cooling_ledger,
+    proposed_heat_connection_rows,
+    proposed_support_rows,
+    single_fault_network_sweep,
+    step_cooling_buffer,
+    survey_cooling_buffer,
+    survey_signature,
+    validate_cooling_ledger,
+    validate_support,
 )
-
 
 class ShipSupportDesignTests(unittest.TestCase):
     @classmethod
@@ -184,6 +200,114 @@ class ShipSupportDesignTests(unittest.TestCase):
         self.assertIn("equipment:NET-ROT-A",rows)
         self.assertIn("equipment:NET-ROT-B",rows)
 
+    def test_fitted_conductors_need_surveys_and_repairs_invalidate_them(self):
+        """Drawing a route and fitting a row cannot prove live continuity."""
+        rows = {
+            key: SimpleNamespace(**spec, revision=1)
+            for key, spec in proposed_support_rows(self.support, self.design, self.ship).items()
+        }
+        self.assertFalse(connected_machines(self.support, physical_rows=rows))
+        for row in rows.values():
+            if row.category == "edge" or row.source_id in {"NET-ROT-A", "NET-ROT-B"}:
+                row.details["data_survey"] = {
+                    "version": 1,
+                    "row_revision": 1,
+                    "observed_s": 1000,
+                    "reference_sha256": survey_signature(row.reference),
+                    "evidence_id": "test-physical-continuity",
+                    "pressure_penetrations": [],
+                    "continuity_verified": True,
+                    "pressure_verified": True,
+                    "environment_verified": True,
+                    "emi_verified": True,
+                    "continuous_rpm": 3.6 if row.category == "equipment" else None,
+                }
+        self.assertEqual(len(connected_machines(self.support, physical_rows=rows)), 9)
+        for rail in ("A", "B"):
+            row = rows["equipment:NET-ROT-" + rail]
+            row.condition = "failed"
+            row.revision += 1
+            row.condition = "serviceable"
+            row.revision += 1
+        self.assertEqual(len(connected_machines(self.support, physical_rows=rows)), 7)
+
+    def test_penetrations_follow_actual_pressure_boundaries(self):
+        """A drawn branch carries all intervening pressure-seal obligations."""
+        rows = proposed_support_rows(self.support, self.design, self.ship)
+        self.assertEqual(
+            data_penetrations(rows["edge:NET-SPAN-A-00"]["reference"], self.ship),
+            ["ACC-TRUNK-A-BOW-DR-01"],
+        )
+        drop = rows["edge:NET-DROP-A-MIND-01"]["reference"]
+        self.assertGreater(len(data_penetrations(drop, self.ship)), 1)
+
+    def test_thermal_pipes_do_not_invent_moving_frame_crossings(self):
+        """HAB pipes start behind an original rotary LT interface."""
+        rows = proposed_heat_connection_rows(self.support, self.design, self.ship)
+        self.assertEqual(len(rows), 15)
+        self.assertEqual(
+            rows["edge:LT-FEED-HAB"]["reference"]["from_node"], "NODE-HAB-04-LT-COOLING-MAN"
+        )
+        self.assertEqual(rows["isolator:ISO-MIND-LT-BOW"]["setting"], "closed")
+        wrong = copy.deepcopy(self.support)
+        wrong["cooling_islands"][0]["lt_connection"]["route_spaces"] = ["ROTARY-UTIL-A", "ENV-FWD"]
+        with self.assertRaises(MindPowerError):
+            validate_support(wrong, self.design, self.ship)
+
+    def test_lt_transfer_requires_actual_valves_and_one_finite_radiator_budget(self):
+        """Surveyed nameplate output cannot bypass its source or double-spend LT."""
+        support_rows = {
+            key: SimpleNamespace(**spec, revision=1)
+            for key, spec in proposed_support_rows(self.support, self.design, self.ship).items()
+        }
+        circuits = {
+            key: SimpleNamespace(**spec, revision=1)
+            for key, spec in proposed_heat_connection_rows(
+                self.support, self.design, self.ship
+            ).items()
+        }
+        for pod in self.support["cooling_islands"]:
+            feed = pod["lt_connection"]
+            valve = circuits["isolator:" + feed["isolator"]]
+            valve.setting = "open"
+            parts = [
+                circuits[c + ":" + feed[k]]
+                for c, k in (("edge", "id"), ("node", "node"), ("isolator", "isolator"))
+            ]
+            row = support_rows["equipment:" + pod["heat_rejector_id"]]
+            row.details["cooling_survey"] = {
+                "version": 1,
+                "row_revision": 1,
+                "observed_s": 1000,
+                "reference_sha256": survey_signature(row.reference),
+                "evidence_id": "actual-LT-output",
+                "measured_kw": pod["peak_rejection_kw"],
+                "sink_kind": "lt",
+                "connection_revisions": {p.key: p.revision for p in parts},
+            }
+        args = dict(
+            physical_rows=support_rows,
+            connection_rows=circuits,
+            connected_lt_nodes={"NODE-LT-PLANT", "NODE-HAB-04-LT-COOLING-MAN"},
+            powered_machines={"MIND-%02d" % n for n in range(1, 10)},
+            cooling_budget_kw=8,
+        )
+        self.assertEqual(sum(lt_rejection_rates(self.support, **args).values()), 8)
+        self.assertEqual(
+            sum(lt_rejection_rates(self.support, **dict(args, cooling_budget_kw=0)).values()), 0
+        )
+        self.assertEqual(
+            sum(lt_rejection_rates(self.support, **dict(args, connected_lt_nodes=set())).values()),
+            0,
+        )
+        pod = self.support["cooling_islands"][0]
+        valve = circuits["isolator:" + pod["lt_connection"]["isolator"]]
+        valve.setting = "closed"
+        self.assertEqual(lt_rejection_rates(self.support, **args)[pod["id"]], 0)
+        valve.setting = "open"
+        valve.revision += 1
+        self.assertEqual(lt_rejection_rates(self.support, **args)[pod["id"]], 0)
+
 
 class ShipSupportThermalTests(unittest.TestCase):
     @classmethod
@@ -276,6 +400,100 @@ class ShipSupportThermalTests(unittest.TestCase):
             step_cooling_buffer(self.support,self.ledger,
                 operating_machines=["MIND-01"],seconds=61)
         self.assertEqual(self.ledger,before)
+
+    def test_spare_rejection_recovers_only_actual_stored_heat(self):
+        """Buffers recover by exporting the same heat to a receiving sink."""
+        self.survey_all()
+        pod = self.support["cooling_islands"][0]
+        self.ledger, _, _ = step_cooling_buffer(
+            self.support, self.ledger, operating_machines=pod["machines"], seconds=20
+        )
+        before = self.ledger["units"][pod["independent_buffer_id"]]
+        self.assertEqual(before["free_kj"], 640)
+        after, trips, receipts = step_cooling_buffer(
+            self.support,
+            self.ledger,
+            operating_machines=pod["machines"],
+            seconds=10,
+            measured_rejection_kw={pod["id"]: 5},
+        )
+        bank = after["units"][pod["independent_buffer_id"]]
+        self.assertFalse(trips)
+        self.assertEqual(bank["free_kj"], 650)
+        self.assertEqual(receipts[pod["id"]]["rejected_kj"], 50)
+        self.assertEqual(bank["generated_kj"], 120)
+        self.assertEqual(bank["absorbed_kj"], 80)
+        self.assertEqual(bank["recovered_kj"], 10)
+        corrupt = copy.deepcopy(after)
+        corrupt["units"][pod["independent_buffer_id"]]["free_kj"] += 1
+        with self.assertRaises(MindPowerError):
+            validate_cooling_ledger(self.support, corrupt)
+
+    def test_legacy_migration_preserves_used_cold_and_all_meters(self):
+        """Upgrading custody fields cannot recharge a partially used store."""
+        self.survey_all()
+        self.ledger, _, _ = step_cooling_buffer(
+            self.support, self.ledger, operating_machines=["MIND-01"], seconds=10
+        )
+        old = copy.deepcopy(self.ledger)
+        old["version"] = 1
+        for unit in old["units"].values():
+            unit.pop("initial_free_kj")
+            unit.pop("recovered_kj")
+        self.assertEqual(migrate_cooling_ledger(self.support, old), self.ledger)
+        self.assertEqual(migrate_cooling_ledger(self.support, self.ledger), self.ledger)
+        corrupt = copy.deepcopy(old)
+        bank = next(iter(corrupt["units"].values()))
+        bank["free_kj"] = 720
+        with self.assertRaises(MindPowerError):
+            migrate_cooling_ledger(self.support, corrupt)
+
+    def test_air_rejection_requires_survey_power_and_a_cool_pressurised_sink(self):
+        """No fan power, hot/vacuum receiver or failed apparatus earns cooling."""
+        rows = {}
+        zones = {}
+        cells = {}
+        for pod in self.support["cooling_islands"]:
+            name = pod["heat_rejector_id"]
+            reference = {"id": name}
+            rows["equipment:" + name] = SimpleNamespace(
+                reference=reference, revision=1, condition="serviceable", details={}
+            )
+            zone = "PZ-" + pod["region"]
+            zones[pod["service_room"]] = zone
+            cells[zone] = {"temperature": 293.15, "capacity": 1000, "volume": 100, "mass": 120}
+        args = dict(
+            physical_rows=rows,
+            cells=cells,
+            room_zones=zones,
+            seconds=10,
+            powered_machines={"MIND-01", "MIND-02"},
+        )
+        pod = self.support["cooling_islands"][0]
+        self.assertEqual(air_rejection_rates(self.support, **args)[pod["id"]], 0)
+        row = rows["equipment:" + pod["heat_rejector_id"]]
+        row.details["cooling_survey"] = {
+            "version": 1,
+            "row_revision": 1,
+            "observed_s": 1000,
+            "reference_sha256": survey_signature(row.reference),
+            "evidence_id": "physical-air-output",
+            "measured_kw": 5,
+            "sink_kind": "air",
+        }
+        self.assertEqual(air_rejection_rates(self.support, **args)[pod["id"]], 5)
+        self.assertEqual(
+            air_rejection_rates(self.support, **dict(args, powered_machines=set()))[pod["id"]], 0
+        )
+        cell = cells[zones[pod["service_room"]]]
+        cell["temperature"] = pod["normal_temperature_max_k"]
+        self.assertEqual(air_rejection_rates(self.support, **args)[pod["id"]], 0)
+        cell["temperature"] = 293.15
+        cell["mass"] = 0
+        self.assertEqual(air_rejection_rates(self.support, **args)[pod["id"]], 0)
+        cell["mass"] = 120
+        row.condition = "failed"
+        self.assertEqual(air_rejection_rates(self.support, **args)[pod["id"]], 0)
 
 
 if __name__=="__main__":

@@ -5,26 +5,47 @@ ten-second physics clock. No simulated voyage or independent fake grid.
 """
 from __future__ import annotations
 
-from evennia.utils.test_resources import EvenniaTestCase
+from collections import defaultdict, deque
 
-from world.ship_world import ensure_canonical_ship
-from world.full_ship_operations import (
-    install_candidate, install_pressure_cells, initialize_nominal_atmosphere,
-    set_isolator, set_component_condition, state, load_candidate,
+from django.db import transaction
+from world.continuous_ship_physics import (
+    PhysicsError,
+    _clock,
+    _load_cell,
+    _topology,
+    arm_continuous_physics,
+    commission_g19_electrical,
+    commission_g19_mind_heat_connections,
+    commission_g19_mind_power,
+    commission_g19_mind_support,
+    survey_g19_data_path,
+    survey_g19_heat_rejector,
+    survey_g19_mind_cooling,
+    survey_g19_mind_reserve,
+    tick_continuous_physics,
 )
-from world.models import CanonicalShipState, CanonicalShipEvent
+from world.full_ship_operations import (
+    initialize_nominal_atmosphere,
+    install_candidate,
+    install_pressure_cells,
+    load_candidate,
+    set_component_condition,
+    set_isolator,
+    state,
+)
+from world.models import CanonicalShipEvent, CanonicalShipState
+from world.ship_electrical_power import audit_topology
 from world.ship_mind_power import load_design
 from world.ship_mind_runtime import validate_mind_runtime
-from world.ship_mind_support import load_support, validate_cooling_ledger
-from world.ship_mind_support_world import installed_network_cohort
-from world.ship_electrical_power import audit_topology
-from world.continuous_ship_physics import (
-    PhysicsError, arm_continuous_physics, commission_g19_electrical,
-    commission_g19_mind_power, survey_g19_mind_reserve,
-    commission_g19_mind_support, survey_g19_mind_cooling,
-    tick_continuous_physics, _clock,
+from world.ship_mind_support import (
+    data_penetrations,
+    load_support,
+    validate_cooling_ledger,
 )
+from world.ship_mind_support_world import installed_network_cohort
+from world.ship_world import ensure_canonical_ship
 
+from evennia.utils.test_resources import EvenniaTestCase
 
 class InstalledMindPowerTests(EvenniaTestCase):
     def setUp(self):
@@ -61,7 +82,87 @@ class InstalledMindPowerTests(EvenniaTestCase):
         return commission_g19_mind_power(operator_approved=True)
 
     def advance(self, time):
-        return tick_continuous_physics(now_game_time=time)
+        """Catch up through bounded world ticks, preserving every elapsed second."""
+        result = tick_continuous_physics(now_game_time=time)
+        while result["advanced"] and _clock().details["last_game_time"] < time:
+            result = tick_continuous_physics(now_game_time=time)
+        return result
+
+    def survey_network(self):
+        """Commission each actual cable and the two moving optical joints."""
+        ship = load_candidate()
+        for row in CanonicalShipState.objects.filter(source_model="ox.ship-support/1"):
+            if row.category == "edge" or row.source_id in {"NET-ROT-A", "NET-ROT-B"}:
+                survey_g19_data_path(
+                    operator_approved=True,
+                    component_id=row.source_id,
+                    evidence_id="installed-continuity-" + row.source_id,
+                    penetration_ids=data_penetrations(row.reference, ship),
+                    continuity_verified=True,
+                    pressure_verified=True,
+                    environment_verified=True,
+                    emi_verified=True,
+                    continuous_rpm=3.6 if row.category == "equipment" else None,
+                )
+
+    def survey_cold(self):
+        """Measure the five existing finite thermal stores once."""
+        for pod in load_support()["cooling_islands"]:
+            survey_g19_mind_cooling(
+                operator_approved=True,
+                buffer_id=pod["independent_buffer_id"],
+                capacity_kj=720,
+                free_kj=720,
+            )
+
+    def power_lt_plant(self):
+        """Close a real original generator-to-LT-motor panel path."""
+        graph = defaultdict(list)
+        for edge in CanonicalShipState.objects.filter(category="edge"):
+            ref = edge.reference
+            if ref.get("network") == "power" and edge.setting == "available":
+                graph[ref["from_node"]].append((ref["to_node"], edge))
+                if ref["kind"] in {"cross_tie", "bridge_feeder"}:
+                    graph[ref["to_node"]].append((ref["from_node"], edge))
+        previous = {"NODE-GEN-M": None}
+        queue = deque(previous)
+        while queue:
+            parent = queue.popleft()
+            for node, edge in graph[parent]:
+                if node not in previous:
+                    previous[node] = (parent, edge)
+                    queue.append(node)
+        target = "NODE-LP-ROTARY-UTIL-A"
+        self.assertIn(target, previous)
+        while previous[target] is not None:
+            parent, edge = previous[target]
+            for isolator_id in edge.reference["isolator_ids"]:
+                set_isolator(isolator_id, "closed", operator=True)
+            target = parent
+        for edge in CanonicalShipState.objects.filter(category="edge"):
+            if edge.reference.get("network") == "lt_cooling":
+                for isolator_id in edge.reference["isolator_ids"]:
+                    set_isolator(isolator_id, "open", operator=True)
+
+    def survey_lt_rejection(self):
+        """Commission separate piping and attest every penetrated pressure seal."""
+        result = commission_g19_mind_heat_connections(operator_approved=True)
+        self.assertEqual(result["created"], 15)
+        ship = load_candidate()
+        for pod in load_support()["cooling_islands"]:
+            feed = pod["lt_connection"]
+            set_isolator(feed["isolator"], "open", operator=True)
+            penetrations = set(data_penetrations(feed, ship))
+            for path in pod["machine_coolant_routes"].values():
+                penetrations.update(data_penetrations({"route_spaces": path}, ship))
+            survey_g19_heat_rejector(
+                operator_approved=True,
+                rejector_id=pod["heat_rejector_id"],
+                measured_kw=pod["peak_rejection_kw"],
+                evidence_id="installed-LT-output",
+                sink_kind="lt",
+                penetration_ids=sorted(penetrations),
+            )
 
     def test_explicit_world_fitting_idempotent_and_g19_graph_unchanged(self):
         with self.assertRaises(PermissionError):
@@ -184,6 +285,16 @@ class InstalledMindPowerTests(EvenniaTestCase):
         self.assertEqual(rows.filter(category="edge").count(),64)
         self.assertFalse(commission_g19_mind_support(
             operator_approved=True)["commissioned"])
+        self.assertFalse(
+            installed_network_cohort(
+                CanonicalShipState,
+                support,
+                self.design,
+                load_candidate(),
+                machines={"MIND-%02d" % n for n in range(1, 10)},
+            )
+        )
+        self.survey_network()
         self.assertEqual(len(installed_network_cohort(
             CanonicalShipState,support,self.design,
             load_candidate(),
@@ -208,6 +319,7 @@ class InstalledMindPowerTests(EvenniaTestCase):
     def test_surveyed_cold_ride_through_and_local_thermal_trip_are_clock_owned(self):
         self.installed()
         commission_g19_mind_support(operator_approved=True)
+        self.survey_network()
         support=load_support()
         for pod in support["cooling_islands"]:
             survey_g19_mind_cooling(
@@ -245,6 +357,159 @@ class InstalledMindPowerTests(EvenniaTestCase):
         self.assertEqual(len(_clock().details["mind_power"]["last"]["powered"]),7)
         self.assertFalse(commission_g19_mind_support(
             operator_approved=True)["commissioned"])
+
+    def test_cable_survey_requires_real_seals_and_continuous_rotary_ratings(self):
+        """Rejected measurements leave no partial certificates or repair effects."""
+        self.installed()
+        commission_g19_mind_support(operator_approved=True)
+        name = "NET-SPAN-A-00"
+        args = dict(
+            component_id=name,
+            evidence_id="continuity-test",
+            continuity_verified=True,
+            pressure_verified=True,
+        )
+        with self.assertRaises(PermissionError):
+            survey_g19_data_path(**args)
+        with self.assertRaises(PhysicsError):
+            survey_g19_data_path(operator_approved=True, **args)
+        self.assertNotIn("data_survey", state("edge", name).details)
+        args["penetration_ids"] = ["ACC-TRUNK-A-BOW-DR-01"]
+        survey_g19_data_path(operator_approved=True, **args)
+        event = CanonicalShipEvent.objects.filter(
+            component_key="edge:" + name, operation="g19_data_path_surveyed"
+        ).get()
+        self.assertEqual(
+            event.after["measurement"]["pressure_penetrations"], args["penetration_ids"]
+        )
+        for rotary_args in (
+            {"continuous_rpm": 3.45, "environment_verified": True, "emi_verified": True},
+            {"continuous_rpm": 3.6},
+        ):
+            with self.assertRaises(PhysicsError):
+                survey_g19_data_path(
+                    operator_approved=True,
+                    component_id="NET-ROT-A",
+                    evidence_id="unqualified-rotary-test",
+                    continuity_verified=True,
+                    pressure_verified=True,
+                    **rotary_args,
+                )
+        set_component_condition("edge", name, "failed", operator=True)
+        with self.assertRaises(PhysicsError):
+            survey_g19_data_path(operator_approved=True, **args)
+        self.assertEqual(state("edge", name).condition, "failed")
+
+    def test_real_air_heat_transfer_exceeds_buffer_autonomy_without_losing_heat(self):
+        """Actual coupled ticks sustain all nine beyond the finite cold reserve."""
+        self.installed()
+        commission_g19_mind_support(operator_approved=True)
+        self.survey_network()
+        self.survey_cold()
+        self.online_generator("GEN-M")
+        self.close_authored_input("A")
+        support = load_support()
+        bow = support["cooling_islands"][0]
+        zone = _topology()[0][bow["service_room"]]
+        # Compare the same first tick, with all other machinery unchanged.
+        # Buffered heat produces no room-air rise; the measured rejector
+        # must add exactly its recorded rejected heat to the same cell.
+        with transaction.atomic():
+            self.advance(1010)
+            baseline_energy = _load_cell(state("pressure", zone))["energy"]
+            transaction.set_rollback(True)
+        with self.assertRaises(PermissionError):
+            survey_g19_heat_rejector(
+                rejector_id=bow["heat_rejector_id"], measured_kw=5, evidence_id="thermal-test"
+            )
+        for pod in support["cooling_islands"]:
+            survey_g19_heat_rejector(
+                operator_approved=True,
+                rejector_id=pod["heat_rejector_id"],
+                measured_kw=pod["peak_rejection_kw"],
+                evidence_id="physical-air-output",
+            )
+        self.advance(1010)
+        receipts = _clock().details["mind_support_last"]["thermal_receipts"]
+        self.assertAlmostEqual(
+            _load_cell(state("pressure", zone))["energy"] - baseline_energy,
+            receipts[bow["id"]]["rejected_kj"],
+            places=5,
+        )
+        self.advance(1240)
+        details = _clock().details
+        self.assertEqual(len(details["mind_support_last"]["compute_ready"]), 9)
+        for bank in details["mind_cooling"]["units"].values():
+            self.assertEqual(bank["free_kj"], 720)
+            self.assertEqual(bank["unabsorbed_kj"], 0)
+            self.assertAlmostEqual(bank["generated_kj"], bank["rejected_kj"])
+        set_component_condition("equipment", bow["heat_rejector_id"], "failed", operator=True)
+        self.advance(1250)
+        self.assertEqual(
+            _clock().details["mind_cooling"]["units"][bow["independent_buffer_id"]]["free_kj"], 680
+        )
+        self.assertEqual(len(_clock().details["mind_support_last"]["compute_ready"]), 9)
+        set_component_condition("equipment", bow["heat_rejector_id"], "serviceable", operator=True)
+        self.advance(1260)
+        self.assertEqual(
+            _clock().details["mind_cooling"]["units"][bow["independent_buffer_id"]]["free_kj"], 640
+        )
+        survey_g19_heat_rejector(
+            operator_approved=True,
+            rejector_id=bow["heat_rejector_id"],
+            measured_kw=5,
+            evidence_id="verified-repaired-air-output",
+        )
+        self.advance(1270)
+        bank = _clock().details["mind_cooling"]["units"][bow["independent_buffer_id"]]
+        self.assertEqual(bank["free_kj"], 650)
+        self.assertEqual(bank["recovered_kj"], 10)
+        self.assertFalse(self.advance(1270)["advanced"])
+        self.assertEqual(
+            bank, _clock().details["mind_cooling"]["units"][bow["independent_buffer_id"]]
+        )
+
+    def test_steady_lt_rejection_and_common_plant_loss_preserve_finite_ride_through(self):
+        """One real radiator budget supports steady operation and bounded outages."""
+        self.installed()
+        commission_g19_mind_support(operator_approved=True)
+        self.survey_network()
+        self.survey_cold()
+        self.online_generator("GEN-M")
+        self.close_authored_input("A")
+        self.power_lt_plant()
+        with self.assertRaises(PermissionError):
+            commission_g19_mind_heat_connections()
+        self.survey_lt_rejection()
+        self.assertFalse(
+            commission_g19_mind_heat_connections(operator_approved=True)["commissioned"]
+        )
+        # 240 s exceeds a paired island's 180 s entire nameplate buffer.
+        # Every joule generated must actually leave through the original LT.
+        self.advance(1240)
+        details = _clock().details
+        status = details["mind_support_last"]
+        self.assertEqual(len(status["compute_ready"]), 9)
+        self.assertAlmostEqual(status["lt_rejected_kw"], 18)
+        self.assertLessEqual(status["lt_rejected_kw"], status["lt_reserved_kw"])
+        for bank in details["mind_cooling"]["units"].values():
+            self.assertEqual(bank["free_kj"], 720)
+            self.assertAlmostEqual(bank["generated_kj"], bank["rejected_kj"])
+        set_component_condition("equipment", "LT-PLANT", "failed", operator=True)
+        self.advance(1360)
+        details = _clock().details
+        self.assertEqual(len(details["mind_support_last"]["compute_ready"]), 9)
+        self.assertEqual(details["mind_support_last"]["lt_rejected_kw"], 0)
+        for pod in load_support()["cooling_islands"]:
+            self.assertEqual(
+                details["mind_cooling"]["units"][pod["independent_buffer_id"]]["free_kj"],
+                720 - pod["heat_rate_kw"] * 120,
+            )
+        nodes = list(CanonicalShipState.objects.filter(category="node"))
+        edges = list(CanonicalShipState.objects.filter(category="edge"))
+        switches = {r.source_id: r for r in CanonicalShipState.objects.filter(category="isolator")}
+        a, b, c = audit_topology(nodes, edges, switches, strict=True)
+        self.assertEqual((len(a), len(b), len(c)), (438, 450, 466))
 
     def test_missing_new_machine_contact_or_tampered_identity_fails_closed(self):
         self.installed()

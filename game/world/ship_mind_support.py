@@ -7,17 +7,90 @@ explicit operator commissioning step is required to create world rows.
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import math
 from collections import defaultdict, deque
 from pathlib import Path
 
-from world.ship_mind_power import MindPowerError, validate_design, default_design_path
+from world.ship_mind_power import MindPowerError, default_design_path, validate_design
 
 SCHEMA = "ox.ship-support/1"
 STATUS = "DESIGN_CANDIDATE_NOT_RUNTIME_AUTHORITY"
 BROKEN = frozenset({"failed", "faulted", "severed", "jammed", "destroyed"})
 MACHINES = frozenset("MIND-%02d" % i for i in range(1, 10))
+
+
+def survey_signature(reference):
+    """Bind an operator's measurement to the exact fitted apparatus."""
+    return hashlib.sha256(
+        json.dumps(reference, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+
+
+def valid_support_survey(row, kind):
+    """Require a current survey; repair or switch changes invalidate it."""
+    survey = row.details.get(kind)
+    valid = bool(
+        isinstance(survey, dict)
+        and type(survey.get("version")) is int
+        and survey["version"] == 1
+        and type(survey.get("row_revision")) is int
+        and survey["row_revision"] == row.revision
+        and survey.get("reference_sha256") == survey_signature(row.reference)
+        and isinstance(survey.get("evidence_id"), str)
+        and 0 < len(survey["evidence_id"]) <= 128
+        and type(survey.get("observed_s")) in (int, float)
+        and math.isfinite(survey["observed_s"])
+        and survey["observed_s"] >= 0
+    )
+    if not valid:
+        return False
+    if kind == "data_survey":
+        seals = survey.get("pressure_penetrations")
+        if (
+            survey.get("continuity_verified") is not True
+            or survey.get("pressure_verified") is not True
+            or not isinstance(seals, list)
+            or not all(isinstance(s, str) for s in seals)
+            or seals != sorted(set(seals))
+        ):
+            return False
+        if row.category == "equipment":
+            rpm = survey.get("continuous_rpm")
+            return bool(
+                survey.get("environment_verified") is True
+                and survey.get("emi_verified") is True
+                and type(rpm) in (int, float)
+                and math.isfinite(rpm)
+                and rpm >= 3.6
+            )
+        return survey.get("continuous_rpm") is None
+    if kind == "cooling_survey":
+        rate = survey.get("measured_kw")
+        return (
+            survey.get("sink_kind") in {"air", "lt"}
+            and type(rate) in (int, float)
+            and math.isfinite(rate)
+            and rate > 0
+        )
+    return False
+
+
+def data_penetrations(reference, ship):
+    """List the real pressure boundaries crossed by one proposed cable."""
+    boundaries = {}
+    for passage in ship["access_links"]:
+        if passage.get("pressure_boundary"):
+            boundaries[frozenset((passage["from"], passage["to"]))] = passage["id"]
+    route = reference.get("route_spaces", [])
+    return sorted(
+        {
+            boundaries[frozenset((a, b))]
+            for a, b in zip(route, route[1:])
+            if frozenset((a, b)) in boundaries
+        }
+    )
 
 
 def _require(ok, message):
@@ -189,6 +262,41 @@ def validate_support(support, power, ship):
                  _number(pod["normal_temperature_max_k"]) >
                  _number(pod["normal_temperature_min_k"]),
                  "Cooling power, bounded autonomy or shutdown is inadequately rated")
+        feed = pod.get("lt_connection")
+        original_nodes = {n["id"]: n for n in ship["service_nodes"]}
+        source_id = "NODE-HAB-04-LT-COOLING-MAN" if pod["region"] == "HAB" else "NODE-LT-PLANT"
+        source_room = "HAB-04-SERVICE-GALLERY" if pod["region"] == "HAB" else "ROTARY-UTIL-A"
+        _require(
+            isinstance(feed, dict)
+            and feed.get("id") == "LT-FEED-" + pod["region"]
+            and feed.get("node") == "NODE-MIND-LT-" + pod["region"]
+            and feed.get("isolator") == "ISO-MIND-LT-" + pod["region"]
+            and feed.get("source_node") == source_id
+            and original_nodes[source_id]["network"] == "lt_cooling"
+            and feed.get("source_room") == source_room,
+            "Local thermal circuit has no actual original LT source",
+        )
+        routes = pod.get("machine_coolant_routes")
+        _require(
+            isinstance(routes, dict) and set(routes) == set(pod["machines"]),
+            "Each cold plate requires its actual local pipe route",
+        )
+        paths = [(feed.get("route_spaces"), source_room, pod["service_room"])]
+        paths += [(routes[m["id"]], pod["service_room"], m["room"]) for m in island["machines"]]
+        for path, start, end in paths:
+            _require(
+                isinstance(path, list)
+                and len(path) >= 1
+                and path[0] == start
+                and path[-1] == end
+                and len(set(path)) == len(path)
+                and all(room in room_map for room in path)
+                and all(
+                    (a, b) in passages and room_map[a]["frame"] == room_map[b]["frame"]
+                    for a, b in zip(path, path[1:])
+                ),
+                "Coolant route invents a passage or moving-frame crossing",
+            )
     _require(plates == {m["cooling_domain"] for isl in power["islands"]
                         for m in isl["machines"]},
              "Uncooled machine cannot be counted in survival claims")
@@ -276,6 +384,7 @@ def fault_domains(support):
             result.update(drop["route_spaces"])
     for pod in support["cooling_islands"]:
         result.update((pod["independent_buffer_id"], pod["heat_rejector_id"]))
+        result.update(pod["lt_connection"][key] for key in ("id", "node", "isolator"))
         result.update(pod["individual_cold_plates"])
     return tuple(sorted(result))
 
@@ -296,9 +405,13 @@ def connected_machines(support, *, faults=(), available_machines=None,
         if physical_rows is None:
             return True
         row = physical_rows.get(key)
-        return (row is not None and row.source_model == SCHEMA
-                and row.condition not in BROKEN
-                and (row.category != "edge" or row.setting == "available"))
+        return (
+            row is not None
+            and row.source_model == SCHEMA
+            and row.condition not in BROKEN
+            and (row.category != "edge" or row.setting == "available")
+            and (row.category == "node" or valid_support_survey(row, "data_survey"))
+        )
 
     def join(u, v):
         links[u].add(v)
@@ -374,42 +487,132 @@ def single_fault_network_sweep(support, power, ship):
 
 
 def initial_cooling_ledger(support):
-    return {"version":1, "units":{
-        x["independent_buffer_id"]:{
-            "surveyed":False, "capacity_kj":0.0, "free_kj":0.0,
-            "absorbed_kj":0.0, "rejected_kj":0.0,
-            "unabsorbed_kj":0.0, "generated_kj":0.0}
-        for x in support["cooling_islands"]}}
+    """Start five unmeasured stores with no usable thermal headroom."""
+    return {
+        "version": 2,
+        "units": {
+            x["independent_buffer_id"]: {
+                "surveyed": False,
+                "capacity_kj": 0.0,
+                "free_kj": 0.0,
+                "initial_free_kj": 0.0,
+                "recovered_kj": 0.0,
+                "absorbed_kj": 0.0,
+                "rejected_kj": 0.0,
+                "unabsorbed_kj": 0.0,
+                "generated_kj": 0.0,
+            }
+            for x in support["cooling_islands"]
+        },
+    }
 
 
 def validate_cooling_ledger(support, ledger):
+    """Check both cumulative heat flow and the current cold inventory."""
     specs={x["independent_buffer_id"]:x for x in support["cooling_islands"]}
-    _require(isinstance(ledger,dict) and set(ledger)=={"version","units"}
-             and ledger["version"]==1 and isinstance(ledger["units"],dict)
-             and set(ledger["units"])==set(specs), "Unknown cooling storage ledger")
+    _require(
+        isinstance(ledger, dict)
+        and set(ledger) == {"version", "units"}
+        and type(ledger["version"]) is int
+        and ledger["version"] == 2
+        and isinstance(ledger["units"], dict)
+        and set(ledger["units"]) == set(specs),
+        "Unknown cooling storage ledger",
+    )
     for name,unit in ledger["units"].items():
-        _require(isinstance(unit,dict) and set(unit)=={
-            "surveyed","capacity_kj","free_kj","absorbed_kj",
-            "rejected_kj","unabsorbed_kj","generated_kj"}
+        _require(
+            isinstance(unit, dict)
+            and set(unit)
+            == {
+                "surveyed",
+                "capacity_kj",
+                "free_kj",
+                "absorbed_kj",
+                "rejected_kj",
+                "unabsorbed_kj",
+                "generated_kj",
+                "initial_free_kj",
+                "recovered_kj",
+            }
             and type(unit["surveyed"]) is bool,
-            "Incomplete independent thermal ledger")
+            "Incomplete independent thermal ledger",
+        )
         for field in set(unit)-{"surveyed"}:
             _number(unit[field])
-        _require(unit["capacity_kj"] <= specs[name]["buffer_nameplate_kj"] + 1e-9
-                 and unit["free_kj"] <= unit["capacity_kj"] + 1e-9,
-                 "Unmeasured thermal headroom created")
-        _require(math.isclose(unit["generated_kj"],
-                   unit["absorbed_kj"]+unit["rejected_kj"]+
-                   unit["unabsorbed_kj"],abs_tol=1e-6),
-                 "Heat vanished from finite coolant accounting")
+        _require(
+            unit["capacity_kj"] <= specs[name]["buffer_nameplate_kj"] + 1e-9
+            and unit["free_kj"] <= unit["capacity_kj"] + 1e-9
+            and unit["initial_free_kj"] <= unit["capacity_kj"] + 1e-9
+            and unit["recovered_kj"] <= unit["rejected_kj"] + 1e-9,
+            "Unmeasured thermal headroom created",
+        )
+        _require(
+            math.isclose(
+                unit["generated_kj"],
+                unit["absorbed_kj"]
+                + unit["rejected_kj"]
+                + unit["unabsorbed_kj"]
+                - unit["recovered_kj"],
+                abs_tol=1e-6,
+            ),
+            "Heat vanished from finite coolant accounting",
+        )
+        _require(
+            math.isclose(
+                unit["free_kj"],
+                unit["initial_free_kj"] - unit["absorbed_kj"] + unit["recovered_kj"],
+                abs_tol=1e-6,
+            ),
+            "Cold headroom changed without physical heat transfer",
+        )
         if not unit["surveyed"]:
-            _require(all(unit[x]==0 for x in ("capacity_kj","free_kj",
-                                              "absorbed_kj")),
-                     "Unsurveyed buffer credited with cold capacity")
+            _require(
+                all(
+                    unit[x] == 0
+                    for x in (
+                        "capacity_kj",
+                        "free_kj",
+                        "absorbed_kj",
+                        "initial_free_kj",
+                        "recovered_kj",
+                    )
+                ),
+                "Unsurveyed buffer credited with cold capacity",
+            )
     return True
 
 
+def migrate_cooling_ledger(support, ledger):
+    """Preserve v1 stored heat and every meter, without restoring cold."""
+    if isinstance(ledger, dict) and type(ledger.get("version")) is int and ledger["version"] == 1:
+        revised = copy.deepcopy(ledger)
+        _require(isinstance(revised.get("units"), dict), "Invalid legacy cooling units")
+        revised["version"] = 2
+        for unit in revised["units"].values():
+            _require(
+                isinstance(unit, dict)
+                and set(unit)
+                == {
+                    "surveyed",
+                    "capacity_kj",
+                    "free_kj",
+                    "absorbed_kj",
+                    "rejected_kj",
+                    "unabsorbed_kj",
+                    "generated_kj",
+                },
+                "Invalid legacy cooling custody",
+            )
+            unit["initial_free_kj"] = _number(unit["free_kj"]) + _number(unit["absorbed_kj"])
+            unit["recovered_kj"] = 0.0
+        validate_cooling_ledger(support, revised)
+        return revised
+    validate_cooling_ledger(support, ledger)
+    return copy.deepcopy(ledger)
+
+
 def survey_cooling_buffer(support, ledger, name, *, capacity_kj, free_kj):
+    """Record one physical measurement, never refill a surveyed store."""
     validate_cooling_ledger(support,ledger)
     _require(name in ledger["units"] and
              not ledger["units"][name]["surveyed"],
@@ -421,8 +624,9 @@ def survey_cooling_buffer(support, ledger, name, *, capacity_kj, free_kj):
     _require(capacity<=rating and free<=capacity,
              "Measured local thermal storage exceeds rating")
     result=copy.deepcopy(ledger)
-    result["units"][name].update(surveyed=True,capacity_kj=capacity,
-                                 free_kj=free)
+    result["units"][name].update(
+        surveyed=True, capacity_kj=capacity, free_kj=free, initial_free_kj=free
+    )
     validate_cooling_ledger(support,result)
     return result
 
@@ -431,11 +635,9 @@ def step_cooling_buffer(support,ledger,*,operating_machines,seconds,
                         measured_rejection_kw=None,failed=()):
     """Finite heat accounting; externally measured rejection is NOT invented.
 
-    `measured_rejection_kw` must be bounded by a real as-fitted coolant or
-    room-air heat-transfer receipt before integration into live G19 physics.
-    No input means zero heat rejection. Output lists machines whose heat
-    cannot be contained: the future runtime must trip them, not pretend
-    their network/power state proves they are computationally healthy.
+    The caller proves an as-fitted heat-transfer path and deposits ALL
+    rejected heat in its receiving cell. Spare rejection capacity releases
+    stored heat, rather than silently resetting the buffer to full.
     """
     validate_cooling_ledger(support,ledger)
     dt=_number(seconds,positive=True)
@@ -470,18 +672,175 @@ def step_cooling_buffer(support,ledger,*,operating_machines,seconds,
         stored=min(sound_heat-rejected,capacity)
         bank["free_kj"]-=stored
         bank["absorbed_kj"]+=stored
+        recoverable = (
+            bank["capacity_kj"] - bank["free_kj"]
+            if bank["surveyed"] and pod["independent_buffer_id"] not in bad
+            else 0
+        )
+        recovered = min(recoverable, max(0, rejected_rate * dt - rejected)) if reject_ok else 0
+        bank["free_kj"] += recovered
+        bank["recovered_kj"] += recovered
+        rejected += recovered
         bank["rejected_kj"]+=rejected
-        bad_heat=max(0,sound_heat-rejected-stored)+plate_heat
+        bad_heat = max(0, sound_heat - (rejected - recovered) - stored) + plate_heat
         bank["unabsorbed_kj"]+=bad_heat
         bank["generated_kj"]+=heat
         trips.update(failed_plates)
-        if sound_heat-rejected-stored>1e-8:
+        if sound_heat - (rejected - recovered) - stored > 1e-8:
             trips.update(running-failed_plates)
-        receipts[pod["id"]]={
-            "generated_kj":heat,"rejected_kj":rejected,
-            "absorbed_kj":stored,"unabsorbed_kj":bad_heat}
+        receipts[pod["id"]] = {
+            "generated_kj": heat,
+            "rejected_kj": rejected,
+            "absorbed_kj": stored,
+            "unabsorbed_kj": bad_heat,
+            "recovered_kj": recovered,
+        }
     validate_cooling_ledger(support,new)
     return new, frozenset(trips), receipts
+
+
+def air_rejection_rates(support, *, physical_rows, cells, room_zones, seconds, powered_machines):
+    """Bound surveyed local air rejection by actual gas and thermal headroom.
+
+    Fan auxiliaries are included in the rated machine load. Shared receiving
+    cells have one thermal budget. A powered machine supplies fan auxiliaries.
+    No heat is exported directly to vacuum or an imaginary LT connection.
+    """
+    dt = _number(seconds, positive=True)
+    _require(dt <= 60, "Unbounded air rejection timestep")
+    remaining = {}
+    rates = {}
+    for pod in support["cooling_islands"]:
+        row = physical_rows["equipment:" + pod["heat_rejector_id"]]
+        cell_id = room_zones.get(pod["service_room"])
+        cell = cells.get(cell_id)
+        rate = 0.0
+        if (
+            set(pod["machines"]) & set(powered_machines)
+            and row.condition not in BROKEN
+            and valid_support_survey(row, "cooling_survey")
+            and cell
+            and row.details["cooling_survey"].get("sink_kind", "air") == "air"
+        ):
+            measured = _number(row.details["cooling_survey"].get("measured_kw"))
+            _require(measured <= pod["peak_rejection_kw"], "Air rejector survey exceeds rating")
+            t = _number(cell["temperature"], positive=True)
+            mass = _number(cell["mass"])
+            volume = _number(cell["volume"], positive=True)
+            if (
+                pod["normal_temperature_min_k"] <= t < pod["normal_temperature_max_k"]
+                and mass * 287.05 * t / volume >= 50000
+            ):
+                capacity = _number(cell["capacity"], positive=True) + mass
+                headroom = (pod["normal_temperature_max_k"] - t) * capacity
+                remaining[cell_id] = min(remaining.get(cell_id, headroom), headroom)
+                rate = min(measured, remaining[cell_id] / dt)
+                remaining[cell_id] -= rate * dt
+        rates[pod["id"]] = rate
+    return rates
+
+
+def lt_rejection_rates(
+    support,
+    *,
+    physical_rows,
+    connection_rows,
+    connected_lt_nodes,
+    powered_machines,
+    cooling_budget_kw,
+):
+    """Debit one finite original radiator allocation through surveyed pipes."""
+    remaining = _number(cooling_budget_kw)
+    rates = {}
+    for pod in support["cooling_islands"]:
+        row = physical_rows["equipment:" + pod["heat_rejector_id"]]
+        feed = pod["lt_connection"]
+        keys = ["edge:" + feed["id"], "node:" + feed["node"], "isolator:" + feed["isolator"]]
+        parts = [connection_rows.get(k) for k in keys]
+        survey = row.details.get("cooling_survey", {})
+        rate = 0.0
+        if (
+            set(pod["machines"]) & set(powered_machines)
+            and row.condition not in BROKEN
+            and valid_support_survey(row, "cooling_survey")
+            and survey.get("sink_kind") == "lt"
+            and feed["source_node"] in connected_lt_nodes
+            and all(part is not None and part.condition not in BROKEN for part in parts)
+            and parts[0].setting == "available"
+            and parts[2].setting == "open"
+            and survey.get("connection_revisions") == {part.key: part.revision for part in parts}
+        ):
+            measured = _number(survey.get("measured_kw"))
+            _require(measured <= pod["peak_rejection_kw"], "LT rejector survey exceeds rating")
+            rate = min(measured, remaining)
+            remaining -= rate
+        rates[pod["id"]] = rate
+    return rates
+
+
+def proposed_heat_connection_rows(support, power, ship):
+    """Five separately installed LT feed/return pairs, terminals and valves."""
+    validate_support(support, power, ship)
+    rows = {}
+    for pod in support["cooling_islands"]:
+        feed = pod["lt_connection"]
+        route = feed["route_spaces"]
+        room = pod["service_room"]
+        refs = [
+            (
+                "node",
+                feed["node"],
+                "unverified",
+                {
+                    "id": feed["node"],
+                    "network": "mind_lt",
+                    "kind": "local_rejector_terminal",
+                    "owner_type": "equipment",
+                    "owner_id": pod["heat_rejector_id"],
+                },
+            ),
+            (
+                "edge",
+                feed["id"],
+                "available",
+                {
+                    "id": feed["id"],
+                    "network": "mind_lt",
+                    "kind": "lt_feed_return_pair",
+                    "from_node": feed["source_node"],
+                    "to_node": feed["node"],
+                    "route_spaces": route,
+                    "machine_routes": pod["machine_coolant_routes"],
+                    "isolator_ids": [feed["isolator"]],
+                },
+            ),
+            (
+                "isolator",
+                feed["isolator"],
+                "closed",
+                {
+                    "id": feed["isolator"],
+                    "network": "mind_lt",
+                    "kind": "manual_coolant_valve",
+                    "edge_ids": [feed["id"]],
+                    "service_room": room,
+                },
+            ),
+        ]
+        for category, name, setting, reference in refs:
+            key = category + ":" + name
+            rows[key] = {
+                "key": key,
+                "category": category,
+                "source_id": name,
+                "source_model": SCHEMA,
+                "space_id": room,
+                "reference": reference,
+                "condition": "serviceable",
+                "setting": setting,
+                "details": {},
+            }
+    return rows
 
 
 def proposed_support_rows(support, power, ship):

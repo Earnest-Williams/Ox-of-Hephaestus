@@ -1,18 +1,24 @@
 """Transactional world hardware fitting for the ship-control support plant.
 
 No player/network principal is created, and fitting a fibre cannot remotely
-operate a switch. The 147 new hardware rows live under their own model; the
+operate a switch. The 153 support rows and optional 15 LT connection rows
+live under their own model; the
 legacy v0.5 ship and power registers are immutable reference authority.
 """
+
 from __future__ import annotations
 
 from world.ship_mind_power import MindPowerError
 from world.ship_mind_support import (
-    SCHEMA, connected_machines, proposed_support_rows, validate_support,
+    SCHEMA,
+    connected_machines,
+    proposed_heat_connection_rows,
+    proposed_support_rows,
+    validate_support,
 )
 
 
-def install_control_support(world_state, support, power, ship):
+def install_control_support(world_state, support, power, ship, *, initial_install=True):
     """World-clock caller owns the transaction; never overwrite prior rows."""
     specifications = proposed_support_rows(support, power, ship)
     required = {"equipment:" + machine["id"] for island in power["islands"]
@@ -24,14 +30,17 @@ def install_control_support(world_state, support, power, ship):
     if set(machines) != source_required:
         raise MindPowerError("Fit nine physical compute terminals and the original local gateway host")
     host=machines["equipment:"+host_id]
-    if (host.reference.get("kind")!="local_control_station"
-            or host.space_id!=support["gateway_candidates"][0]["room"]
-            or host.condition in {"failed","faulted","severed","destroyed"}):
+    if (
+        host.reference.get("kind") != "local_control_station"
+        or host.space_id != support["gateway_candidates"][0]["room"]
+        or (initial_install and host.condition in {"failed", "faulted", "severed", "destroyed"})
+    ):
         raise MindPowerError("Original local control station has no healthy fitted host")
     for name in sorted(required):
         row=machines[name]
-        if row.source_model != power["schema_version"] or row.condition in {
-                "failed","faulted","severed","destroyed"}:
+        if row.source_model != power["schema_version"] or (
+            initial_install and row.condition in {"failed", "faulted", "severed", "destroyed"}
+        ):
             raise MindPowerError("Network terminal has no verified fitted compute unit: " + name)
     created = 0
     for key, expected in sorted(specifications.items()):
@@ -69,3 +78,34 @@ def installed_network_cohort(world_state, support, power, ship, *, machines):
     rows=installed_support_rows(world_state,support,power,ship)
     return connected_machines(support,available_machines=set(machines),
                               physical_rows=rows)
+
+
+def install_heat_connections(world_state, support, power, ship):
+    """Explicitly fit additional closed-valve LT circuits, never repair old ones."""
+    installed_support_rows(world_state, support, power, ship)
+    specifications = proposed_heat_connection_rows(support, power, ship)
+    created = 0
+    for key, expected in sorted(specifications.items()):
+        row, added = world_state.objects.get_or_create(key=key, defaults=expected)
+        if not added and any(
+            getattr(row, field) != expected[field]
+            for field in ("source_model", "category", "source_id", "space_id", "reference")
+        ):
+            raise MindPowerError("Thermal connection identity drift: " + key)
+        created += int(added)
+    return {"created": created, "total": len(specifications)}
+
+
+def installed_heat_connection_rows(world_state, support, power, ship):
+    """Validate exact as-fitted coolant provenance separately from original LT."""
+    specifications = proposed_heat_connection_rows(support, power, ship)
+    found = {row.key: row for row in world_state.objects.filter(key__in=list(specifications))}
+    if set(found) != set(specifications):
+        raise MindPowerError("Commissioned local LT circuit is missing")
+    for key, expected in specifications.items():
+        if any(
+            getattr(found[key], field) != expected[field]
+            for field in ("source_model", "category", "source_id", "space_id", "reference")
+        ):
+            raise MindPowerError("Local LT circuit provenance changed: " + key)
+    return found

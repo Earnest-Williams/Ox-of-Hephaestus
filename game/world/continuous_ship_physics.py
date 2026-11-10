@@ -275,13 +275,26 @@ from world.ship_mind_runtime import (
     validate_mind_runtime, tick_mind_power,
 )
 from world.ship_mind_support import (
-    load_support as load_mind_support,
-    initial_cooling_ledger, validate_cooling_ledger,
-    survey_cooling_buffer, step_cooling_buffer, connected_machines,
+    air_rejection_rates,
+    connected_machines,
+    data_penetrations,
+    initial_cooling_ledger,
+)
+from world.ship_mind_support import load_support as load_mind_support
+from world.ship_mind_support import (
+    lt_rejection_rates,
+    migrate_cooling_ledger,
+    step_cooling_buffer,
+    survey_cooling_buffer,
+    survey_signature,
+    validate_cooling_ledger,
 )
 from world.ship_mind_support_world import (
-    install_control_support, installed_support_rows,
+    install_control_support,
+    install_heat_connections,
+    installed_heat_connection_rows,
     installed_network_cohort,
+    installed_support_rows,
 )
 from world.ship_equipment_wear import (
     initial_equipment_wear, validate_equipment_wear,
@@ -1086,14 +1099,25 @@ def commission_g19_mind_support(*, operator_approved=False):
     power_design = load_mind_power_design()
     support = load_mind_support()
     try:
-        result = install_control_support(
-            CanonicalShipState,support,power_design,load_candidate())
         prior=clock.details.get("mind_cooling")
+        result = install_control_support(
+            CanonicalShipState,
+            support,
+            power_design,
+            load_candidate(),
+            initial_install=prior is None,
+        )
         if prior is not None:
             if result["created"]:
                 raise MindPowerError(
                     "Previously commissioned data and cooling hardware disappeared")
-            validate_cooling_ledger(support,prior)
+            migrated = migrate_cooling_ledger(support, prior)
+            if migrated != prior:
+                before = _snapshot(clock)
+                clock.details = dict(clock.details, mind_cooling=migrated)
+                clock.revision += 1
+                clock.save(update_fields=["details", "revision"])
+                _event(clock, "g19_mind_cooling_custody_migrated", before)
             return {"commissioned":False,**result}
         before=_snapshot(clock)
         detail=dict(clock.details)
@@ -1126,9 +1150,13 @@ def survey_g19_mind_cooling(*, operator_approved=False,
         raise PhysicsError("No intact installed local cold buffer at that identifier")
     support=load_mind_support()
     try:
-        ledger=survey_cooling_buffer(
-            support,clock.details["mind_cooling"],buffer_id,
-            capacity_kj=capacity_kj,free_kj=free_kj)
+        ledger = survey_cooling_buffer(
+            support,
+            migrate_cooling_ledger(support, clock.details["mind_cooling"]),
+            buffer_id,
+            capacity_kj=capacity_kj,
+            free_kj=free_kj,
+        )
     except MindPowerError as exc:
         raise PhysicsError(str(exc)) from exc
     before=_snapshot(clock)
@@ -1139,6 +1167,220 @@ def survey_g19_mind_cooling(*, operator_approved=False,
     clock.save(update_fields=["details","revision"])
     _event(clock,"g19_mind_cooling_buffer_surveyed",before)
     return {"surveyed":buffer_id,"measured_free_kj":free_kj}
+
+
+def _support_survey_record(row, *, evidence_id, observed_s):
+    """Create the common immutable provenance of an operator measurement."""
+    if not isinstance(evidence_id, str) or not 0 < len(evidence_id) <= 128:
+        raise PhysicsError("A bounded physical measurement reference is required")
+    return {
+        "version": 1,
+        "evidence_id": evidence_id,
+        "observed_s": observed_s,
+        "row_revision": row.revision + 1,
+        "reference_sha256": survey_signature(row.reference),
+    }
+
+
+@transaction.atomic
+def survey_g19_data_path(
+    *,
+    operator_approved=False,
+    component_id,
+    evidence_id,
+    penetration_ids=(),
+    continuity_verified=False,
+    pressure_verified=False,
+    environment_verified=False,
+    emi_verified=False,
+    continuous_rpm=None,
+):
+    """Attest one installed cable or continuous rotary joint without repairing it.
+
+    Exact pressure penetrations and separate moving-joint qualifications are
+    retained in the world event. Any later component mutation invalidates
+    the certificate, including failure followed by a nominal repair.
+    """
+    if not operator_approved:
+        raise PermissionError("Cable and rotary-joint surveys are operator-only")
+    clock = _clock(lock=True)
+    if clock.details.get("mind_cooling") is None:
+        raise PhysicsError("Fit ship-control hardware before continuity testing")
+    support = load_mind_support()
+    power = load_mind_power_design()
+    ship = load_candidate()
+    try:
+        rows = installed_support_rows(CanonicalShipState, support, power, ship)
+    except MindPowerError as exc:
+        raise PhysicsError(str(exc)) from exc
+    matches = [
+        row
+        for row in rows.values()
+        if row.source_id == component_id
+        and (row.category == "edge" or row.source_id in {"NET-ROT-A", "NET-ROT-B"})
+    ]
+    if len(matches) != 1:
+        raise PhysicsError("No fitted data conductor at that identity")
+    row = state(matches[0].category, component_id, lock=True)
+    required = data_penetrations(row.reference, ship)
+    if (
+        row.condition in _BROKEN
+        or (row.category == "edge" and row.setting != "available")
+        or continuity_verified is not True
+        or pressure_verified is not True
+        or not isinstance(penetration_ids, (list, tuple))
+        or list(sorted(penetration_ids)) != required
+    ):
+        raise PhysicsError("Continuity and every actual pressure penetration require verification")
+    rotary = row.category == "equipment"
+    if rotary:
+        if (
+            environment_verified is not True
+            or emi_verified is not True
+            or _positive(continuous_rpm) < 3.6
+        ):
+            raise PhysicsError("Rotary data joint lacks full-speed environmental/EMI evidence")
+    elif continuous_rpm is not None:
+        raise PhysicsError("A stationary cable cannot claim a rotary rating")
+    record = _support_survey_record(
+        row, evidence_id=evidence_id, observed_s=clock.details["last_game_time"]
+    )
+    record.update(
+        pressure_penetrations=required,
+        continuity_verified=True,
+        pressure_verified=True,
+        continuous_rpm=continuous_rpm,
+        environment_verified=environment_verified,
+        emi_verified=emi_verified,
+    )
+    before = _snapshot(row)
+    row.details = dict(row.details, data_survey=record)
+    row.revision += 1
+    row.save(update_fields=["details", "revision"])
+    event = _event(row, "g19_data_path_surveyed", before)
+    event.after = dict(event.after, measurement=record)
+    event.save(update_fields=["after"])
+    return {"surveyed": component_id, "pressure_penetrations": required}
+
+
+@transaction.atomic
+def survey_g19_heat_rejector(
+    *,
+    operator_approved=False,
+    rejector_id,
+    measured_kw,
+    evidence_id,
+    sink_kind="air",
+    penetration_ids=(),
+):
+    """Record bounded air or separately fitted LT transfer performance."""
+    if not operator_approved:
+        raise PermissionError("Heat-rejector performance survey is operator-only")
+    clock = _clock(lock=True)
+    if clock.details.get("mind_cooling") is None:
+        raise PhysicsError("Fit thermal support before heat-transfer measurement")
+    support = load_mind_support()
+    pod = next(
+        (p for p in support["cooling_islands"] if p["heat_rejector_id"] == rejector_id), None
+    )
+    if pod is None:
+        raise PhysicsError("Unknown fitted local heat rejector")
+    rate = _positive(measured_kw, maximum=pod["peak_rejection_kw"])
+    try:
+        installed_support_rows(
+            CanonicalShipState, support, load_mind_power_design(), load_candidate()
+        )
+    except MindPowerError as exc:
+        raise PhysicsError(str(exc)) from exc
+    row = state("equipment", rejector_id, lock=True)
+    if row.condition in _BROKEN or row.space_id != pod["service_room"]:
+        raise PhysicsError("No sound rejector in its actual receiving room")
+    zones, _, _ = _topology()
+    cell = state("pressure", zones[pod["service_room"]])
+    gas = _load_cell(cell)
+    # A measurement taken with no carrier gas or outside the rated inlet
+    # envelope cannot qualify a forced-air heat transfer path.
+    if not (
+        pod["normal_temperature_min_k"] <= gas["temperature"] < pod["normal_temperature_max_k"]
+        and _cell_pressure(gas) >= 50000
+    ):
+        raise PhysicsError("Rejector has no rated receiving atmosphere")
+    record = _support_survey_record(
+        row, evidence_id=evidence_id, observed_s=clock.details["last_game_time"]
+    )
+    record.update(
+        measured_kw=rate,
+        sink_room=pod["service_room"],
+        sink_cell=cell.source_id,
+        sink_kind=sink_kind,
+    )
+    if sink_kind == "lt":
+        if clock.details.get("mind_lt_fitted") is not True:
+            raise PhysicsError("Fit the separate LT circuits before surveying heat rejection")
+        try:
+            circuits = installed_heat_connection_rows(
+                CanonicalShipState, support, load_mind_power_design(), load_candidate()
+            )
+        except MindPowerError as exc:
+            raise PhysicsError(str(exc)) from exc
+        feed = pod["lt_connection"]
+        parts = [
+            circuits[category + ":" + feed[key]]
+            for category, key in (("edge", "id"), ("node", "node"), ("isolator", "isolator"))
+        ]
+        required = set(data_penetrations(parts[0].reference, load_candidate()))
+        for path in pod["machine_coolant_routes"].values():
+            required.update(data_penetrations({"route_spaces": path}, load_candidate()))
+        if (
+            any(part.condition in _BROKEN for part in parts)
+            or parts[0].setting != "available"
+            or parts[2].setting != "open"
+            or not isinstance(penetration_ids, (list, tuple))
+            or list(sorted(penetration_ids)) != sorted(required)
+        ):
+            raise PhysicsError(
+                "LT measurement lacks its intact open route and verified pressure seals"
+            )
+        record["connection_revisions"] = {part.key: part.revision for part in parts}
+        record["pressure_penetrations"] = sorted(required)
+        record["lt_source_node"] = feed["source_node"]
+    elif sink_kind != "air" or penetration_ids:
+        raise PhysicsError("Unknown heat sink or unrelated pressure seals")
+    before = _snapshot(row)
+    row.details = dict(row.details, cooling_survey=record)
+    row.revision += 1
+    row.save(update_fields=["details", "revision"])
+    event = _event(row, "g19_heat_rejector_surveyed", before)
+    event.after = dict(event.after, measurement=record)
+    event.save(update_fields=["after"])
+    return {"surveyed": rejector_id, "measured_kw": rate, "sink_cell": cell.source_id}
+
+
+@transaction.atomic
+def commission_g19_mind_heat_connections(*, operator_approved=False):
+    """Fit fifteen additional LT records with valves shut and no thermal credit."""
+    if not operator_approved:
+        raise PermissionError("Independent local LT connection fitting is operator-only")
+    clock = _clock(lock=True)
+    if clock.details.get("mind_cooling") is None:
+        raise PhysicsError("Fit original support equipment before its LT connections")
+    support = load_mind_support()
+    try:
+        result = install_heat_connections(
+            CanonicalShipState, support, load_mind_power_design(), load_candidate()
+        )
+        if clock.details.get("mind_lt_fitted") is True:
+            if result["created"]:
+                raise MindPowerError("Previously fitted LT hardware cannot silently reappear")
+            return {"commissioned": False, **result}
+    except MindPowerError as exc:
+        raise PhysicsError(str(exc)) from exc
+    before = _snapshot(clock)
+    clock.details = dict(clock.details, mind_lt_fitted=True)
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "g19_mind_lt_connections_fitted", before)
+    return {"commissioned": True, **result}
 
 
 @transaction.atomic
@@ -4357,6 +4599,7 @@ def tick_continuous_physics(*, now_game_time=None):
     mind_rows = None
     mind_support = None
     mind_support_rows = None
+    mind_lt_rows = {}
     mind_support_last = None
     if mind_power is not None:
         if electrical is None:
@@ -4375,9 +4618,14 @@ def tick_continuous_physics(*, now_game_time=None):
             raise PhysicsError("Ship-control cooling cannot run without fitted compute power")
         mind_support = load_mind_support()
         try:
+            mind_cooling = migrate_cooling_ledger(mind_support, mind_cooling)
             validate_cooling_ledger(mind_support,mind_cooling)
             mind_support_rows = installed_support_rows(
                 CanonicalShipState,mind_support,mind_design,load_candidate())
+            if clock.details.get("mind_lt_fitted") is True:
+                mind_lt_rows = installed_heat_connection_rows(
+                    CanonicalShipState, mind_support, mind_design, load_candidate()
+                )
         except MindPowerError as exc:
             raise PhysicsError(str(exc)) from exc
         mind_support_last=clock.details.get("mind_support_last")
@@ -5690,6 +5938,25 @@ def tick_continuous_physics(*, now_game_time=None):
         # motor-and-radiator-limited capacity earlier in this tick.
         total_cool_kw = max(
             0.0, lt_budget["environment_kw"] - cargo_cooling_kw)
+        # Reserve independent compute cooling from this SAME original
+        # motor/radiator allowance before the ordinary room coolers use it.
+        # Actual delivered output is bounded again after electrical dispatch.
+        mind_lt_reserved_kw = 0.0
+        mind_lt_cooling_kw = 0.0
+        if mind_cooling is not None:
+            try:
+                provisional_rates = lt_rejection_rates(
+                    mind_support,
+                    physical_rows=mind_support_rows,
+                    connection_rows=mind_lt_rows,
+                    connected_lt_nodes=connected_lt,
+                    powered_machines={"MIND-%02d" % n for n in range(1, 10)},
+                    cooling_budget_kw=total_cool_kw,
+                )
+            except MindPowerError as exc:
+                raise PhysicsError(str(exc)) from exc
+            mind_lt_reserved_kw = sum(provisional_rates.values())
+            total_cool_kw = max(0.0, total_cool_kw - mind_lt_reserved_kw)
         # The forty original residential cabin coils are *independent*
         # appliances on existing PWR and LT valve nodes. Reserve their
         # bounded actual load from the SAME common LT radiator allowance;
@@ -5934,10 +6201,33 @@ def tick_continuous_physics(*, now_game_time=None):
                 if mind_support_rows["equipment:"+name].condition in _BROKEN
             }
             try:
+                rejection_rates = air_rejection_rates(
+                    mind_support,
+                    physical_rows=mind_support_rows,
+                    cells=cells,
+                    room_zones=zones,
+                    seconds=dt,
+                    powered_machines=online,
+                )
+                lt_rates = lt_rejection_rates(
+                    mind_support,
+                    physical_rows=mind_support_rows,
+                    connection_rows=mind_lt_rows,
+                    connected_lt_nodes=connected_lt,
+                    powered_machines=online,
+                    cooling_budget_kw=mind_lt_reserved_kw,
+                )
+                rejection_rates = {
+                    name: rate + lt_rates[name] for name, rate in rejection_rates.items()
+                }
                 mind_cooling, thermal_trips, thermal_receipts = step_cooling_buffer(
-                    mind_support,mind_cooling,
-                    operating_machines=online,seconds=dt,
-                    failed=bad_cooling)
+                    mind_support,
+                    mind_cooling,
+                    operating_machines=online,
+                    seconds=dt,
+                    failed=bad_cooling,
+                    measured_rejection_kw=rejection_rates,
+                )
                 networked=connected_machines(
                     mind_support,available_machines=online,
                     physical_rows=mind_support_rows)
@@ -5947,6 +6237,20 @@ def tick_continuous_physics(*, now_game_time=None):
             # each island's uncontained heat across its actually energised
             # machines' original ship pressure cells.
             for pod in mind_support["cooling_islands"]:
+                # A local air rejector MOVES heat to its real receiving
+                # pressure cell. The original room/LT cooler must remove
+                # it through the same finite radiator budget as other heat.
+                rejected = thermal_receipts[pod["id"]]["rejected_kj"]
+                via_lt = lt_rates[pod["id"]] > 0
+                thermal_receipts[pod["id"]]["sink_kind"] = "lt" if via_lt else "air"
+                if via_lt:
+                    mind_lt_cooling_kw += rejected / dt
+                elif rejected > 0:
+                    sink = cells[zones[pod["service_room"]]]
+                    sink["energy"] += rejected
+                    sink["temperature"] = sink["energy"] / (
+                        sink["capacity"] + sink["mass"] * CP_GAS_KJ_KG_K
+                    )
                 uncontained=thermal_receipts[pod["id"]]["unabsorbed_kj"]
                 running=[machine for machine in pod["machines"]
                          if machine in online]
@@ -5987,11 +6291,14 @@ def tick_continuous_physics(*, now_game_time=None):
                 item.revision+=1
                 changed_equipment.add(item.key)
                 _event(item,"g19_mind_thermal_protection_trip",previous)
-            mind_support_last={
+            mind_support_last = {
                 "networked": sorted(networked),
-                "compute_ready": sorted(set(networked)-overheated),
+                "compute_ready": sorted(set(networked) - overheated),
                 "thermal_shutdown": sorted(overheated),
-                "observed_s": last+duration,
+                "observed_s": last + duration,
+                "thermal_receipts": thermal_receipts,
+                "lt_reserved_kw": mind_lt_reserved_kw,
+                "lt_rejected_kw": mind_lt_cooling_kw,
             }
         if refuge_scrubbers is not None:
             # The actual normal refuge air load or the individually surveyed

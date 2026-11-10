@@ -396,7 +396,42 @@
       "normal_temperature_max_k": 313.15,
       "normal_heat_sink": "local room air/low-temperature utility when physically available",
       "independence_rule": "Finite local absorption remains available without central LT plant, subject to surveyed capacity and actual machine state",
-      "status": "CANDIDATE_UNSURVEYED"
+      "status": "CANDIDATE_UNSURVEYED",
+      "lt_connection": {
+        "id": "LT-FEED-BOW",
+        "node": "NODE-MIND-LT-BOW",
+        "isolator": "ISO-MIND-LT-BOW",
+        "source_node": "NODE-LT-PLANT",
+        "source_room": "ROTARY-UTIL-A",
+        "route_spaces": [
+          "ROTARY-UTIL-A",
+          "TRUNK-A-HAB-HUB-SERVICES",
+          "TRUNK-A-F1-HAB-BUFFER",
+          "TRUNK-A-FWD-RESERVE",
+          "TRUNK-A-F1",
+          "TRUNK-A-F1-DRUM-BUFFER",
+          "TRUNK-A-BE-06-ENVELOPE",
+          "TRUNK-A-DR-03",
+          "TRUNK-A-GAP-23",
+          "TRUNK-A-DR-02",
+          "TRUNK-A-GAP-12",
+          "TRUNK-A-DR-01",
+          "TRUNK-A-BOW",
+          "ENV-FWD"
+        ]
+      },
+      "machine_coolant_routes": {
+        "MIND-01": [
+          "ENV-FWD",
+          "TRUNK-A-BOW",
+          "LOGI-STOP-BOW",
+          "TRUNK-B-BOW",
+          "COMMS-FWD"
+        ],
+        "MIND-02": [
+          "ENV-FWD"
+        ]
+      }
     },
     {
       "id": "THERM-MIND-ISL-FWD-SPINE",
@@ -419,7 +454,31 @@
       "normal_temperature_max_k": 313.15,
       "normal_heat_sink": "local room air/low-temperature utility when physically available",
       "independence_rule": "Finite local absorption remains available without central LT plant, subject to surveyed capacity and actual machine state",
-      "status": "CANDIDATE_UNSURVEYED"
+      "status": "CANDIDATE_UNSURVEYED",
+      "lt_connection": {
+        "id": "LT-FEED-FWD-SPINE",
+        "node": "NODE-MIND-LT-FWD-SPINE",
+        "isolator": "ISO-MIND-LT-FWD-SPINE",
+        "source_node": "NODE-LT-PLANT",
+        "source_room": "ROTARY-UTIL-A",
+        "route_spaces": [
+          "ROTARY-UTIL-A",
+          "TRUNK-A-HAB-HUB-SERVICES",
+          "TRUNK-A-F1-HAB-BUFFER",
+          "TRUNK-A-FWD-RESERVE",
+          "TRUNK-A-F1",
+          "TRUNK-A-F1-DRUM-BUFFER",
+          "TRUNK-A-BE-06-ENVELOPE",
+          "TRUNK-A-DR-03",
+          "TRUNK-A-GAP-23",
+          "XCON-GAP-23"
+        ]
+      },
+      "machine_coolant_routes": {
+        "MIND-03": [
+          "XCON-GAP-23"
+        ]
+      }
     },
     {
       "id": "THERM-MIND-ISL-HUB",
@@ -444,7 +503,30 @@
       "normal_temperature_max_k": 313.15,
       "normal_heat_sink": "local room air/low-temperature utility when physically available",
       "independence_rule": "Finite local absorption remains available without central LT plant, subject to surveyed capacity and actual machine state",
-      "status": "CANDIDATE_UNSURVEYED"
+      "status": "CANDIDATE_UNSURVEYED",
+      "lt_connection": {
+        "id": "LT-FEED-HUB",
+        "node": "NODE-MIND-LT-HUB",
+        "isolator": "ISO-MIND-LT-HUB",
+        "source_node": "NODE-LT-PLANT",
+        "source_room": "ROTARY-UTIL-A",
+        "route_spaces": [
+          "ROTARY-UTIL-A",
+          "TRUNK-A-HAB-HUB-SERVICES",
+          "HUB-MAINT-BAY"
+        ]
+      },
+      "machine_coolant_routes": {
+        "MIND-04": [
+          "HUB-MAINT-BAY"
+        ],
+        "MIND-05": [
+          "HUB-MAINT-BAY",
+          "TRUNK-A-HAB-HUB-SERVICES",
+          "ENG-CONTROL",
+          "SHOP-ELEC"
+        ]
+      }
     },
     {
       "id": "THERM-MIND-ISL-HAB",
@@ -469,7 +551,42 @@
       "normal_temperature_max_k": 313.15,
       "normal_heat_sink": "local room air/low-temperature utility when physically available",
       "independence_rule": "Finite local absorption remains available without central LT plant, subject to surveyed capacity and actual machine state",
-      "status": "CANDIDATE_UNSURVEYED"
+      "status": "CANDIDATE_UNSURVEYED",
+      "lt_connection": {
+        "id": "LT-FEED-HAB",
+        "node": "NODE-MIND-LT-HAB",
+        "isolator": "ISO-MIND-LT-HAB",
+        "source_node": "NODE-HAB-04-LT-COOLING-MAN",
+        "source_room": "HAB-04-SERVICE-GALLERY",
+        "route_spaces": [
+          "HAB-04-SERVICE-GALLERY",
+          "HAB-04-COR",
+          "HAB-04-ENV-SAT"
+        ]
+      },
+      "machine_coolant_routes": {
+        "MIND-06": [
+          "HAB-04-ENV-SAT"
+        ],
+        "MIND-07": [
+          "HAB-04-ENV-SAT",
+          "HAB-04-COR",
+          "HAB-04-VEST-CW",
+          "BR-04",
+          "HAB-05-VEST-CCW",
+          "HAB-05-COR",
+          "HAB-05-VEST-CW",
+          "BR-05",
+          "HAB-06-VEST-CCW",
+          "HAB-06-COR",
+          "HAB-06-VEST-CW",
+          "BR-06",
+          "HAB-07-VEST-CCW",
+          "HAB-07-COR",
+          "HAB-07-SERVICE-GALLERY",
+          "HAB-07-SG1-CUPBOARD"
+        ]
+      }
     },
     {
       "id": "THERM-MIND-ISL-AFT",
@@ -494,7 +611,44 @@
       "normal_temperature_max_k": 313.15,
       "normal_heat_sink": "local room air/low-temperature utility when physically available",
       "independence_rule": "Finite local absorption remains available without central LT plant, subject to surveyed capacity and actual machine state",
-      "status": "CANDIDATE_UNSURVEYED"
+      "status": "CANDIDATE_UNSURVEYED",
+      "lt_connection": {
+        "id": "LT-FEED-AFT",
+        "node": "NODE-MIND-LT-AFT",
+        "isolator": "ISO-MIND-LT-AFT",
+        "source_node": "NODE-LT-PLANT",
+        "source_room": "ROTARY-UTIL-A",
+        "route_spaces": [
+          "ROTARY-UTIL-A",
+          "TRUNK-A-HAB-HUB-SERVICES",
+          "LOGI-STOP-HAB-HUB-SERVICES",
+          "TRUNK-B-HAB-HUB-SERVICES",
+          "TRUNK-B-F2-HAB-BUFFER",
+          "TRUNK-B-AFT-RESERVE",
+          "TRUNK-B-F2",
+          "TRUNK-B-F2-DRUM-BUFFER",
+          "TRUNK-B-BE-07-ENVELOPE",
+          "TRUNK-B-DR-04",
+          "TRUNK-B-GAP-45",
+          "TRUNK-B-DR-05",
+          "TRUNK-B-GAP-56",
+          "TRUNK-B-DR-06",
+          "TRUNK-B-AFT",
+          "ENV-AFT"
+        ]
+      },
+      "machine_coolant_routes": {
+        "MIND-08": [
+          "ENV-AFT"
+        ],
+        "MIND-09": [
+          "ENV-AFT",
+          "TRUNK-B-AFT",
+          "LOGI-STOP-AFT",
+          "TRUNK-A-AFT",
+          "COMMS-AFT"
+        ]
+      }
     }
   ],
   "secured_rack": {
