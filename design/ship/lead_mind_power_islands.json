@@ -1,7 +1,7 @@
 {
   "schema_version": "ox.lead-mind-power/1",
   "status": "DESIGN_CANDIDATE_NOT_RUNTIME_AUTHORITY",
-  "notes": "Independent new load system; does not change the inherited 438/450/466 G19 grid. Physical path segments remain proposed until surveyed and installed in Evennia. PWR-PROT and BAT-COMMON-PROT are excluded. The new cable corridors are traced through canonical access-link geometry, but are proposed cable routes, not a claim of physically surveyed or commissioned cable installation.",
+  "notes": "Independent new load system; does not change the inherited 438/450/466 G19 grid. Physical path segments remain proposed until surveyed and installed in Evennia. PWR-PROT and BAT-COMMON-PROT are excluded. The new cable corridors are traced through canonical access-link geometry, but are proposed cable routes, not a claim of physically surveyed or commissioned cable installation. Each machine has an individually mounted final distribution board with its own incoming breaker; the island bus is upstream of those nine independent finals.",
   "transfer_seconds": 15,
   "required_ride_through_seconds": 120,
   "source_nodes": {
@@ -83,7 +83,11 @@
             "XCON-BOW",
             "TRUNK-B-BOW",
             "COMMS-FWD"
-          ]
+          ],
+          "final_board": "MIND-01-DB",
+          "final_board_node": "NODE-MIND-01-DB",
+          "board_feeder": "EDGE-MIND-01-DB",
+          "board_isolator": "ISO-MIND-01-DB"
         },
         {
           "id": "MIND-02",
@@ -99,7 +103,11 @@
           ],
           "proposed_final_route_spaces": [
             "ENV-FWD"
-          ]
+          ],
+          "final_board": "MIND-02-DB",
+          "final_board_node": "NODE-MIND-02-DB",
+          "board_feeder": "EDGE-MIND-02-DB",
+          "board_isolator": "ISO-MIND-02-DB"
         }
       ]
     },
@@ -171,7 +179,11 @@
           ],
           "proposed_final_route_spaces": [
             "XCON-GAP-23"
-          ]
+          ],
+          "final_board": "MIND-03-DB",
+          "final_board_node": "NODE-MIND-03-DB",
+          "board_feeder": "EDGE-MIND-03-DB",
+          "board_isolator": "ISO-MIND-03-DB"
         }
       ]
     },
@@ -245,7 +257,11 @@
           ],
           "proposed_final_route_spaces": [
             "HUB-MAINT-BAY"
-          ]
+          ],
+          "final_board": "MIND-04-DB",
+          "final_board_node": "NODE-MIND-04-DB",
+          "board_feeder": "EDGE-MIND-04-DB",
+          "board_isolator": "ISO-MIND-04-DB"
         },
         {
           "id": "MIND-05",
@@ -264,7 +280,11 @@
             "TRUNK-A-HAB-HUB-SERVICES",
             "ENG-CONTROL",
             "SHOP-ELEC"
-          ]
+          ],
+          "final_board": "MIND-05-DB",
+          "final_board_node": "NODE-MIND-05-DB",
+          "board_feeder": "EDGE-MIND-05-DB",
+          "board_isolator": "ISO-MIND-05-DB"
         }
       ]
     },
@@ -358,7 +378,11 @@
           ],
           "proposed_final_route_spaces": [
             "HAB-04-ENV-SAT"
-          ]
+          ],
+          "final_board": "MIND-06-DB",
+          "final_board_node": "NODE-MIND-06-DB",
+          "board_feeder": "EDGE-MIND-06-DB",
+          "board_isolator": "ISO-MIND-06-DB"
         },
         {
           "id": "MIND-07",
@@ -389,7 +413,11 @@
             "HAB-07-COR",
             "HAB-07-SERVICE-GALLERY",
             "HAB-07-SG1-CUPBOARD"
-          ]
+          ],
+          "final_board": "MIND-07-DB",
+          "final_board_node": "NODE-MIND-07-DB",
+          "board_feeder": "EDGE-MIND-07-DB",
+          "board_isolator": "ISO-MIND-07-DB"
         }
       ]
     },
@@ -463,7 +491,11 @@
           ],
           "proposed_final_route_spaces": [
             "ENV-AFT"
-          ]
+          ],
+          "final_board": "MIND-08-DB",
+          "final_board_node": "NODE-MIND-08-DB",
+          "board_feeder": "EDGE-MIND-08-DB",
+          "board_isolator": "ISO-MIND-08-DB"
         },
         {
           "id": "MIND-09",
@@ -483,7 +515,11 @@
             "XCON-AFT",
             "TRUNK-A-AFT",
             "COMMS-AFT"
-          ]
+          ],
+          "final_board": "MIND-09-DB",
+          "final_board_node": "NODE-MIND-09-DB",
+          "board_feeder": "EDGE-MIND-09-DB",
+          "board_isolator": "ISO-MIND-09-DB"
         }
       ]
     }
