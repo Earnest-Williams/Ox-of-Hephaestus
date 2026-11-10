@@ -87,16 +87,33 @@ checks, plus an installed electrical and ship-clock integration gate.
 
 ## Deliberately unresolved
 
-- Constructed cable penetrations, moving-joint environmental/EMI ratings,
-  and verified installed A/B continuity.
-- The full mixed-generation gateway protocol map and mapping revisions,
-  including proof of `GW-LCS-DR-03` power and its segment-local fallback.
+- The remaining mixed-generation gateway vocabulary beyond three read-only
+  drum-3 controller registers and segment-local fallback acceptance.
 - Which local roles may take control of each segment and exact remote
   authority grants.
-- Steady-state, **measured** heat rejection to original LT/air loops and
-  supervised cooldown/restart after a thermal trip.
+- Supervised cooldown/restart after a latched computer thermal trip.
 - Access-reader fitting to the rack and other controlled machinery rooms.
 - Parity, rebuild timing, cognition, and the lead-mind player interface.
 
 These are subsequent operational work packages, not evidence that today's
 prototype has a functioning ship-wide AI.
+
+## Commissioning implementation
+
+- Exact cable pressure-penetration surveys and continuous rotary-joint
+  ratings now gate installed network connectivity. Revisions invalidate
+  certificates after apparatus changes, including failure and repair.
+- Fifteen separately fitted LT connection rows provide real feed/return
+  routes and manual isolation without modifying the original network.
+  Rejection consumes the original plant/motor/radiator allowance; shared
+  LT failure leaves only measured local buffer capacity. Optional air
+  transfer deposits all rejected heat in its real receiving cell.
+- Cooling custody version 2 checks current headroom against cumulative
+  absorption and recovery. Its migration preserves version-1 inventory.
+- Three separate local gateway supply rows support measured 50 W operation.
+  A bounded read-only vocabulary preserves raw terms and timestamps and
+  requires operator comparison before a mapping revision is accepted.
+  Network loss withholds remote readings; it does not change local machinery.
+- The focused infrastructure workflow runs on drafts so physical acceptance
+  can be completed before marking the construction PR ready. Other expensive
+  draft suites retain their existing deferral policy.

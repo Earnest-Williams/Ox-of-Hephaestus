@@ -141,7 +141,8 @@ remote command log and a new **core log**.
    existing gap-23 distribution boards feed a new local island. Machine 3
    occupies a monitored equipment rack within `XCON-GAP-23`; the two
    original cross-trunk doors remain public passages. The rack's own reader
-   and the actual conductor penetrations still need commissioning.
+   needs its own access reader. Conductor continuity and pressure-penetration
+   surveys are implemented separately and start unverified on new hardware.
    See [ADR 0011](../decisions/0011-ship-control-support-overlays.md).
 2. Rebuild time and capacity steps: tune in playtesting.
 
@@ -159,3 +160,10 @@ buffer give at least 120 seconds without assuming the original LT plant
 remains available. Actual energy/temperature surveys are required, and the
 buffer is not presumed charged at commissioning. The current implementation
 does not provide machine parity, cognition, or network command authority.
+
+Separate fitted feed/return pipes now connect the five groups to original LT
+sources, with measured rejection debited from the existing radiator budget.
+Neither a failed HAB rotary coolant union nor an unsurveyed data coupler is
+treated as conducting. The installed source-path/final-board sweep checks
+powered, connected and thermally supported cohorts during 120-second faults,
+using real surveyed electrical and thermal reserves rather than nameplates.

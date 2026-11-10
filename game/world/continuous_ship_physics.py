@@ -296,6 +296,15 @@ from world.ship_mind_support_world import (
     installed_network_cohort,
     installed_support_rows,
 )
+from world.ship_control_gateway import (
+    GATEWAY,
+    fitted_gateway_power,
+    initial_gateway,
+    step_gateway,
+    survey_gateway_power,
+    validate_gateway,
+    verify_gateway_protocol,
+)
 from world.ship_equipment_wear import (
     initial_equipment_wear, validate_equipment_wear,
     survey_existing_wear, step_equipment_wear,
@@ -620,6 +629,13 @@ def _snapshot(item):
     # Earlier clock snapshots omitted motion and made a successfully
     # receipted helm/rotor operation indistinguishable from a no-op.
     if item.key == CLOCK_KEY:
+        if item.details.get("mind_gateway") is not None:
+            gateway = item.details["mind_gateway"]
+            result["mind_gateway"] = {
+                "served_kwh": gateway["served_kwh"],
+                "mapping_revision": gateway["mapping_revision"],
+                "last": gateway["last"],
+            }
         if item.details.get("mind_cooling") is not None:
             result["mind_cooling"] = {
                 "buffers": {
@@ -1381,6 +1397,103 @@ def commission_g19_mind_heat_connections(*, operator_approved=False):
     clock.save(update_fields=["details", "revision"])
     _event(clock, "g19_mind_lt_connections_fitted", before)
     return {"commissioned": True, **result}
+
+
+@transaction.atomic
+def commission_g19_gateway_power(*, operator_approved=False):
+    """Fit three local fused supply records without granting protocol or commands."""
+    if not operator_approved:
+        raise PermissionError("Gateway physical fitting is operator-only")
+    clock = _clock(lock=True)
+    if clock.details.get("mind_cooling") is None:
+        raise PhysicsError("Fit the gateway and backbone support hardware first")
+    support, design, ship = load_mind_support(), load_mind_power_design(), load_candidate()
+    try:
+        installed_support_rows(CanonicalShipState, support, design, ship)
+        _, created = fitted_gateway_power(CanonicalShipState, support, ship, install=True)
+        prior = clock.details.get("mind_gateway")
+        if prior is not None:
+            if created:
+                raise MindPowerError("A missing gateway supply cannot be silently recreated")
+            validate_gateway(prior)
+            return {"commissioned": False, "created": 0, "total": 3}
+        before = _snapshot(clock)
+        clock.details = dict(clock.details, mind_gateway=initial_gateway())
+        clock.revision += 1
+        clock.save(update_fields=["details", "revision"])
+        _event(clock, "g19_gateway_supply_fitted", before)
+        return {"commissioned": True, "created": created, "total": 3}
+    except MindPowerError as exc:
+        raise PhysicsError(str(exc)) from exc
+
+
+@transaction.atomic
+def survey_g19_gateway_power(*, operator_approved=False, measured_kw, evidence_id):
+    """Attest the separately fused local source; no voltage or energy is invented."""
+    if not operator_approved:
+        raise PermissionError("Gateway source measurement is operator-only")
+    clock = _clock(lock=True)
+    prior = clock.details.get("mind_gateway")
+    if prior is None:
+        raise PhysicsError("Fit the dedicated gateway supply first")
+    try:
+        rows, _ = fitted_gateway_power(CanonicalShipState, load_mind_support(), load_candidate())
+        updated = survey_gateway_power(
+            prior, rows, measured_kw=measured_kw, evidence_id=evidence_id
+        )
+    except MindPowerError as exc:
+        raise PhysicsError(str(exc)) from exc
+    before = _snapshot(clock)
+    clock.details = dict(clock.details, mind_gateway=updated)
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    event = _event(clock, "g19_gateway_power_surveyed", before)
+    event.after = dict(event.after, measurement=updated["power_survey"])
+    event.save(update_fields=["after"])
+    return {"surveyed": GATEWAY, "measured_kw": measured_kw}
+
+
+@transaction.atomic
+def verify_g19_gateway_protocol(*, operator_approved=False, profile, confirmations, evidence_id):
+    """Verify three actual controller register meanings, with no actuation grant."""
+    if not operator_approved:
+        raise PermissionError("Gateway vocabulary verification is operator-only")
+    clock = _clock(lock=True)
+    prior = clock.details.get("mind_gateway")
+    if prior is None:
+        raise PhysicsError("No fitted gateway with fresh raw controller samples")
+    if not isinstance(evidence_id, str) or not 0 < len(evidence_id) <= 128:
+        raise PhysicsError("Protocol verification requires a bounded evidence reference")
+    try:
+        updated = verify_gateway_protocol(
+            prior,
+            profile=profile,
+            confirmations=confirmations,
+            observed_s=clock.details["last_game_time"],
+        )
+    except MindPowerError as exc:
+        raise PhysicsError(str(exc)) from exc
+    before = _snapshot(clock)
+    clock.details = dict(clock.details, mind_gateway=updated)
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    event = _event(clock, "g19_gateway_protocol_verified", before)
+    event.after = dict(
+        event.after,
+        verification={
+            "evidence_id": evidence_id,
+            "profile": profile,
+            "confirmations": confirmations,
+            "raw_samples": prior["last"]["raw_samples"],
+            "mapping_revision": updated["mapping_revision"],
+        },
+    )
+    event.save(update_fields=["after"])
+    return {
+        "verified": GATEWAY,
+        "mapping_revision": updated["mapping_revision"],
+        "remote_commands_enabled": False,
+    }
 
 
 @transaction.atomic
@@ -4329,17 +4442,19 @@ def _live_edge(edge, isolators):
                     for i in r["isolator_ids"]))
 
 
-def _reachable(edges, isolators, network, starts):
+def _reachable(edges, isolators, network, starts, *, blocked_nodes=()):
     graph = defaultdict(set)
     for edge in edges:
         r = edge.reference
         if r["network"] != network or not _live_edge(edge, isolators):
             continue
         a, b = r["from_node"], r["to_node"]
+        if a in blocked_nodes or b in blocked_nodes:
+            continue
         graph[a].add(b)
         if network != "power" or r["kind"] in ("bridge_feeder", "cross_tie"):
             graph[b].add(a)
-    reached = set(starts)
+    reached = set(starts) - set(blocked_nodes)
     queue = deque(sorted(reached))
     while queue:
         for neighbour in sorted(graph[queue.popleft()]):
@@ -4601,6 +4716,8 @@ def tick_continuous_physics(*, now_game_time=None):
     mind_support_rows = None
     mind_lt_rows = {}
     mind_support_last = None
+    mind_gateway = clock.details.get("mind_gateway")
+    gateway_power_rows = None
     if mind_power is not None:
         if electrical is None:
             raise PhysicsError("Mind-power island installed without G19 dispatch")
@@ -4629,6 +4746,16 @@ def tick_continuous_physics(*, now_game_time=None):
         except MindPowerError as exc:
             raise PhysicsError(str(exc)) from exc
         mind_support_last=clock.details.get("mind_support_last")
+    if mind_gateway is not None:
+        if mind_cooling is None:
+            raise PhysicsError("Gateway runtime has no fitted backbone and host")
+        try:
+            validate_gateway(mind_gateway)
+            gateway_power_rows, _ = fitted_gateway_power(
+                CanonicalShipState, mind_support, load_candidate()
+            )
+        except MindPowerError as exc:
+            raise PhysicsError(str(exc)) from exc
     if local_backup is not None:
         try:
             validate_local_backup(local_backup)
@@ -5679,8 +5806,26 @@ def tick_continuous_physics(*, now_game_time=None):
         heat += DRIVE_HEAT_KW * dt if motion["drive_firing"] else 0.0
         heat += FTL_HEAT_KW * dt if ftl_aux else 0.0
         drive_cooling_kw = 0.0
+        # A sound pipe through a failed rotary union/manifold is not a
+        # usable coolant path. Both node and actual equipment owner matter.
+        blocked_lt = {
+            node.source_id
+            for node in water_nodes
+            if node.reference.get("network") == "lt_cooling"
+            and (
+                node.condition in _BROKEN
+                or (
+                    node.reference.get("owner_type") == "equipment"
+                    and (
+                        node.reference["owner_id"] not in equipment
+                        or equipment[node.reference["owner_id"]].condition in _BROKEN
+                    )
+                )
+            )
+        }
         connected_lt = _reachable(
-            edges, isolators, "lt_cooling", ["NODE-LT-PLANT"])
+            edges, isolators, "lt_cooling", ["NODE-LT-PLANT"], blocked_nodes=blocked_lt
+        )
         # One physical LT radiator budget serves both propulsion and rooms.
         # A powered ship bus or running plant flag is not an alternative to
         # the LT motor's real fuse, feeder and connected coolant circuit.
@@ -6150,6 +6295,7 @@ def tick_continuous_physics(*, now_game_time=None):
         # modules draw grid MW. A/B source changes are durable, local,
         # break-before-make contacts, never an imaginary remote bus.
         mind_charge_mw = 0.0
+        gateway_grid_mw = 0.0
         if mind_power is not None:
             try:
                 mind_power, transfers = tick_mind_power(
@@ -6300,6 +6446,37 @@ def tick_continuous_physics(*, now_game_time=None):
                 "lt_reserved_kw": mind_lt_reserved_kw,
                 "lt_rejected_kw": mind_lt_cooling_kw,
             }
+        if mind_gateway is not None:
+            try:
+                reachable = connected_machines(
+                    mind_support,
+                    available_machines=mind_support_last["compute_ready"],
+                    physical_rows=mind_support_rows,
+                    gateway_id=GATEWAY,
+                )
+                mind_gateway, gateway_grid_mw = step_gateway(
+                    mind_gateway,
+                    rows=gateway_power_rows,
+                    support_rows=mind_support_rows,
+                    source_rows=mind_rows,
+                    power=power,
+                    connected=bool(reachable),
+                    seconds=dt,
+                    now_s=last + duration,
+                )
+            except MindPowerError as exc:
+                raise PhysicsError(str(exc)) from exc
+            if gateway_grid_mw:
+                power["has_live_load"] = True
+                power["requested_mw"] += gateway_grid_mw
+                power["dispatched_mw"] += gateway_grid_mw
+                cell = cells.get(zones.get("BE-05-SVC"))
+                if cell is None:
+                    raise PhysicsError("Gateway electricity has no actual receiving thermal cell")
+                cell["energy"] += gateway_grid_mw * 1000 * dt
+                cell["temperature"] = cell["energy"] / (
+                    cell["capacity"] + cell["mass"] * CP_GAS_KJ_KG_K
+                )
         if refuge_scrubbers is not None:
             # The actual normal refuge air load or the individually surveyed
             # and fully supplied local DC battery may drive its own package.
@@ -6351,10 +6528,11 @@ def tick_continuous_physics(*, now_game_time=None):
                 # Compute service is never an unbilled side channel:
                 # the G19 generator/storage service meter must include
                 # at least the newly powered computers on this tick.
-                if (mind_power is not None and
-                        electrical["meter"]["served_kwh"]
-                        - previous_grid_served_kwh + 1e-7
-                        < mind_power["last"]["grid_served_mw"] * dt / 3.6):
+                if (
+                    mind_power is not None
+                    and electrical["meter"]["served_kwh"] - previous_grid_served_kwh + 1e-7
+                    < (mind_power["last"]["grid_served_mw"] + gateway_grid_mw) * dt / 3.6
+                ):
                     raise PhysicsError("Lead-mind grid load escaped G19 energy custody")
                 if not math.isclose(
                         electrical["last"]["local_battery_recharged_kwh"],
@@ -7795,6 +7973,9 @@ def tick_continuous_physics(*, now_game_time=None):
             raise PhysicsError(str(exc)) from exc
         d["mind_cooling"] = mind_cooling
         d["mind_support_last"] = mind_support_last
+    if mind_gateway is not None:
+        validate_gateway(mind_gateway)
+        d["mind_gateway"] = mind_gateway
     if refuge_scrubbers is not None:
         d["refuge_scrubbers"] = refuge_scrubbers
     if refuge_media is not None:

@@ -6,7 +6,7 @@ CI check, following the repository's rules: Ox code stays in `game/`,
 `services/`, `contracts/`, `design/` and `scenarios/`; Evennia owns every world
 change; no handler or interface acts as a second physics authority.
 
-**Status:** implementation in progress, 10 November 2026. [PR #151](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/151) implements physical power-island and ship-control support hardware and tests in a draft branch. This does **not** commission a lead-mind principal, remote actuation, gateway mappings or player access. The original v0.5 ship model remains intact.
+**Status:** implementation in progress, 10 November 2026. [PR #151](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/151) implements physical power islands, surveyed A/B connectivity, finite cooling with original-LT rejection and the first verified read-only drum-3 gateway vocabulary. Remote actuation, a lead-mind principal and player access remain subsequent packages. The original v0.5 ship model remains intact.
 
 ## What already exists to build on
 
@@ -93,9 +93,14 @@ foundation.
   additional, independently rated HAB rotary data couplers are **new
   hardware**; neither indexed personnel transfer is treated as a cable.
 - Five locally buffered and individually monitored thermal groups, with
-  finite surveyed headroom and on-clock thermal trip handling.
+  finite surveyed headroom, 15 separately fitted LT circuit records,
+  measured rejection, headroom recovery and on-clock thermal trip handling.
+- Recorded continuity and pressure-penetration surveys, plus continuous
+  rotary-joint environmental/EMI qualifications before connectivity counts.
+- A separately fused, metered local supply and a three-register read-only
+  vocabulary for the drum-3 gateway, with source provenance and revisions.
 - A monitored rack at `XCON-GAP-23`, preserving the original crew shortcut.
 
-**Still pending:** fitted gateway hosts and their protocol maps, local
-takeover, network read-model scopes, access-reader events, remote commands,
-verified steady-state heat rejection, and the actual lead-mind principal.
+**Still pending:** remaining gateway protocol coverage, local takeover,
+network read-model scopes, access-reader events, remote commands,
+supervised computer restart after a thermal trip and the lead-mind principal.

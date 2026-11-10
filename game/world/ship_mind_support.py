@@ -389,8 +389,9 @@ def fault_domains(support):
     return tuple(sorted(result))
 
 
-def connected_machines(support, *, faults=(), available_machines=None,
-                       physical_rows=None):
+def connected_machines(
+    support, *, faults=(), available_machines=None, physical_rows=None, gateway_id=None
+):
     """Return biggest intact connected compute cohort on either backbone.
 
     A/B backbone is distributed passive fibre, not a central switch.
@@ -400,6 +401,13 @@ def connected_machines(support, *, faults=(), available_machines=None,
     admitted = MACHINES if available_machines is None else set(available_machines)
     net = support["backbone"]
     links = defaultdict(set)
+    endpoints = set(MACHINES)
+    if gateway_id is not None:
+        _require(
+            gateway_id in {g["id"] for g in support["gateway_candidates"]},
+            "Unknown physical gateway endpoint",
+        )
+        endpoints.add(gateway_id)
 
     def row_ok(key):
         if physical_rows is None:
@@ -442,6 +450,24 @@ def connected_machines(support, *, faults=(), available_machines=None,
         anchor = _rail_node(rail,d["anchor_room"])
         if anchor in links:
             join(anchor,machine)
+    if gateway_id is not None and gateway_id not in bad:
+        gateway = next(g for g in support["gateway_candidates"] if g["id"] == gateway_id)
+        hardware = (
+            physical_rows.get("equipment:" + gateway_id) if physical_rows is not None else None
+        )
+        if physical_rows is None or (hardware is not None and hardware.condition not in BROKEN):
+            for drop in gateway["rail_drops"]:
+                nic = "NET-GW-NIC-" + drop["rail"] + "-DR-03"
+                anchor = _rail_node(drop["rail"], drop["anchor_room"])
+                if (
+                    drop["id"] not in bad
+                    and nic not in bad
+                    and not any(room in bad for room in drop["route_spaces"])
+                    and row_ok("edge:" + drop["id"])
+                    and row_ok("node:" + nic)
+                    and anchor in links
+                ):
+                    join(anchor, gateway_id)
     # Endpoints are consumers, not an implicit A/B router. Traverse only
     # backbone junctions, and collect attached machines without walking
     # through a machine to the other rail. A genuine network bridge would
@@ -449,7 +475,7 @@ def connected_machines(support, *, faults=(), available_machines=None,
     biggest=set()
     visited=set()
     for vertex in list(links):
-        if vertex in MACHINES or vertex in visited:
+        if vertex in endpoints or vertex in visited:
             continue
         q=deque([vertex])
         component=set()
@@ -457,14 +483,16 @@ def connected_machines(support, *, faults=(), available_machines=None,
         while q:
             pos=q.popleft()
             for neighbor in links[pos]:
-                if neighbor in MACHINES:
-                    if neighbor in admitted:
+                if neighbor in endpoints:
+                    if neighbor in admitted or neighbor == gateway_id:
                         component.add(neighbor)
                 elif neighbor not in visited:
                     visited.add(neighbor)
                     q.append(neighbor)
-        if len(component)>len(biggest):
-            biggest=component
+        if gateway_id is None or gateway_id in component:
+            machines = component & MACHINES
+            if len(machines) > len(biggest):
+                biggest = machines
     return frozenset(biggest)
 
 

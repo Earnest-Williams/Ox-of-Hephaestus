@@ -164,5 +164,9 @@ existing local station. The proposed A feeder reaches `BE-05-SVC` via
 `TRUNK-B-DR-03`; the B feeder enters directly from the B trunk.
 This shared final corridor limits *local gateway* redundancy. It does not
 undermine the two separate ship-wide backbone trunks or authorize remote
-operation. The fitted gateway still needs power proof, mapping verification
-and local takeover acceptance before any command path is enabled.
+operation. Its dedicated local fuse and 50 W supply now have separate fitting
+and survey operations. The first verified mapping covers three read-only
+controller registers, with raw terms, source timestamps and mapping revisions
+preserved. Cooling output and cargo temperatures are outside that first
+mapping. Full command semantics and local takeover acceptance remain required
+before any command path is enabled.

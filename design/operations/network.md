@@ -16,7 +16,9 @@ Every action the lead mind takes must clear four separate questions:
 
 ## What exists today
 
-**Runtime.** The installed game has no plant-control network.
+**Accepted G19 baseline.** The original ship has no general plant-control
+backbone. Draft PR #151 adds separately commissioned physical rails and a
+first read-only gateway, described below.
 
 - 116 local panels each read only their own room, when powered and intact.
 - The only ship-wide link is the protected fire and pressure relay: alarms
@@ -207,9 +209,38 @@ directly from `TRUNK-B-DR-03`. Thus a local casualty can isolate this
 continues independently. This is deliberately **not** described as
 physically disjoint last-metre gateway cabling.
 
-The gateway is installed only as physically identifiable hardware:
-mapping revision 0, unknown protocol, power unverified and **remote commands
-disabled**. Connectivity does not imply understanding or authority. The
-first telemetry mapping and `ISO-DR-03-LT-IF` actuation belong to later
-packages, after their own interlock and takeover tests. See
-[ADR 0011](../decisions/0011-ship-control-support-overlays.md).
+Fitting the 153-row support overlay leaves every cable **unsurveyed**.
+`survey_g19_data_path` requires actual continuity and every pressure
+penetration on the selected route. Each moving data joint additionally
+requires pressure, environmental and EMI evidence at the HAB's full 3.6 rpm
+envelope. Certificates bind to the exact apparatus and its revision. A
+subsequent failure, repair or switch change requires a new survey.
+
+The gateway initially has mapping revision 0, unknown protocol and no measured
+power. `commission_g19_gateway_power` fits a separate terminal, short feeder
+and manual fuse from `NODE-LP-BE-05-SVC`. Surveyed 50 W operation is billed
+to actual G19 generation and its waste heat enters the original room cell.
+Loss of that panel, fuse, host or gateway stops sampling.
+
+`verify_g19_gateway_protocol` compares operator-confirmed meanings with the
+current powered raw samples before advancing the mapping revision. The first
+bounded simulation vocabulary is `ox.drum3.mixed-telemetry/1`:
+
+| Actual source | Raw register | Verified meaning | Unit |
+| --- | --- | --- | --- |
+| `DR-03-CARGO-HX` | `RUN_FB`, 0/1 | Running feedback, not cooling output | state |
+| `DR-03-CARGO-GAS` | `RUN_FB`, 0/1 | Running feedback, not delivered gas | state |
+| `ISO-DR-03-LT-IF` | `VLV_POS`, C/O | Closed/open position | position |
+
+Each reading retains source identity, source revision, game time, raw term,
+raw value, quality and mapping revision. Unknown or failed source indications
+stay unavailable rather than becoming zero. Both gateway branches require
+their own continuity surveys; no gateway or dual-homed machine bridges the
+two rails implicitly. Loss of both branches removes remote readings while
+the original local controller and valve remain unchanged. Reconnection
+samples current state and replays no commands.
+
+**Remote commands remain disabled.** The first read-only mapping grants no
+actuation, local-takeover override, player access or lead-mind principal.
+`ISO-DR-03-LT-IF` actuation still needs its interlock and takeover acceptance.
+See [ADR 0011](../decisions/0011-ship-control-support-overlays.md).

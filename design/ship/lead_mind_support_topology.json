@@ -703,7 +703,17 @@
           ]
         }
       ],
-      "notes": "Gateway remains disabled until local source power, mapping, permissions, arbitration, and return-to-local fallback are separately proven; A route shares TRUNK-B-DR-03 with the B branch so local route faults can take the entire segment offline."
+      "notes": "Gateway remains disabled until local source power, mapping, permissions, arbitration, and return-to-local fallback are separately proven; A route shares TRUNK-B-DR-03 with the B branch so local route faults can take the entire segment offline.",
+      "power_connection": {
+        "panel_node": "NODE-LP-BE-05-SVC",
+        "terminal_node": "NODE-PWR-GW-LCS-DR-03",
+        "edge": "EDGE-PWR-GW-LCS-DR-03",
+        "isolator": "ISO-PWR-GW-LCS-DR-03",
+        "load_kw": 0.05,
+        "route_spaces": [
+          "BE-05-SVC"
+        ]
+      }
     }
   ]
 }

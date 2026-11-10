@@ -15,14 +15,17 @@ from world.continuous_ship_physics import (
     _topology,
     arm_continuous_physics,
     commission_g19_electrical,
+    commission_g19_gateway_power,
     commission_g19_mind_heat_connections,
     commission_g19_mind_power,
     commission_g19_mind_support,
     survey_g19_data_path,
+    survey_g19_gateway_power,
     survey_g19_heat_rejector,
     survey_g19_mind_cooling,
     survey_g19_mind_reserve,
     tick_continuous_physics,
+    verify_g19_gateway_protocol,
 )
 from world.full_ship_operations import (
     initialize_nominal_atmosphere,
@@ -34,6 +37,7 @@ from world.full_ship_operations import (
     state,
 )
 from world.models import CanonicalShipEvent, CanonicalShipState
+from world.ship_control_gateway import PROFILE as GATEWAY_PROFILE
 from world.ship_electrical_power import audit_topology
 from world.ship_mind_power import load_design
 from world.ship_mind_runtime import validate_mind_runtime
@@ -46,6 +50,7 @@ from world.ship_mind_support_world import installed_network_cohort
 from world.ship_world import ensure_canonical_ship
 
 from evennia.utils.test_resources import EvenniaTestCase
+
 
 class InstalledMindPowerTests(EvenniaTestCase):
     def setUp(self):
@@ -115,8 +120,8 @@ class InstalledMindPowerTests(EvenniaTestCase):
                 free_kj=720,
             )
 
-    def power_lt_plant(self):
-        """Close a real original generator-to-LT-motor panel path."""
+    def power_original_panel(self, destination):
+        """Close a real original generator-to-local-panel path."""
         graph = defaultdict(list)
         for edge in CanonicalShipState.objects.filter(category="edge"):
             ref = edge.reference
@@ -132,13 +137,17 @@ class InstalledMindPowerTests(EvenniaTestCase):
                 if node not in previous:
                     previous[node] = (parent, edge)
                     queue.append(node)
-        target = "NODE-LP-ROTARY-UTIL-A"
+        target = destination
         self.assertIn(target, previous)
         while previous[target] is not None:
             parent, edge = previous[target]
             for isolator_id in edge.reference["isolator_ids"]:
                 set_isolator(isolator_id, "closed", operator=True)
             target = parent
+
+    def power_lt_plant(self):
+        """Energise the actual LT motor panel and open its existing fluid valves."""
+        self.power_original_panel("NODE-LP-ROTARY-UTIL-A")
         for edge in CanonicalShipState.objects.filter(category="edge"):
             if edge.reference.get("network") == "lt_cooling":
                 for isolator_id in edge.reference["isolator_ids"]:
@@ -495,21 +504,151 @@ class InstalledMindPowerTests(EvenniaTestCase):
         for bank in details["mind_cooling"]["units"].values():
             self.assertEqual(bank["free_kj"], 720)
             self.assertAlmostEqual(bank["generated_kj"], bank["rejected_kj"])
+        set_component_condition("equipment", "ROT-LT-COOLING-A", "failed", operator=True)
+        set_component_condition("equipment", "ROT-LT-COOLING-B", "failed", operator=True)
+        self.advance(1250)
+        after_rotary_loss = _clock().details["mind_cooling"]["units"]
+        self.assertEqual(after_rotary_loss["BUF-MIND-ISL-HAB"]["free_kj"], 680)
+        self.assertEqual(after_rotary_loss["BUF-MIND-ISL-BOW"]["free_kj"], 720)
         set_component_condition("equipment", "LT-PLANT", "failed", operator=True)
-        self.advance(1360)
+        self.advance(1370)
         details = _clock().details
         self.assertEqual(len(details["mind_support_last"]["compute_ready"]), 9)
         self.assertEqual(details["mind_support_last"]["lt_rejected_kw"], 0)
         for pod in load_support()["cooling_islands"]:
             self.assertEqual(
                 details["mind_cooling"]["units"][pod["independent_buffer_id"]]["free_kj"],
-                720 - pod["heat_rate_kw"] * 120,
+                after_rotary_loss[pod["independent_buffer_id"]]["free_kj"]
+                - pod["heat_rate_kw"] * 120,
             )
         nodes = list(CanonicalShipState.objects.filter(category="node"))
         edges = list(CanonicalShipState.objects.filter(category="edge"))
         switches = {r.source_id: r for r in CanonicalShipState.objects.filter(category="isolator")}
         a, b, c = audit_topology(nodes, edges, switches, strict=True)
         self.assertEqual((len(a), len(b), len(c)), (438, 450, 466))
+
+    def test_installed_upstream_and_final_board_single_fault_cohorts(self):
+        """All fitted source-path parts and final boards retain seven for 120 s."""
+        self.installed()
+        commission_g19_mind_support(operator_approved=True)
+        self.survey_network()
+        self.survey_cold()
+        self.online_generator("GEN-M")
+        self.online_generator("GEN-B")
+        self.close_authored_input("A")
+        self.close_authored_input("B")
+        for island in self.design["islands"]:
+            survey_g19_mind_reserve(
+                operator_approved=True,
+                reserve_id=island["local_reserve"]["id"],
+                capacity_kwh=0.5,
+                charge_kwh=0.2,
+            )
+        domains = {
+            token
+            for island in self.design["islands"]
+            for feed in island["inputs"]
+            for token in feed["route_domains"]
+        }
+        keys = {"equipment:PROT-BUS"}
+        for row in CanonicalShipState.objects.filter(source_id__in=domains):
+            if row.category == "node":
+                keys.add("equipment:" + row.reference["owner_id"])
+            elif row.category in {"edge", "isolator", "equipment"}:
+                keys.add(row.key)
+        keys.update(
+            "equipment:" + machine["final_board"]
+            for island in self.design["islands"]
+            for machine in island["machines"]
+        )
+        self.assertGreater(len(keys), 50)
+        self.assertTrue({"equipment:MSB-A", "equipment:MSB-B", "equipment:PROT-BUS"} <= keys)
+        for key in sorted(keys):
+            with self.subTest(fitted_single_fault=key), transaction.atomic():
+                category, identifier = key.split(":", 1)
+                set_component_condition(category, identifier, "failed", operator=True)
+                for observed_s in range(1010, 1121, 10):
+                    self.advance(observed_s)
+                    status = _clock().details["mind_support_last"]
+                    self.assertGreaterEqual(len(status["compute_ready"]), 7)
+                transaction.set_rollback(True)
+        self.assertEqual(_clock().details["last_game_time"], 1000)
+
+    def test_gateway_live_power_verified_vocabulary_and_local_fallback(self):
+        """Real local supply, actual controller samples and no remote operation."""
+        self.installed()
+        commission_g19_mind_support(operator_approved=True)
+        self.survey_network()
+        self.survey_cold()
+        self.online_generator("GEN-M")
+        self.close_authored_input("A")
+        self.power_original_panel("NODE-LP-BE-05-SVC")
+        with self.assertRaises(PermissionError):
+            commission_g19_gateway_power()
+        result = commission_g19_gateway_power(operator_approved=True)
+        self.assertEqual(result["created"], 3)
+        self.advance(1010)
+        self.assertFalse(_clock().details["mind_gateway"]["last"]["powered"])
+        survey_g19_gateway_power(
+            operator_approved=True, measured_kw=0.05, evidence_id="actual-local-50W-circuit"
+        )
+        self.advance(1020)
+        gateway = _clock().details["mind_gateway"]
+        self.assertTrue(gateway["last"]["powered"])
+        self.assertEqual(len(gateway["last"]["raw_samples"]), 3)
+        self.assertEqual(gateway["last"]["readings"], {})
+        confirmations = {}
+        for key, sample in gateway["last"]["raw_samples"].items():
+            valve = key.startswith("isolator:")
+            confirmations[key] = {
+                "value": (
+                    {"O": "open", "C": "closed"}[sample["raw_value"]]
+                    if valve
+                    else bool(sample["raw_value"])
+                ),
+                "meaning": "valve_position" if valve else "running_feedback",
+                "unit": "position" if valve else "state",
+            }
+        with self.assertRaises(PermissionError):
+            verify_g19_gateway_protocol(
+                profile=GATEWAY_PROFILE, confirmations=confirmations, evidence_id="protocol-test"
+            )
+        self.assertEqual(
+            verify_g19_gateway_protocol(
+                operator_approved=True,
+                profile=GATEWAY_PROFILE,
+                confirmations=confirmations,
+                evidence_id="three-local-register-comparisons",
+            )["mapping_revision"],
+            1,
+        )
+        original_valve = state("isolator", "ISO-DR-03-LT-IF").setting
+        self.advance(1030)
+        gateway = _clock().details["mind_gateway"]
+        self.assertEqual(len(gateway["last"]["readings"]), 3)
+        for reading in gateway["last"]["readings"].values():
+            self.assertEqual(reading["source_time"], 1030)
+            self.assertEqual(reading["mapping_revision"], 1)
+            self.assertIn("raw_value", reading)
+        self.assertAlmostEqual(gateway["served_kwh"], 0.05 * 20 / 3600)
+        self.assertFalse(gateway["last"]["remote_commands_enabled"])
+        set_component_condition("edge", "NET-GW-DROP-A-DR-03", "severed", operator=True)
+        self.advance(1040)
+        self.assertTrue(_clock().details["mind_gateway"]["last"]["connected"])
+        set_component_condition("edge", "NET-GW-DROP-B-DR-03", "severed", operator=True)
+        self.advance(1050)
+        gateway = _clock().details["mind_gateway"]
+        self.assertTrue(gateway["last"]["powered"])
+        self.assertFalse(gateway["last"]["readings"])
+        self.assertEqual(len(_clock().details["mind_support_last"]["compute_ready"]), 9)
+        self.assertEqual(state("isolator", "ISO-DR-03-LT-IF").setting, original_valve)
+        consumed = gateway["served_kwh"]
+        set_isolator("ISO-PWR-GW-LCS-DR-03", "open", operator=True)
+        self.advance(1060)
+        self.assertFalse(_clock().details["mind_gateway"]["last"]["powered"])
+        self.assertEqual(_clock().details["mind_gateway"]["served_kwh"], consumed)
+        self.assertFalse(commission_g19_gateway_power(operator_approved=True)["commissioned"])
+        self.assertEqual(_clock().details["mind_gateway"]["mapping_revision"], 1)
 
     def test_missing_new_machine_contact_or_tampered_identity_fails_closed(self):
         self.installed()

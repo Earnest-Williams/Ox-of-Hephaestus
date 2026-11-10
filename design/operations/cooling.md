@@ -91,7 +91,35 @@ buffer use. The physics clock records generated, buffered, rejected and
 uncontained heat. Uncontained heat is applied to the installed room gas
 cell and drives a latched computer thermal protection fault.
 
-This protects the short transfer interval, **not** unlimited operation without
-LT, and does not substitute for an as-fitted steady-state LT/room-air heat
-rejection survey. Cooling is part of the new infrastructure, not a new
-lead-mind cognitive feature. See [ADR 0011](../decisions/0011-ship-control-support-overlays.md).
+The branch also fits five separate LT feed/return pairs, five terminals and
+five normally shut manual valves through `commission_g19_mind_heat_connections`.
+These 15 additional rows preserve the original LT and 438/450/466 electrical
+registers. Each source and cold-plate pipe route follows actual passages.
+The HAB pair starts behind the original HAB-04 LT manifold, so the existing
+rotary LT interfaces remain physical dependencies.
+
+`survey_g19_heat_rejector` records measured output and the exact pressure
+penetrations. Live rejection requires the original LT plant's powered motor,
+open fitted valves, connected source, healthy local circuit and working
+radiators. Its reserved capacity is deducted from the same environment
+allowance before ordinary room cooling. Rejected heat and spare capacity
+used to recover buffer headroom are metered separately. Version-1 ledgers
+migrate without restoring consumed cold or changing old meters.
+
+An explicitly surveyed local-air alternative transfers heat into the actual
+receiving pressure cell. It requires fan power and a cool atmosphere above
+50 kPa; it stops at the rated room temperature. Air transfer does not invent
+an LT connection or export heat directly to vacuum. Several machine rooms
+lack original LT terminals, so air transfer alone is not steady-state proof.
+
+The installed acceptance exercises 240 seconds of 18 kW rejection through
+the original plant, followed by 120 seconds of common-plant failure using
+only measured finite local headroom. It also compares air rejection against
+the same buffered tick to verify the receiving cell gains the recorded heat.
+Physical and thermal surveys are invalidated by component changes; a repair
+does not silently re-certify its path. Repeating support commissioning after
+a thermal trip preserves the fault and the consumed buffer inventory.
+
+This supports finite outage recovery; supervised computer restart after a
+latched thermal trip remains subsequent operations work. See
+[ADR 0011](../decisions/0011-ship-control-support-overlays.md).
