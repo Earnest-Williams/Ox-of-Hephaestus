@@ -65,13 +65,13 @@ class InstalledMindPowerTests(EvenniaTestCase):
             commission_g19_mind_power()
         result = self.installed()
         self.assertTrue(result["commissioned"])
-        self.assertEqual(result["created"], 96)
-        self.assertEqual(result["total"], 96)
+        self.assertEqual(result["created"], 132)
+        self.assertEqual(result["total"], 132)
         rows = list(CanonicalShipState.objects.filter(
             source_model="ox.lead-mind-power/1"))
-        self.assertEqual(len(rows), 96)
-        self.assertEqual(sum(x.category == "equipment" for x in rows), 19)
-        self.assertEqual(sum(x.category == "edge" for x in rows), 29)
+        self.assertEqual(len(rows), 132)
+        self.assertEqual(sum(x.category == "equipment" for x in rows), 28)
+        self.assertEqual(sum(x.category == "edge" for x in rows), 38)
         self.assertEqual(sum(x.category == "isolator" for x in rows), 29)
         self.assertEqual(sum(x.category == "node" for x in rows), 19)
         before = {(x.key, x.setting, x.revision) for x in rows}
