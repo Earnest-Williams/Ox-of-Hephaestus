@@ -269,20 +269,27 @@ def connected_machines(support, *, faults=(), available_machines=None,
         anchor = _rail_node(rail,d["anchor_room"])
         if anchor in links:
             join(anchor,machine)
-    biggest = set()
-    visited = set()
+    # Endpoints are consumers, not an implicit A/B router. Traverse only
+    # backbone junctions, and collect attached machines without walking
+    # through a machine to the other rail. A genuine network bridge would
+    # require its own fitted hardware and explicit operating state.
+    biggest=set()
+    visited=set()
     for vertex in list(links):
-        if vertex in visited:
+        if vertex in MACHINES or vertex in visited:
             continue
-        q=deque([vertex]); component=set()
+        q=deque([vertex])
+        component=set()
         visited.add(vertex)
         while q:
             pos=q.popleft()
-            if pos in MACHINES and pos in admitted:
-                component.add(pos)
             for neighbor in links[pos]:
-                if neighbor not in visited:
-                    visited.add(neighbor);q.append(neighbor)
+                if neighbor in MACHINES:
+                    if neighbor in admitted:
+                        component.add(neighbor)
+                elif neighbor not in visited:
+                    visited.add(neighbor)
+                    q.append(neighbor)
         if len(component)>len(biggest):
             biggest=component
     return frozenset(biggest)
