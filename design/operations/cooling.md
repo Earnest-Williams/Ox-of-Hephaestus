@@ -74,3 +74,24 @@ installed design data.
 
 1. Are habitat fan-coils remotely controllable, or only their manifolds?
 2. Which loads count as "industrial heat" to shed first?
+
+## Independent compute cooling — new support design
+
+The original `LT-PLANT` is a shared heat-rejection source; nine computers
+depending solely on that plant would violate the core's single-fault
+containment rule. Draft [PR #151](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/151)
+therefore adds five *separate* finite local thermal buffers and rejectors,
+with no more than two computers and no common buffer per island.
+
+At 2 kW per computer, the worst two-machine group creates 4 kW of heat:
+120 seconds requires 480 kJ of locally available heat capacity. The
+candidate nameplate is 720 kJ per group. **Surveyed free thermal capacity
+starts at zero**, and only a genuine measured rejection rate may prevent
+buffer use. The physics clock records generated, buffered, rejected and
+uncontained heat. Uncontained heat is applied to the installed room gas
+cell and drives a latched computer thermal protection fault.
+
+This protects the short transfer interval, **not** unlimited operation without
+LT, and does not substitute for an as-fitted steady-state LT/room-air heat
+rejection survey. Cooling is part of the new infrastructure, not a new
+lead-mind cognitive feature. See [ADR 0011](../decisions/0011-ship-control-support-overlays.md).
