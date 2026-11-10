@@ -95,6 +95,9 @@ foundation.
 - Five locally buffered and individually monitored thermal groups, with
   finite surveyed headroom, 15 separately fitted LT circuit records,
   measured rejection, headroom recovery and on-clock thermal trip handling.
+- [Attended computer cooldown and restart](cooling.md#attended-computer-recovery),
+  with metered auxiliary power, observed heat rejection, recovered headroom
+  and a separate local restart command that preserves physical damage.
 - Recorded continuity and pressure-penetration surveys, plus continuous
   rotary-joint environmental/EMI qualifications before connectivity counts.
 - A separately fused, metered local supply and a three-register read-only
@@ -102,5 +105,5 @@ foundation.
 - A monitored rack at `XCON-GAP-23`, preserving the original crew shortcut.
 
 **Still pending:** remaining gateway protocol coverage, local takeover,
-network read-model scopes, access-reader events, remote commands,
-supervised computer restart after a thermal trip and the lead-mind principal.
+network read-model scopes, access-reader events, remote commands and the
+lead-mind principal.
