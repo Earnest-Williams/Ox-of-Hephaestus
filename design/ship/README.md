@@ -9,8 +9,9 @@
 | Component | Current verified basis |
 | --- | --- |
 | Topology | Published `ox_full_ship.json` v0.4, installed as **421 rooms, 517 physical passages and 1,034 directional exits** |
-| Installed operational register | Topology-compatible `ox_full_ship_v0.5_candidate.json`, supplying **808 equipment units in 91 families** |
-| Atmosphere | **133 finite pressure cells**, not fictitious breathable space in every room |
+| Installed operational register | Topology-compatible `ox_full_ship_v0.5_candidate.json`, supplying **808 equipment units in 91 families**, **15 inventory accounts** and **42 maintenance groups** |
+| Atmosphere | **133/133 dimensioned pressure cells**, **339 rated boundaries** and **100,772.940 m³** gross reference volume; installed usable free-air volume requires measurement |
+| Mission planning basis | **56.79 t** departure food, **7 t** routine inert make-up and **5.5 t** protected mixed-air refill; [endurance ledger](ENDURANCE_LEDGER_v0.5.md) |
 | Equipment-family disposition | **349 direct physics / 159 interface or material custody / 300 condition/interlock**, zero unclassified |
 | Shared physics | One persistent, replay-safe Evennia-owned clock for power, air, thermal, fire, water, waste, hull, cargo, machinery, propulsion and exposure |
 | Crew operations | Real gated exits, instruments, suited access, work permits, carried spares, timed repairs and observed restarts |
