@@ -77,6 +77,8 @@ class CorePowerTopologyTests(unittest.TestCase):
         fitted = json.loads(ship_file.read_text(encoding="utf-8"))
         report = validate_fitted_source_routes(self.design, fitted)
         self.assertEqual(report["independent_input_routes"], 10)
+        self.assertEqual(report["candidate_new_feed_routes_verified"], 10)
+        self.assertEqual(report["candidate_machine_final_routes_verified"], 9)
         self.assertEqual(report["candidate_machines"], 9)
         self.assertEqual(report["candidate_islands"], 5)
         self.assertEqual(report["future_world_rows"], 86)
@@ -87,6 +89,36 @@ class CorePowerTopologyTests(unittest.TestCase):
         self.assertIn("EDGE-PWR-B-BR-07", b["route_domains"])
         self.assertIn("EDGE-PWR-B-BR-04", b["route_domains"])
         self.assertEqual(b["tap_node"], "NODE-HAB-04-PDB-B")
+
+    def test_fabricated_cable_shortcut_or_misplaced_terminal_is_rejected(self):
+        fitted = json.loads(default_design_path().with_name(
+            "ox_full_ship_v0.5_candidate.json").read_text(encoding="utf-8"))
+        shortcuts = copy.deepcopy(self.design)
+        cable = shortcuts["islands"][0]["inputs"][1]
+        self.assertGreater(len(cable["proposed_cable_route_spaces"]), 2)
+        cable["proposed_cable_route_spaces"] = [
+            cable["proposed_cable_route_spaces"][0],
+            cable["proposed_cable_route_spaces"][-1]]
+        with self.assertRaises(MindPowerError):
+            validate_fitted_source_routes(shortcuts, fitted)
+        misplaced = copy.deepcopy(self.design)
+        machine = misplaced["islands"][0]["machines"][0]
+        machine["proposed_final_route_spaces"] = [
+            misplaced["islands"][0]["control_room"], machine["room"]]
+        with self.assertRaises(MindPowerError):
+            validate_fitted_source_routes(misplaced, fitted)
+
+    def test_shared_corridor_casualty_does_not_remove_three_machines(self):
+        for corridor in ("TRUNK-A-BOW", "TRUNK-A-HAB-HUB-SERVICES",
+                         "HAB-04-COR", "XCON-AFT"):
+            with self.subTest(corridor=corridor):
+                survivors = live_machines(self.design, failed={corridor})
+                self.assertGreaterEqual(len(survivors), 7)
+        # The HAB's two feeder routes share a local corridor: an actual
+        # incident there removes both local feeds, unless surveyed reserve
+        # sustains the island. An upstream A/B source selector cannot help.
+        self.assertEqual(len(live_machines(
+            self.design, failed={"HAB-04-COR"})), 7)
 
     def test_false_legacy_path_or_hidden_isolator_fails_source_proof(self):
         fitted = json.loads(default_design_path().with_name(
