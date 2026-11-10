@@ -40,8 +40,9 @@ Every action the lead mind takes must clear four separate questions:
 
 ## The backbone and its segments
 
-**New.** One ship-wide backbone carries traffic between the lead mind's core
-and every segment. Each segment is a group of machinery behind one gateway.
+**New.** One ship-wide backbone has two physically separated fibre rails
+through personnel trunks A and B. It will carry traffic between the core
+and each gateway-controlled segment once those segments are fitted. Each segment is a group of machinery behind one gateway.
 The 33 local control stations already define most segments (**Data**); the
 habitat and command segments are proposed.
 
@@ -174,13 +175,19 @@ proposed in [the lead mind's core](lead-mind-core.md).
 
 ## Open questions
 
-1. Where are the nine machines, and what does each depend on (which power
-   board, which cooling, which backbone route)?
+1. **Candidate decided:** nine machine sites, five power and cooling
+   islands, and paired backbone routes in separate versioned overlays.
+   As-installed connectivity and steady-state heat rejection still require
+   commissioning and verification.
 2. How quick is "quick succession": how long does restoring parity take?
 3. What does reduced capacity mean in play: slower responses, fewer systems
    attended at once, more handed to subsystems?
 4. Which subsystems are capable enough to take over which systems?
 5. Which segments start degraded or quirky, beyond the recorded quirks above?
 3. Which crew roles may take local control of which segments?
-4. Does the backbone itself have a topology that can be cut in places (a
-   route through the spine that a single fault can sever)?
+4. **Physical-route candidate in PR #151:** two separate 23-room trunk
+   rails, with individual A/B branches and distinct HAB rotary data couplers.
+   A failed span partitions one rail; the other remains a path. This is a
+   tested proposed geometry, **not** evidence that all gateways are already
+   fitted, energised, or able to command machinery. See
+   [ADR 0011](../decisions/0011-ship-control-support-overlays.md).
