@@ -206,6 +206,7 @@ def fault_domains(support):
     backbone = support["backbone"]
     result = set(backbone["rail_rooms"]["A"] + backbone["rail_rooms"]["B"])
     for rail, rooms in backbone["rail_rooms"].items():
+        result.update(_rail_node(rail, room) for room in rooms)
         result.update(_rail_span(rail, i) for i in range(len(rooms)-1))
     for c in backbone["couplers"]:
         result.add(c["id"])
