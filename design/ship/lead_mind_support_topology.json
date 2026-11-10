@@ -496,5 +496,60 @@
       "independence_rule": "Finite local absorption remains available without central LT plant, subject to surveyed capacity and actual machine state",
       "status": "CANDIDATE_UNSURVEYED"
     }
+  ],
+  "secured_rack": {
+    "id": "MIND-03-SECURE-RACK",
+    "machine": "MIND-03",
+    "room": "XCON-GAP-23",
+    "access_point": "RACK-ACCESS-MIND-03",
+    "passage_doors": [
+      "ACC-XCON-GAP-23-A",
+      "ACC-XCON-GAP-23-B"
+    ],
+    "reader_commissioned": false,
+    "physical_lock_mode": "rack_only",
+    "status": "CANDIDATE_NO_ACCESS_READER"
+  },
+  "gateway_candidates": [
+    {
+      "id": "GW-LCS-DR-03",
+      "segment_id": "SEG-DR-03",
+      "host_equipment": "LCS-DR-03",
+      "room": "BE-05-SVC",
+      "generation": "mixed",
+      "mapping_revision": 0,
+      "protocol_mapping": "unknown",
+      "remote_authority": false,
+      "command_enabled": false,
+      "upstream_power": "host_local_controller_unverified",
+      "monitored_devices": [
+        "DR-03-CARGO-HX",
+        "DR-03-CARGO-GAS",
+        "ISO-DR-03-LT-IF"
+      ],
+      "rail_drops": [
+        {
+          "id": "NET-GW-DROP-A-DR-03",
+          "rail": "A",
+          "anchor_room": "TRUNK-A-DR-03",
+          "route_spaces": [
+            "TRUNK-A-DR-03",
+            "LOGI-STOP-DR-03",
+            "TRUNK-B-DR-03",
+            "BE-05-SVC"
+          ]
+        },
+        {
+          "id": "NET-GW-DROP-B-DR-03",
+          "rail": "B",
+          "anchor_room": "TRUNK-B-DR-03",
+          "route_spaces": [
+            "TRUNK-B-DR-03",
+            "BE-05-SVC"
+          ]
+        }
+      ],
+      "notes": "Gateway remains disabled until local source power, mapping, permissions, arbitration, and return-to-local fallback are separately proven; A route shares TRUNK-B-DR-03 with the B branch so local route faults can take the entire segment offline."
+    }
   ]
 }
