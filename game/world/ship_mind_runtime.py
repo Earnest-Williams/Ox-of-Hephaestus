@@ -184,6 +184,7 @@ def _reserve_usable(island, rows, account):
     reserve = island["local_reserve"]
     bank = account["reserve"]["units"][reserve["id"]]
     return bool(bank["surveyed"] and _working(rows.get("equipment:" + reserve["id"]))
+                and _working(rows.get("node:NODE-" + reserve["id"]))
                 and _conducting_edge(rows, "EDGE-" + reserve["id"])
                 and bank["charge_kwh"] > 0)
 
@@ -192,6 +193,7 @@ def _charger_usable(island, rows, account):
     reserve = island["local_reserve"]
     bank = account["reserve"]["units"][reserve["id"]]
     return bool(bank["surveyed"] and _working(rows.get("equipment:" + reserve["id"]))
+                and _working(rows.get("node:NODE-" + reserve["id"]))
                 and _conducting_edge(rows, "EDGE-CHARGE-" + reserve["id"]))
 
 
