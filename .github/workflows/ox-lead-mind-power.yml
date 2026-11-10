@@ -5,22 +5,28 @@ on:
     branches: [g19/lead-mind-power-islands]
     paths:
       - "design/ship/lead_mind_power_islands.json"
+      - "design/ship/lead_mind_support_topology.json"
       - "game/world/ship_mind_power.py"
       - "game/world/ship_mind_runtime.py"
+      - "game/world/ship_mind_support.py"
       - "game/world/continuous_ship_physics.py"
       - "game/world/tests/test_ship_mind_power.py"
       - "game/world/tests/test_ship_mind_runtime.py"
+      - "game/world/tests/test_ship_mind_support.py"
       - "game/world/tests/test_installed_ship_mind_power.py"
       - ".github/workflows/ox-lead-mind-power.yml"
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - "design/ship/lead_mind_power_islands.json"
+      - "design/ship/lead_mind_support_topology.json"
       - "game/world/ship_mind_power.py"
       - "game/world/ship_mind_runtime.py"
+      - "game/world/ship_mind_support.py"
       - "game/world/continuous_ship_physics.py"
       - "game/world/tests/test_ship_mind_power.py"
       - "game/world/tests/test_ship_mind_runtime.py"
+      - "game/world/tests/test_ship_mind_support.py"
       - "game/world/tests/test_installed_ship_mind_power.py"
       - ".github/workflows/ox-lead-mind-power.yml"
   workflow_dispatch:
@@ -45,12 +51,12 @@ jobs:
           python-version: "3.12"
       - name: Compile power-island and inherited G19 electrical code
         run: |
-          python -m compileall -q game/world/ship_mind_power.py game/world/ship_mind_runtime.py game/world/ship_electrical_power.py game/world/continuous_ship_physics.py game/world/tests/test_installed_ship_mind_power.py game/world/tests/test_ship_mind_power.py game/world/tests/test_ship_mind_runtime.py
+          python -m compileall -q game/world/ship_mind_power.py game/world/ship_mind_runtime.py game/world/ship_mind_support.py game/world/ship_electrical_power.py game/world/continuous_ship_physics.py game/world/tests/test_installed_ship_mind_power.py game/world/tests/test_ship_mind_power.py game/world/tests/test_ship_mind_runtime.py game/world/tests/test_ship_mind_support.py
       - name: Validate scoped CI workflow conventions
         run: python .github/ci/check_ox_ci_scope.py
       - name: Exercise all candidate fault domains and measured reserves
         working-directory: game
-        run: python -m unittest world.tests.test_ship_mind_power world.tests.test_ship_mind_runtime world.tests.test_ship_electrical_power -v
+        run: python -m unittest world.tests.test_ship_mind_power world.tests.test_ship_mind_runtime world.tests.test_ship_mind_support world.tests.test_ship_electrical_power -v
       - name: Preserve unmodified published and G19 candidate topology
         run: python design/ship/check_v05_candidate.py
 
