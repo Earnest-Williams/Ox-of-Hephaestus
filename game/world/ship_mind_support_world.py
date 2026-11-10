@@ -17,11 +17,19 @@ def install_control_support(world_state, support, power, ship):
     specifications = proposed_support_rows(support, power, ship)
     required = {"equipment:" + machine["id"] for island in power["islands"]
                 for machine in island["machines"]}
+    host_id=support["gateway_candidates"][0]["host_equipment"]
+    source_required=set(required)|{"equipment:"+host_id}
     machines = {row.key: row for row in world_state.objects.filter(
-        key__in=sorted(required))}
-    if set(machines) != required:
-        raise MindPowerError("Fit nine physical compute terminals before their network")
-    for name, row in machines.items():
+        key__in=sorted(source_required))}
+    if set(machines) != source_required:
+        raise MindPowerError("Fit nine physical compute terminals and the original local gateway host")
+    host=machines["equipment:"+host_id]
+    if (host.reference.get("kind")!="local_control_station"
+            or host.space_id!=support["gateway_candidates"][0]["room"]
+            or host.condition in {"failed","faulted","severed","destroyed"}):
+        raise MindPowerError("Original local control station has no healthy fitted host")
+    for name in sorted(required):
+        row=machines[name]
         if row.source_model != power["schema_version"] or row.condition in {
                 "failed","faulted","severed","destroyed"}:
             raise MindPowerError("Network terminal has no verified fitted compute unit: " + name)
