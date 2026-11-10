@@ -46,6 +46,22 @@ class CorePowerTopologyTests(unittest.TestCase):
         self.assertEqual(live_machines(
             self.design, energized_main_nodes=set()), frozenset())
 
+    def test_separate_final_distribution_board_is_a_single_machine_fault(self):
+        machine = self.design["islands"][0]["machines"][0]
+        other = self.design["islands"][0]["machines"][1]
+        for failed in (machine["final_board"], machine["final_board_node"],
+                       machine["board_feeder"], machine["board_isolator"]):
+            self.assertNotIn(machine["id"], live_machines(
+                self.design, failed={failed}))
+            self.assertIn(other["id"], live_machines(
+                self.design, failed={failed}))
+        rows = proposed_world_rows(self.design)
+        self.assertEqual(rows["edge:" + machine["board_feeder"]][
+                         "reference"]["from_node"],
+                         self.design["islands"][0]["distribution_node"])
+        self.assertEqual(rows["edge:" + machine["feeder"]][
+                         "reference"]["from_node"], machine["final_board_node"])
+
     def test_one_final_contact_and_one_backbone_cut_are_local(self):
         island = self.design["islands"][0]
         a, b = island["machines"]
@@ -81,7 +97,7 @@ class CorePowerTopologyTests(unittest.TestCase):
         self.assertEqual(report["candidate_machine_final_routes_verified"], 9)
         self.assertEqual(report["candidate_machines"], 9)
         self.assertEqual(report["candidate_islands"], 5)
-        self.assertEqual(report["future_world_rows"], 96)
+        self.assertEqual(report["future_world_rows"], 132)
         self.assertGreaterEqual(report["original_feeders_traced"], 12)
         hab = next(i for i in self.design["islands"] if i["region"] == "HAB")
         b = next(f for f in hab["inputs"] if f["source"] == "B")
@@ -184,16 +200,16 @@ class CorePowerTopologyTests(unittest.TestCase):
 
     def test_candidate_world_rows_have_explicit_separate_contacts(self):
         rows = proposed_world_rows(self.design)
-        self.assertEqual(len(rows), 96)
+        self.assertEqual(len(rows), 132)
         self.assertEqual(sum(row["category"] == "equipment"
-                             for row in rows.values()), 19)
+                             for row in rows.values()), 28)
         self.assertEqual(sum(row["category"] == "node"
-                             for row in rows.values()), 19)
+                             for row in rows.values()), 28)
         self.assertEqual(sum(row["category"] == "edge"
-                             for row in rows.values()), 29)
+                             for row in rows.values()), 38)
         self.assertEqual(sum(row["category"] == "isolator"
-                             for row in rows.values()), 29)
-        self.assertEqual(len({row["key"] for row in rows.values()}), 96)
+                             for row in rows.values()), 38)
+        self.assertEqual(len({row["key"] for row in rows.values()}), 132)
         for row in rows.values():
             self.assertEqual(row["source_model"], "ox.lead-mind-power/1")
             if row["category"] in ("node", "edge", "isolator"):
