@@ -73,7 +73,7 @@ class InstalledMindPowerTests(EvenniaTestCase):
         self.assertEqual(sum(x.category == "equipment" for x in rows), 28)
         self.assertEqual(sum(x.category == "edge" for x in rows), 38)
         self.assertEqual(sum(x.category == "isolator" for x in rows), 38)
-        self.assertEqual(sum(x.category == "node" for x in rows), 19)
+        self.assertEqual(sum(x.category == "node" for x in rows), 28)
         before = {(x.key, x.setting, x.revision) for x in rows}
         repeat = self.installed()
         self.assertFalse(repeat["commissioned"])
