@@ -8,6 +8,7 @@ from __future__ import annotations
 from collections import defaultdict, deque
 
 from django.db import transaction
+from django.test import tag
 from world.continuous_ship_physics import (
     PhysicsError,
     _clock,
@@ -574,6 +575,7 @@ class InstalledMindPowerTests(EvenniaTestCase):
                 transaction.set_rollback(True)
         self.assertEqual(_clock().details["last_game_time"], 1000)
 
+    @tag("g19_gateway")
     def test_gateway_live_power_verified_vocabulary_and_local_fallback(self):
         """Real local supply, actual controller samples and no remote operation."""
         self.installed()
@@ -586,13 +588,25 @@ class InstalledMindPowerTests(EvenniaTestCase):
         with self.assertRaises(PermissionError):
             commission_g19_gateway_power()
         result = commission_g19_gateway_power(operator_approved=True)
-        self.assertEqual(result["created"], 3)
+        self.assertEqual(result["created"], 4)
         self.advance(1010)
         self.assertFalse(_clock().details["mind_gateway"]["last"]["powered"])
         survey_g19_gateway_power(
-            operator_approved=True, measured_kw=0.05, evidence_id="actual-local-50W-circuit"
+            operator_approved=True,
+            measured_kw=0.05,
+            evidence_id="actual-local-50W-circuit",
+            thermal_path_verified=True,
         )
+        sink_zone = _topology()[0]["TRUNK-B-DR-03"]
+        with transaction.atomic():
+            set_isolator("ISO-PWR-GW-LCS-DR-03", "open", operator=True)
+            self.advance(1020)
+            baseline_heat = _load_cell(state("pressure", sink_zone))["energy"]
+            transaction.set_rollback(True)
         self.advance(1020)
+        self.assertAlmostEqual(
+            _load_cell(state("pressure", sink_zone))["energy"] - baseline_heat, 0.5
+        )
         gateway = _clock().details["mind_gateway"]
         self.assertTrue(gateway["last"]["powered"])
         self.assertEqual(len(gateway["last"]["raw_samples"]), 3)
@@ -643,6 +657,12 @@ class InstalledMindPowerTests(EvenniaTestCase):
         self.assertEqual(len(_clock().details["mind_support_last"]["compute_ready"]), 9)
         self.assertEqual(state("isolator", "ISO-DR-03-LT-IF").setting, original_valve)
         consumed = gateway["served_kwh"]
+        with transaction.atomic():
+            set_component_condition("edge", "THERM-GW-LCS-DR-03", "failed", operator=True)
+            self.advance(1060)
+            self.assertFalse(_clock().details["mind_gateway"]["last"]["powered"])
+            self.assertEqual(_clock().details["mind_gateway"]["served_kwh"], consumed)
+            transaction.set_rollback(True)
         with transaction.atomic():
             source = state("equipment", "DR-03-CARGO-HX", lock=True)
             source.space_id = "BE-05-SVC"

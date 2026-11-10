@@ -73,7 +73,11 @@ class GatewayInfrastructureTests(unittest.TestCase):
     def survey(self):
         """Measure the actual rated 50 W draw, without energy or authority credits."""
         self.account = survey_gateway_power(
-            self.account, self.rows, measured_kw=0.05, evidence_id="fused-local-supply-test"
+            self.account,
+            self.rows,
+            measured_kw=0.05,
+            evidence_id="fused-local-supply-test",
+            thermal_path_verified=True,
         )
 
     def step(self, *, connected=True, now_s=1010):
@@ -87,6 +91,7 @@ class GatewayInfrastructureTests(unittest.TestCase):
             connected=connected,
             seconds=10,
             now_s=now_s,
+            heat_sink_available=True,
         )
         return mw
 
@@ -151,6 +156,29 @@ class GatewayInfrastructureTests(unittest.TestCase):
         self.rows["isolator:ISO-PWR-GW-LCS-DR-03"].setting = "open"
         self.assertEqual(self.step(now_s=1030), 0)
         self.assertEqual(self.sources["isolator:ISO-DR-03-LT-IF"].setting, "closed")
+
+    def test_gateway_cannot_draw_without_a_verified_intact_cool_thermal_path(self):
+        """Unpressurised electronics require the real mount and a receiving sink."""
+        with self.assertRaises(MindPowerError):
+            survey_gateway_power(
+                self.account, self.rows, measured_kw=0.05, evidence_id="no-heat-proof"
+            )
+        self.survey()
+        after, mw = step_gateway(
+            self.account,
+            rows=self.rows,
+            support_rows=self.hardware,
+            source_rows=self.sources,
+            power=self.power,
+            connected=True,
+            seconds=10,
+            now_s=1010,
+            heat_sink_available=False,
+        )
+        self.assertEqual(mw, 0)
+        self.assertEqual(after["served_kwh"], 0)
+        self.rows["edge:THERM-GW-LCS-DR-03"].condition = "failed"
+        self.assertEqual(self.step(), 0)
 
     def test_protocol_requires_fresh_actual_raw_frames_and_exact_meanings(self):
         """Wrong register meanings never receive a verified mapping revision."""

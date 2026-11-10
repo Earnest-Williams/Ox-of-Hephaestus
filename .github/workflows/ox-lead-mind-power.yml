@@ -68,7 +68,11 @@ jobs:
 
   installed:
     needs: candidate
-    name: Fitted Evennia contacts, persistent clock and G19 energy custody
+    name: Installed ship — ${{ matrix.slice }}
+    strategy:
+      fail-fast: false
+      matrix:
+        slice: [power-network-cooling, read-only-gateway]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -83,5 +87,10 @@ jobs:
       - name: Install game with owned world models and PostgreSQL
         run: python -m pip install .
       - name: Run actual ship installation and casualty regressions
+        if: matrix.slice == 'power-network-cooling'
         working-directory: game
-        run: python -m world.test_runner world.tests.test_installed_ship_mind_power world.tests.test_installed_ship_cabin_fancoils.InstalledCabinFanCoils.test_live_original_power_and_lt_valves_create_positive_cabin_output --verbosity=2
+        run: python -m world.test_runner world.tests.test_installed_ship_mind_power world.tests.test_installed_ship_cabin_fancoils.InstalledCabinFanCoils.test_live_original_power_and_lt_valves_create_positive_cabin_output --exclude-tag=g19_gateway --verbosity=2
+      - name: Run independent gateway power, protocol and thermal acceptance
+        if: matrix.slice == 'read-only-gateway'
+        working-directory: game
+        run: python -m world.test_runner world.tests.test_installed_ship_mind_power --tag=g19_gateway --verbosity=2

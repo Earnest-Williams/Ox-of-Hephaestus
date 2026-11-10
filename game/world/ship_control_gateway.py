@@ -34,7 +34,7 @@ def _number(value):
 
 
 def gateway_power_rows(support, ship):
-    """A short dedicated fused feeder from the actual co-located original panel."""
+    """Fit local fused power and a conductive mount into an actual trunk cell."""
     gateway = support["gateway_candidates"][0]
     _require(gateway["id"] == GATEWAY, "Unknown gateway supply")
     feed = gateway.get("power_connection")
@@ -59,6 +59,26 @@ def gateway_power_rows(support, ship):
         and panel["owner_id"] == "LP-BE-05-SVC"
         and equipment[panel["owner_id"]]["space_id"] == gateway["room"],
         "Original local gateway supply panel is missing or misplaced",
+    )
+    heat = gateway.get("thermal_connection")
+    _require(
+        heat
+        == {
+            "id": "THERM-GW-LCS-DR-03",
+            "sink_room": "TRUNK-B-DR-03",
+            "route_spaces": ["BE-05-SVC", "TRUNK-B-DR-03"],
+            "rated_kw": 0.05,
+        },
+        "Gateway has no separately fitted local thermal mount",
+    )
+    spaces = {s["id"]: s for s in ship["spaces"]}
+    _require(
+        spaces[gateway["room"]].get("pressure_zone") is None
+        and spaces[heat["sink_room"]].get("pressure_zone") is not None
+        and any(
+            {link["from"], link["to"]} == set(heat["route_spaces"]) for link in ship["access_links"]
+        ),
+        "Gateway heat route does not join its unpressurised host to a real trunk cell",
     )
     result = {}
     for category, name, setting, reference in (
@@ -98,6 +118,21 @@ def gateway_power_rows(support, ship):
                 "kind": "breaker",
                 "manual_operation": True,
                 "remote_operable": False,
+            },
+        ),
+        (
+            "edge",
+            heat["id"],
+            "available",
+            {
+                "id": heat["id"],
+                "network": "ship_gateway_thermal",
+                "kind": "conductive_mounting_strap",
+                "from_room": gateway["room"],
+                "to_room": heat["sink_room"],
+                "route_spaces": heat["route_spaces"],
+                "rated_kw": heat["rated_kw"],
+                "isolator_ids": [],
             },
         ),
     ):
@@ -210,10 +245,12 @@ def validate_gateway(account):
     if survey is not None:
         _require(
             isinstance(survey, dict)
-            and set(survey) == {"measured_kw", "component_revisions", "evidence_id"}
+            and set(survey)
+            == {"measured_kw", "component_revisions", "evidence_id", "thermal_path_verified"}
             and _number(survey["measured_kw"]) == 0.05
             and isinstance(survey["component_revisions"], dict)
-            and len(survey["component_revisions"]) == 3
+            and len(survey["component_revisions"]) == 4
+            and survey["thermal_path_verified"] is True
             and all(type(r) is int and r >= 0 for r in survey["component_revisions"].values())
             and isinstance(survey["evidence_id"], str)
             and 0 < len(survey["evidence_id"]) <= 128,
@@ -250,14 +287,15 @@ def validate_gateway(account):
     return True
 
 
-def survey_gateway_power(account, rows, *, measured_kw, evidence_id):
+def survey_gateway_power(account, rows, *, measured_kw, evidence_id, thermal_path_verified=False):
     """Attest a live supply or verified repair without resetting energy meters."""
     validate_gateway(account)
     _require(
         _number(measured_kw) == 0.05
         and isinstance(evidence_id, str)
         and 0 < len(evidence_id) <= 128
-        and len(rows) == 3
+        and len(rows) == 4
+        and thermal_path_verified is True
         and all(r.condition not in BROKEN for r in rows.values()),
         "No intact measured gateway feeder",
     )
@@ -270,6 +308,7 @@ def survey_gateway_power(account, rows, *, measured_kw, evidence_id):
         "measured_kw": float(measured_kw),
         "component_revisions": {r.key: r.revision for r in rows.values()},
         "evidence_id": evidence_id,
+        "thermal_path_verified": True,
     }
     validate_gateway(result)
     return result
@@ -356,7 +395,18 @@ def verify_gateway_protocol(account, *, profile, confirmations, observed_s):
     return result
 
 
-def step_gateway(account, *, rows, support_rows, source_rows, power, connected, seconds, now_s):
+def step_gateway(
+    account,
+    *,
+    rows,
+    support_rows,
+    source_rows,
+    power,
+    connected,
+    seconds,
+    now_s,
+    heat_sink_available,
+):
     """Bill the live feeder, then sample registers; command authority stays false."""
     validate_gateway(account)
     dt, now = _number(seconds), _number(now_s)
@@ -367,6 +417,7 @@ def step_gateway(account, *, rows, support_rows, source_rows, power, connected, 
     survey = account["power_survey"]
     powered = bool(
         survey
+        and heat_sink_available is True
         and all(r.condition not in BROKEN for r in rows.values())
         and all(r.category != "isolator" or r.setting == "closed" for r in rows.values())
         and all(r.category != "edge" or r.setting == "available" for r in rows.values())

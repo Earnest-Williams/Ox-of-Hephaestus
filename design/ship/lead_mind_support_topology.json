@@ -713,6 +713,15 @@
         "route_spaces": [
           "BE-05-SVC"
         ]
+      },
+      "thermal_connection": {
+        "id": "THERM-GW-LCS-DR-03",
+        "sink_room": "TRUNK-B-DR-03",
+        "route_spaces": [
+          "BE-05-SVC",
+          "TRUNK-B-DR-03"
+        ],
+        "rated_kw": 0.05
       }
     }
   ]

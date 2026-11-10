@@ -1401,7 +1401,7 @@ def commission_g19_mind_heat_connections(*, operator_approved=False):
 
 @transaction.atomic
 def commission_g19_gateway_power(*, operator_approved=False):
-    """Fit three local fused supply records without granting protocol or commands."""
+    """Fit fused supply and a faultable thermal mount without protocol or commands."""
     if not operator_approved:
         raise PermissionError("Gateway physical fitting is operator-only")
     clock = _clock(lock=True)
@@ -1416,19 +1416,21 @@ def commission_g19_gateway_power(*, operator_approved=False):
             if created:
                 raise MindPowerError("A missing gateway supply cannot be silently recreated")
             validate_gateway(prior)
-            return {"commissioned": False, "created": 0, "total": 3}
+            return {"commissioned": False, "created": 0, "total": 4}
         before = _snapshot(clock)
         clock.details = dict(clock.details, mind_gateway=initial_gateway())
         clock.revision += 1
         clock.save(update_fields=["details", "revision"])
         _event(clock, "g19_gateway_supply_fitted", before)
-        return {"commissioned": True, "created": created, "total": 3}
+        return {"commissioned": True, "created": created, "total": 4}
     except MindPowerError as exc:
         raise PhysicsError(str(exc)) from exc
 
 
 @transaction.atomic
-def survey_g19_gateway_power(*, operator_approved=False, measured_kw, evidence_id):
+def survey_g19_gateway_power(
+    *, operator_approved=False, measured_kw, evidence_id, thermal_path_verified=False
+):
     """Attest the separately fused local source; no voltage or energy is invented."""
     if not operator_approved:
         raise PermissionError("Gateway source measurement is operator-only")
@@ -1439,7 +1441,11 @@ def survey_g19_gateway_power(*, operator_approved=False, measured_kw, evidence_i
     try:
         rows, _ = fitted_gateway_power(CanonicalShipState, load_mind_support(), load_candidate())
         updated = survey_gateway_power(
-            prior, rows, measured_kw=measured_kw, evidence_id=evidence_id
+            prior,
+            rows,
+            measured_kw=measured_kw,
+            evidence_id=evidence_id,
+            thermal_path_verified=thermal_path_verified,
         )
     except MindPowerError as exc:
         raise PhysicsError(str(exc)) from exc
@@ -6447,6 +6453,13 @@ def tick_continuous_physics(*, now_game_time=None):
                 "lt_rejected_kw": mind_lt_cooling_kw,
             }
         if mind_gateway is not None:
+            # The bearing service station is unpressurised. Only its
+            # separately fitted conductive mount can deliver waste heat to
+            # the adjacent real trunk thermal inventory.
+            heat_sink_room = mind_support["gateway_candidates"][0]["thermal_connection"][
+                "sink_room"
+            ]
+            gateway_sink = cells.get(zones.get(heat_sink_room))
             try:
                 reachable = connected_machines(
                     mind_support,
@@ -6463,6 +6476,7 @@ def tick_continuous_physics(*, now_game_time=None):
                     connected=bool(reachable),
                     seconds=dt,
                     now_s=last + duration,
+                    heat_sink_available=bool(gateway_sink and gateway_sink["temperature"] < 313.15),
                 )
             except MindPowerError as exc:
                 raise PhysicsError(str(exc)) from exc
@@ -6470,7 +6484,7 @@ def tick_continuous_physics(*, now_game_time=None):
                 power["has_live_load"] = True
                 power["requested_mw"] += gateway_grid_mw
                 power["dispatched_mw"] += gateway_grid_mw
-                cell = cells.get(zones.get("BE-05-SVC"))
+                cell = gateway_sink
                 if cell is None:
                     raise PhysicsError("Gateway electricity has no actual receiving thermal cell")
                 cell["energy"] += gateway_grid_mw * 1000 * dt

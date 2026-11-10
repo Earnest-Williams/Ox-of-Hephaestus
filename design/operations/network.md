@@ -217,10 +217,14 @@ envelope. Certificates bind to the exact apparatus and its revision. A
 subsequent failure, repair or switch change requires a new survey.
 
 The gateway initially has mapping revision 0, unknown protocol and no measured
-power. `commission_g19_gateway_power` fits a separate terminal, short feeder
-and manual fuse from `NODE-LP-BE-05-SVC`. Surveyed 50 W operation is billed
-to actual G19 generation and its waste heat enters the original room cell.
-Loss of that panel, fuse, host or gateway stops sampling.
+power. `commission_g19_gateway_power` fits a separate terminal, short feeder,
+manual fuse and conductive thermal mount. The supply is from
+`NODE-LP-BE-05-SVC`; the mount follows the real local connection to
+`TRUNK-B-DR-03`. The bearing station itself is unpressurised and has no gas
+cell. Surveyed 50 W operation requires verification of this heat path and
+deposits its heat into the actual adjacent trunk thermal inventory. A failed
+mount or overheated receiver inhibits gateway power. Loss of the panel,
+fuse, host or gateway also stops sampling.
 
 `verify_g19_gateway_protocol` compares operator-confirmed meanings with the
 current powered raw samples before advancing the mapping revision. The first

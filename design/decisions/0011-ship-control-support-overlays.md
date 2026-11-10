@@ -110,7 +110,9 @@ prototype has a functioning ship-wide AI.
   transfer deposits all rejected heat in its real receiving cell.
 - Cooling custody version 2 checks current headroom against cumulative
   absorption and recovery. Its migration preserves version-1 inventory.
-- Three separate local gateway supply rows support measured 50 W operation.
+- Four separate local gateway power/thermal rows support measured 50 W
+  operation. Its unpressurised bearing station has no gas cell; a verified
+  conductive mount carries heat into the actual adjacent trunk cell.
   A bounded read-only vocabulary preserves raw terms and timestamps and
   requires operator comparison before a mapping revision is accepted.
   Network loss withholds remote readings; it does not change local machinery.
