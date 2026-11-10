@@ -88,6 +88,7 @@ def validate_design(design):
         capacity = _positive(reserve.get("capacity_kwh"), "reserve capacity")
         initial = _positive(reserve.get("initial_kwh"), "candidate initial reserve")
         rating = _positive(reserve.get("max_discharge_kw"), "reserve discharge rating")
+        _positive(reserve.get("max_charge_kw"), "reserve charge rating")
         _check(initial <= capacity, "Initial reserve exceeds capacity")
         _check(isinstance(island.get("machines"), list)
                and 1 <= len(island["machines"]) <= 2,
@@ -381,6 +382,20 @@ def proposed_world_rows(design):
              "isolator_ids": [battery_iso]}, "available")
         add("isolator", battery_iso, room,
             {"id": battery_iso, "network": "mind_power",
+             "kind": "breaker", "current_state": "closed",
+             "manual_operation": True, "remote_operable": False}, "closed")
+        # Directed charge path is separate from emergency discharge and
+        # requires measured surplus source energy on this same island.
+        charger, charger_iso = ("EDGE-CHARGE-" + reserve["id"],
+                                "ISO-CHARGE-" + reserve["id"])
+        add("edge", charger, room,
+            {"id": charger, "network": "mind_power",
+             "kind": "bounded_island_charger",
+             "from_node": bus, "to_node": battery_node,
+             "isolator_ids": [charger_iso],
+             "max_charge_kw": reserve["max_charge_kw"]}, "available")
+        add("isolator", charger_iso, room,
+            {"id": charger_iso, "network": "mind_power",
              "kind": "breaker", "current_state": "closed",
              "manual_operation": True, "remote_operable": False}, "closed")
         for feed in island["inputs"]:
