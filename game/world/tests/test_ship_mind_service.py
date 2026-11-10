@@ -4,16 +4,18 @@ import copy
 import unittest
 from types import SimpleNamespace
 
+from world.ship_auxiliary_electrical import MOTORS, _specs, auxiliary_ids
 from world.ship_mind_power import MindPowerError
 from world.ship_mind_service import (
     SERVICE_KEY,
     advance_cooldown,
     machine_mode,
     request_service,
+    service_signature,
     service_state,
 )
 from world.ship_mind_support import load_support
-
+from world.ship_process_outputs import FIELD, step_process_output
 
 class MindServiceTests(unittest.TestCase):
     """Physical reset permission must follow measured recovery, not elapsed wall time."""
@@ -134,3 +136,57 @@ class MindServiceTests(unittest.TestCase):
             self.row.details[SERVICE_KEY][field] = bad
             with self.subTest(field=field, bad=bad), self.assertRaises(MindPowerError):
                 service_state(self.row)
+
+    def test_process_receipts_preserve_proof_but_lt_hardware_changes_invalidate_it(self):
+        """Running and stopped consumers cannot block otherwise verified cooling."""
+        rows = {key: SimpleNamespace(**spec, revision=1) for key, spec in _specs().items()}
+        for name in {*MOTORS, "GEN-M", self.pod["heat_rejector_id"]}:
+            key = "equipment:" + name
+            rows[key] = SimpleNamespace(
+                category="equipment",
+                source_id=name,
+                revision=1,
+                condition="serviceable",
+                setting="unverified",
+                reference={},
+                details={},
+            )
+        self.signature = service_signature(rows, "essential", self.pod)
+        self.apply(self.request("cooldown"))
+        for now in (1010, 1020, 1030):
+            for name in ("BE-01-LUBE-N", "SPINE-AIR-FWD"):
+                motor = rows["equipment:" + name]
+                motor.details[FIELD] = step_process_output(
+                    name,
+                    motor.details.get(FIELD),
+                    dt_s=10,
+                    now_s=now,
+                    driven=name == "BE-01-LUBE-N" and now == 1010,
+                )
+                motor.revision += 1
+            signature = service_signature(rows, "essential", self.pod)
+            self.assertEqual(signature, self.signature)
+            self.apply(
+                advance_cooldown(
+                    self.row, seconds=10, now_s=now, good=True, hazardous=False, signature=signature
+                )
+            )
+        self.assertEqual(self.request("restart")["mode"], "running")
+        lt_keys = [
+            category + ":" + name
+            for category, name in zip(
+                ("node", "edge", "isolator"), auxiliary_ids("LT-PLANT", motor=True)
+            )
+        ]
+        for key in lt_keys + [
+            "equipment:LT-PLANT",
+            "equipment:GEN-M",
+            "equipment:" + self.pod["heat_rejector_id"],
+        ]:
+            with self.subTest(component=key):
+                rows[key].revision += 1
+                with self.assertRaises(MindPowerError):
+                    self.request(
+                        "restart", signature=service_signature(rows, "essential", self.pod)
+                    )
+                rows[key].revision -= 1

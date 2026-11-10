@@ -716,7 +716,7 @@ class InstalledMindPowerTests(EvenniaTestCase):
         # Transaction rollback preserves the previous clock epoch.
         self.assertEqual(_clock().details["last_game_time"], 1010)
 
-    def prepare_thermal_recovery(self, *, air=False):
+    def prepare_thermal_recovery(self, *, air=False, with_process=False):
         """Trip the real bow computers against a measured nearly full buffer."""
         self.installed()
         commission_g19_mind_support(operator_approved=True)
@@ -732,6 +732,8 @@ class InstalledMindPowerTests(EvenniaTestCase):
         self.online_generator("GEN-M")
         self.close_authored_input("A")
         self.survey_network()
+        if with_process:
+            self.power_original_panel("NODE-LP-BE-01-SVC")
         self.advance(1010)
         self.assertTrue(state("equipment", "MIND-01").details["physics_mind_thermal_trip"])
         self.assertEqual(
@@ -755,7 +757,12 @@ class InstalledMindPowerTests(EvenniaTestCase):
     @tag("g19_mind_recovery")
     def test_attended_cooldown_recovers_finite_heat_then_rejoins_the_network(self):
         """Actual rejection, retained latches and a new attended restart are required."""
-        worker, bow = self.prepare_thermal_recovery()
+        worker, bow = self.prepare_thermal_recovery(with_process=True)
+        # Real bearing flow establishes a process receipt before cooldown.
+        # The stopped skid keeps receiving zero-output samples each tick.
+        skid = state("equipment", "BE-01-LUBE-N")
+        process_revision = skid.revision
+        self.assertGreater(skid.details["physics_process_output"]["amount"], 0)
         before = _clock().details["mind_power"]["meter"]
         receipt = crew_physical_action(worker, "b1" * 16, "service", "MIND-01", "cooldown")
         self.assertEqual(receipt["selftest"]["mode"], "cooldown")
@@ -770,12 +777,20 @@ class InstalledMindPowerTests(EvenniaTestCase):
         self.assertAlmostEqual(power["delivered_heat_kj"]["MIND-01"], 0.5)
         self.assertAlmostEqual(power["grid_served_mw"], 0.01405)
         self.assertNotIn("MIND-01", _clock().details["mind_support_last"]["compute_ready"])
+        set_isolator("ISO-G19-MOTOR-BE-01-LUBE-N", "open", operator=True)
         self.advance(1110)
         with self.assertRaises(PhysicsError):
             crew_physical_action(worker, "b2" * 16, "service", "MIND-01", "restart")
         self.advance(1130)
         reading = local_physics_readout(worker, "MIND-01")
         self.assertEqual(reading["verified_cooldown_s"], 30)
+        skid = state("equipment", "BE-01-LUBE-N")
+        self.assertGreater(skid.revision, process_revision)
+        self.assertEqual(skid.details["physics_process_output"]["sample_s"], 1130)
+        self.assertEqual(skid.details["physics_process_output"]["amount"], 0)
+        self.assertGreater(
+            state("equipment", "BE-01-LUBE-S").details["physics_process_output"]["amount"], 0
+        )
         self.assertTrue(reading["thermal_trip_latched"])
         bank = _clock().details["mind_cooling"]["units"][bow["independent_buffer_id"]]
         self.assertAlmostEqual(bank["free_kj"], 594)

@@ -10,6 +10,7 @@ import hashlib
 import json
 import math
 
+from world.ship_auxiliary_electrical import auxiliary_ids
 from world.ship_mind_power import MindPowerError
 
 SERVICE_KEY = "physics_mind_service"
@@ -90,23 +91,23 @@ def machine_mode(row):
 def service_signature(rows, load_profile, pod):
     """Invalidate restart evidence when physical supply or cooling hardware changes.
 
-    Compute-controller bookkeeping is excluded: several computers may cool at
-    once. Each controller separately binds its own equipment revision.
+    Bind original power distribution, the computer supplies and LT circuits.
+    Only the LT plant's motor circuit participates: other motors are consumers,
+    and their routine process receipts must not reset this physical proof.
+    Compute controllers separately bind their own equipment revisions.
     """
     networks = {
         "power",
         "mind_power",
         "mind_lt",
         "lt_cooling",
-        "g19_motor",
-        "g19_motor_protected",
-        "g19_local_dc",
-        "g19_local_charger",
     }
+    lt_motor = set(auxiliary_ids("LT-PLANT", motor=True))
     selected = {
         key
         for key, row in rows.items()
-        if row.category in {"node", "edge", "isolator"} and row.reference.get("network") in networks
+        if row.category in {"node", "edge", "isolator"}
+        and (row.reference.get("network") in networks or row.source_id in lt_motor)
     }
     owners = {rows[key].reference.get("owner_id") for key in selected}
     owners.update(
