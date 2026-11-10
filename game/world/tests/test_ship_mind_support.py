@@ -104,6 +104,15 @@ class ShipSupportDesignTests(unittest.TestCase):
         self.assertIn("passable",self.support["design_decisions"][
             "rack_cross_connection"])
 
+    def test_dual_homed_machine_is_not_an_implicit_cross_rail_router(self):
+        # Cutting different rails at different ends must not allow the
+        # same compute NIC to forward traffic between independent spines.
+        # A real A/B network bridge would need its own commissioned row.
+        cases={"NET-SPAN-A-10","NET-SPAN-B-21"}
+        group=connected_machines(self.support,faults=cases)
+        self.assertEqual(len(group),7)
+        self.assertLess(len(group),9)
+
     def test_fabricated_tunnel_and_shared_data_coupler_fail_design(self):
         wrong=copy.deepcopy(self.support)
         wrong["backbone"]["rail_rooms"]["A"][4]="TRUNK-B-GAP-23"
