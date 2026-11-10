@@ -69,6 +69,7 @@ class GatewayInfrastructureTests(unittest.TestCase):
             "requested_mw": 1,
         }
         self.account = initial_gateway()
+        self.operating = set()
 
     def survey(self):
         """Measure the actual rated 50 W draw, without energy or authority credits."""
@@ -92,6 +93,7 @@ class GatewayInfrastructureTests(unittest.TestCase):
             seconds=10,
             now_s=now_s,
             heat_sink_available=True,
+            operating_machines=self.operating,
         )
         return mw
 
@@ -174,11 +176,30 @@ class GatewayInfrastructureTests(unittest.TestCase):
             seconds=10,
             now_s=1010,
             heat_sink_available=False,
+            operating_machines=self.operating,
         )
         self.assertEqual(mw, 0)
         self.assertEqual(after["served_kwh"], 0)
         self.rows["edge:THERM-GW-LCS-DR-03"].condition = "failed"
         self.assertEqual(self.step(), 0)
+
+    def test_running_feedback_requires_current_served_operation_not_the_online_flag(self):
+        """An energised gateway cannot turn an unserved machine flag into feedback."""
+        self.survey()
+        self.sources[SOURCES[0]].details["physics_online"] = True
+        self.step()
+        self.assertEqual(self.account["last"]["raw_samples"][SOURCES[0]]["raw_value"], 0)
+        self.account = verify_gateway_protocol(
+            self.account, profile=PROFILE, confirmations=self.confirmations(), observed_s=1010
+        )
+        self.step(now_s=1020)
+        self.assertIs(self.account["last"]["readings"][SOURCES[0]]["value"], False)
+        self.operating.add(SOURCES[0].split(":", 1)[1])
+        self.step(now_s=1030)
+        self.assertIs(self.account["last"]["readings"][SOURCES[0]]["value"], True)
+        unknown = raw_gateway_samples(self.sources, now_s=1040)
+        self.assertEqual(unknown[SOURCES[0]]["quality"], "unavailable")
+        self.assertIsNone(unknown[SOURCES[0]]["raw_value"])
 
     def test_protocol_requires_fresh_actual_raw_frames_and_exact_meanings(self):
         """Wrong register meanings never receive a verified mapping revision."""
@@ -217,6 +238,7 @@ class GatewayInfrastructureTests(unittest.TestCase):
         self.assertTrue(self.account["last"]["powered"])
         self.assertFalse(self.account["last"]["readings"])
         self.sources[SOURCES[0]].details["physics_online"] = True
+        self.operating.add(SOURCES[0].split(":", 1)[1])
         self.sources[SOURCES[0]].revision += 1
         self.step(now_s=1030)
         reading = self.account["last"]["readings"][SOURCES[0]]
@@ -231,7 +253,7 @@ class GatewayInfrastructureTests(unittest.TestCase):
 
     def test_unknown_or_bad_raw_data_never_becomes_a_zero_measurement(self):
         """Keep the original term and raw failure while withholding translation."""
-        samples = raw_gateway_samples(self.sources, now_s=1000)
+        samples = raw_gateway_samples(self.sources, now_s=1000, operating_machines=self.operating)
         samples[SOURCES[0]]["raw_value"] = 7
         decoded = translate_gateway_samples(samples, mapping_revision=1)
         self.assertEqual(decoded[SOURCES[0]]["raw_value"], 7)

@@ -7,13 +7,17 @@ import unittest
 from types import SimpleNamespace as Row
 
 from world.ship_mind_power import (
-    MindPowerError, default_design_path, load_design, proposed_world_rows,
+    MindPowerError,
+    default_design_path,
+    load_design,
+    proposed_world_rows,
     survey_reserve,
 )
 from world.ship_mind_runtime import (
-    initial_mind_runtime, validate_mind_runtime, tick_mind_power,
+    initial_mind_runtime,
+    tick_mind_power,
+    validate_mind_runtime,
 )
-
 
 def prepared():
     design = load_design()
@@ -73,6 +77,37 @@ class MindRuntimePhysicsTests(unittest.TestCase):
             seconds=seconds)
         apply(self.rows, contacts)
         return self.account["last"], contacts
+
+    def test_unfitted_thermal_protection_interlocks_all_compute_loads(self):
+        """Fitting a power circuit cannot start computers before protection exists."""
+        account, _ = tick_mind_power(
+            self.design,
+            self.account,
+            rows=self.rows,
+            g19_power=self.g19,
+            seconds=10,
+            loads_enabled=False,
+        )
+        self.assertEqual(account["last"]["powered"], [])
+        self.assertEqual(account["meter"]["grid_served_kwh"], 0)
+        self.assertEqual(account["meter"]["reserve_served_kwh"], 0)
+        self.assertEqual(sum(account["last"]["delivered_heat_kj"].values()), 0)
+
+    def test_last_fractional_reserve_delivery_retains_every_joule_as_heat(self):
+        """The final 0.005 kWh becomes 18 kJ despite loss of full-tick service."""
+        bank = self.design["islands"][0]["local_reserve"]["id"]
+        self.account["reserve"] = survey_reserve(
+            self.design, self.account["reserve"], bank, capacity_kwh=0.5, charge_kwh=0.005
+        )
+        self.g19["nodes"].clear()
+        last, _ = self.step()
+        self.assertEqual(last["powered"], [])
+        self.assertAlmostEqual(self.account["meter"]["reserve_served_kwh"], 0.005)
+        self.assertAlmostEqual(sum(last["delivered_heat_kj"].values()), 18)
+        self.assertEqual(last["delivered_heat_kj"]["MIND-01"], 9)
+        self.assertEqual(last["delivered_heat_kj"]["MIND-02"], 9)
+        last, _ = self.step()
+        self.assertEqual(sum(last["delivered_heat_kj"].values()), 0)
 
     def test_nine_physical_compute_loads_are_billed_once(self):
         last, changed = self.step()

@@ -91,6 +91,11 @@ buffer use. The physics clock records generated, buffered, rejected and
 uncontained heat. Uncontained heat is applied to the installed room gas
 cell and drives a latched computer thermal protection fault.
 
+Power-island fitting alone leaves the computer loads interlocked off until
+their thermal protection is fitted. Once enabled, every delivered joule is
+passed to cooling, including a reserve that empties partway through a tick.
+An offline-at-tick-end computer still contributes that interval's heat.
+
 The branch also fits five separate LT feed/return pairs, five terminals and
 five normally shut manual valves through `commission_g19_mind_heat_connections`.
 These 15 additional rows preserve the original LT and 438/450/466 electrical
@@ -105,6 +110,14 @@ radiators. Its reserved capacity is deducted from the same environment
 allowance before ordinary room cooling. Rejected heat and spare capacity
 used to recover buffer headroom are metered separately. Version-1 ledgers
 migrate without restoring consumed cold or changing old meters.
+
+The reservation uses actual electrical delivery plus existing recoverable
+buffer heat. Idle computers reserve zero; partially loaded islands reserve
+only their real demand. All five LT valves permit attended engineering
+operation. Repeating operator commissioning upgrades the former missing
+manual-operation metadata without resetting valve settings, damage or
+thermal inventories. Liquid-path surveys require verified intact open
+circuits and penetrations; carrier gas is required only for air surveys.
 
 An explicitly surveyed local-air alternative transfers heat into the actual
 receiving pressure cell. It requires fan power and a cool atmosphere above

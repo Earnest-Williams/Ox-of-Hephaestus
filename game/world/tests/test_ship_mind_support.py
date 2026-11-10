@@ -16,6 +16,7 @@ from world.ship_mind_power import (
 from world.ship_mind_support import (
     air_rejection_rates,
     connected_machines,
+    cooling_rejection_demand,
     data_penetrations,
     default_support_path,
     fault_domains,
@@ -249,6 +250,13 @@ class ShipSupportDesignTests(unittest.TestCase):
             rows["edge:LT-FEED-HAB"]["reference"]["from_node"], "NODE-HAB-04-LT-COOLING-MAN"
         )
         self.assertEqual(rows["isolator:ISO-MIND-LT-BOW"]["setting"], "closed")
+        self.assertTrue(
+            all(
+                row["reference"]["manual_operation"] is True
+                for row in rows.values()
+                if row["category"] == "isolator"
+            )
+        )
         wrong = copy.deepcopy(self.support)
         wrong["cooling_islands"][0]["lt_connection"]["route_spaces"] = ["ROTARY-UTIL-A", "ENV-FWD"]
         with self.assertRaises(MindPowerError):
@@ -294,6 +302,24 @@ class ShipSupportDesignTests(unittest.TestCase):
         )
         self.assertEqual(sum(lt_rejection_rates(self.support, **args).values()), 8)
         self.assertEqual(
+            sum(
+                lt_rejection_rates(
+                    self.support,
+                    **dict(
+                        args, requested_kw={pod["id"]: 0 for pod in self.support["cooling_islands"]}
+                    ),
+                ).values()
+            ),
+            0,
+        )
+        requested = {
+            self.support["cooling_islands"][0]["id"]: 2,
+            self.support["cooling_islands"][-1]["id"]: 4,
+        }
+        self.assertEqual(
+            sum(lt_rejection_rates(self.support, **dict(args, requested_kw=requested)).values()), 6
+        )
+        self.assertEqual(
             sum(lt_rejection_rates(self.support, **dict(args, cooling_budget_kw=0)).values()), 0
         )
         self.assertEqual(
@@ -324,6 +350,56 @@ class ShipSupportThermalTests(unittest.TestCase):
             name=pod["independent_buffer_id"]
             self.ledger=survey_cooling_buffer(self.support,self.ledger,name,
                 capacity_kj=720,free_kj=720)
+
+    def test_partial_tick_heat_is_stored_or_spilled_into_the_actual_machine_room(self):
+        """Offline-at-end machines still dissipate their delivered energy."""
+        self.survey_all()
+        pod = self.support["cooling_islands"][0]
+        heat = {"MIND-01": 9, "MIND-02": 9}
+        after, trips, receipts = step_cooling_buffer(
+            self.support, self.ledger, operating_machines=[], machine_heat_kj=heat, seconds=10
+        )
+        self.assertFalse(trips)
+        self.assertEqual(after["units"][pod["independent_buffer_id"]]["free_kj"], 702)
+        self.assertEqual(receipts[pod["id"]]["generated_kj"], 18)
+        _, trips, receipts = step_cooling_buffer(
+            self.support,
+            self.ledger,
+            operating_machines=[],
+            machine_heat_kj=heat,
+            seconds=10,
+            failed={"COOL-MIND-01"},
+        )
+        self.assertEqual(trips, frozenset({"MIND-01"}))
+        self.assertEqual(
+            receipts[pod["id"]]["unabsorbed_by_machine_kj"], {"MIND-01": 9, "MIND-02": 0}
+        )
+
+    def test_rejection_demand_tracks_actual_heat_and_only_existing_stored_heat(self):
+        """Idle or partly loaded computers cannot reserve their whole nameplate."""
+        self.survey_all()
+        ship = json.loads(
+            default_design_path().with_name("ox_full_ship_v0.5_candidate.json").read_text()
+        )
+        rows = {
+            k: SimpleNamespace(**v, revision=1)
+            for k, v in proposed_support_rows(self.support, self.design, ship).items()
+        }
+        args = dict(physical_rows=rows, seconds=10)
+        requests = cooling_rejection_demand(self.support, self.ledger, machine_heat_kj={}, **args)
+        self.assertEqual(sum(requests.values()), 0)
+        pod = self.support["cooling_islands"][0]
+        requests = cooling_rejection_demand(
+            self.support, self.ledger, machine_heat_kj={"MIND-01": 20}, **args
+        )
+        self.assertEqual(requests[pod["id"]], 2)
+        used, _, _ = step_cooling_buffer(
+            self.support, self.ledger, operating_machines=["MIND-01"], seconds=10
+        )
+        requests = cooling_rejection_demand(
+            self.support, used, machine_heat_kj={"MIND-01": 20}, **args
+        )
+        self.assertEqual(requests[pod["id"]], 4)
 
     def test_unmeasured_cold_is_not_free_endurance(self):
         after,trips,receipts=step_cooling_buffer(

@@ -85,15 +85,43 @@ def install_heat_connections(world_state, support, power, ship):
     installed_support_rows(world_state, support, power, ship)
     specifications = proposed_heat_connection_rows(support, power, ship)
     created = 0
+    metadata_updates = []
     for key, expected in sorted(specifications.items()):
         row, added = world_state.objects.get_or_create(key=key, defaults=expected)
+        if (
+            not added
+            and row.category == "isolator"
+            and all(
+                getattr(row, field) == expected[field]
+                for field in ("source_model", "category", "source_id", "space_id")
+            )
+        ):
+            legacy = dict(expected["reference"])
+            legacy.pop("manual_operation", None)
+            if row.reference == legacy:
+                before = {
+                    "reference": row.reference,
+                    "revision": row.revision,
+                    "condition": row.condition,
+                    "setting": row.setting,
+                }
+                row.reference = expected["reference"]
+                row.revision += 1
+                row.save(update_fields=["reference", "revision"])
+                metadata_updates.append(
+                    {
+                        "key": key,
+                        "before": before,
+                        "after": {"reference": row.reference, "revision": row.revision},
+                    }
+                )
         if not added and any(
             getattr(row, field) != expected[field]
             for field in ("source_model", "category", "source_id", "space_id", "reference")
         ):
             raise MindPowerError("Thermal connection identity drift: " + key)
         created += int(added)
-    return {"created": created, "total": len(specifications)}
+    return {"created": created, "total": len(specifications), "metadata_updates": metadata_updates}
 
 
 def installed_heat_connection_rows(world_state, support, power, ship):

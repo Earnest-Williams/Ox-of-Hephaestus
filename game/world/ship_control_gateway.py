@@ -314,7 +314,7 @@ def survey_gateway_power(account, rows, *, measured_kw, evidence_id, thermal_pat
     return result
 
 
-def raw_gateway_samples(rows, *, now_s):
+def raw_gateway_samples(rows, *, now_s, operating_machines=None):
     """Read only three actual controller registers, preserving bad/unknown states."""
     samples = {}
     for key in SOURCES:
@@ -326,8 +326,8 @@ def raw_gateway_samples(rows, *, now_s):
             {"open": "O", "closed": "C"}.get(row.setting)
             if valve
             else (
-                {True: 1, False: 0}.get(row.details.get("physics_online"))
-                if type(row.details.get("physics_online")) is bool
+                int(key.split(":", 1)[1] in operating_machines)
+                if isinstance(operating_machines, (set, frozenset))
                 else None
             )
         )
@@ -406,6 +406,7 @@ def step_gateway(
     seconds,
     now_s,
     heat_sink_available,
+    operating_machines,
 ):
     """Bill the live feeder, then sample registers; command authority stays false."""
     validate_gateway(account)
@@ -432,7 +433,11 @@ def step_gateway(
     result["elapsed_s"] += dt
     served_kw = 0.05 if powered else 0.0
     result["served_kwh"] += served_kw * dt / 3600
-    samples = raw_gateway_samples(source_rows, now_s=now) if powered else {}
+    samples = (
+        raw_gateway_samples(source_rows, now_s=now, operating_machines=operating_machines)
+        if powered
+        else {}
+    )
     readings = (
         translate_gateway_samples(samples, mapping_revision=account["mapping_revision"])
         if powered and connected and account["mapping_revision"] > 0

@@ -9,6 +9,7 @@ from collections import defaultdict, deque
 
 from django.db import transaction
 from django.test import tag
+from world.bootstrap import build_ship
 from world.continuous_ship_physics import (
     PhysicsError,
     _clock,
@@ -20,6 +21,7 @@ from world.continuous_ship_physics import (
     commission_g19_mind_heat_connections,
     commission_g19_mind_power,
     commission_g19_mind_support,
+    crew_physical_action,
     survey_g19_data_path,
     survey_g19_gateway_power,
     survey_g19_heat_rejector,
@@ -48,7 +50,7 @@ from world.ship_mind_support import (
     validate_cooling_ledger,
 )
 from world.ship_mind_support_world import installed_network_cohort
-from world.ship_world import ensure_canonical_ship
+from world.ship_world import ensure_canonical_ship, find_ship_space
 
 from evennia.utils.test_resources import EvenniaTestCase
 
@@ -209,6 +211,8 @@ class InstalledMindPowerTests(EvenniaTestCase):
 
     def test_real_source_power_draw_and_persistent_meter(self):
         self.installed()
+        commission_g19_mind_support(operator_approved=True)
+        self.survey_cold()
         self.online_generator("GEN-M")
         self.close_authored_input("A")
         result = self.advance(1010)
@@ -237,6 +241,8 @@ class InstalledMindPowerTests(EvenniaTestCase):
 
     def test_actual_delayed_transfer_uses_metered_island_reserve(self):
         self.installed()
+        commission_g19_mind_support(operator_approved=True)
+        self.survey_cold()
         self.online_generator("GEN-M")
         self.online_generator("GEN-B")
         self.close_authored_input("A")
@@ -585,6 +591,7 @@ class InstalledMindPowerTests(EvenniaTestCase):
         self.online_generator("GEN-M")
         self.close_authored_input("A")
         self.power_original_panel("NODE-LP-BE-05-SVC")
+        self.power_original_panel("NODE-DR-03-SVC-DB")
         with self.assertRaises(PermissionError):
             commission_g19_gateway_power()
         result = commission_g19_gateway_power(operator_approved=True)
@@ -646,6 +653,16 @@ class InstalledMindPowerTests(EvenniaTestCase):
             self.assertIn("raw_value", reading)
         self.assertAlmostEqual(gateway["served_kwh"], 0.05 * 20 / 3600)
         self.assertFalse(gateway["last"]["remote_commands_enabled"])
+        self.assertIs(gateway["last"]["readings"]["equipment:DR-03-CARGO-HX"]["value"], True)
+        with transaction.atomic():
+            set_isolator("ISO-G19-SVC-DR-03-CARGO-HX", "open", operator=True)
+            self.advance(1040)
+            stopped = _clock().details["mind_gateway"]["last"]
+            self.assertTrue(stopped["powered"])
+            self.assertTrue(state("equipment", "DR-03-CARGO-HX").details["physics_online"])
+            self.assertIs(stopped["readings"]["equipment:DR-03-CARGO-HX"]["value"], False)
+            self.assertEqual(stopped["readings"]["equipment:DR-03-CARGO-HX"]["quality"], "good")
+            transaction.set_rollback(True)
         set_component_condition("edge", "NET-GW-DROP-A-DR-03", "severed", operator=True)
         self.advance(1040)
         self.assertTrue(_clock().details["mind_gateway"]["last"]["connected"])
@@ -680,6 +697,8 @@ class InstalledMindPowerTests(EvenniaTestCase):
 
     def test_missing_new_machine_contact_or_tampered_identity_fails_closed(self):
         self.installed()
+        commission_g19_mind_support(operator_approved=True)
+        self.survey_cold()
         unit = self.design["islands"][0]["machines"][0]
         state("isolator", unit["isolator"], lock=True)
         set_isolator(unit["isolator"], "open", operator=True)
@@ -694,6 +713,146 @@ class InstalledMindPowerTests(EvenniaTestCase):
             self.advance(1020)
         # Transaction rollback preserves the previous clock epoch.
         self.assertEqual(_clock().details["last_game_time"], 1010)
+
+    @tag("g19_infrastructure_review")
+    def test_power_installation_waits_for_thermal_protection(self):
+        """Uncommissioned protection cannot leave 18 kW of unaccounted heat."""
+        self.installed()
+        self.online_generator("GEN-M")
+        self.close_authored_input("A")
+        self.advance(1010)
+        power = _clock().details["mind_power"]
+        self.assertEqual(power["last"]["powered"], [])
+        self.assertFalse(power["last"]["loads_enabled"])
+        self.assertEqual(power["meter"]["grid_served_kwh"], 0)
+        self.assertEqual(power["meter"]["reserve_served_kwh"], 0)
+        self.assertEqual(sum(power["last"]["delivered_heat_kj"].values()), 0)
+        commission_g19_mind_support(operator_approved=True)
+        self.advance(1020)
+        details = _clock().details
+        self.assertEqual(
+            sum(b["generated_kj"] for b in details["mind_cooling"]["units"].values()), 180
+        )
+        self.assertEqual(
+            sum(b["unabsorbed_kj"] for b in details["mind_cooling"]["units"].values()), 180
+        )
+        self.assertEqual(len(details["mind_support_last"]["thermal_shutdown"]), 9)
+
+    @tag("g19_infrastructure_review")
+    def test_final_partial_reserve_energy_is_recorded_by_the_cooling_ledger(self):
+        """A partial electrical tick contributes its complete 18 kJ to the buffer."""
+        self.installed()
+        commission_g19_mind_support(operator_approved=True)
+        self.survey_cold()
+        self.online_generator("GEN-M")
+        self.close_authored_input("A")
+        bow = self.design["islands"][0]
+        survey_g19_mind_reserve(
+            operator_approved=True,
+            reserve_id=bow["local_reserve"]["id"],
+            capacity_kwh=0.5,
+            charge_kwh=0.005,
+        )
+        set_isolator(bow["inputs"][0]["breaker"], "open", operator=True)
+        self.advance(1010)
+        details = _clock().details
+        self.assertNotIn("MIND-01", details["mind_power"]["last"]["powered"])
+        self.assertAlmostEqual(details["mind_power"]["meter"]["reserve_served_kwh"], 0.005)
+        bank = details["mind_cooling"]["units"]["BUF-MIND-ISL-BOW"]
+        self.assertEqual(bank["generated_kj"], 18)
+        self.assertEqual(bank["free_kj"], 702)
+
+    @tag("g19_infrastructure_review")
+    def test_lt_valves_have_attended_controls_and_preserving_metadata_upgrade(self):
+        """Qualified crew can operate each valve; metadata upgrades cannot repair it."""
+        self.installed()
+        commission_g19_mind_support(operator_approved=True)
+        commission_g19_mind_heat_connections(operator_approved=True)
+        worker = build_ship()["watch"]
+        for pod in load_support()["cooling_islands"]:
+            valve = pod["lt_connection"]["isolator"]
+            self.assertTrue(worker.move_to(find_ship_space(pod["service_room"]), quiet=True))
+            set_isolator(valve, "open", actor=worker)
+            self.assertEqual(state("isolator", valve).setting, "open")
+        pod = load_support()["cooling_islands"][0]
+        valve = pod["lt_connection"]["isolator"]
+        self.assertTrue(worker.move_to(find_ship_space(pod["service_room"]), quiet=True))
+        receipt = crew_physical_action(worker, "a1" * 16, "switch", valve, "closed")
+        self.assertEqual(receipt["status"], "succeeded")
+        old = state("isolator", valve, lock=True)
+        old.reference = dict(old.reference)
+        old.reference.pop("manual_operation")
+        old.condition = "failed"
+        old.save(update_fields=["reference", "condition"])
+        before = _clock().details["mind_cooling"]
+        upgraded = commission_g19_mind_heat_connections(operator_approved=True)
+        self.assertEqual(upgraded["metadata_updated"], 1)
+        self.assertTrue(state("isolator", valve).reference["manual_operation"])
+        self.assertEqual(state("isolator", valve).condition, "failed")
+        self.assertEqual(state("isolator", valve).setting, "closed")
+        self.assertEqual(_clock().details["mind_cooling"], before)
+        self.assertEqual(
+            commission_g19_mind_heat_connections(operator_approved=True)["metadata_updated"], 0
+        )
+
+    @tag("g19_infrastructure_review")
+    def test_idle_and_single_computer_lt_allocation_leaves_remaining_room_budget(self):
+        """Idle computers reserve zero; a single 2 kW load cannot reserve 22.5 kW."""
+        self.installed()
+        commission_g19_mind_support(operator_approved=True)
+        self.survey_cold()
+        self.online_generator("GEN-M")
+        self.close_authored_input("A")
+        self.power_lt_plant()
+        self.survey_lt_rejection()
+        for island in self.design["islands"]:
+            for machine in island["machines"]:
+                set_isolator(machine["isolator"], "open", operator=True)
+        self.advance(1010)
+        details = _clock().details
+        self.assertEqual(details["mind_support_last"]["lt_reserved_kw"], 0)
+        self.assertEqual(details["summary"]["cooling_kw"], 3750)
+        machine = self.design["islands"][0]["machines"][0]
+        set_isolator(machine["isolator"], "closed", operator=True)
+        self.advance(1020)
+        details = _clock().details
+        self.assertEqual(details["mind_support_last"]["lt_reserved_kw"], 2)
+        self.assertEqual(details["mind_support_last"]["lt_rejected_kw"], 2)
+        self.assertEqual(details["summary"]["cooling_kw"], 3748)
+
+    @tag("g19_infrastructure_review")
+    def test_lt_survey_allows_vacuum_while_air_survey_refuses_it(self):
+        """Closed liquid transfer depends on its pipe, not the room's carrier gas."""
+        self.installed()
+        commission_g19_mind_support(operator_approved=True)
+        self.survey_lt_rejection()
+        pod = load_support()["cooling_islands"][0]
+        zone = _topology()[0][pod["service_room"]]
+        cell = state("pressure", zone, lock=True)
+        cell.quantity = 0
+        cell.details = dict(cell.details, physics_oxygen_kg=0, physics_co2_kg=0, physics_smoke_kg=0)
+        cell.save(update_fields=["quantity", "details"])
+        with self.assertRaises(PhysicsError):
+            survey_g19_heat_rejector(
+                operator_approved=True,
+                rejector_id=pod["heat_rejector_id"],
+                measured_kw=5,
+                evidence_id="vacuum-air-test",
+                sink_kind="air",
+            )
+        ship = load_candidate()
+        seals = set(data_penetrations(pod["lt_connection"], ship))
+        for path in pod["machine_coolant_routes"].values():
+            seals.update(data_penetrations({"route_spaces": path}, ship))
+        surveyed = survey_g19_heat_rejector(
+            operator_approved=True,
+            rejector_id=pod["heat_rejector_id"],
+            measured_kw=5,
+            evidence_id="closed-liquid-vacuum-test",
+            sink_kind="lt",
+            penetration_ids=sorted(seals),
+        )
+        self.assertIsNone(surveyed["sink_cell"])
 
 
 if __name__ == "__main__":

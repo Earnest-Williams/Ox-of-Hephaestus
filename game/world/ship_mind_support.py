@@ -659,8 +659,16 @@ def survey_cooling_buffer(support, ledger, name, *, capacity_kj, free_kj):
     return result
 
 
-def step_cooling_buffer(support,ledger,*,operating_machines,seconds,
-                        measured_rejection_kw=None,failed=()):
+def step_cooling_buffer(
+    support,
+    ledger,
+    *,
+    operating_machines,
+    seconds,
+    measured_rejection_kw=None,
+    failed=(),
+    machine_heat_kj=None,
+):
     """Finite heat accounting; externally measured rejection is NOT invented.
 
     The caller proves an as-fitted heat-transfer path and deposits ALL
@@ -672,6 +680,7 @@ def step_cooling_buffer(support,ledger,*,operating_machines,seconds,
     _require(dt<=60, "Unbounded thermal timestep")
     active=set(operating_machines)
     _require(active<=MACHINES, "Unfitted machine heat source")
+    heat_by_machine = _machine_heat(support, active, dt, machine_heat_kj)
     rejects=measured_rejection_kw or {}
     _require(set(rejects)<={x["id"] for x in support["cooling_islands"]},
              "Unknown heat sink credited with energy rejection")
@@ -680,14 +689,14 @@ def step_cooling_buffer(support,ledger,*,operating_machines,seconds,
     trips=set()
     receipts={}
     for pod in support["cooling_islands"]:
-        running=set(pod["machines"]) & active
+        running = {m for m in pod["machines"] if heat_by_machine[m] > 0}
         per_machine_kw=pod["heat_rate_kw"] / len(pod["machines"])
-        heat=per_machine_kw * len(running) * dt
+        heat = sum(heat_by_machine[m] for m in pod["machines"])
         failed_plates={
             machine for plate,machine in zip(
                 pod["individual_cold_plates"],pod["machines"])
             if plate in bad and machine in running}
-        plate_heat=per_machine_kw * len(failed_plates) * dt
+        plate_heat = sum(heat_by_machine[m] for m in failed_plates)
         sound_heat=heat - plate_heat
         rejected_rate=_number(rejects.get(pod["id"],0))
         _require(rejected_rate<=pod["peak_rejection_kw"],
@@ -711,6 +720,15 @@ def step_cooling_buffer(support,ledger,*,operating_machines,seconds,
         rejected += recovered
         bank["rejected_kj"]+=rejected
         bad_heat = max(0, sound_heat - (rejected - recovered) - stored) + plate_heat
+        sound_unabsorbed = max(0, sound_heat - (rejected - recovered) - stored)
+        by_machine = {
+            m: (
+                heat_by_machine[m]
+                if m in failed_plates
+                else sound_unabsorbed * heat_by_machine[m] / sound_heat if sound_heat else 0.0
+            )
+            for m in pod["machines"]
+        }
         bank["unabsorbed_kj"]+=bad_heat
         bank["generated_kj"]+=heat
         trips.update(failed_plates)
@@ -722,12 +740,60 @@ def step_cooling_buffer(support,ledger,*,operating_machines,seconds,
             "absorbed_kj": stored,
             "unabsorbed_kj": bad_heat,
             "recovered_kj": recovered,
+            "unabsorbed_by_machine_kj": by_machine,
         }
     validate_cooling_ledger(support,new)
     return new, frozenset(trips), receipts
 
 
-def air_rejection_rates(support, *, physical_rows, cells, room_zones, seconds, powered_machines):
+def _machine_heat(support, active, seconds, measured):
+    """Validate delivered electricity, including a final fractional-power interval."""
+    ratings = {
+        m: pod["heat_rate_kw"] / len(pod["machines"])
+        for pod in support["cooling_islands"]
+        for m in pod["machines"]
+    }
+    if measured is None:
+        return {m: kw * seconds if m in active else 0.0 for m, kw in ratings.items()}
+    _require(
+        isinstance(measured, dict) and set(measured) <= MACHINES,
+        "Unknown machine delivered-heat measurement",
+    )
+    heat = {m: _number(measured.get(m, 0.0)) for m in ratings}
+    _require(
+        all(v <= ratings[m] * seconds + 1e-7 for m, v in heat.items()),
+        "Computer heat exceeds its delivered-power rating",
+    )
+    return heat
+
+
+def cooling_rejection_demand(support, ledger, *, machine_heat_kj, physical_rows, seconds):
+    """Request only delivered heat and existing stored heat that can be recovered."""
+    validate_cooling_ledger(support, ledger)
+    dt = _number(seconds, positive=True)
+    _require(dt <= 60, "Unbounded cooling-demand timestep")
+    heat = _machine_heat(support, set(), dt, machine_heat_kj)
+    demand = {}
+    for pod in support["cooling_islands"]:
+        sound = sum(
+            heat[m]
+            for m, plate in zip(pod["machines"], pod["individual_cold_plates"])
+            if physical_rows["equipment:" + plate].condition not in BROKEN
+        )
+        bank = ledger["units"][pod["independent_buffer_id"]]
+        stored = (
+            bank["capacity_kj"] - bank["free_kj"]
+            if bank["surveyed"]
+            and physical_rows["equipment:" + pod["independent_buffer_id"]].condition not in BROKEN
+            else 0.0
+        )
+        demand[pod["id"]] = (sound + stored) / dt
+    return demand
+
+
+def air_rejection_rates(
+    support, *, physical_rows, cells, room_zones, seconds, powered_machines, requested_kw=None
+):
     """Bound surveyed local air rejection by actual gas and thermal headroom.
 
     Fan auxiliaries are included in the rated machine load. Shared receiving
@@ -762,7 +828,12 @@ def air_rejection_rates(support, *, physical_rows, cells, room_zones, seconds, p
                 capacity = _number(cell["capacity"], positive=True) + mass
                 headroom = (pod["normal_temperature_max_k"] - t) * capacity
                 remaining[cell_id] = min(remaining.get(cell_id, headroom), headroom)
-                rate = min(measured, remaining[cell_id] / dt)
+                requested = (
+                    _number(requested_kw.get(pod["id"], 0))
+                    if requested_kw is not None
+                    else measured
+                )
+                rate = min(measured, remaining[cell_id] / dt, requested)
                 remaining[cell_id] -= rate * dt
         rates[pod["id"]] = rate
     return rates
@@ -776,6 +847,7 @@ def lt_rejection_rates(
     connected_lt_nodes,
     powered_machines,
     cooling_budget_kw,
+    requested_kw=None,
 ):
     """Debit one finite original radiator allocation through surveyed pipes."""
     remaining = _number(cooling_budget_kw)
@@ -800,7 +872,10 @@ def lt_rejection_rates(
         ):
             measured = _number(survey.get("measured_kw"))
             _require(measured <= pod["peak_rejection_kw"], "LT rejector survey exceeds rating")
-            rate = min(measured, remaining)
+            requested = (
+                _number(requested_kw.get(pod["id"], 0)) if requested_kw is not None else measured
+            )
+            rate = min(measured, remaining, requested)
             remaining -= rate
         rates[pod["id"]] = rate
     return rates
@@ -850,6 +925,7 @@ def proposed_heat_connection_rows(support, power, ship):
                     "id": feed["isolator"],
                     "network": "mind_lt",
                     "kind": "manual_coolant_valve",
+                    "manual_operation": True,
                     "edge_ids": [feed["id"]],
                     "service_room": room,
                 },

@@ -282,6 +282,7 @@ from world.ship_mind_support import (
 )
 from world.ship_mind_support import load_support as load_mind_support
 from world.ship_mind_support import (
+    cooling_rejection_demand,
     lt_rejection_rates,
     migrate_cooling_ledger,
     step_cooling_buffer,
@@ -1311,23 +1312,23 @@ def survey_g19_heat_rejector(
     row = state("equipment", rejector_id, lock=True)
     if row.condition in _BROKEN or row.space_id != pod["service_room"]:
         raise PhysicsError("No sound rejector in its actual receiving room")
-    zones, _, _ = _topology()
-    cell = state("pressure", zones[pod["service_room"]])
-    gas = _load_cell(cell)
-    # A measurement taken with no carrier gas or outside the rated inlet
-    # envelope cannot qualify a forced-air heat transfer path.
-    if not (
-        pod["normal_temperature_min_k"] <= gas["temperature"] < pod["normal_temperature_max_k"]
-        and _cell_pressure(gas) >= 50000
-    ):
-        raise PhysicsError("Rejector has no rated receiving atmosphere")
+    cell = None
+    if sink_kind == "air":
+        zones, _, _ = _topology()
+        cell = state("pressure", zones[pod["service_room"]])
+        gas = _load_cell(cell)
+        if not (
+            pod["normal_temperature_min_k"] <= gas["temperature"] < pod["normal_temperature_max_k"]
+            and _cell_pressure(gas) >= 50000
+        ):
+            raise PhysicsError("Rejector has no rated receiving atmosphere")
     record = _support_survey_record(
         row, evidence_id=evidence_id, observed_s=clock.details["last_game_time"]
     )
     record.update(
         measured_kw=rate,
         sink_room=pod["service_room"],
-        sink_cell=cell.source_id,
+        sink_cell=cell.source_id if cell is not None else None,
         sink_kind=sink_kind,
     )
     if sink_kind == "lt":
@@ -1369,7 +1370,11 @@ def survey_g19_heat_rejector(
     event = _event(row, "g19_heat_rejector_surveyed", before)
     event.after = dict(event.after, measurement=record)
     event.save(update_fields=["after"])
-    return {"surveyed": rejector_id, "measured_kw": rate, "sink_cell": cell.source_id}
+    return {
+        "surveyed": rejector_id,
+        "measured_kw": rate,
+        "sink_cell": cell.source_id if cell is not None else None,
+    }
 
 
 @transaction.atomic
@@ -1385,6 +1390,16 @@ def commission_g19_mind_heat_connections(*, operator_approved=False):
         result = install_heat_connections(
             CanonicalShipState, support, load_mind_power_design(), load_candidate()
         )
+        upgrades = result.pop("metadata_updates")
+        for upgrade in upgrades:
+            CanonicalShipEvent.objects.create(
+                component_key=upgrade["key"],
+                operation="g19_mind_lt_manual_metadata_upgraded",
+                before=upgrade["before"],
+                after=upgrade["after"],
+                game_time=clock.details["last_game_time"],
+            )
+        result["metadata_updated"] = len(upgrades)
         if clock.details.get("mind_lt_fitted") is True:
             if result["created"]:
                 raise MindPowerError("Previously fitted LT hardware cannot silently reappear")
@@ -6081,6 +6096,84 @@ def tick_continuous_physics(*, now_game_time=None):
             if cargo_cooling_kw > lt_budget["environment_kw"] + 1e-7:
                 raise PhysicsError("Cargo cooling exceeded available LT radiator budget")
 
+        local_charge_mw = 0.0
+        if local_backup is not None:
+            prior_charge = local_backup["meter"]["charged_kwh"]
+            try:
+                local_backup = step_local_backup(
+                    local_backup,
+                    dt,
+                    nodes=power["nodes"],
+                    equipment=equipment,
+                    edges=aux_edges,
+                    switches=isolators,
+                    producer_nodes=power["producer_nodes"],
+                    # Charger headroom is limited by the *deliverable*
+                    # 3.3-MW main bus as well as live generation. Multiple
+                    # online generators do not enlarge the ship bus rating.
+                    producing_mw=min(power["producer_available_mw"], power["main_available_mw"]),
+                    other_requested_mw=power["requested_mw"],
+                    # Conducting copper does not imply sufficient bus MW.
+                    # A physically connected but browned-out appliance must
+                    # be eligible to draw its finite local DC reserve.
+                    normal_assured=power["essential_assured"],
+                )
+            except ElectricalError as exc:
+                raise PhysicsError(str(exc)) from exc
+            local_charge_mw = local_backup["last"]["grid_charge_requested_mw"]
+            if not math.isclose(
+                local_backup["meter"]["charged_kwh"] - prior_charge,
+                local_charge_mw * dt / 3.6,
+                rel_tol=1e-10,
+                abs_tol=1e-7,
+            ):
+                raise PhysicsError("Local charger energy escaped the generator ledger")
+            if local_charge_mw > 0:
+                power["requested_mw"] += local_charge_mw
+                power["dispatched_mw"] += local_charge_mw
+        # Lead-mind computers use the SAME finite G19 source accounting
+        # as physical machinery. Only connected, individually breakered
+        # modules draw grid MW. A/B source changes are durable, local,
+        # break-before-make contacts, never an imaginary remote bus.
+        mind_charge_mw = 0.0
+        gateway_grid_mw = 0.0
+        if mind_power is not None:
+            try:
+                mind_power, transfers = tick_mind_power(
+                    mind_design,
+                    mind_power,
+                    rows=mind_rows,
+                    g19_power=power,
+                    seconds=dt,
+                    loads_enabled=mind_cooling is not None,
+                )
+            except MindPowerError as exc:
+                raise PhysicsError(str(exc)) from exc
+            for old_id, new_id in transfers:
+                original = mind_rows["edge:" + old_id]
+                alternative = mind_rows["edge:" + new_id]
+                if original.setting != "available" or alternative.setting != "standby":
+                    raise PhysicsError("Mind infeed changed during serialised transfer")
+                old_contact = _snapshot(original)
+                original.setting = "standby"
+                original.revision += 1
+                original.save(update_fields=["setting", "revision"])
+                _event(original, "g19_mind_power_break_before_make_open", old_contact)
+                new_contact = _snapshot(alternative)
+                alternative.setting = "available"
+                alternative.revision += 1
+                alternative.save(update_fields=["setting", "revision"])
+                _event(alternative, "g19_mind_power_transfer_complete", new_contact)
+            mind_grid_mw = mind_power["last"]["grid_served_mw"]
+            mind_charge_mw = mind_power["last"]["grid_charge_mw"]
+            # A physically connected compute feeder IS a live consumer
+            # even if all original room circuits are intentionally open.
+            # Otherwise step_energy would discard real machine draw.
+            if mind_grid_mw > 0 or mind_charge_mw > 0:
+                power["has_live_load"] = True
+            power["requested_mw"] += mind_grid_mw + mind_charge_mw
+            power["dispatched_mw"] += mind_grid_mw + mind_charge_mw
+
         # Existing LT coolant route plus finite live radiator wings.
         cooling_nodes = connected_lt
         cool_zones = {node_zones.get(n) for n in cooling_nodes}
@@ -6091,22 +6184,32 @@ def tick_continuous_physics(*, now_game_time=None):
             0.0, lt_budget["environment_kw"] - cargo_cooling_kw)
         # Reserve independent compute cooling from this SAME original
         # motor/radiator allowance before the ordinary room coolers use it.
-        # Actual delivered output is bounded again after electrical dispatch.
+        # Electrical dispatch has already determined actual delivered energy.
         mind_lt_reserved_kw = 0.0
         mind_lt_cooling_kw = 0.0
+        mind_lt_rates = {}
+        cooling_requests = None
         if mind_cooling is not None:
             try:
-                provisional_rates = lt_rejection_rates(
+                cooling_requests = cooling_rejection_demand(
+                    mind_support,
+                    mind_cooling,
+                    physical_rows=mind_support_rows,
+                    seconds=dt,
+                    machine_heat_kj=mind_power["last"]["delivered_heat_kj"],
+                )
+                mind_lt_rates = lt_rejection_rates(
                     mind_support,
                     physical_rows=mind_support_rows,
                     connection_rows=mind_lt_rows,
                     connected_lt_nodes=connected_lt,
-                    powered_machines={"MIND-%02d" % n for n in range(1, 10)},
+                    powered_machines=set(mind_power["last"]["powered"]),
                     cooling_budget_kw=total_cool_kw,
+                    requested_kw=cooling_requests,
                 )
             except MindPowerError as exc:
                 raise PhysicsError(str(exc)) from exc
-            mind_lt_reserved_kw = sum(provisional_rates.values())
+            mind_lt_reserved_kw = sum(mind_lt_rates.values())
             total_cool_kw = max(0.0, total_cool_kw - mind_lt_reserved_kw)
         # The forty original residential cabin coils are *independent*
         # appliances on existing PWR and LT valve nodes. Reserve their
@@ -6267,73 +6370,6 @@ def tick_continuous_physics(*, now_game_time=None):
                     fire_water_delivered_kg,
                     demand_present=any(c["mist"] > 0 for c in cells.values())).items():
                 media_output_kg[name] += kg
-        local_charge_mw = 0.0
-        if local_backup is not None:
-            prior_charge = local_backup["meter"]["charged_kwh"]
-            try:
-                local_backup = step_local_backup(
-                    local_backup, dt, nodes=power["nodes"],
-                    equipment=equipment, edges=aux_edges, switches=isolators,
-                    producer_nodes=power["producer_nodes"],
-                    # Charger headroom is limited by the *deliverable*
-                    # 3.3-MW main bus as well as live generation. Multiple
-                    # online generators do not enlarge the ship bus rating.
-                    producing_mw=min(power["producer_available_mw"],
-                                     power["main_available_mw"]),
-                    other_requested_mw=power["requested_mw"],
-                    # Conducting copper does not imply sufficient bus MW.
-                    # A physically connected but browned-out appliance must
-                    # be eligible to draw its finite local DC reserve.
-                    normal_assured=power["essential_assured"])
-            except ElectricalError as exc:
-                raise PhysicsError(str(exc)) from exc
-            local_charge_mw = local_backup["last"]["grid_charge_requested_mw"]
-            if not math.isclose(
-                    local_backup["meter"]["charged_kwh"] - prior_charge,
-                    local_charge_mw * dt / 3.6,
-                    rel_tol=1e-10, abs_tol=1e-7):
-                raise PhysicsError("Local charger energy escaped the generator ledger")
-            if local_charge_mw > 0:
-                power["requested_mw"] += local_charge_mw
-                power["dispatched_mw"] += local_charge_mw
-        # Lead-mind computers use the SAME finite G19 source accounting
-        # as physical machinery. Only connected, individually breakered
-        # modules draw grid MW. A/B source changes are durable, local,
-        # break-before-make contacts, never an imaginary remote bus.
-        mind_charge_mw = 0.0
-        gateway_grid_mw = 0.0
-        if mind_power is not None:
-            try:
-                mind_power, transfers = tick_mind_power(
-                    mind_design, mind_power, rows=mind_rows,
-                    g19_power=power, seconds=dt)
-            except MindPowerError as exc:
-                raise PhysicsError(str(exc)) from exc
-            for old_id, new_id in transfers:
-                original = mind_rows["edge:" + old_id]
-                alternative = mind_rows["edge:" + new_id]
-                if (original.setting != "available"
-                        or alternative.setting != "standby"):
-                    raise PhysicsError("Mind infeed changed during serialised transfer")
-                old_contact = _snapshot(original)
-                original.setting = "standby"
-                original.revision += 1
-                original.save(update_fields=["setting", "revision"])
-                _event(original, "g19_mind_power_break_before_make_open", old_contact)
-                new_contact = _snapshot(alternative)
-                alternative.setting = "available"
-                alternative.revision += 1
-                alternative.save(update_fields=["setting", "revision"])
-                _event(alternative, "g19_mind_power_transfer_complete", new_contact)
-            mind_grid_mw = mind_power["last"]["grid_served_mw"]
-            mind_charge_mw = mind_power["last"]["grid_charge_mw"]
-            # A physically connected compute feeder IS a live consumer
-            # even if all original room circuits are intentionally open.
-            # Otherwise step_energy would discard real machine draw.
-            if mind_grid_mw > 0 or mind_charge_mw > 0:
-                power["has_live_load"] = True
-            power["requested_mw"] += mind_grid_mw + mind_charge_mw
-            power["dispatched_mw"] += mind_grid_mw + mind_charge_mw
         # The ship-control network has no remote permissions until the
         # separately commissioned gateway/authority layer exists. Power,
         # connectivity and thermally safe operation are three distinct facts.
@@ -6360,15 +6396,9 @@ def tick_continuous_physics(*, now_game_time=None):
                     room_zones=zones,
                     seconds=dt,
                     powered_machines=online,
+                    requested_kw=cooling_requests,
                 )
-                lt_rates = lt_rejection_rates(
-                    mind_support,
-                    physical_rows=mind_support_rows,
-                    connection_rows=mind_lt_rows,
-                    connected_lt_nodes=connected_lt,
-                    powered_machines=online,
-                    cooling_budget_kw=mind_lt_reserved_kw,
-                )
+                lt_rates = mind_lt_rates
                 rejection_rates = {
                     name: rate + lt_rates[name] for name, rate in rejection_rates.items()
                 }
@@ -6379,6 +6409,7 @@ def tick_continuous_physics(*, now_game_time=None):
                     seconds=dt,
                     failed=bad_cooling,
                     measured_rejection_kw=rejection_rates,
+                    machine_heat_kj=mind_power["last"]["delivered_heat_kj"],
                 )
                 networked=connected_machines(
                     mind_support,available_machines=online,
@@ -6403,12 +6434,11 @@ def tick_continuous_physics(*, now_game_time=None):
                     sink["temperature"] = sink["energy"] / (
                         sink["capacity"] + sink["mass"] * CP_GAS_KJ_KG_K
                     )
-                uncontained=thermal_receipts[pod["id"]]["unabsorbed_kj"]
-                running=[machine for machine in pod["machines"]
-                         if machine in online]
-                if not running or uncontained<=0:
-                    continue
-                for machine in running:
+                for machine, uncontained in thermal_receipts[pod["id"]][
+                    "unabsorbed_by_machine_kj"
+                ].items():
+                    if uncontained <= 0:
+                        continue
                     fitted=equipment.get(machine)
                     if fitted is None:
                         raise PhysicsError("Cooling heat has no fitted machine room")
@@ -6416,7 +6446,7 @@ def tick_continuous_physics(*, now_game_time=None):
                     gas=cells.get(zone)
                     if gas is None:
                         raise PhysicsError("Cooling heat has no installed pressure cell")
-                    gas["energy"] += uncontained / len(running)
+                    gas["energy"] += uncontained
                     gas["temperature"] = gas["energy"] / (
                         gas["capacity"] + gas["mass"] * CP_GAS_KJ_KG_K)
             overheated=set(thermal_trips)
@@ -6477,6 +6507,11 @@ def tick_continuous_physics(*, now_game_time=None):
                     seconds=dt,
                     now_s=last + duration,
                     heat_sink_available=bool(gateway_sink and gateway_sink["temperature"] < 313.15),
+                    operating_machines=(
+                        set(service_operations["last"]["operating"])
+                        if service_operations is not None
+                        else None
+                    ),
                 )
             except MindPowerError as exc:
                 raise PhysicsError(str(exc)) from exc

@@ -5,6 +5,24 @@ on:
     branches: [g19/lead-mind-power-islands]
     paths:
       - "design/ship/lead_mind_power_islands.json"
+      - "design/ship/ox_full_ship.json"
+      - "design/ship/ox_full_ship_v0.5_candidate.json"
+      - "game/world/ship_model.py"
+      - "game/world/ship_world.py"
+      - "game/world/full_ship_operations.py"
+      - "game/world/ship_electrical_power.py"
+      - "game/world/ship_auxiliary_electrical.py"
+      - "game/world/ship_equipment_services.py"
+      - "game/world/ship_persistence_integrity.py"
+      - "game/world/ship_cabin_fancoils.py"
+      - "game/world/models.py"
+      - "game/world/bootstrap.py"
+      - "game/world/ship_crew_access.py"
+      - "game/world/tests/test_ship_electrical_power.py"
+      - "game/world/tests/test_ship_auxiliary_electrical.py"
+      - "game/world/tests/test_installed_ship_cabin_fancoils.py"
+      - ".github/ci/check_ox_ci_scope.py"
+      - "design/ci/check_world_test_selection.py"
       - "design/ship/lead_mind_support_topology.json"
       - "game/world/ship_mind_power.py"
       - "game/world/ship_mind_runtime.py"
@@ -22,6 +40,24 @@ on:
     types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - "design/ship/lead_mind_power_islands.json"
+      - "design/ship/ox_full_ship.json"
+      - "design/ship/ox_full_ship_v0.5_candidate.json"
+      - "game/world/ship_model.py"
+      - "game/world/ship_world.py"
+      - "game/world/full_ship_operations.py"
+      - "game/world/ship_electrical_power.py"
+      - "game/world/ship_auxiliary_electrical.py"
+      - "game/world/ship_equipment_services.py"
+      - "game/world/ship_persistence_integrity.py"
+      - "game/world/ship_cabin_fancoils.py"
+      - "game/world/models.py"
+      - "game/world/bootstrap.py"
+      - "game/world/ship_crew_access.py"
+      - "game/world/tests/test_ship_electrical_power.py"
+      - "game/world/tests/test_ship_auxiliary_electrical.py"
+      - "game/world/tests/test_installed_ship_cabin_fancoils.py"
+      - ".github/ci/check_ox_ci_scope.py"
+      - "design/ci/check_world_test_selection.py"
       - "design/ship/lead_mind_support_topology.json"
       - "game/world/ship_mind_power.py"
       - "game/world/ship_mind_runtime.py"
@@ -72,7 +108,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        slice: [power-network-cooling, read-only-gateway]
+        slice: [power-network-cooling, read-only-gateway, review-regressions]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -89,8 +125,12 @@ jobs:
       - name: Run actual ship installation and casualty regressions
         if: matrix.slice == 'power-network-cooling'
         working-directory: game
-        run: python -m world.test_runner world.tests.test_installed_ship_mind_power world.tests.test_installed_ship_cabin_fancoils.InstalledCabinFanCoils.test_live_original_power_and_lt_valves_create_positive_cabin_output --exclude-tag=g19_gateway --verbosity=2
+        run: python -m world.test_runner world.tests.test_installed_ship_mind_power world.tests.test_installed_ship_cabin_fancoils.InstalledCabinFanCoils.test_live_original_power_and_lt_valves_create_positive_cabin_output --exclude-tag=g19_gateway --exclude-tag=g19_infrastructure_review --verbosity=2
       - name: Run independent gateway power, protocol and thermal acceptance
         if: matrix.slice == 'read-only-gateway'
         working-directory: game
         run: python -m world.test_runner world.tests.test_installed_ship_mind_power --tag=g19_gateway --verbosity=2
+      - name: Run commissioning and conservation review regressions
+        if: matrix.slice == 'review-regressions'
+        working-directory: game
+        run: python -m world.test_runner world.tests.test_installed_ship_mind_power --tag=g19_infrastructure_review --verbosity=2

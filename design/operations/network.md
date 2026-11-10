@@ -236,6 +236,11 @@ bounded simulation vocabulary is `ox.drum3.mixed-telemetry/1`:
 | `DR-03-CARGO-GAS` | `RUN_FB`, 0/1 | Running feedback, not delivered gas | state |
 | `ISO-DR-03-LT-IF` | `VLV_POS`, C/O | Closed/open position | position |
 
+Running feedback comes from the current world-owned service-operation
+result, including the machine's own feeder and restart state. An unchanged
+`physics_online` flag cannot report a disconnected skid as running. Without
+a current operation result the reading is unavailable.
+
 Each reading retains source identity, source revision, game time, raw term,
 raw value, quality and mapping revision. Unknown or failed source indications
 stay unavailable rather than becoming zero. Both gateway branches require

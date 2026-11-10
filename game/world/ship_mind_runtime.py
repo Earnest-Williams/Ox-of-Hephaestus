@@ -13,9 +13,14 @@ import copy
 import math
 
 from world.ship_mind_power import (
-    MindPowerError, SOURCE_MODEL, FORBIDDEN, load_design,
-    initial_reserve_ledger, proposed_world_rows, validate_reserve_ledger,
+    FORBIDDEN,
+    SOURCE_MODEL,
+    MindPowerError,
+    initial_reserve_ledger,
+    load_design,
+    proposed_world_rows,
     validate_fitted_source_routes,
+    validate_reserve_ledger,
 )
 
 BROKEN = frozenset({"faulted", "failed", "severed", "jammed", "destroyed"})
@@ -197,7 +202,7 @@ def _charger_usable(island, rows, account):
                 and _conducting_edge(rows, "EDGE-CHARGE-" + reserve["id"]))
 
 
-def tick_mind_power(design, account, *, rows, g19_power, seconds):
+def tick_mind_power(design, account, *, rows, g19_power, seconds, loads_enabled=True):
     """Step local sources, measured reserve use and bounded grid load.
 
     `g19_power` must be the authoritative source_dispatch result from the
@@ -209,6 +214,7 @@ def tick_mind_power(design, account, *, rows, g19_power, seconds):
     """
     validate_mind_runtime(design, account)
     dt = _finite(seconds, zero=False)
+    _require(type(loads_enabled) is bool, "Unverified machine load interlock")
     _require(dt <= 10.0, "Mind transfer must advance in bounded 10-second steps")
     expected = proposed_world_rows(design)
     for key, spec in expected.items():
@@ -237,6 +243,7 @@ def tick_mind_power(design, account, *, rows, g19_power, seconds):
     offline = []
     grid_kw = 0.0
     charge_kw = 0.0
+    delivered_heat = {m["id"]: 0.0 for island in design["islands"] for m in island["machines"]}
     grid_nodes = set(g19_power["nodes"])
     for island in design["islands"]:
         iid = island["id"]
@@ -269,8 +276,9 @@ def tick_mind_power(design, account, *, rows, g19_power, seconds):
         # A source change does not bypass the local reserve *during* this
         # step; grid power from the new input begins on the next ship tick.
         transfer_active = (not active_ready and alternative_ready)
-        active_machines = [m for m in island["machines"]
-                           if healthy and _machine_usable(m, rows)]
+        active_machines = [
+            m for m in island["machines"] if loads_enabled and healthy and _machine_usable(m, rows)
+        ]
         demand_kw = sum(m["load_kw"] for m in active_machines)
         should_grid = bool(active_ready and demand_kw <= available_kw + 1e-9)
         bank = new["reserve"]["units"][island["local_reserve"]["id"]]
@@ -279,6 +287,7 @@ def tick_mind_power(design, account, *, rows, g19_power, seconds):
             available_kw -= grid_served_kw
             grid_kw += grid_served_kw
         powered = False
+        delivered = grid_served_kw * dt / 3600.0
         if should_grid:
             powered = True
         elif demand_kw and _reserve_usable(island, rows, new):
@@ -293,11 +302,10 @@ def tick_mind_power(design, account, *, rows, g19_power, seconds):
             new["reserve"]["meter"]["unserved_kwh"] += max(0.0, required - delivered)
         if demand_kw and not powered:
             # Partial reserve delivery is not a fabricated online machine.
-            partial = 0.0 if should_grid else (
-                min(demand_kw * dt / 3600, account["reserve"]["units"][
-                    island["local_reserve"]["id"]]["charge_kwh"])
-                if _reserve_usable(island, rows, account) else 0.0)
-            new["meter"]["unserved_kwh"] += max(0.0, demand_kw * dt / 3600 - partial)
+            new["meter"]["unserved_kwh"] += max(0.0, demand_kw * dt / 3600 - delivered)
+        if demand_kw:
+            for machine in active_machines:
+                delivered_heat[machine["id"]] = delivered * 3600.0 * machine["load_kw"] / demand_kw
         if powered:
             online.extend(m["id"] for m in active_machines)
         else:
@@ -323,10 +331,23 @@ def tick_mind_power(design, account, *, rows, g19_power, seconds):
     new["meter"]["grid_charge_kwh"] += charge_kw * kwh
     # Reserve charge is already included in per-bank conservation identity.
     new["last"] = {
-        "seconds": dt, "powered": sorted(online), "unpowered": sorted(offline),
+        "seconds": dt,
+        "powered": sorted(online),
+        "unpowered": sorted(offline),
         "grid_served_mw": grid_kw / 1000.0,
         "grid_charge_mw": charge_kw / 1000.0,
         "transfers_completed": [[a, b] for a, b in changed_contacts],
+        "delivered_heat_kj": delivered_heat,
+        "loads_enabled": loads_enabled,
     }
+    delivered_kwh = grid_kw * kwh + (
+        new["meter"]["reserve_served_kwh"] - account["meter"]["reserve_served_kwh"]
+    )
+    _require(
+        math.isclose(
+            sum(delivered_heat.values()), delivered_kwh * 3600.0, rel_tol=1e-10, abs_tol=1e-7
+        ),
+        "Computer electricity did not reach the thermal account",
+    )
     validate_mind_runtime(design, new)
     return new, tuple(changed_contacts)
