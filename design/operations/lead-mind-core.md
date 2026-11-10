@@ -11,8 +11,10 @@ controlled access.
 
 **Accepted (New), 3 November 2026:** the placement, parity and capacity
 model and handover table below. Exact numbers — rebuild time, capacity steps —
-are starting values to be settled in playtesting. The design data has no
-computing equipment or machine rooms today.
+are starting values to be settled in playtesting. The original v0.5 design has no
+computing equipment or machine rooms. Draft PR #151 adds separately
+commissioned machine hardware and support overlays rather than rewriting
+the original ship model.
 
 ## Placement rule
 
@@ -52,7 +54,7 @@ making it controlled-access closes a short cut between trunks A and B. An
 alternative is to leave the forward spine empty and accept three machines in the
 hub, where backbone routes are most redundant.
 
-**Power supply design (New, not fitted):** the nine machines require at
+**Power supply design (New in the original model; PR #151 draft implementation):** the nine machines require at
 least five separately isolated, locally buffered power islands, with at
 most two machines assigned to any one island. A candidate arrangement is
 islands for machines **1-2 (bow)**, **3 (forward spine)**, **4-5 (hub)**,
@@ -135,6 +137,25 @@ remote command log and a new **core log**.
 
 ## Open questions
 
-1. Where does the forward-spine machine's feeder come from, and does making
-   `XCON-GAP-23` controlled-access cost the crew a useful short cut?
+1. **Resolved in the PR #151 candidate:** independent A/B taps at the
+   existing gap-23 distribution boards feed a new local island. Machine 3
+   occupies a monitored equipment rack within `XCON-GAP-23`; the two
+   original cross-trunk doors remain public passages. The rack's own reader
+   and the actual conductor penetrations still need commissioning.
+   See [ADR 0011](../decisions/0011-ship-control-support-overlays.md).
 2. Rebuild time and capacity steps: tune in playtesting.
+
+## Support hardware design status, 10 November 2026
+
+The draft [PR #151](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/151)
+models two independent fibre rails along the original A/B personnel trunks,
+with one separately attributed drop to each machine on each rail. Continuous
+rotating HAB connectivity requires two **new** data couplers, independent of
+the personnel indexers.
+
+Each of the five electrical islands has a separate local thermal buffer and
+heat rejector. Rated 2 kW/machine heat and 720 kJ/island finite nameplate
+buffer give at least 120 seconds without assuming the original LT plant
+remains available. Actual energy/temperature surveys are required, and the
+buffer is not presumed charged at commissioning. The current implementation
+does not provide machine parity, cognition, or network command authority.
