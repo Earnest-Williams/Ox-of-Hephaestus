@@ -58,7 +58,18 @@ movement and maintenance worse.
    into measured local headroom; any remainder enters the actual room
    atmosphere and causes an equipment thermal-protection trip.
 
-6. **Preserve separations of responsibility.** Installed fibre proves
+6. **Fit the first gateway as disabled hardware.** The gateway
+   `GW-LCS-DR-03` belongs to the existing `LCS-DR-03` station
+   at `BE-05-SVC`. An A branch from `TRUNK-A-DR-03` runs through the
+   actual logistics stop and `TRUNK-B-DR-03`; the B branch enters from
+   that same B trunk compartment. A casualty at this shared local corridor
+   can remove *the drum-3 gateway*, even though the two principal backbone
+   rails remain independently routed. A single segment-local gateway fault
+   is acceptable because the drum keeps its physical local controller.
+   Commissioning adds only physical records. Protocol mapping revision
+   starts at zero, power unverified and remote commands disabled.
+
+7. **Preserve separations of responsibility.** Installed fibre proves
    physical connectivity only, not a correct device protocol, sensor
    freshness, permission to command, successful actuation, or a live
    computational principal. A future network-scoped read model and remote
@@ -78,7 +89,8 @@ checks, plus an installed electrical and ship-clock integration gate.
 
 - Constructed cable penetrations, moving-joint environmental/EMI ratings,
   and verified installed A/B continuity.
-- The full mixed-generation gateway protocol map and mapping revisions.
+- The full mixed-generation gateway protocol map and mapping revisions,
+  including proof of `GW-LCS-DR-03` power and its segment-local fallback.
 - Which local roles may take control of each segment and exact remote
   authority grants.
 - Steady-state, **measured** heat rejection to original LT/air loops and
