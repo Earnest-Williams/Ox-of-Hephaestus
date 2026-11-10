@@ -15,10 +15,13 @@ from world.full_ship_operations import (
 from world.models import CanonicalShipState, CanonicalShipEvent
 from world.ship_mind_power import load_design
 from world.ship_mind_runtime import validate_mind_runtime
+from world.ship_mind_support import load_support, validate_cooling_ledger
+from world.ship_mind_support_world import installed_network_cohort
 from world.ship_electrical_power import audit_topology
 from world.continuous_ship_physics import (
     PhysicsError, arm_continuous_physics, commission_g19_electrical,
     commission_g19_mind_power, survey_g19_mind_reserve,
+    commission_g19_mind_support, survey_g19_mind_cooling,
     tick_continuous_physics, _clock,
 )
 
@@ -164,6 +167,87 @@ class InstalledMindPowerTests(EvenniaTestCase):
                 "g19_mind_power_transfer_complete",
             ])
         self.assertEqual(transitions.count(), 2)
+
+    def test_backbone_and_cold_pods_install_separately_without_remote_authority(self):
+        self.installed()
+        with self.assertRaises(PermissionError):
+            commission_g19_mind_support()
+        first=commission_g19_mind_support(operator_approved=True)
+        self.assertTrue(first["commissioned"])
+        self.assertEqual(first["created"],147)
+        self.assertEqual(first["total"],147)
+        support=load_support()
+        rows=CanonicalShipState.objects.filter(source_model="ox.ship-support/1")
+        self.assertEqual(rows.count(),147)
+        self.assertEqual(rows.filter(category="equipment").count(),21)
+        self.assertEqual(rows.filter(category="node").count(),64)
+        self.assertEqual(rows.filter(category="edge").count(),62)
+        self.assertFalse(commission_g19_mind_support(
+            operator_approved=True)["commissioned"])
+        self.assertEqual(len(installed_network_cohort(
+            CanonicalShipState,support,self.design,
+            __import__("world.full_ship_operations",fromlist=["load_candidate"]
+                       ).load_candidate(),
+            machines={"MIND-%02d"%n for n in range(1,10)})),9)
+        self.assertTrue(validate_cooling_ledger(
+            support,_clock().details["mind_cooling"]))
+        self.assertTrue(all(not unit["surveyed"] for unit in
+            _clock().details["mind_cooling"]["units"].values()))
+        # Two actual independent rotary data couplers; a single cut does
+        # not disconnect a region, but both cuts isolate the HAB pair.
+        set_component_condition("equipment","NET-ROT-A","failed",operator=True)
+        self.assertEqual(len(installed_network_cohort(
+            CanonicalShipState,support,self.design,
+            __import__("world.full_ship_operations",fromlist=["load_candidate"]
+                       ).load_candidate(),
+            machines={"MIND-%02d"%n for n in range(1,10)})),9)
+        set_component_condition("equipment","NET-ROT-B","failed",operator=True)
+        self.assertEqual(len(installed_network_cohort(
+            CanonicalShipState,support,self.design,
+            __import__("world.full_ship_operations",fromlist=["load_candidate"]
+                       ).load_candidate(),
+            machines={"MIND-%02d"%n for n in range(1,10)})),7)
+
+    def test_surveyed_cold_ride_through_and_local_thermal_trip_are_clock_owned(self):
+        self.installed()
+        commission_g19_mind_support(operator_approved=True)
+        support=load_support()
+        for pod in support["cooling_islands"]:
+            survey_g19_mind_cooling(
+                operator_approved=True,
+                buffer_id=pod["independent_buffer_id"],
+                capacity_kj=720,free_kj=720)
+        self.online_generator("GEN-M")
+        self.close_authored_input("A")
+        self.advance(1010)
+        details=_clock().details
+        self.assertEqual(len(details["mind_support_last"]["compute_ready"]),9)
+        self.assertEqual(details["mind_support_last"]["thermal_shutdown"],[])
+        self.assertTrue(validate_cooling_ledger(
+            support,details["mind_cooling"]))
+        self.assertEqual(sum(unit["generated_kj"] for unit in
+            details["mind_cooling"]["units"].values()),180.0)
+        bow=support["cooling_islands"][0]
+        self.assertEqual(details["mind_cooling"]["units"][
+            bow["independent_buffer_id"]]["free_kj"],680.0)
+        set_component_condition("equipment",bow["independent_buffer_id"],
+                                "failed",operator=True)
+        before_count=CanonicalShipEvent.objects.filter(
+            operation="g19_mind_thermal_protection_trip").count()
+        self.advance(1020)
+        details=_clock().details
+        self.assertEqual(details["mind_support_last"]["thermal_shutdown"],
+                         ["MIND-01","MIND-02"])
+        self.assertEqual(len(details["mind_support_last"]["compute_ready"]),7)
+        self.assertEqual(CanonicalShipEvent.objects.filter(
+            operation="g19_mind_thermal_protection_trip").count()
+                         - before_count,2)
+        self.assertEqual(state("equipment","MIND-01").condition,"faulted")
+        self.assertEqual(state("equipment","MIND-02").condition,"faulted")
+        self.advance(1030)
+        self.assertEqual(len(_clock().details["mind_power"]["last"]["powered"]),7)
+        self.assertFalse(commission_g19_mind_support(
+            operator_approved=True)["commissioned"])
 
     def test_missing_new_machine_contact_or_tampered_identity_fails_closed(self):
         self.installed()
