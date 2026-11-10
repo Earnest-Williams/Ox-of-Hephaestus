@@ -265,6 +265,14 @@ from world.ship_auxiliary_electrical import (
     step_local_backup, motor_power, fire_pump_service_ready,
     allocate_lt_cooling,
 )
+from world.ship_mind_power import (
+    MindPowerError, load_design as load_mind_power_design,
+    survey_reserve as survey_mind_reserve,
+)
+from world.ship_mind_runtime import (
+    install_mind_circuits, initial_mind_runtime,
+    validate_mind_runtime, tick_mind_power,
+)
 from world.ship_equipment_wear import (
     initial_equipment_wear, validate_equipment_wear,
     survey_existing_wear, step_equipment_wear,
@@ -589,6 +597,13 @@ def _snapshot(item):
     # Earlier clock snapshots omitted motion and made a successfully
     # receipted helm/rotor operation indistinguishable from a no-op.
     if item.key == CLOCK_KEY:
+        if item.details.get("mind_power") is not None:
+            mind = item.details["mind_power"]
+            result["mind_power"] = {
+                "meter": mind["meter"],
+                "pending": mind["pending"],
+                "last": mind["last"],
+            }
         if item.details.get("water"):
             water = item.details["water"]
             result["water"] = {
@@ -961,6 +976,78 @@ def commission_g19_electrical(*, operator_approved=False):
             "feeders": len(edge_map), "breakers": len(switch_map),
             "rated_battery_kwh": 0.0, "shore_connected": False}
 
+
+
+@transaction.atomic
+def commission_g19_mind_power(*, operator_approved=False):
+    """Fit the five lead-mind electrical islands, without resetting casualties.
+
+    This does not commission a thinking mind, networking or cooling. It fits
+    physical machine loads and dedicated supply/storage circuits, checks the
+    existing G19 tap identities, and starts a zero-measured-charge ledger.
+    """
+    if not operator_approved:
+        raise PermissionError("Lead-mind physical installation is operator-only")
+    _require_installed()
+    clock = _clock(lock=True)
+    if clock.details.get("electrical") is None:
+        raise PhysicsError("Commission the installed G19 power system first")
+    design = load_mind_power_design()
+    from world.full_ship_operations import load_candidate
+    try:
+        result = install_mind_circuits(
+            CanonicalShipState, design, load_candidate())
+        prior = clock.details.get("mind_power")
+        if prior is not None:
+            if result["created"]:
+                raise MindPowerError(
+                    "Existing lead-mind plant cannot silently recreate missing hardware")
+            validate_mind_runtime(design, prior)
+            return {"commissioned": False, **result}
+        old = _snapshot(clock)
+        details = dict(clock.details)
+        details["mind_power"] = initial_mind_runtime(design)
+        clock.details = details
+        clock.revision += 1
+        clock.save(update_fields=["details", "revision"])
+        _event(clock, "g19_mind_power_commissioned", old)
+        return {"commissioned": True, **result,
+                "measured_reserve_kwh": 0.0}
+    except MindPowerError as exc:
+        raise PhysicsError(str(exc)) from exc
+
+
+@transaction.atomic
+def survey_g19_mind_reserve(*, operator_approved=False, reserve_id,
+                            capacity_kwh, charge_kwh):
+    """One-time recorded physical survey, not permission to invent reserves."""
+    if not operator_approved:
+        raise PermissionError("Measured reserve installation is operator-only")
+    clock = _clock(lock=True)
+    design = load_mind_power_design()
+    old_account = clock.details.get("mind_power")
+    if old_account is None:
+        raise PhysicsError("Lead-mind electrical islands are not commissioned")
+    battery = state("equipment", reserve_id, lock=True)
+    if (battery.source_model != "ox.lead-mind-power/1"
+            or battery.condition in _BROKEN):
+        raise PhysicsError("Reserve battery is not fitted and healthy")
+    try:
+        account = copy.deepcopy(old_account)
+        account["reserve"] = survey_mind_reserve(
+            design, account["reserve"], reserve_id,
+            capacity_kwh=capacity_kwh, charge_kwh=charge_kwh)
+        validate_mind_runtime(design, account)
+    except MindPowerError as exc:
+        raise PhysicsError(str(exc)) from exc
+    before = _snapshot(clock)
+    d = dict(clock.details)
+    d["mind_power"] = account
+    clock.details = d
+    clock.revision += 1
+    clock.save(update_fields=["details", "revision"])
+    _event(clock, "g19_mind_power_reserve_surveyed", before)
+    return {"surveyed": reserve_id, "measured_charge_kwh": charge_kwh}
 
 
 @transaction.atomic
@@ -4173,6 +4260,21 @@ def tick_continuous_physics(*, now_game_time=None):
                 node.reference.get("owner_id"), []).append(node.source_id)
     electrical = clock.details.get("electrical")
     local_backup = clock.details.get("local_backup")
+    mind_power = clock.details.get("mind_power")
+    mind_design = None
+    mind_rows = None
+    if mind_power is not None:
+        if electrical is None:
+            raise PhysicsError("Mind-power island installed without G19 dispatch")
+        mind_design = load_mind_power_design()
+        try:
+            validate_mind_runtime(mind_design, mind_power)
+        except MindPowerError as exc:
+            raise PhysicsError(str(exc)) from exc
+        mind_rows = {
+            row.key: row for row in
+            [*water_nodes, *edges, *isolators.values(), *equipment_rows]
+        }
     if local_backup is not None:
         try:
             validate_local_backup(local_backup)
@@ -5670,6 +5772,38 @@ def tick_continuous_physics(*, now_game_time=None):
             if local_charge_mw > 0:
                 power["requested_mw"] += local_charge_mw
                 power["dispatched_mw"] += local_charge_mw
+        # Lead-mind computers use the SAME finite G19 source accounting
+        # as physical machinery. Only connected, individually breakered
+        # modules draw grid MW. A/B source changes are durable, local,
+        # break-before-make contacts, never an imaginary remote bus.
+        mind_charge_mw = 0.0
+        if mind_power is not None:
+            try:
+                mind_power, transfers = tick_mind_power(
+                    mind_design, mind_power, rows=mind_rows,
+                    g19_power=power, seconds=dt)
+            except MindPowerError as exc:
+                raise PhysicsError(str(exc)) from exc
+            for old_id, new_id in transfers:
+                original = mind_rows["edge:" + old_id]
+                alternative = mind_rows["edge:" + new_id]
+                if (original.setting != "available"
+                        or alternative.setting != "standby"):
+                    raise PhysicsError("Mind infeed changed during serialised transfer")
+                old_contact = _snapshot(original)
+                original.setting = "standby"
+                original.revision += 1
+                original.save(update_fields=["setting", "revision"])
+                _event(original, "g19_mind_power_break_before_make_open", old_contact)
+                new_contact = _snapshot(alternative)
+                alternative.setting = "available"
+                alternative.revision += 1
+                alternative.save(update_fields=["setting", "revision"])
+                _event(alternative, "g19_mind_power_transfer_complete", new_contact)
+            mind_grid_mw = mind_power["last"]["grid_served_mw"]
+            mind_charge_mw = mind_power["last"]["grid_charge_mw"]
+            power["requested_mw"] += mind_grid_mw + mind_charge_mw
+            power["dispatched_mw"] += mind_grid_mw + mind_charge_mw
         if refuge_scrubbers is not None:
             # The actual normal refuge air load or the individually surveyed
             # and fully supplied local DC battery may drive its own package.
@@ -5716,10 +5850,10 @@ def tick_continuous_physics(*, now_game_time=None):
                 electrical = step_energy(
                     electrical, power, dt,
                     actual_requested_mw=power["requested_mw"],
-                    external_charge_mw=local_charge_mw)
+                    external_charge_mw=local_charge_mw + mind_charge_mw)
                 if not math.isclose(
                         electrical["last"]["local_battery_recharged_kwh"],
-                        local_charge_mw * dt / 3.6,
+                        (local_charge_mw + mind_charge_mw) * dt / 3.6,
                         rel_tol=1e-10, abs_tol=1e-7):
                     raise PhysicsError("Generator and local charger meters disagree")
             except ElectricalError as exc:
@@ -7146,6 +7280,9 @@ def tick_continuous_physics(*, now_game_time=None):
             d["fault_cases"] = fault_cases
     if local_backup is not None:
         d["local_backup"] = local_backup
+    if mind_power is not None:
+        validate_mind_runtime(mind_design, mind_power)
+        d["mind_power"] = mind_power
     if refuge_scrubbers is not None:
         d["refuge_scrubbers"] = refuge_scrubbers
     if refuge_media is not None:
