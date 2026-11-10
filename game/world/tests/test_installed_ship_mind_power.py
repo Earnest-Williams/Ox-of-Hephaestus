@@ -104,6 +104,11 @@ class InstalledMindPowerTests(EvenniaTestCase):
         self.assertEqual(len(mind["last"]["powered"]), 9)
         self.assertAlmostEqual(mind["last"]["grid_served_mw"], .018)
         self.assertAlmostEqual(mind["meter"]["grid_served_kwh"], .05)
+        # An A/B feeder that reports live compute but delivers no G19
+        # energy is a counterfeit source, not a passing integration test.
+        self.assertGreaterEqual(
+            clock.details["electrical"]["meter"]["served_kwh"] + 1e-7,
+            mind["meter"]["grid_served_kwh"])
         self.assertTrue(validate_mind_runtime(self.design, mind))
         before = mind["meter"]["grid_served_kwh"]
         self.assertFalse(self.advance(1010)["advanced"])
