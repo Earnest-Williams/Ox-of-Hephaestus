@@ -336,7 +336,8 @@ def validate_cooling_ledger(support, ledger):
                    unit["unabsorbed_kj"],abs_tol=1e-6),
                  "Heat vanished from finite coolant accounting")
         if not unit["surveyed"]:
-            _require(all(unit[x]==0 for x in unit if x!="surveyed"),
+            _require(all(unit[x]==0 for x in ("capacity_kj","free_kj",
+                                              "absorbed_kj")),
                      "Unsurveyed buffer credited with cold capacity")
     return True
 
