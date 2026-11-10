@@ -105,6 +105,12 @@ def validate_design(design):
                    and links[0] != links[1], "Two independent backbone ports required")
             for link in links:
                 unique(link)
+            final_route = machine.get("proposed_final_route_spaces")
+            _check(isinstance(final_route, list) and bool(final_route)
+                   and all(isinstance(x, str) and x for x in final_route)
+                   and final_route[0] == island["control_room"]
+                   and final_route[-1] == machine["room"],
+                   "Machine final lacks a proposed continuous room route")
             machine_load += _positive(machine.get("load_kw"), "machine load")
             machines.add(machine["id"])
             regions[machine["id"]] = region
@@ -121,6 +127,11 @@ def validate_design(design):
                    "Source contact requires explicit selected state")
             for field in ("edge", "breaker"):
                 unique(feed.get(field))
+            cable_rooms = feed.get("proposed_cable_route_spaces")
+            _check(isinstance(cable_rooms, list) and bool(cable_rooms)
+                   and all(isinstance(x, str) and x for x in cable_rooms)
+                   and cable_rooms[-1] == island["control_room"],
+                   "Proposed A/B feeder lacks a service-room route")
             route = feed.get("route_domains")
             _check(isinstance(route, list) and len(route) >= 3
                    and all(isinstance(x, str) and x for x in route)
@@ -156,11 +167,13 @@ def fault_components(design):
         for feed in island["inputs"]:
             elements.update((feed["edge"], feed["breaker"]))
             elements.update(feed["route_domains"])
+            elements.update(feed["proposed_cable_route_spaces"])
         for machine in island["machines"]:
             elements.update((machine["id"], machine["terminal_node"],
                              machine["feeder"], machine["isolator"],
                              machine["cooling_domain"]))
             elements.update(machine["backbone_links"])
+            elements.update(machine["proposed_final_route_spaces"])
     return tuple(sorted(elements))
 
 
@@ -189,6 +202,7 @@ def live_machines(design, *, failed=(), energized_main_nodes=None,
             UPSTREAM[feed["source"]] in live_sources
             and feed["edge"] not in bad and feed["breaker"] not in bad
             and not bad.intersection(feed["route_domains"])
+            and not bad.intersection(feed["proposed_cable_route_spaces"])
             for feed in island["inputs"]
         )
         reserve = island["local_reserve"]
@@ -206,8 +220,9 @@ def live_machines(design, *, failed=(), energized_main_nodes=None,
             if not bad.intersection((
                     machine["id"], machine["terminal_node"],
                     machine["feeder"], machine["isolator"],
-                    machine["cooling_domain"])) and any(
-                        link not in bad for link in machine["backbone_links"]):
+                    machine["cooling_domain"]))
+                    and not bad.intersection(machine["proposed_final_route_spaces"])
+                    and any(link not in bad for link in machine["backbone_links"]):
                 alive.add(machine["id"])
     return frozenset(alive)
 
@@ -375,6 +390,7 @@ def proposed_world_rows(design):
                  "from_node": UPSTREAM[feed["source"]],
                  "to_node": bus, "isolator_ids": [feed["breaker"]],
                  "route_domains": list(feed["route_domains"]),
+                 "route_spaces": list(feed["proposed_cable_route_spaces"]),
                  "break_before_make": True},
                 "available" if feed["selected"] else "standby")
             add("isolator", feed["breaker"], room,
@@ -395,7 +411,8 @@ def proposed_world_rows(design):
                 {"id": machine["feeder"], "network": "mind_power",
                  "kind": "dedicated_compute_feeder", "from_node": bus,
                  "to_node": machine["terminal_node"],
-                 "isolator_ids": [machine["isolator"]]}, "available")
+                 "isolator_ids": [machine["isolator"]],
+                 "route_spaces": list(machine["proposed_final_route_spaces"])}, "available")
             add("isolator", machine["isolator"], machine["room"],
                 {"id": machine["isolator"], "network": "mind_power",
                  "kind": "breaker", "current_state": "closed",
@@ -409,17 +426,37 @@ def validate_fitted_source_routes(design, ship):
     A feeder may be proposed only when the upstream existing route is a
     real, continuous and physically isolatable path. Bridge feeders are
     bidirectional in G19; all other edges are walked in their authored
-    direction. This does NOT install the last, new MIND-* cable or verify its
-    routing, source transfer switch, or current carrying capacity.
+    direction. Proposed new cables must follow real adjacent ship spaces.
+    This does NOT install or survey the proposed new cable, transfer switch,
+    or conductor capacity.
     """
     validate_design(design)
     _check(isinstance(ship, dict)
            and ship.get("schema_version") == "ox.ship-world/0.1",
            "Incorrect installed-ship source authority")
-    for section in ("spaces", "service_nodes", "service_edges", "isolation_points"):
+    for section in ("spaces", "access_links", "equipment", "service_nodes",
+                    "service_edges", "isolation_points"):
         _check(isinstance(ship.get(section), list),
                "Fitted source lacks " + section)
     spaces = {s["id"] for s in ship["spaces"]}
+    equipment = {e["id"]: e for e in ship["equipment"]}
+    adjacent = set()
+    for link in ship["access_links"]:
+        _check(link["from"] in spaces and link["to"] in spaces,
+               "Corrupt canonical ship passage")
+        adjacent.add((link["from"], link["to"]))
+        adjacent.add((link["to"], link["from"]))
+
+    def verified_cable_route(rooms, source_room, destination_room):
+        _check(isinstance(rooms, list) and bool(rooms)
+               and rooms[0] == source_room and rooms[-1] == destination_room,
+               "Proposed cable endpoints are not physically attached")
+        _check(all(room in spaces for room in rooms),
+               "Proposed cable crosses a nonexistent space")
+        _check(all((left, right) in adjacent
+                   for left, right in zip(rooms, rooms[1:])),
+               "Proposed cable jumps between nonadjacent compartments")
+
     nodes = {n["id"]: n for n in ship["service_nodes"] if n["network"] == "power"}
     edges = {e["id"]: e for e in ship["service_edges"] if e["network"] == "power"}
     switches = {s["id"]: s for s in ship["isolation_points"]
@@ -435,6 +472,8 @@ def validate_fitted_source_routes(design, ship):
                "Proposed island service room is not on the ship")
         for machine in island["machines"]:
             _check(machine["room"] in spaces, "Compute room is not on the ship")
+            verified_cable_route(machine["proposed_final_route_spaces"],
+                                 island["control_room"], machine["room"])
         for feed in island["inputs"]:
             expected = UPSTREAM[feed["source"]]
             route = feed["route_domains"]
@@ -474,9 +513,18 @@ def validate_fitted_source_routes(design, ship):
                     _check(token in spaces, "Proposed cable corridor not on ship: " + token)
             _check(original_edges > 0 and feed["tap_node"] == path_node,
                    "Candidate input does not reach its existing tapped board")
+            tap_owner = nodes[feed["tap_node"]].get("owner_id")
+            _check(tap_owner in equipment
+                   and equipment[tap_owner].get("system") == "power",
+                   "Source tap is not fitted power equipment")
+            verified_cable_route(feed["proposed_cable_route_spaces"],
+                                 equipment[tap_owner]["space_id"],
+                                 island["control_room"])
             count += 1
     return {"candidate_islands": len(design["islands"]),
             "candidate_machines": MACHINE_COUNT,
             "independent_input_routes": count,
+            "candidate_new_feed_routes_verified": count,
+            "candidate_machine_final_routes_verified": MACHINE_COUNT,
             "original_feeders_traced": len(traversed),
             "future_world_rows": len(proposed_world_rows(design))}
