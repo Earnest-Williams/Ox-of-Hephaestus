@@ -10,10 +10,7 @@ from world.full_ship_operations import state, set_component_condition
 from world.ship_world import find_ship_space
 from world.models import CanonicalShipEvent, WorkReceipt
 
-class InstalledDrumControl(EvenniaTestCase):
-    # Reuse the original installed-network fixture's real tick driver.
-    advance = InstalledNetworkAccessDelivery.advance
-
+class InstalledDrumControl(InstalledNetworkAccessDelivery):
     def setUp(self):
         InstalledNetworkAccessDelivery.setUp(self)
         self.tech.move_to(find_ship_space(ROOM),quiet=True)
