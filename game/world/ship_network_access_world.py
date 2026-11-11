@@ -56,7 +56,9 @@ def _principal(account, *, lock=False):
             and isinstance(row.details, dict)
             and set(row.details) == {
                 "hmac_secret", "acked_sequence", "issued_sequence",
+                "issued_has_more",
             }
+            and type(row.details["issued_has_more"]) is bool
             and type(row.details["acked_sequence"]) is int
             and type(row.details["issued_sequence"]) is int
             and 0 <= row.details["acked_sequence"] <= row.details["issued_sequence"],
@@ -87,6 +89,7 @@ def enroll_access_account(account, *, operator_approved=False):
         "details": {
             "hmac_secret": secrets.token_hex(32),
             "acked_sequence": 0, "issued_sequence": 0,
+            "issued_has_more": False,
         },
     }
     row, created = CanonicalShipState.objects.get_or_create(
@@ -135,7 +138,7 @@ def network_reachable(clock):
     )
     from world.ship_mind_runtime import tick_mind_power
     from world.ship_mind_support import (
-        BROKEN, connected_machines, load_support,
+        connected_machines, load_support,
     )
     from world.ship_mind_support_world import installed_support_rows
 
@@ -164,23 +167,18 @@ def network_reachable(clock):
             service["compute_ready"])
         if not available:
             return False
-        # A post-tick thermal casualty cannot remain connected by relying
-        # only on a prior "compute_ready" observation.
-        for pod in supported["cooling_islands"]:
-            apparatus = [
-                pod["independent_buffer_id"], pod["heat_rejector_id"],
-                *pod["individual_cold_plates"],
-            ]
-            if any(
-                "equipment:" + name not in all_rows
-                or all_rows["equipment:" + name].condition in BROKEN
-                for name in apparatus
-            ):
-                available.difference_update(pod["machines"])
-        if not available:
-            return False
         physical = installed_support_rows(
             CanonicalShipState, supported, design, ship)
+        # One failed rejector does not eliminate a still-finite cold store.
+        # Nor does one broken cold plate remove its healthy sibling.
+        from world.ship_network_access import thermally_ready
+        available = thermally_ready(
+            supported, details["mind_cooling"], physical,
+            service.get("thermal_receipts", {}),
+            available, forecast["last"]["delivered_heat_kj"],
+        )
+        if not available:
+            return False
         connected = connected_machines(
             supported, available_machines=available,
             physical_rows=physical, gateway_id=GATEWAY)
@@ -265,30 +263,44 @@ def access_page(account, *, limit=16):
     require(clock is not None and network_reachable(clock),
             "Ship network is not currently reachable")
     after = principal.details["acked_sequence"]
+    issued = principal.details["issued_sequence"]
     query = CanonicalShipEvent.objects.filter(
         component_key=PRINCIPAL, operation=DELIVERED, sequence__gt=after,
-    ).order_by("sequence")
-    rows = list(query[:limit + 1])
-    page = rows[:limit]
-    entries = [
-        present_delivery(row, epoch=principal.reference["epoch"]) for row in page
-    ]
-    ack = None
-    if page:
-        last = page[-1].sequence
-        if last > principal.details["issued_sequence"]:
+    )
+    if issued > after:
+        # Freeze the exact issued prefix until it has been acknowledged.
+        # New network deliveries cannot enlarge a page or change its token,
+        # even across restarts or if a different internal limit is requested.
+        page = list(query.filter(sequence__lte=issued).order_by(
+            "sequence")[:MAX_PAGE + 1])
+        require(bool(page) and len(page) <= MAX_PAGE
+                and page[-1].sequence == issued,
+                "Unacknowledged page has lost committed delivery evidence")
+        has_more = principal.details["issued_has_more"]
+    else:
+        rows = list(query.order_by("sequence")[:limit + 1])
+        page = rows[:limit]
+        has_more = len(rows) > limit
+        if page:
             principal.details = {
-                **principal.details, "issued_sequence": last,
+                **principal.details,
+                "issued_sequence": page[-1].sequence,
+                "issued_has_more": has_more,
             }
             principal.revision += 1
             principal.save(update_fields=["details", "revision"])
-        ack = seal(
-            principal.details["hmac_secret"],
-            principal.reference["account_pk"],
-            principal.reference["epoch"], last)
+    entries = [
+        present_delivery(row, epoch=principal.reference["epoch"]) for row in page
+    ]
+    ack = (
+        seal(principal.details["hmac_secret"],
+             principal.reference["account_pk"],
+             principal.reference["epoch"], page[-1].sequence)
+        if page else None
+    )
     return {
         "version": 1, "principal": "ship_lead",
-        "events": entries, "has_more": len(rows) > limit,
+        "events": entries, "has_more": has_more,
         "ack_token": ack,
     }
 

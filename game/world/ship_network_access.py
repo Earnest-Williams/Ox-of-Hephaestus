@@ -141,3 +141,47 @@ def present_delivery(event, *, epoch):
             "Network capsule is not a verified hatch change")
     return {"delivery_event_id": "ox-net-" + str(sequence),
             **{key: packet[key] for key in sorted(safe)}}
+
+
+def thermally_ready(support, ledger, rows, receipts, candidates, heat):
+    """Admit cooling that survives a *current* casualty for a bounded second.
+
+    Use the actual buffer inventory, already measured heat rejection, and
+    individually faultable cold plates. A failed rejector alone does not
+    erase finite ride-through; a failed plate disables only its own machine.
+    """
+    from world.ship_mind_support import BROKEN, validate_cooling_ledger
+
+    validate_cooling_ledger(support, ledger)
+    admitted = set(candidates)
+    for pod in support["cooling_islands"]:
+        for machine, plate in zip(
+            pod["machines"], pod["individual_cold_plates"]
+        ):
+            row = rows.get("equipment:" + plate)
+            if row is None or row.condition in BROKEN:
+                admitted.discard(machine)
+        active = set(pod["machines"]) & admitted
+        if not active:
+            continue
+        bank_row = rows.get("equipment:" + pod["independent_buffer_id"])
+        rejecting_row = rows.get("equipment:" + pod["heat_rejector_id"])
+        bank = ledger["units"][pod["independent_buffer_id"]]
+        demand = sum(float(heat.get(name, 0)) for name in active)
+        bank_ok = bool(
+            bank_row is not None and bank_row.condition not in BROKEN
+            and bank["surveyed"] and bank["free_kj"] + 1e-9 >= demand
+        )
+        prior = receipts.get(pod["id"], {})
+        reject_ok = bool(
+            rejecting_row is not None
+            and rejecting_row.condition not in BROKEN
+            and isinstance(prior, dict)
+            and type(prior.get("generated_kj")) in (float, int)
+            and type(prior.get("rejected_kj")) in (float, int)
+            and prior["generated_kj"] > 0
+            and prior["rejected_kj"] + 1e-9 >= prior["generated_kj"]
+        )
+        if not (bank_ok or reject_ok):
+            admitted.difference_update(active)
+    return frozenset(admitted)

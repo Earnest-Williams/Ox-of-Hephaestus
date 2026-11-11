@@ -160,12 +160,16 @@ class InstalledNetworkAccessDelivery(EvenniaTestCase):
         self.assertFalse(self.enroll()["enrolled"])
         self.action("1", "open")
         self.action("2", "open")  # No state change.
+        self.assertEqual(len(self.local()), 1)
+        self.assertEqual(len(self.deliveries()), 1)
+        page1 = access_page(self.account, limit=1)
+        self.assertFalse(page1["has_more"])
+        self.assertEqual(len(page1["events"]), 1)
+        # A second physical event arrives while the first page is outstanding.
+        # Even after a restart its issued prefix and token must not change.
         self.action("3", "closed")
         self.assertEqual(len(self.local()), 2)
         self.assertEqual(len(self.deliveries()), 2)
-        page1 = access_page(self.account, limit=1)
-        self.assertTrue(page1["has_more"])
-        self.assertEqual(len(page1["events"]), 1)
         self.assertEqual(page1, access_page(self.account, limit=1))
         self.assertNotIn("actor_dbref", page1["events"][0])
         self.assertEqual(page1["events"][0]["kind"], "hatch_change")
