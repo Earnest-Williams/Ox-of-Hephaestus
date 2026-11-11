@@ -137,6 +137,20 @@ class InstalledDrum3AccessContact(EvenniaTestCase):
                 operation="crew_hatch").order_by("sequence") if
              e.before.get("setting") != e.after.get("setting")][-2:])
 
+    def test_generator_loss_between_ticks_is_immediately_unobservable(self):
+        fit_dr03_contact(operator_approved=True)
+        self.survey()
+        self.action("a", "open")
+        self.assertEqual(len(self.contact_events()), 1)
+        # Lose the real generator, without advancing the physics clock.
+        # A cached gateway 'powered' result from 1010 must not count.
+        set_isolator("ISO-GEN-M", "open", operator=True)
+        self.assertTrue(_clock().details["mind_gateway"]["last"]["powered"])
+        self.action("b", "closed")
+        self.assertEqual(len(self.contact_events()), 1)
+        with self.assertRaises(AccessContactError):
+            self.survey()
+
     def test_fuse_and_damage_stop_capture_without_erasing_history(self):
         fit_dr03_contact(operator_approved=True)
         self.survey()

@@ -45,6 +45,35 @@ def _gateway_power_live(clock) -> tuple[bool, dict]:
     actual = {key: active[key].revision for key in POWER_KEYS}
     if survey.get("component_revisions") != actual:
         return False, {}
+    # A previous tick's powered bit is not a live source. A worker can open
+    # the generator isolator (or lose a board/stock) before another tick.
+    # Re-evaluate the very same world-owned distribution graph used by
+    # physics and verify the original local panel is energised *now*.
+    ledger = clock.details.get("electrical")
+    if not isinstance(ledger, dict):
+        return False, {}
+    from world.continuous_ship_physics import _power, PhysicsError
+    from world.ship_port_operations import contacts_active
+    equipment = {
+        row.source_id: row for row in CanonicalShipState.objects.filter(
+            category="equipment")
+    }
+    edges = list(CanonicalShipState.objects.filter(category="edge"))
+    switches = {
+        row.source_id: row for row in CanonicalShipState.objects.filter(
+            category="isolator")
+    }
+    try:
+        grid = _power(
+            equipment, edges, switches, clock.details["load_profile"],
+            ledger=ledger, moored=contacts_active(clock.details.get("cargo", {})),
+        )
+    except (PhysicsError, KeyError, TypeError, ValueError):
+        return False, {}
+    if not (grid["essential_assured"]
+            and "NODE-LP-BE-05-SVC" in grid["nodes"]
+            and grid["available_mw"] - grid["requested_mw"] >= .00005 - 1e-10):
+        return False, {}
     return True, actual
 
 
