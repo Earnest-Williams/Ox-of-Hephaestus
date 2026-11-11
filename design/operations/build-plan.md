@@ -117,3 +117,15 @@ is being silently activated.
 **Still pending:** remaining gateway protocol coverage, local takeover,
 network read-model scopes, access-reader events, remote commands and the
 lead-mind principal.
+
+
+## Follow-on: first actual access contact (dependent PR)
+
+A drum-3 passive contact mounted on `ACC-DR-03-LOCK-FIX` and wired to the
+already metered `GW-LCS-DR-03` sense input is fitted as separately
+faultable Evennia hardware. Physical continuity/penetration surveys bind
+the sensor and cable revisions. A local world event is recorded **only**
+when the physical hatch changes state while the fitted, surveyed gateway input
+is powered; there is no retroactive catch-up and no inferred identity. This is
+a local instrument, not the network delivery service or lead-mind principal.
+See [the fitted drum-3 contact](../ship/G19_DRUM3_ACCESS_CONTACT.md).
