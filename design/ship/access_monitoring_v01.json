@@ -14,7 +14,8 @@
     "HAB-04-ENV-SAT",
     "HAB-07-SG1-CUPBOARD",
     "ENV-AFT",
-    "COMMS-AFT"
+    "COMMS-AFT",
+    "BE-05-SVC"
   ],
   "rack_reader_candidates": [
     {
