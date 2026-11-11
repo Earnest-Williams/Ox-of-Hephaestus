@@ -93,18 +93,20 @@ def check_lt_interlocks(item, clock_details, *, value):
     require(item.condition not in {
         "faulted", "failed", "destroyed", "severed", "jammed"},
         "Drum-3 LT valve damaged")
+    # A valve held CLOSED for repair must not be reopened by either the
+    # remote principal or the local console. Unlike a breaker the dangerous
+    # operation is often opening, not closing; both are inhibited throughout
+    # a held repair to preserve the verified physical worksite.
+    repairs = (clock_details.get("repairs") or {}).get("jobs", {})
+    require(not any(work in repairs for work in (
+        "isolator:" + TARGET, "equipment:" + TARGET)),
+        "Attended target maintenance padlock")
+    fault_cases = (clock_details.get("fault_cases") or {}).get("cases", {})
+    for case in fault_cases.values():
+        if TARGET in case.get("feeders", ()) and case.get("stage") in {
+            "isolated", "repairing", "repaired"}:
+            raise DrumControlError("Fault case locks out valve operation")
     if value == "closed":
         require(not item.details.get("physics_power_trip_latched"),
                 "Physical trip requires attended reset")
-        repairs = (clock_details.get("repairs") or {}).get("jobs", {})
-        for work in repairs:
-            # No remote closure around a locally held target.
-            require(work not in {
-                "isolator:" + TARGET, "equipment:" + TARGET},
-                "Attended target maintenance padlock")
-        fault_cases = (clock_details.get("fault_cases") or {}).get("cases", {})
-        for case in fault_cases.values():
-            if TARGET in case.get("feeders", ()) and case.get("stage") in {
-                "isolated", "repairing", "repaired"}:
-                raise DrumControlError("Fault case locks out valve restoration")
     return True

@@ -8886,6 +8886,11 @@ def crew_physical_action(actor, request_id, action, target, value):
             raise PermissionError("No local manual operation is installed")
         if value not in {"open", "closed"} or item.condition in _BROKEN:
             raise PhysicsError("Unsafe switch command")
+        if target == "ISO-DR-03-LT-IF":
+            # Same target-specific maintenance guard for the original
+            # manual valve and the new single-point network controller.
+            from world.ship_dr03_authority import check_lt_interlocks
+            check_lt_interlocks(item, _clock().details, value=value)
         if value == "closed" and item.details.get("physics_power_trip_latched"):
             raise PhysicsError("Breaker is physically tripped; isolate fault and reset locally")
         if value == "closed":

@@ -41,6 +41,9 @@ class DrumControlPolicyTests(unittest.TestCase):
         with self.assertRaises(DrumControlError):
             check_lt_interlocks(iso,{},value="closed")
         iso.details.clear()
+        with self.assertRaises(DrumControlError):
+            check_lt_interlocks(iso, {"repairs": {"jobs": {
+                "isolator:" + TARGET: {"stage": "repairing"}}}}, value="open")
         iso.condition="severed"
         with self.assertRaises(DrumControlError):
             check_lt_interlocks(iso,{},value="open")
