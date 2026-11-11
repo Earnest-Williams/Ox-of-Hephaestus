@@ -9,8 +9,8 @@ from types import SimpleNamespace
 import unittest
 
 from world.ship_access_observations import (
-    AccessEvidenceError, AccessMonitoringPlan, load_access_plan,
-    project_access_page,
+    AccessEvidenceError, AccessMonitoringPlan, internal_access_page,
+    load_access_plan, project_access_page,
 )
 from world.ship_model import AccessLinkSpec, ShipWorldModel, SpaceSpec, load_ship_model
 
@@ -148,6 +148,24 @@ class AccessEvidenceTests(unittest.TestCase):
             with self.assertRaises(AccessEvidenceError):
                 project_access_page([], model, plan, observed_links=(),
                                     after_sequence=bad)
+
+    def test_invalid_database_page_rejected_before_importing_models(self):
+        # This runs in the pure suite without a Django database. A missing
+        # bound would attempt to import the ORM before raising.
+        model, plan = model_fixture(), test_plan()
+        for bad in (-1, 0, 129, 1000000000, True, 1.5):
+            with self.subTest(max_scan=bad):
+                with self.assertRaisesRegex(
+                        AccessEvidenceError, "page limit"):
+                    internal_access_page(
+                        model, plan, observed_links=set(), max_scan=bad)
+        for bad in (-1, True, 2.5):
+            with self.subTest(after_sequence=bad):
+                with self.assertRaisesRegex(
+                        AccessEvidenceError, "access cursor"):
+                    internal_access_page(
+                        model, plan, observed_links=set(),
+                        after_sequence=bad)
 
     def test_canonical_overlay_and_candidate_validate_without_fitting(self):
         canonical = load_ship_model()

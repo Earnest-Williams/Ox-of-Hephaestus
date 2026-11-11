@@ -261,10 +261,12 @@ def internal_access_page(
     Internal engineering integration only. A future authenticated principal
     must bind scope and cursor to its identity and persist event delivery.
     """
+    # Bound every request before touching the database. An invalid page size
+    # must never cause an unbounded query or a negative Python slice.
+    if (type(after_sequence) is not int or after_sequence < 0
+            or type(max_scan) is not int or not 1 <= max_scan <= 128):
+        raise AccessEvidenceError("Invalid access cursor or page limit")
     from world.models import CanonicalShipEvent
-
-    if type(after_sequence) is not int or after_sequence < 0:
-        raise AccessEvidenceError("Invalid access cursor")
     rows = list(CanonicalShipEvent.objects.filter(
         operation__in=EVENT_SOURCES, sequence__gt=after_sequence
     ).order_by("sequence")[:max_scan + 1])
