@@ -1,6 +1,6 @@
 """Integrated drum-3 control over genuine surveyed power and data."""
 from evennia.utils.test_resources import EvenniaTestCase
-from world.tests.test_installed_ship_network_access import InstalledNetworkAccessDelivery
+from world.tests.test_installed_ship_network_access import NetworkAccessFixture
 from world.continuous_ship_physics import _clock, verify_g19_gateway_protocol
 from world.ship_control_gateway import PROFILE, translate_gateway_samples
 from world.ship_dr03_authority import DrumControlError, TARGET, ROOM
