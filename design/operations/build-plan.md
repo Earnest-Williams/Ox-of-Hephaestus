@@ -6,7 +6,7 @@ CI check, following the repository's rules: Ox code stays in `game/`,
 `services/`, `contracts/`, `design/` and `scenarios/`; Evennia owns every world
 change; no handler or interface acts as a second physics authority.
 
-**Status:** first access-evidence package in review, 11 November 2026. [PR #151](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/151) merged and implements physical power islands, surveyed A/B connectivity, finite cooling with original-LT rejection and the first verified read-only drum-3 gateway vocabulary. Remote actuation, a lead-mind principal and player access remain subsequent packages. The original v0.5 ship model remains intact.
+**Status:** physical infrastructure and access evidence accepted, 11 November 2026. [PR #151](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/151) merged and implements physical power islands, surveyed A/B connectivity, finite cooling with original-LT rejection and the first verified read-only drum-3 gateway vocabulary. Remote actuation, a lead-mind principal and player access remain subsequent packages. The original v0.5 ship model remains intact.
 
 ## What already exists to build on
 
@@ -129,3 +129,18 @@ when the physical hatch changes state while the fitted, surveyed gateway input
 is powered; there is no retroactive catch-up and no inferred identity. This is
 a local instrument, not the network delivery service or lead-mind principal.
 See [the fitted drum-3 contact](../ship/G19_DRUM3_ACCESS_CONTACT.md).
+
+
+## Network delivery over the first access contact
+
+The accepted physical reader from #153 now provides a narrow source for
+authenticated, account-bound, world-owned network delivery. The next PR
+creates a single operator-enrolled OOC principal whose inbox contains **only**
+access-contact observations actually delivered while the verified drum-3
+gateway, A/B fibre route and operating core were reachable. Each source
+capsule is anonymous, provenance-preserving and delivered once; disconnected
+observations are not backfilled. `oxnet` replays until `oxack` accepts
+an opaque account/epoch-bound token and commits the cursor. The future
+lead-mind cognitive service will consume this read-only boundary, never
+the global `CanonicalShipEvent` table.
+See [network-delivered access](../ship/G19_NETWORK_ACCESS_DELIVERY.md).
