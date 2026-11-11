@@ -7,6 +7,7 @@ the actual login, session transport, puppet authentication and permissions.
 """
 from evennia.commands.cmdset import CmdSet
 from evennia.commands.default import account, help
+from commands.network_access import CmdOxNetAccess, CmdOxNetAck
 
 
 class AccountCmdSet(CmdSet):
@@ -25,6 +26,8 @@ class AccountCmdSet(CmdSet):
             account.CmdOption,
             account.CmdQuit,
             account.CmdPassword,
+            CmdOxNetAccess,
+            CmdOxNetAck,
             help.CmdHelp,
         ):
             self.add(command())
