@@ -1,0 +1,26 @@
+{
+  "schema_version": "ox.ship-access-monitoring/1",
+  "status": "DESIGN_CANDIDATE_NOT_RUNTIME_AUTHORITY",
+  "topology_version": "0.4",
+  "controlled_spaces": [
+    "CMD-PRIMARY",
+    "CMD-EMERG",
+    "HUB-FIXED-A",
+    "HUB-FIXED-B",
+    "COMMS-FWD",
+    "ENV-FWD",
+    "HUB-MAINT-BAY",
+    "SHOP-ELEC",
+    "HAB-04-ENV-SAT",
+    "HAB-07-SG1-CUPBOARD",
+    "ENV-AFT",
+    "COMMS-AFT"
+  ],
+  "rack_reader_candidates": [
+    {
+      "rack_id": "MIND-03",
+      "space_id": "XCON-GAP-23"
+    }
+  ],
+  "candidate_access_links": []
+}

@@ -71,3 +71,21 @@ class ShipModelTests(TestCase):
             path = self._write(payload, directory)
             with self.assertRaisesRegex(ShipModelError, "unknown space"):
                 load_ship_model(path)
+
+
+    def test_optional_access_instrumentation_flags_are_strict_booleans(self):
+        source = _payload()
+        source["spaces"][0]["controlled_access"] = True
+        source["access_links"][0]["motorised"] = False
+        source["access_links"][0]["vacuum_seal"] = False
+        with TemporaryDirectory() as directory:
+            world = load_ship_model(self._write(source, directory))
+            self.assertIs(world.spaces_by_id["A"].metadata["controlled_access"], True)
+            self.assertIs(world.access_links[0].metadata["motorised"], False)
+            source["spaces"][0]["controlled_access"] = "true"
+            with self.assertRaisesRegex(ShipModelError, "controlled_access"):
+                load_ship_model(self._write(source, directory))
+            source["spaces"][0]["controlled_access"] = True
+            source["access_links"][0]["vacuum_seal"] = 1
+            with self.assertRaisesRegex(ShipModelError, "vacuum_seal"):
+                load_ship_model(self._write(source, directory))
