@@ -10,9 +10,9 @@ from world.full_ship_operations import state, set_component_condition
 from world.ship_world import find_ship_space
 from world.models import CanonicalShipEvent, WorkReceipt
 
-class InstalledDrumControl(InstalledNetworkAccessDelivery):
+class InstalledDrumControl(NetworkAccessFixture):
     def setUp(self):
-        InstalledNetworkAccessDelivery.setUp(self)
+        super().setUp()
         self.tech.move_to(find_ship_space(ROOM),quiet=True)
         enroll_access_account(self.account,operator_approved=True)
         gw=_clock().details["mind_gateway"]
