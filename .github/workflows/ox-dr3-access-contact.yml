@@ -5,6 +5,7 @@ on:
     branches: [main, g19/drum3-access-contact]
     paths:
       - "game/world/ship_access_contact.py"
+      - "game/world/ship_access_contact_world.py"
       - "game/world/apps.py"
       - "game/world/ship_access_observations.py"
       - "game/world/continuous_ship_physics.py"
@@ -20,6 +21,7 @@ on:
     types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - "game/world/ship_access_contact.py"
+      - "game/world/ship_access_contact_world.py"
       - "game/world/apps.py"
       - "game/world/ship_access_observations.py"
       - "game/world/continuous_ship_physics.py"
@@ -52,7 +54,7 @@ jobs:
           python-version: "3.12"
       - name: Validate physical contact and scoped CI
         run: |
-          python -m compileall -q game/world/apps.py game/world/ship_access_contact.py game/world/tests/test_ship_access_contact.py game/world/tests/test_installed_ship_access_contact.py
+          python -m compileall -q game/world/apps.py game/world/ship_access_contact.py game/world/ship_access_contact_world.py game/world/tests/test_ship_access_contact.py game/world/tests/test_installed_ship_access_contact.py
           python .github/ci/check_ox_ci_scope.py
           python design/ci/check_world_test_selection.py
       - name: Verify drum-3 physical route and proof contracts

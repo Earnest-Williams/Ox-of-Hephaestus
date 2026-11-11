@@ -18,7 +18,10 @@ from world.full_ship_operations import (
 )
 from world.ship_access_contact import (
     AccessContactError, CABLE, LINK, OBSERVED, SENSOR,
-    contact_specifications, fit_dr03_contact, survey_dr03_contact,
+    contact_specifications,
+)
+from world.ship_access_contact_world import (
+    fit_dr03_contact, survey_dr03_contact,
 )
 from world.ship_model import load_ship_model
 from world.models import CanonicalShipState, CanonicalShipEvent

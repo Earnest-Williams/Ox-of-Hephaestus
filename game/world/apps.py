@@ -31,7 +31,7 @@ class OxWorldConfig(AppConfig):
         # retroactively read the ship's private event journal.
         from django.db.models.signals import post_save
         from world.models import CanonicalShipEvent
-        from world.ship_access_contact import observe_access_contact
+        from world.ship_access_contact_world import observe_access_contact
         post_save.connect(
             observe_access_contact, sender=CanonicalShipEvent,
             dispatch_uid="ox.world.dr03_access_contact_v1", weak=False)
