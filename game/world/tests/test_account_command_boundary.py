@@ -13,7 +13,7 @@ class AccountCommandBoundaryTests(EvenniaTestCase):
         self.assertEqual(
             keys,
             {"look", "ic", "ooc", "option", "quit", "password", "help",
-             "oxnet", "oxack"},
+             "oxnet", "oxack", "oxdr3remote"},
         )
         self.assertFalse(issubclass(AccountCmdSet, StockAccountSet))
         self.assertEqual(account_commands.priority, -10)
