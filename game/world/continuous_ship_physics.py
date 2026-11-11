@@ -8889,8 +8889,13 @@ def crew_physical_action(actor, request_id, action, target, value):
         if target == "ISO-DR-03-LT-IF":
             # Same target-specific maintenance guard for the original
             # manual valve and the new single-point network controller.
-            from world.ship_dr03_authority import check_lt_interlocks
-            check_lt_interlocks(item, _clock().details, value=value)
+            from world.ship_dr03_authority import (
+                DrumControlError, check_lt_interlocks,
+            )
+            try:
+                check_lt_interlocks(item, _clock().details, value=value)
+            except DrumControlError as exc:
+                raise PhysicsError(str(exc)) from exc
         if value == "closed" and item.details.get("physics_power_trip_latched"):
             raise PhysicsError("Breaker is physically tripped; isolate fault and reset locally")
         if value == "closed":
