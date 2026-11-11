@@ -10,6 +10,7 @@ from collections import defaultdict, deque
 from types import SimpleNamespace
 
 from evennia.utils.test_resources import EvenniaTestCase
+from evennia.utils.create import create_account
 
 from world.bootstrap import build_ship
 from world.continuous_ship_physics import (
@@ -39,6 +40,13 @@ from world.ship_world import ensure_canonical_ship, find_ship_space
 class InstalledNetworkAccessDelivery(EvenniaTestCase):
     def setUp(self):
         super().setUp()
+        # EvenniaTestCase provisions character fixtures, not a logged-in
+        # account. Use a real persisted AccountDB for the OOC principal.
+        self.account = create_account(
+            key="OxAccessReader-" + self._testMethodName,
+            email="ox-access-ci@example.invalid",
+            password="OxCI-only-test-password-2026",
+        )
         ensure_canonical_ship()
         install_candidate(operator_approved=True)
         install_pressure_cells(operator_approved=True)
