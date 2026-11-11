@@ -95,7 +95,12 @@ class InstalledNetworkAccessDelivery(EvenniaTestCase):
         ship = load_candidate()
         for row in CanonicalShipState.objects.filter(
                 source_model="ox.ship-support/1").order_by("source_id"):
-            if row.category == "edge" or row.source_id in {"NET-ROT-A", "NET-ROT-B"}:
+            # This source model also owns the commissioned gateway's power
+            # feeder and thermal mounting strap; only mind_data conductors
+            # and continuous rotary optical joints can be continuity-surveyed.
+            if (row.reference.get("network") == "mind_data"
+                    and (row.category == "edge"
+                         or row.source_id in {"NET-ROT-A", "NET-ROT-B"})):
                 survey_g19_data_path(
                     operator_approved=True,
                     component_id=row.source_id,
