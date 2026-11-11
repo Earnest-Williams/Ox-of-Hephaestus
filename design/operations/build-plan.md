@@ -6,7 +6,7 @@ CI check, following the repository's rules: Ox code stays in `game/`,
 `services/`, `contracts/`, `design/` and `scenarios/`; Evennia owns every world
 change; no handler or interface acts as a second physics authority.
 
-**Status:** plan, 3 November 2026. Nothing below is implemented.
+**Status:** implementation in progress, 10 November 2026. [PR #151](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/151) implements physical power islands, surveyed A/B connectivity, finite cooling with original-LT rejection and the first verified read-only drum-3 gateway vocabulary. Remote actuation, a lead-mind principal and player access remain subsequent packages. The original v0.5 ship model remains intact.
 
 ## What already exists to build on
 
@@ -33,14 +33,14 @@ change; no handler or interface acts as a second physics authority.
 
 | # | Package | Delivers | Acceptance | Depends on |
 |---|---|---|---|---|
-| 0 | **Design data for operations** | Optional, validated fields: per access link `motorised` and `vacuum_seal`; per room `controlled_access`; the nine core machine rooms and machines; the navigation computer on the bridge; gateway hosts on local control stations; backbone routes | Model loader and candidate checker accept them; existing installed-ship tests unchanged | — |
+| 0 | **Design data for operations** (support overlays underway in PR #151) | Optional, validated fields: per access link `motorised` and `vacuum_seal`; per room `controlled_access`; the nine core machine rooms and machines; the navigation computer on the bridge; gateway hosts on local control stations; backbone routes | Model loader and candidate checker accept them; existing installed-ship tests unchanged | — |
 | 1 | **The lead mind as a principal** | An authenticated player with no body; a new network-scoped read view (not `developer_actual`, not any character's beliefs) | S04, S09 | 0 |
 | 2 | **Access log** | Network-scoped projection of completed `crew_traverse`, state-changing `crew_hatch`, and `crew_indexed_transfer_complete` events, with source ID/time and identity only at controlled-access points | Standalone hatch transitions and indexed arrivals appear; no-op hatch requests and queued/aborted transfers do not imply movement; unreachable records stay hidden; replay has no gaps or duplicates | 0, 1 |
-| 3 | **Backbone, segments and gateways** | World-owned link state, segment membership, gateway mappings with revisions, raw and translated readings; drum 3's gateway at `LCS-DR-03` first | S01, S02, S03, S12 | 0 |
+| 3 | **Backbone, segments and gateways** (dual-rail physical paths underway; segments/gateways pending) | World-owned link state, segment membership, gateway mappings with revisions, raw and translated readings; drum 3's gateway at `LCS-DR-03` first | S01, S02, S03, S12 | 0 |
 | 4 | **Remote actuation** | Commands over the network to remote-operable devices, starting with `ISO-DR-03-LT-IF`; request IDs, receipts, interlocks, arbitration | S04, S05, S06 | 1, 3 |
 | 5 | **Local takeover** | `LCS-DR-03` as a crew console: local reads, local operation, takeover and hand-back, receipted | S14 | 3, 4 |
 | 6 | **Motorised doors** | The lead mind opens, closes and seals motorised doors; new world-owned actuation and seal-state events extend the existing access-log projection | Door commands obey pressure interlocks; standalone open/close/seal transitions appear only when world-confirmed | 2, 4 |
-| 7 | **The core** | Nine machines as fitted equipment, parity and rebuild, capacity steps, handover to subsystems, the core log | S10, S15 | 0, 3 |
+| 7 | **The core** (physical machinery support underway; parity/principal pending) | Nine machines as fitted equipment, parity and rebuild, capacity steps, handover to subsystems, the core log | S10, S15 | 0, 3 |
 | 8 | **Navigation computer** | Equipment on the bridge; a specialist agent with no personality by default; installs only at the machine, recorded | S07 | 0, 7 |
 | 9 | **Watch routine** | 36-hour day, shifts and rota, calls and responses as records | Rota and calls replay exactly | 1 |
 | 10 | **Time and communications** | Watch mode on reachable triggers; message routes and delivery | S11, S13 | 1, 3 |
@@ -76,7 +76,34 @@ foundation.
 
 ## Open questions
 
-1. Should the design-data fields go into the v0.5 candidate directly, or into
-   an operations overlay file loaded beside it?
+1. **Decided for physical infrastructure in draft PR #151:** use versioned
+   operations overlays loaded beside the existing v0.5 candidate, with
+   cross-reference checks and separate world-owned installed rows. Preserve
+   the historical ship model and avoid silently interpreting proposals as
+   already fitted. See [ADR 0011](../decisions/0011-ship-control-support-overlays.md).
 2. Is the lead mind's network-scoped view a third read-model scope, or a
    specialised `actor_observed` for a principal with no body?
+
+## Infrastructure work underway in PR #151
+
+- Separate power and ship-control support overlays. They reference real
+  power boards, trunk rooms and access links rather than altering the v0.5
+  candidate in place.
+- Dual 23-compartment fibre rails and 18 individual computer drops. Two
+  additional, independently rated HAB rotary data couplers are **new
+  hardware**; neither indexed personnel transfer is treated as a cable.
+- Five locally buffered and individually monitored thermal groups, with
+  finite surveyed headroom, 15 separately fitted LT circuit records,
+  measured rejection, headroom recovery and on-clock thermal trip handling.
+- [Attended computer cooldown and restart](cooling.md#attended-computer-recovery),
+  with metered auxiliary power, observed heat rejection, recovered headroom
+  and a separate local restart command that preserves physical damage.
+- Recorded continuity and pressure-penetration surveys, plus continuous
+  rotary-joint environmental/EMI qualifications before connectivity counts.
+- A separately fused, metered local supply and a three-register read-only
+  vocabulary for the drum-3 gateway, with source provenance and revisions.
+- A monitored rack at `XCON-GAP-23`, preserving the original crew shortcut.
+
+**Still pending:** remaining gateway protocol coverage, local takeover,
+network read-model scopes, access-reader events, remote commands and the
+lead-mind principal.

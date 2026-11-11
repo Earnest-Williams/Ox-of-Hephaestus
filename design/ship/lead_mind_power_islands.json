@@ -1,0 +1,527 @@
+{
+  "schema_version": "ox.lead-mind-power/1",
+  "status": "DESIGN_CANDIDATE_NOT_RUNTIME_AUTHORITY",
+  "notes": "Independent new load system; does not change the inherited 438/450/466 G19 grid. Physical path segments remain proposed until surveyed and installed in Evennia. PWR-PROT and BAT-COMMON-PROT are excluded. The new cable corridors are traced through canonical access-link geometry, but are proposed cable routes, not a claim of physically surveyed or commissioned cable installation. Each machine has an individually mounted final distribution board with its own incoming breaker; the island bus is upstream of those nine independent finals.",
+  "transfer_seconds": 15,
+  "required_ride_through_seconds": 120,
+  "source_nodes": {
+    "A": "PWR-MSB-A",
+    "B": "PWR-MSB-B"
+  },
+  "islands": [
+    {
+      "id": "MIND-ISL-BOW",
+      "region": "BOW",
+      "control_room": "ENV-FWD",
+      "distribution_node": "NODE-MIND-BOW-BUS",
+      "converter": "MIND-CONV-BOW",
+      "local_reserve": {
+        "id": "BAT-MIND-BOW",
+        "capacity_kwh": 1,
+        "initial_kwh": 1,
+        "max_discharge_kw": 8,
+        "max_charge_kw": 2
+      },
+      "inputs": [
+        {
+          "source": "A",
+          "edge": "EDGE-MIND-BOW-A",
+          "breaker": "ISO-MIND-BOW-A",
+          "route_domains": [
+            "PWR-MSB-A",
+            "EDGE-DB-A-BOW",
+            "ISO-DB-A-BOW",
+            "TRUNK-A-BOW",
+            "NODE-DB-A-BOW",
+            "MIND-BOW-A-CABLE"
+          ],
+          "selected": true,
+          "tap_node": "NODE-DB-A-BOW",
+          "proposed_cable_route_spaces": [
+            "TRUNK-A-BOW",
+            "ENV-FWD"
+          ]
+        },
+        {
+          "source": "B",
+          "edge": "EDGE-MIND-BOW-B",
+          "breaker": "ISO-MIND-BOW-B",
+          "route_domains": [
+            "PWR-MSB-B",
+            "EDGE-DB-B-BOW",
+            "ISO-DB-B-BOW",
+            "TRUNK-B-BOW",
+            "NODE-DB-B-BOW",
+            "MIND-BOW-B-CABLE"
+          ],
+          "selected": false,
+          "tap_node": "NODE-DB-B-BOW",
+          "proposed_cable_route_spaces": [
+            "TRUNK-B-BOW",
+            "XCON-BOW",
+            "TRUNK-A-BOW",
+            "ENV-FWD"
+          ]
+        }
+      ],
+      "machines": [
+        {
+          "id": "MIND-01",
+          "room": "COMMS-FWD",
+          "load_kw": 2,
+          "terminal_node": "NODE-MIND-01-PWR",
+          "feeder": "EDGE-MIND-01-PWR",
+          "isolator": "ISO-MIND-01-PWR",
+          "cooling_domain": "COOL-MIND-01",
+          "backbone_links": [
+            "NET-MIND-01-A",
+            "NET-MIND-01-B"
+          ],
+          "proposed_final_route_spaces": [
+            "ENV-FWD",
+            "TRUNK-A-BOW",
+            "XCON-BOW",
+            "TRUNK-B-BOW",
+            "COMMS-FWD"
+          ],
+          "final_board": "MIND-01-DB",
+          "final_board_node": "NODE-MIND-01-DB",
+          "board_feeder": "EDGE-MIND-01-DB",
+          "board_isolator": "ISO-MIND-01-DB"
+        },
+        {
+          "id": "MIND-02",
+          "room": "ENV-FWD",
+          "load_kw": 2,
+          "terminal_node": "NODE-MIND-02-PWR",
+          "feeder": "EDGE-MIND-02-PWR",
+          "isolator": "ISO-MIND-02-PWR",
+          "cooling_domain": "COOL-MIND-02",
+          "backbone_links": [
+            "NET-MIND-02-A",
+            "NET-MIND-02-B"
+          ],
+          "proposed_final_route_spaces": [
+            "ENV-FWD"
+          ],
+          "final_board": "MIND-02-DB",
+          "final_board_node": "NODE-MIND-02-DB",
+          "board_feeder": "EDGE-MIND-02-DB",
+          "board_isolator": "ISO-MIND-02-DB"
+        }
+      ]
+    },
+    {
+      "id": "MIND-ISL-FWD-SPINE",
+      "region": "FWD-SPINE",
+      "control_room": "XCON-GAP-23",
+      "distribution_node": "NODE-MIND-FWD-SPINE-BUS",
+      "converter": "MIND-CONV-FWD-SPINE",
+      "local_reserve": {
+        "id": "BAT-MIND-FWD-SPINE",
+        "capacity_kwh": 1,
+        "initial_kwh": 1,
+        "max_discharge_kw": 8,
+        "max_charge_kw": 2
+      },
+      "inputs": [
+        {
+          "source": "A",
+          "edge": "EDGE-MIND-FWD-SPINE-A",
+          "breaker": "ISO-MIND-FWD-SPINE-A",
+          "route_domains": [
+            "PWR-MSB-A",
+            "EDGE-DB-A-GAP-23",
+            "ISO-DB-A-GAP-23",
+            "TRUNK-A-GAP-23",
+            "NODE-DB-A-GAP-23",
+            "MIND-FWD-SPINE-A-CABLE"
+          ],
+          "selected": true,
+          "tap_node": "NODE-DB-A-GAP-23",
+          "proposed_cable_route_spaces": [
+            "TRUNK-A-GAP-23",
+            "XCON-GAP-23"
+          ]
+        },
+        {
+          "source": "B",
+          "edge": "EDGE-MIND-FWD-SPINE-B",
+          "breaker": "ISO-MIND-FWD-SPINE-B",
+          "route_domains": [
+            "PWR-MSB-B",
+            "EDGE-DB-B-GAP-23",
+            "ISO-DB-B-GAP-23",
+            "TRUNK-B-GAP-23",
+            "NODE-DB-B-GAP-23",
+            "MIND-FWD-SPINE-B-CABLE"
+          ],
+          "selected": false,
+          "tap_node": "NODE-DB-B-GAP-23",
+          "proposed_cable_route_spaces": [
+            "TRUNK-B-GAP-23",
+            "XCON-GAP-23"
+          ]
+        }
+      ],
+      "machines": [
+        {
+          "id": "MIND-03",
+          "room": "XCON-GAP-23",
+          "load_kw": 2,
+          "terminal_node": "NODE-MIND-03-PWR",
+          "feeder": "EDGE-MIND-03-PWR",
+          "isolator": "ISO-MIND-03-PWR",
+          "cooling_domain": "COOL-MIND-03",
+          "backbone_links": [
+            "NET-MIND-03-A",
+            "NET-MIND-03-B"
+          ],
+          "proposed_final_route_spaces": [
+            "XCON-GAP-23"
+          ],
+          "final_board": "MIND-03-DB",
+          "final_board_node": "NODE-MIND-03-DB",
+          "board_feeder": "EDGE-MIND-03-DB",
+          "board_isolator": "ISO-MIND-03-DB"
+        }
+      ]
+    },
+    {
+      "id": "MIND-ISL-HUB",
+      "region": "HUB",
+      "control_room": "HUB-MAINT-BAY",
+      "distribution_node": "NODE-MIND-HUB-BUS",
+      "converter": "MIND-CONV-HUB",
+      "local_reserve": {
+        "id": "BAT-MIND-HUB",
+        "capacity_kwh": 1,
+        "initial_kwh": 1,
+        "max_discharge_kw": 8,
+        "max_charge_kw": 2
+      },
+      "inputs": [
+        {
+          "source": "A",
+          "edge": "EDGE-MIND-HUB-A",
+          "breaker": "ISO-MIND-HUB-A",
+          "route_domains": [
+            "PWR-MSB-A",
+            "EDGE-DB-A-HAB-HUB-SERVICES",
+            "ISO-DB-A-HAB-HUB-SERVICES",
+            "TRUNK-A-HAB-HUB-SERVICES",
+            "NODE-DB-A-HAB-HUB-SERVICES",
+            "MIND-HUB-A-CABLE"
+          ],
+          "selected": true,
+          "tap_node": "NODE-DB-A-HAB-HUB-SERVICES",
+          "proposed_cable_route_spaces": [
+            "TRUNK-A-HAB-HUB-SERVICES",
+            "HUB-MAINT-BAY"
+          ]
+        },
+        {
+          "source": "B",
+          "edge": "EDGE-MIND-HUB-B",
+          "breaker": "ISO-MIND-HUB-B",
+          "route_domains": [
+            "PWR-MSB-B",
+            "EDGE-DB-B-HAB-HUB-SERVICES",
+            "ISO-DB-B-HAB-HUB-SERVICES",
+            "TRUNK-B-HAB-HUB-SERVICES",
+            "NODE-DB-B-HAB-HUB-SERVICES",
+            "MIND-HUB-B-CABLE"
+          ],
+          "selected": false,
+          "tap_node": "NODE-DB-B-HAB-HUB-SERVICES",
+          "proposed_cable_route_spaces": [
+            "TRUNK-B-HAB-HUB-SERVICES",
+            "XCON-HAB-HUB-SERVICES",
+            "TRUNK-A-HAB-HUB-SERVICES",
+            "HUB-MAINT-BAY"
+          ]
+        }
+      ],
+      "machines": [
+        {
+          "id": "MIND-04",
+          "room": "HUB-MAINT-BAY",
+          "load_kw": 2,
+          "terminal_node": "NODE-MIND-04-PWR",
+          "feeder": "EDGE-MIND-04-PWR",
+          "isolator": "ISO-MIND-04-PWR",
+          "cooling_domain": "COOL-MIND-04",
+          "backbone_links": [
+            "NET-MIND-04-A",
+            "NET-MIND-04-B"
+          ],
+          "proposed_final_route_spaces": [
+            "HUB-MAINT-BAY"
+          ],
+          "final_board": "MIND-04-DB",
+          "final_board_node": "NODE-MIND-04-DB",
+          "board_feeder": "EDGE-MIND-04-DB",
+          "board_isolator": "ISO-MIND-04-DB"
+        },
+        {
+          "id": "MIND-05",
+          "room": "SHOP-ELEC",
+          "load_kw": 2,
+          "terminal_node": "NODE-MIND-05-PWR",
+          "feeder": "EDGE-MIND-05-PWR",
+          "isolator": "ISO-MIND-05-PWR",
+          "cooling_domain": "COOL-MIND-05",
+          "backbone_links": [
+            "NET-MIND-05-A",
+            "NET-MIND-05-B"
+          ],
+          "proposed_final_route_spaces": [
+            "HUB-MAINT-BAY",
+            "TRUNK-A-HAB-HUB-SERVICES",
+            "ENG-CONTROL",
+            "SHOP-ELEC"
+          ],
+          "final_board": "MIND-05-DB",
+          "final_board_node": "NODE-MIND-05-DB",
+          "board_feeder": "EDGE-MIND-05-DB",
+          "board_isolator": "ISO-MIND-05-DB"
+        }
+      ]
+    },
+    {
+      "id": "MIND-ISL-HAB",
+      "region": "HAB",
+      "control_room": "HAB-04-ENV-SAT",
+      "distribution_node": "NODE-MIND-HAB-BUS",
+      "converter": "MIND-CONV-HAB",
+      "local_reserve": {
+        "id": "BAT-MIND-HAB",
+        "capacity_kwh": 1,
+        "initial_kwh": 1,
+        "max_discharge_kw": 8,
+        "max_charge_kw": 2
+      },
+      "inputs": [
+        {
+          "source": "A",
+          "edge": "EDGE-MIND-HAB-A",
+          "breaker": "ISO-MIND-HAB-A",
+          "route_domains": [
+            "PWR-MSB-A",
+            "EDGE-ROT-PWR-A",
+            "ISO-ROT-PWR-A",
+            "NODE-ROT-PWR-A",
+            "EDGE-HAB-04-A-IN",
+            "ISO-HAB-04-A-IN",
+            "NODE-HAB-04-PDB-A",
+            "MIND-HAB-A-CABLE"
+          ],
+          "selected": true,
+          "tap_node": "NODE-HAB-04-PDB-A",
+          "proposed_cable_route_spaces": [
+            "HAB-04-SERVICE-GALLERY",
+            "HAB-04-COR",
+            "HAB-04-ENV-SAT"
+          ]
+        },
+        {
+          "source": "B",
+          "edge": "EDGE-MIND-HAB-B",
+          "breaker": "ISO-MIND-HAB-B",
+          "route_domains": [
+            "PWR-MSB-B",
+            "EDGE-ROT-PWR-B",
+            "ISO-ROT-PWR-B",
+            "NODE-ROT-PWR-B",
+            "EDGE-HAB-08-B-IN",
+            "ISO-HAB-08-B-IN",
+            "NODE-HAB-08-PDB-B",
+            "EDGE-PWR-B-BR-07",
+            "ISO-PWR-B-BR-07-HAB-07",
+            "ISO-PWR-B-BR-07-HAB-08",
+            "NODE-HAB-07-PDB-B",
+            "EDGE-PWR-B-BR-06",
+            "ISO-PWR-B-BR-06-HAB-06",
+            "ISO-PWR-B-BR-06-HAB-07",
+            "NODE-HAB-06-PDB-B",
+            "EDGE-PWR-B-BR-05",
+            "ISO-PWR-B-BR-05-HAB-05",
+            "ISO-PWR-B-BR-05-HAB-06",
+            "NODE-HAB-05-PDB-B",
+            "EDGE-PWR-B-BR-04",
+            "ISO-PWR-B-BR-04-HAB-04",
+            "ISO-PWR-B-BR-04-HAB-05",
+            "NODE-HAB-04-PDB-B",
+            "MIND-HAB-B-CABLE"
+          ],
+          "selected": false,
+          "tap_node": "NODE-HAB-04-PDB-B",
+          "proposed_cable_route_spaces": [
+            "HAB-04-SERVICE-GALLERY",
+            "HAB-04-COR",
+            "HAB-04-ENV-SAT"
+          ]
+        }
+      ],
+      "machines": [
+        {
+          "id": "MIND-06",
+          "room": "HAB-04-ENV-SAT",
+          "load_kw": 2,
+          "terminal_node": "NODE-MIND-06-PWR",
+          "feeder": "EDGE-MIND-06-PWR",
+          "isolator": "ISO-MIND-06-PWR",
+          "cooling_domain": "COOL-MIND-06",
+          "backbone_links": [
+            "NET-MIND-06-A",
+            "NET-MIND-06-B"
+          ],
+          "proposed_final_route_spaces": [
+            "HAB-04-ENV-SAT"
+          ],
+          "final_board": "MIND-06-DB",
+          "final_board_node": "NODE-MIND-06-DB",
+          "board_feeder": "EDGE-MIND-06-DB",
+          "board_isolator": "ISO-MIND-06-DB"
+        },
+        {
+          "id": "MIND-07",
+          "room": "HAB-07-SG1-CUPBOARD",
+          "load_kw": 2,
+          "terminal_node": "NODE-MIND-07-PWR",
+          "feeder": "EDGE-MIND-07-PWR",
+          "isolator": "ISO-MIND-07-PWR",
+          "cooling_domain": "COOL-MIND-07",
+          "backbone_links": [
+            "NET-MIND-07-A",
+            "NET-MIND-07-B"
+          ],
+          "proposed_final_route_spaces": [
+            "HAB-04-ENV-SAT",
+            "HAB-04-COR",
+            "HAB-04-VEST-CW",
+            "BR-04",
+            "HAB-05-VEST-CCW",
+            "HAB-05-COR",
+            "HAB-05-VEST-CW",
+            "BR-05",
+            "HAB-06-VEST-CCW",
+            "HAB-06-COR",
+            "HAB-06-VEST-CW",
+            "BR-06",
+            "HAB-07-VEST-CCW",
+            "HAB-07-COR",
+            "HAB-07-SERVICE-GALLERY",
+            "HAB-07-SG1-CUPBOARD"
+          ],
+          "final_board": "MIND-07-DB",
+          "final_board_node": "NODE-MIND-07-DB",
+          "board_feeder": "EDGE-MIND-07-DB",
+          "board_isolator": "ISO-MIND-07-DB"
+        }
+      ]
+    },
+    {
+      "id": "MIND-ISL-AFT",
+      "region": "AFT",
+      "control_room": "ENV-AFT",
+      "distribution_node": "NODE-MIND-AFT-BUS",
+      "converter": "MIND-CONV-AFT",
+      "local_reserve": {
+        "id": "BAT-MIND-AFT",
+        "capacity_kwh": 1,
+        "initial_kwh": 1,
+        "max_discharge_kw": 8,
+        "max_charge_kw": 2
+      },
+      "inputs": [
+        {
+          "source": "A",
+          "edge": "EDGE-MIND-AFT-A",
+          "breaker": "ISO-MIND-AFT-A",
+          "route_domains": [
+            "PWR-MSB-A",
+            "EDGE-DB-A-AFT",
+            "ISO-DB-A-AFT",
+            "TRUNK-A-AFT",
+            "NODE-DB-A-AFT",
+            "MIND-AFT-A-CABLE"
+          ],
+          "selected": true,
+          "tap_node": "NODE-DB-A-AFT",
+          "proposed_cable_route_spaces": [
+            "TRUNK-A-AFT",
+            "XCON-AFT",
+            "TRUNK-B-AFT",
+            "ENV-AFT"
+          ]
+        },
+        {
+          "source": "B",
+          "edge": "EDGE-MIND-AFT-B",
+          "breaker": "ISO-MIND-AFT-B",
+          "route_domains": [
+            "PWR-MSB-B",
+            "EDGE-DB-B-AFT",
+            "ISO-DB-B-AFT",
+            "TRUNK-B-AFT",
+            "NODE-DB-B-AFT",
+            "MIND-AFT-B-CABLE"
+          ],
+          "selected": false,
+          "tap_node": "NODE-DB-B-AFT",
+          "proposed_cable_route_spaces": [
+            "TRUNK-B-AFT",
+            "ENV-AFT"
+          ]
+        }
+      ],
+      "machines": [
+        {
+          "id": "MIND-08",
+          "room": "ENV-AFT",
+          "load_kw": 2,
+          "terminal_node": "NODE-MIND-08-PWR",
+          "feeder": "EDGE-MIND-08-PWR",
+          "isolator": "ISO-MIND-08-PWR",
+          "cooling_domain": "COOL-MIND-08",
+          "backbone_links": [
+            "NET-MIND-08-A",
+            "NET-MIND-08-B"
+          ],
+          "proposed_final_route_spaces": [
+            "ENV-AFT"
+          ],
+          "final_board": "MIND-08-DB",
+          "final_board_node": "NODE-MIND-08-DB",
+          "board_feeder": "EDGE-MIND-08-DB",
+          "board_isolator": "ISO-MIND-08-DB"
+        },
+        {
+          "id": "MIND-09",
+          "room": "COMMS-AFT",
+          "load_kw": 2,
+          "terminal_node": "NODE-MIND-09-PWR",
+          "feeder": "EDGE-MIND-09-PWR",
+          "isolator": "ISO-MIND-09-PWR",
+          "cooling_domain": "COOL-MIND-09",
+          "backbone_links": [
+            "NET-MIND-09-A",
+            "NET-MIND-09-B"
+          ],
+          "proposed_final_route_spaces": [
+            "ENV-AFT",
+            "TRUNK-B-AFT",
+            "XCON-AFT",
+            "TRUNK-A-AFT",
+            "COMMS-AFT"
+          ],
+          "final_board": "MIND-09-DB",
+          "final_board_node": "NODE-MIND-09-DB",
+          "board_feeder": "EDGE-MIND-09-DB",
+          "board_isolator": "ISO-MIND-09-DB"
+        }
+      ]
+    }
+  ]
+}

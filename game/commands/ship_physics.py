@@ -3,10 +3,10 @@ from __future__ import annotations
 
 import json
 import re
-from evennia.commands.command import Command
 
 from world.full_ship_operations import ShipOperationsError
 
+from evennia.commands.command import Command
 
 class CmdOxPhysicsRead(Command):
     """Local air/plant readings. Usage: oxplantread <air|power|water|wasteport|repairs|hull|freight_service|personnel|crew|eva|damage|helm|cargo|flywheel_service|radiator_service|propulsion_service|propulsion_bay|generator_bay|industrial|cargo_sectors|cargo_portals|shield_trim|cultivation|food|nutrition|instruments|alarms|alarm_bridge|panel:ID|diagnose:ALARM-ID|fault:MACHINE-ID|portable_air:ID|portable_damage:ID|exterior_mobile:ID|gas_refill|rotor-id|equipment-id|isolator-id>"""
@@ -32,6 +32,11 @@ class CmdOxPhysicsOperate(Command):
     """Request receipted local machinery work.
 
     Usage: oxplant <32hex-request-id> <power|switch|plant|schedule|mist|hatch|service|helm|attitude|rotor|drive|freight|freight_service|ftl|port|water|waste|wasteport|repair|hull|eva|damage|medical|rescue|portable_air|portable_damage|exterior_mobile|flywheel_service|radiator_service|propulsion_service|propulsion_bay|generator_bay|industrial|cargo_sector|shield_trim|cultivation|food|instrument|fault|fabricate|weld|cabin_air|rescue_air|gas_refill> <id> <value>
+    Local computer recovery:
+      oxplant <32hex-request-id> service MIND-01 <cooldown|restart|stop>
+
+    Attend the computer to start cooling-only operation, observe recovery
+    with oxplantread, then issue a new restart command.
     """
 
     key = "oxplant"

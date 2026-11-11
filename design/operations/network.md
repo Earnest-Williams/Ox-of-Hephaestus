@@ -16,7 +16,9 @@ Every action the lead mind takes must clear four separate questions:
 
 ## What exists today
 
-**Runtime.** The installed game has no plant-control network.
+**Accepted G19 baseline.** The original ship has no general plant-control
+backbone. Draft PR #151 adds separately commissioned physical rails and a
+first read-only gateway, described below.
 
 - 116 local panels each read only their own room, when powered and intact.
 - The only ship-wide link is the protected fire and pressure relay: alarms
@@ -40,8 +42,9 @@ Every action the lead mind takes must clear four separate questions:
 
 ## The backbone and its segments
 
-**New.** One ship-wide backbone carries traffic between the lead mind's core
-and every segment. Each segment is a group of machinery behind one gateway.
+**New.** One ship-wide backbone has two physically separated fibre rails
+through personnel trunks A and B. It will carry traffic between the core
+and each gateway-controlled segment once those segments are fitted. Each segment is a group of machinery behind one gateway.
 The 33 local control stations already define most segments (**Data**); the
 habitat and command segments are proposed.
 
@@ -174,13 +177,79 @@ proposed in [the lead mind's core](lead-mind-core.md).
 
 ## Open questions
 
-1. Where are the nine machines, and what does each depend on (which power
-   board, which cooling, which backbone route)?
+1. **Candidate decided:** nine machine sites, five power and cooling
+   islands, and paired backbone routes in separate versioned overlays.
+   As-installed connectivity and steady-state heat rejection still require
+   commissioning and verification.
 2. How quick is "quick succession": how long does restoring parity take?
 3. What does reduced capacity mean in play: slower responses, fewer systems
    attended at once, more handed to subsystems?
 4. Which subsystems are capable enough to take over which systems?
 5. Which segments start degraded or quirky, beyond the recorded quirks above?
 3. Which crew roles may take local control of which segments?
-4. Does the backbone itself have a topology that can be cut in places (a
-   route through the spine that a single fault can sever)?
+4. **Physical-route candidate in PR #151:** two separate 23-room trunk
+   rails, with individual A/B branches and distinct HAB rotary data couplers.
+   A failed span partitions one rail; the other remains a path. This is a
+   tested proposed geometry, **not** evidence that all gateways are already
+   fitted, energised, or able to command machinery. See
+   [ADR 0011](../decisions/0011-ship-control-support-overlays.md).
+
+## First physical support slice — draft PR #151
+
+The physical support overlay includes 23 distinct fixed-spine compartments on
+each of the A/B rails. Each machine has two independent endpoint cables.
+Two new continuously rated rotary data couplers reach different HAB sections;
+the indexed personnel capsules do **not** constitute a data connection.
+
+The first new gateway is `GW-LCS-DR-03`, hosted at the original
+`LCS-DR-03` in `BE-05-SVC`. The A-side spur crosses
+`LOGI-STOP-DR-03` and `TRUNK-B-DR-03`, while the B-side spur comes
+directly from `TRUNK-B-DR-03`. Thus a local casualty can isolate this
+*one segment* despite an intact A backbone. The drum's local controller
+continues independently. This is deliberately **not** described as
+physically disjoint last-metre gateway cabling.
+
+Fitting the 153-row support overlay leaves every cable **unsurveyed**.
+`survey_g19_data_path` requires actual continuity and every pressure
+penetration on the selected route. Each moving data joint additionally
+requires pressure, environmental and EMI evidence at the HAB's full 3.6 rpm
+envelope. Certificates bind to the exact apparatus and its revision. A
+subsequent failure, repair or switch change requires a new survey.
+
+The gateway initially has mapping revision 0, unknown protocol and no measured
+power. `commission_g19_gateway_power` fits a separate terminal, short feeder,
+manual fuse and conductive thermal mount. The supply is from
+`NODE-LP-BE-05-SVC`; the mount follows the real local connection to
+`TRUNK-B-DR-03`. The bearing station itself is unpressurised and has no gas
+cell. Surveyed 50 W operation requires verification of this heat path and
+deposits its heat into the actual adjacent trunk thermal inventory. A failed
+mount or overheated receiver inhibits gateway power. Loss of the panel,
+fuse, host or gateway also stops sampling.
+
+`verify_g19_gateway_protocol` compares operator-confirmed meanings with the
+current powered raw samples before advancing the mapping revision. The first
+bounded simulation vocabulary is `ox.drum3.mixed-telemetry/1`:
+
+| Actual source | Raw register | Verified meaning | Unit |
+| --- | --- | --- | --- |
+| `DR-03-CARGO-HX` | `RUN_FB`, 0/1 | Running feedback, not cooling output | state |
+| `DR-03-CARGO-GAS` | `RUN_FB`, 0/1 | Running feedback, not delivered gas | state |
+| `ISO-DR-03-LT-IF` | `VLV_POS`, C/O | Closed/open position | position |
+
+Running feedback comes from the current world-owned service-operation
+result, including the machine's own feeder and restart state. An unchanged
+`physics_online` flag cannot report a disconnected skid as running. Without
+a current operation result the reading is unavailable.
+
+Each reading retains source identity, source revision, game time, raw term,
+raw value, quality and mapping revision. Unknown or failed source indications
+stay unavailable rather than becoming zero. Both gateway branches require
+their own continuity surveys; no gateway or dual-homed machine bridges the
+two rails implicitly. Loss of both branches removes remote readings while
+the original local controller and valve remain unchanged. Reconnection
+samples current state and replays no commands.
+
+**Remote commands remain disabled.** The first read-only mapping grants no
+actuation, local-takeover override, player access or lead-mind principal.
+`ISO-DR-03-LT-IF` actuation still needs its interlock and takeover acceptance.
+See [ADR 0011](../decisions/0011-ship-control-support-overlays.md).

@@ -74,3 +74,95 @@ installed design data.
 
 1. Are habitat fan-coils remotely controllable, or only their manifolds?
 2. Which loads count as "industrial heat" to shed first?
+
+## Independent compute cooling — new support design
+
+The original `LT-PLANT` is a shared heat-rejection source; nine computers
+depending solely on that plant would violate the core's single-fault
+containment rule. Draft [PR #151](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/151)
+therefore adds five *separate* finite local thermal buffers and rejectors,
+with no more than two computers and no common buffer per island.
+
+At 2 kW per computer, the worst two-machine group creates 4 kW of heat:
+120 seconds requires 480 kJ of locally available heat capacity. The
+candidate nameplate is 720 kJ per group. **Surveyed free thermal capacity
+starts at zero**, and only a genuine measured rejection rate may prevent
+buffer use. The physics clock records generated, buffered, rejected and
+uncontained heat. Uncontained heat is applied to the installed room gas
+cell and drives a latched computer thermal protection fault.
+
+Power-island fitting alone leaves the computer loads interlocked off until
+their thermal protection is fitted. Once enabled, every delivered joule is
+passed to cooling, including a reserve that empties partway through a tick.
+An offline-at-tick-end computer still contributes that interval's heat.
+
+The branch also fits five separate LT feed/return pairs, five terminals and
+five normally shut manual valves through `commission_g19_mind_heat_connections`.
+These 15 additional rows preserve the original LT and 438/450/466 electrical
+registers. Each source and cold-plate pipe route follows actual passages.
+The HAB pair starts behind the original HAB-04 LT manifold, so the existing
+rotary LT interfaces remain physical dependencies.
+
+`survey_g19_heat_rejector` records measured output and the exact pressure
+penetrations. Live rejection requires the original LT plant's powered motor,
+open fitted valves, connected source, healthy local circuit and working
+radiators. Its reserved capacity is deducted from the same environment
+allowance before ordinary room cooling. Rejected heat and spare capacity
+used to recover buffer headroom are metered separately. Version-1 ledgers
+migrate without restoring consumed cold or changing old meters.
+
+The reservation uses actual electrical delivery plus existing recoverable
+buffer heat. Idle computers reserve zero; partially loaded islands reserve
+only their real demand. All five LT valves permit attended engineering
+operation. Repeating operator commissioning upgrades the former missing
+manual-operation metadata without resetting valve settings, damage or
+thermal inventories. Liquid-path surveys require verified intact open
+circuits and penetrations; carrier gas is required only for air surveys.
+
+An explicitly surveyed local-air alternative transfers heat into the actual
+receiving pressure cell. It requires fan power and a cool atmosphere above
+50 kPa; it stops at the rated room temperature. Air transfer does not invent
+an LT connection or export heat directly to vacuum. Several machine rooms
+lack original LT terminals, so air transfer alone is not steady-state proof.
+
+The installed acceptance exercises 240 seconds of 18 kW rejection through
+the original plant, followed by 120 seconds of common-plant failure using
+only measured finite local headroom. It also compares air rejection against
+the same buffered tick to verify the receiving cell gains the recorded heat.
+Physical and thermal surveys are invalidated by component changes; a repair
+does not silently re-certify its path. Repeating support commissioning after
+a thermal trip preserves the fault and the consumed buffer inventory.
+
+## Attended computer recovery
+
+The local controller now supports `oxplant <request-id> service MIND-01
+cooldown`, `restart` and `stop` for each fitted computer. A qualified engineer
+must attend its actual room in safe air and be physically fit for work. The
+existing world work receipt makes a replay return the original outcome;
+replaying an old restart after a later stop does not start the computer again.
+
+`cooldown` inhibits computation and powers only the module's 50 W cooling
+auxiliaries through its original final feeder and island reserve. That draw
+is included within the module's normal 2 kW rating. The ordinary electrical
+and heat meters charge every delivered joule. Restored LT rejection or a
+surveyed air rejector removes stored heat over game time; no command refills
+a thermal buffer or clears its heat history. A cooling-only module contributes
+neither a computing endpoint nor gateway connectivity.
+
+Restart requires 30 consecutive observed seconds with powered auxiliaries,
+healthy cold plates and buffer, measured heat rejection, normal local
+temperature, and at least 120 seconds of recovered headroom at the whole
+island's rated heat load. The rejector's measured rating must cover that
+load. A source or cooling-path change invalidates the evidence; an outage
+resets the observation interval, and uncontained auxiliary heat stops the
+cooldown controller. The engineer must then issue a new `restart`, which
+checks full-load electrical supply before clearing only the thermal latch.
+Actual computation becomes visible on the next world tick.
+
+`oxplantread MIND-01` shows the local controller mode, retained trip, observed
+cooldown interval and shared buffer headroom. Power/computing readings carry
+the last physics observation time. Persistent damage cannot be cleared by
+this procedure. Older trips can enter cooldown only when their immutable
+trip event still matches the unmodified equipment revision.
+
+See [ADR 0011](../decisions/0011-ship-control-support-overlays.md).

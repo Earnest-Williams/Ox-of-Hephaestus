@@ -7,9 +7,9 @@ Only tests workflow scope, not GitHub's event delivery or branch protection.
 
 from __future__ import annotations
 
-from pathlib import Path
 import re
 import sys
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = ROOT / ".github" / "workflows"
@@ -166,6 +166,22 @@ def main() -> int:
 
     # Both sides of a mixed change must be visible: negative Markdown
     # filters must not silence real Python changes.
+    infrastructure = read_filters(
+        (WORKFLOWS / "ox-lead-mind-power.yml").read_text(encoding="utf-8")
+    )
+    for event in ("push", "pull_request"):
+        for dependency in (
+            "game/world/ship_electrical_power.py",
+            "game/world/ship_auxiliary_electrical.py",
+            "game/world/ship_equipment_services.py",
+            "game/world/full_ship_operations.py",
+            "design/ship/ox_full_ship.json",
+            "design/ship/ox_full_ship_v0.5_candidate.json",
+        ):
+            if not would_run(infrastructure.get(event, []), (dependency,)):
+                failures.append(
+                    f"ox-lead-mind-power.yml:{event} misses shared dependency {dependency}"
+                )
     for name, expected in (
         ("ox-ship-world.yml", "game/world/bootstrap.py"),
         ("ox-scaffold.yml", "services/ai-handler/src/ox_ai/agents/live_concordia.py"),
@@ -189,7 +205,9 @@ def main() -> int:
         for block in blocks:
             if block.startswith("  ") and len(re.findall(r"(?m)^    if:", block)) > 1:
                 failures.append(f"{workflow.name} contains duplicate job if keys")
-        if workflow.name not in (DOCUMENTATION, "ox-fast.yml") and "  pull_request:" in pre:
+        # This focused infrastructure gate must produce evidence while its
+        # construction PR is still draft. Other expensive suites stay deferred.
+        if workflow.name not in (DOCUMENTATION, "ox-fast.yml", "ox-lead-mind-power.yml") and "  pull_request:" in pre:
             if "ready_for_review" not in pre:
                 failures.append(f"{workflow.name} must trigger when a draft becomes ready")
             if "github.event.pull_request.draft == false" not in body:

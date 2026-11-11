@@ -310,7 +310,12 @@ def validate_current_docs(ship):
         "ENDURANCE_LEDGER_v0.5.md": ("56.790 t", "1.35 MW", "450 m²"),
         "PRESSURE_GAS_RECOVERY_v0.5.md": ("7.0 t", "5.5 t", "133"),
         "SYSTEM_OPERATING_STATES_v0.5.md": ("1.35 MW", "56.79 t", "450 m²"),
-        "README.md": ("56.79 t", "133/133", "7 t"),
+        "README.md": (
+            f"**{count_equip} equipment units in 91 families**",
+            f"**{count_inventory} inventory accounts**",
+            "**133/133 dimensioned pressure cells**", "**339 rated boundaries**",
+            "**100,772.940 m³**", "**56.79 t**", "**7 t**", "**5.5 t**",
+        ),
         "BPRIME_ISSUE13_MISSION_RECONCILIATION.md":
             ("56.79", "450 m²", "1.35 MW", "4.456–5.958 t"),
     }
@@ -320,7 +325,7 @@ def validate_current_docs(ship):
         "PRESSURE_ACCESS_CLOSURE_v0.5.md",
         "PRESSURE_GEOMETRY_RECONCILIATION_v0.5.md",
         "BYPRODUCT_AND_WASTE_CLOSURE_v0.5.md",
-        "SYSTEM_OPERATING_STATES_v0.5.md", "README.md",
+        "SYSTEM_OPERATING_STATES_v0.5.md",
     )
     for name in current_headers:
         content = (HERE / name).read_text(encoding="utf-8")
