@@ -104,6 +104,21 @@ def contact_specifications(model: ShipWorldModel) -> dict[str, dict]:
     }
 
 
+def contact_transition(event) -> dict | None:
+    """A changed world hatch setting, not a command request or inferred actor."""
+    if (event.operation != "crew_hatch"
+            or event.component_key != "access:" + LINK):
+        return None
+    before, after = event.before, event.after
+    if not isinstance(before, dict) or not isinstance(after, dict):
+        return None
+    prior, current = before.get("setting"), after.get("setting")
+    if (prior not in {"open", "closed"}
+            or current not in {"open", "closed"} or prior == current):
+        return None
+    return {"setting_before": prior, "setting_after": current}
+
+
 def certificate_valid(rows: dict, source_revisions: dict) -> bool:
     sensor = rows.get("equipment:" + SENSOR)
     cable = rows.get("edge:" + CABLE)

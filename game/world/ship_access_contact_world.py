@@ -26,21 +26,6 @@ def _rows(specifications: dict, *, lock=False) -> dict:
     return rows
 
 
-def contact_transition(event) -> dict | None:
-    """A changed world hatch setting, not a command request or inferred actor."""
-    if (event.operation != "crew_hatch"
-            or event.component_key != "access:" + LINK):
-        return None
-    before, after = event.before, event.after
-    if not isinstance(before, dict) or not isinstance(after, dict):
-        return None
-    prior, current = before.get("setting"), after.get("setting")
-    if (prior not in {"open", "closed"}
-            or current not in {"open", "closed"} or prior == current):
-        return None
-    return {"setting_before": prior, "setting_after": current}
-
-
 def _gateway_power_live(clock) -> tuple[bool, dict]:
     account = clock.details.get("mind_gateway")
     if not isinstance(account, dict) or not account.get("last", {}).get("powered"):
