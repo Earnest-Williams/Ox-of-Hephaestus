@@ -6,7 +6,7 @@ CI check, following the repository's rules: Ox code stays in `game/`,
 `services/`, `contracts/`, `design/` and `scenarios/`; Evennia owns every world
 change; no handler or interface acts as a second physics authority.
 
-**Status:** implementation in progress, 10 November 2026. [PR #151](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/151) implements physical power islands, surveyed A/B connectivity, finite cooling with original-LT rejection and the first verified read-only drum-3 gateway vocabulary. Remote actuation, a lead-mind principal and player access remain subsequent packages. The original v0.5 ship model remains intact.
+**Status:** first access-evidence package in review, 11 November 2026. [PR #151](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/151) merged and implements physical power islands, surveyed A/B connectivity, finite cooling with original-LT rejection and the first verified read-only drum-3 gateway vocabulary. Remote actuation, a lead-mind principal and player access remain subsequent packages. The original v0.5 ship model remains intact.
 
 ## What already exists to build on
 
@@ -45,7 +45,7 @@ change; no handler or interface acts as a second physics authority.
 | 9 | **Watch routine** | 36-hour day, shifts and rota, calls and responses as records | Rota and calls replay exactly | 1 |
 | 10 | **Time and communications** | Watch mode on reachable triggers; message routes and delivery | S11, S13 | 1, 3 |
 
-## First pull request
+## First access-evidence pull request
 
 Packages **0 and 2**, with the smallest slice of package 1 they need:
 
@@ -70,9 +70,19 @@ Packages **0 and 2**, with the smallest slice of package 1 they need:
 5. A focused CI workflow for the new tests, following the repository's
    draft-guard and path-filter rules.
 
-This builds on records the world already keeps, changes no physics, and gives
-every later package — and the lead mind's view of who went where — its
-foundation.
+This first access-evidence slice validates optional room/door flags and adds
+a versioned design-only monitoring overlay, without rewriting the original
+v0.4 topology. The gap-23 MIND-03 rack has its own reader candidate; its
+public cross-trunk room is not labelled controlled. The internal projection
+reads only committed `CanonicalShipEvent` sources and filters by the set of
+already verified reader deliveries, with identity separately gated by an
+installed identity reader. A numeric internal scan cursor is **not** a player
+API. Fitted access readers, authenticated principal, physical reader paths
+and durable per-principal delivery/cursor binding remain follow-up work.
+
+The first integration campaign checks live hatch and indexer events through
+that internal projector. No remote door actuation or network read access
+is being silently activated.
 
 ## Open questions
 

@@ -130,6 +130,10 @@ def load_ship_model(path: str | Path | None = None) -> ShipWorldModel:
         if space_id in seen_space_ids:
             raise ShipModelError(f"Duplicate space id {space_id!r}")
         seen_space_ids.add(space_id)
+        if ("controlled_access" in record
+                and type(record["controlled_access"]) is not bool):
+            raise ShipModelError(
+                f"spaces[{index}] controlled_access must be boolean")
         known = {"id", "name", "kind", "frame", "zone", "current_condition"}
         spaces.append(
             SpaceSpec(
@@ -159,6 +163,10 @@ def load_ship_model(path: str | Path | None = None) -> ShipWorldModel:
             )
         if from_id == to_id:
             raise ShipModelError(f"Access link {link_id!r} cannot connect a space to itself")
+        for flag in ("motorised", "vacuum_seal"):
+            if flag in record and type(record[flag]) is not bool:
+                raise ShipModelError(
+                    f"access_links[{index}] {flag} must be boolean")
         known = {"id", "from", "to", "kind"}
         links.append(
             AccessLinkSpec(
