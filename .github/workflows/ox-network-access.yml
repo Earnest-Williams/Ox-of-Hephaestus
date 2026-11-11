@@ -1,0 +1,91 @@
+name: Ox G19 authenticated network access delivery
+
+on:
+  push:
+    branches: [main, g19/authenticated-access-delivery]
+    paths:
+      - "game/world/ship_network_access.py"
+      - "game/world/ship_network_access_world.py"
+      - "game/world/ship_access_contact_world.py"
+      - "game/world/ship_mind_runtime.py"
+      - "game/world/ship_mind_support.py"
+      - "game/world/ship_mind_support_world.py"
+      - "game/world/ship_control_gateway.py"
+      - "game/world/apps.py"
+      - "game/world/models.py"
+      - "game/commands/network_access.py"
+      - "game/commands/account_cmdsets.py"
+      - "game/world/tests/test_ship_network_access.py"
+      - "game/world/tests/test_account_command_boundary.py"
+      - "game/world/tests/test_installed_ship_network_access.py"
+      - ".github/workflows/ox-network-access.yml"
+      - ".github/ci/check_ox_ci_scope.py"
+      - "design/ci/check_world_test_selection.py"
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - "game/world/ship_network_access.py"
+      - "game/world/ship_network_access_world.py"
+      - "game/world/ship_access_contact_world.py"
+      - "game/world/ship_mind_runtime.py"
+      - "game/world/ship_mind_support.py"
+      - "game/world/ship_mind_support_world.py"
+      - "game/world/ship_control_gateway.py"
+      - "game/world/apps.py"
+      - "game/world/models.py"
+      - "game/commands/network_access.py"
+      - "game/commands/account_cmdsets.py"
+      - "game/world/tests/test_ship_network_access.py"
+      - "game/world/tests/test_account_command_boundary.py"
+      - "game/world/tests/test_installed_ship_network_access.py"
+      - ".github/workflows/ox-network-access.yml"
+      - ".github/ci/check_ox_ci_scope.py"
+      - "design/ci/check_world_test_selection.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ox-network-access-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  pure:
+    name: Private source, account-bound acknowledgement and pagination
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile and check Ox workflow scopes
+        run: |
+          python -m compileall -q game/world/ship_network_access.py game/world/ship_network_access_world.py game/world/apps.py game/commands/network_access.py game/commands/account_cmdsets.py game/world/tests/test_ship_network_access.py game/world/tests/test_installed_ship_network_access.py
+          python .github/ci/check_ox_ci_scope.py
+          python design/ci/check_world_test_selection.py
+      - name: Source privacy and authenticated replay contracts
+        working-directory: game
+        run: python -m unittest world.tests.test_ship_network_access -v
+
+  installed:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    needs: pure
+    name: Real ship gateway, passive contact and OOC account
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      EVENNIA_SUPERUSER_USERNAME: OxCI
+      EVENNIA_SUPERUSER_EMAIL: oxci@example.invalid
+      OX_PG_DATABASE: ox_network_access_ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Evennia and PostgreSQL-backed world
+        run: python -m pip install .
+      - name: Check account delivery, outage omission, power faults and restart replay
+        working-directory: game
+        run: python -m world.test_runner world.tests.test_installed_ship_network_access world.tests.test_account_command_boundary --verbosity=2

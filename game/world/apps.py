@@ -35,3 +35,7 @@ class OxWorldConfig(AppConfig):
         post_save.connect(
             observe_access_contact, sender=CanonicalShipEvent,
             dispatch_uid="ox.world.dr03_access_contact_v1", weak=False)
+        from world.ship_network_access_world import observe_network_delivery
+        post_save.connect(
+            observe_network_delivery, sender=CanonicalShipEvent,
+            dispatch_uid="ox.world.access_network_delivery_v1", weak=False)
