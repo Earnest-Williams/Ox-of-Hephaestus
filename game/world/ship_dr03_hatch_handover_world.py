@@ -224,6 +224,35 @@ def decide_dr03_hatch(actor, decision_id, original_request_id, decision):
 
 
 @transaction.atomic
+def local_dr03_hatch_pending(actor):
+    """Read the actual pending request at the original powered console.
+
+    This is local console presentation, independent of A/B data-fibre.
+    It exposes neither the account binding nor any extra hatch authority.
+    """
+    from world.continuous_ship_physics import _clock
+    from world.ship_dr03_authority_world import _crew_console
+    from world.full_ship_operations import state
+
+    clock = _clock(lock=True)
+    row = _control_locked()
+    _crew_console(actor, clock)
+    if row.setting == "idle":
+        return {
+            "link": LINK, "pending": False, "request_id": None,
+            "desired": None, "physical_actuation": False,
+        }
+    hatch = state("access", LINK)
+    return {
+        "link": LINK, "pending": True,
+        "request_id": row.details["request_id"],
+        "desired": row.details["desired"],
+        "hatch_setting": hatch.setting,
+        "physical_actuation": False,
+    }
+
+
+@transaction.atomic
 def dr03_hatch_request_status(account, original_request_id):
     """Only the enrolled requester sees its immutable request/decision pair."""
     request_id_valid(original_request_id)
