@@ -37,7 +37,7 @@ from world.ship_model import load_ship_model
 from world.ship_world import ensure_canonical_ship, find_ship_space
 
 
-class InstalledNetworkAccessDelivery(EvenniaTestCase):
+class NetworkAccessFixture(EvenniaTestCase):
     def setUp(self):
         super().setUp()
         # EvenniaTestCase provisions character fixtures, not a logged-in
@@ -159,6 +159,7 @@ class InstalledNetworkAccessDelivery(EvenniaTestCase):
         return enroll_access_account(
             self.account, operator_approved=True)
 
+class InstalledNetworkAccessDelivery(NetworkAccessFixture):
     def test_account_bound_pages_replay_until_ack_and_hide_world_identity(self):
         with self.assertRaises(PermissionError):
             enroll_access_account(self.account)
