@@ -9,6 +9,7 @@ from commands.capabilities import CmdOxCapabilities
 from commands.inventory import CmdOxInventory
 from commands.clock import CmdOxClock
 from commands.dr03_control import CmdOxLocalDr03
+from commands.dr03_hatch_handover import CmdOxHatchLocalDecision
 
 from commands.crew import (
     CmdOxInbox, CmdOxEvent, CmdOxJournal, CmdOxRadioAlarm, CmdOxRequestRelease,
@@ -61,6 +62,7 @@ class CharacterCmdSet(CmdSet):
             CmdOxInventory,
             CmdOxClock,
             CmdOxLocalDr03,
+            CmdOxHatchLocalDecision,
             CmdOxIdentity,
             CmdOxAction,
             CmdOxReceipt,
