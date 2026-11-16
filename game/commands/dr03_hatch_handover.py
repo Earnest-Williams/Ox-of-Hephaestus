@@ -66,3 +66,20 @@ class CmdOxHatchLocalDecision(Command):
             self.caller.msg("Local hatch handover unavailable or refused.")
             return
         self.caller.msg(ox_hatch_local=([json.dumps(outcome, sort_keys=True)], {}))
+
+
+class CmdOxHatchPending(Command):
+    key = "oxhatchpending"
+    locks = "cmd:all()"
+
+    def func(self):
+        if self.args.strip():
+            self.caller.msg("Usage: oxhatchpending")
+            return
+        from world.ship_dr03_hatch_handover_world import local_dr03_hatch_pending
+        try:
+            outcome = local_dr03_hatch_pending(self.caller)
+        except (HatchHandoverError, PermissionError, ValueError):
+            self.caller.msg("Local drum-3 hatch display unavailable.")
+            return
+        self.caller.msg(ox_hatch_pending=([json.dumps(outcome, sort_keys=True)], {}))
