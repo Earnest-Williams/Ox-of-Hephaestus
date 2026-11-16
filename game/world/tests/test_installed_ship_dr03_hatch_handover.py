@@ -10,7 +10,8 @@ from world.ship_dr03_hatch_policy import (
 )
 from world.ship_dr03_hatch_handover_world import (
     commission_dr03_hatch_handover, decide_dr03_hatch,
-    dr03_hatch_request_status, request_dr03_hatch,
+    dr03_hatch_request_status, local_dr03_hatch_pending,
+    request_dr03_hatch,
 )
 from world.ship_network_access_world import enroll_access_account
 from world.ship_world import find_ship_space
@@ -32,6 +33,11 @@ class InstalledDr03HatchHandover(NetworkAccessFixture):
         self.assertFalse(first["physical_actuation"])
         self.assertEqual(state("access", LINK).setting, prior)
         self.assertEqual(CanonicalShipState.objects.get(pk=KEY).setting, "pending")
+        view = local_dr03_hatch_pending(self.tech)
+        self.assertTrue(view["pending"])
+        self.assertEqual(view["request_id"], "1" * 32)
+        self.assertEqual(view["desired"], requested)
+        self.assertFalse(view["physical_actuation"])
         self.assertEqual(request_dr03_hatch(
             self.account, "1" * 32, requested), first)
         self.assertEqual(WorkReceipt.objects.filter(
@@ -49,6 +55,7 @@ class InstalledDr03HatchHandover(NetworkAccessFixture):
             self.tech, "3" * 32, "1" * 32, "accept"), decision)
         self.assertEqual(state("access", LINK).setting, prior)
         self.assertEqual(CanonicalShipState.objects.get(pk=KEY).setting, "idle")
+        self.assertFalse(local_dr03_hatch_pending(self.tech)["pending"])
         self.assertEqual(dr03_hatch_request_status(
             self.account, "1" * 32)["status"], "accepted_for_manual_action")
         self.assertEqual(CanonicalShipEvent.objects.filter(
@@ -82,6 +89,11 @@ class InstalledDr03HatchHandover(NetworkAccessFixture):
             request_dr03_hatch(self.account, "6" * 32, prior)
         with self.assertRaises(HatchHandoverError):
             dr03_hatch_request_status(self.account, "5" * 32)
+        # The original local panel must still show the pending request.
+        local_view = local_dr03_hatch_pending(self.tech)
+        self.assertTrue(local_view["pending"])
+        self.assertEqual(local_view["request_id"], "5" * 32)
+        self.assertEqual(local_view["desired"], requested)
         decision = decide_dr03_hatch(
             self.tech, "7" * 32, "5" * 32, "decline")
         self.assertEqual(decision["status"], "declined_by_crew")
