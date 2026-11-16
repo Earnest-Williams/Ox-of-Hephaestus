@@ -11,6 +11,7 @@ class CharacterCommandBoundaryTests(EvenniaTestCase):
         for required in (
             "look", "say", "whisper", "pose", "help", "inspect",
             "oxwork", "oxworkreceipt", "oxinventory", "oxidentity",
+            "oxhatchreply", "oxhatchpending",
         ):
             with self.subTest(required=required):
                 self.assertIn(required, keys)
