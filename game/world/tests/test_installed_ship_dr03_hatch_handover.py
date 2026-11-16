@@ -91,5 +91,8 @@ class InstalledDr03HatchHandover(NetworkAccessFixture):
         self.tech.move_to(find_ship_space("TRUNK-A-DR-03"), quiet=True)
         self.action("8", requested)
         self.assertEqual(state("access", LINK).setting, requested)
+        # Return to the real console so this checks stale request identity,
+        # not the independent physical-presence guard.
+        self.tech.move_to(find_ship_space(ROOM), quiet=True)
         with self.assertRaises(HatchHandoverError):
             decide_dr03_hatch(self.tech, "9" * 32, "5" * 32, "accept")
