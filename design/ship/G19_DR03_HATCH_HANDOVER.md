@@ -11,6 +11,10 @@ powered gateway, finite compute, and ship A/B network are available.
 The request changes **no hatch state** and grants no remote motor authority.
 At most one request is outstanding; each request is durably receipted.
 
+Crew can inspect the pending request ID and desired position with
+`oxhatchpending` at `LCS-DR-03`, even if the ship-wide A/B network is down.
+This local display contains no account identity and never moves the hatch.
+
 A crew member physically present at the existing locally powered
 `LCS-DR-03` console may issue
 `oxhatchreply <32-hex-decision-id> <original-request-id> <accept|decline>`.
