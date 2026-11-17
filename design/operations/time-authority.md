@@ -168,8 +168,10 @@ raise an integrator step or skip simulation work to advertise speed.
 ## Acceptance demonstrations
 
 - **AT01:** A ten-minute player pause results in zero seconds of
-  simulated time, no crew action, no power or gas consumption, and
-  no accumulated backlog when resumed.
+  simulated time, no crew action, rounds, captain obligation or roster
+  handover, no power or gas consumption, and no accumulated backlog when
+  resumed. `oxclock` and `WorldClockPort` must report the same frozen
+  time rather than live Evennia elapsed time.
 - **AT02:** The same remains true across restart, reconnect and a
   concurrent pause request; command replay has a single receipt.
 - **AT03:** A watch through a hidden fault stays running or yields on
