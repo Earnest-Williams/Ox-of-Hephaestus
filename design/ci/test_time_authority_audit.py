@@ -36,8 +36,22 @@ class TimeAuthorityAuditTests(unittest.TestCase):
         self.assertEqual(classify_call("asyncio.sleep"), "scheduler")
         self.assertEqual(classify_call("create_script"), "scheduler")
         self.assertEqual(classify_call("tick_rounds"), "world_tick")
+        self.assertEqual(classify_call("tick_terminal"), "world_tick")
         self.assertIsNone(classify_call("math.sqrt"))
         self.assertIsNone(classify_call("network_reachable"))
+
+    def test_disposable_terminal_timer_is_covered_as_world_step(self):
+        source = """
+from evennia import DefaultScript
+class TerminalClock(DefaultScript):
+    def at_repeat(self):
+        tick_terminal()
+"""
+        sites = inspect_source("game/world/terminal_failure.py", source)
+        names = {(s.kind, s.symbol) for s in sites}
+        self.assertIn(
+            ("scheduled_script", "TerminalClock.at_repeat"), names)
+        self.assertIn(("world_tick", "tick_terminal"), names)
 
     def test_test_and_vendor_sources_do_not_become_production_sites(self):
         self.assertTrue(is_production(Path("game/world/live_clock.py")))
