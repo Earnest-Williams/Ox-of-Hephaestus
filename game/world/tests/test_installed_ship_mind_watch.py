@@ -119,7 +119,7 @@ class InstalledLeadMindFirstWatch(NetworkAccessFixture):
                 "severed", operator=True,
             )
         self.assertFalse(network_reachable(_clock()))
-        with self.assertRaises(NetworkAccessError):
+        with self.assertRaises(ShipWatchError):
             first_watch_status(self.account)
         self.action("f", "open")
         self.assertEqual(len(self.local()), 1)
