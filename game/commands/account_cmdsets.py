@@ -9,6 +9,7 @@ from evennia.commands.cmdset import CmdSet
 from evennia.commands.default import account, help
 from commands.network_access import CmdOxNetAccess, CmdOxNetAck
 from commands.dr03_control import CmdOxRemoteDr03
+from commands.dr03_hatch_handover import CmdOxHatchRequest, CmdOxHatchRequestStatus
 
 
 class AccountCmdSet(CmdSet):
@@ -30,6 +31,8 @@ class AccountCmdSet(CmdSet):
             CmdOxNetAccess,
             CmdOxNetAck,
             CmdOxRemoteDr03,
+            CmdOxHatchRequest,
+            CmdOxHatchRequestStatus,
             help.CmdHelp,
         ):
             self.add(command())
