@@ -54,7 +54,7 @@ mind are not yet implemented.
 | 7 | **The core** (support commissioned; parity/rebuild and capacity pending) | Nine machines as fitted equipment, parity and rebuild, capacity steps, handover to subsystems, the core log | S10, S15 | 0, 3 |
 | 8 | **Navigation computer** | Equipment on the bridge; a specialist agent with no personality by default; installs only at the machine, recorded | S07 | 0, 7 |
 | 9 | **Watch routine** | 36-hour day, shifts and rota, calls and responses as records | Rota and calls replay exactly | 1 |
-| 10 | **Time and communications** (first delivered-event predicate underway) | Watch mode on reachable triggers; message routes and delivery | S11, S13 | 1, 3 |
+| 10 | **Time and communications** (first delivered-event predicate accepted #158; post-commit wake underway) | Watch mode on reachable triggers; message routes and delivery | S11, S13 | 1, 3 |
 
 ## First access-evidence pull request
 
