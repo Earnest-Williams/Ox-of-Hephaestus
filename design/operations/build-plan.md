@@ -12,10 +12,10 @@ installed isolated power/cooling, surveyed A/B network, the first gateway and
 passive hatch reader, an operator-enrolled account principal, single-point
 remote LT isolation with local crew override, request-only hatch handover, and
 event-time observed physical completion. These are **bounded drum-3 capabilities**,
-not ship-wide control. The original v0.5 ship model remains intact. The first
-world-owned, network-delivery **watch trigger** is the next package; full
-pause/accelerate time controls and the nine-machine parity mind are not yet
-implemented.
+not ship-wide control. The original v0.5 ship model remains intact. The first world-owned delivered-event **watch trigger** was accepted
+in PR #158. Post-commit account wake notifications are the next narrow
+package. Full pause/accelerate time controls and the nine-machine parity
+mind are not yet implemented.
 
 ## What already exists to build on
 
