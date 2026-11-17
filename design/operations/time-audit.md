@@ -13,14 +13,32 @@ records the file, line, containing function/class, and classification.
 Run from the repository root:
 
 ```sh
-python -m unittest discover -s design/ci -p 'test_time_authority_audit.py' -v
+python -m unittest discover -s design/ci -p 'test_time_*.py' -v
 python design/ci/audit_world_time.py
 python design/ci/audit_world_time.py --json --output time-audit.json
+python design/ci/time_source_owners.py --audit time-audit.json --output time-script-owners.json
 ```
 
-The targeted GitHub workflow uploads `time-audit.json` as a short-lived
-review artifact and reports counts in the run summary. It validates the
-presence of four known integration anchors before accepting its output:
+The targeted GitHub workflow uploads `time-audit.json` and
+`time-script-owners.json` as short-lived review artifacts and reports
+discovery counts in the run summary. A second T0 gate,
+`design/ci/time_source_owners.py`, requires all directly discovered
+`at_repeat` world scripts to match an explicit owner manifest. A newly
+introduced `at_repeat` source fails review until consciously classified.
+This is a **script entrypoint inventory**, not runtime proof that only
+three independently scheduled operations exist.
+
+The first successful static run scanned 247 production Python files and found
+107 candidate sites: 32 canonical event writers, 25 game-time reads, 17
+world-step calls, 17 wall-time reads, 13 scheduler calls, and three directly
+declared `at_repeat` scripts. The reviewed scripts are the continuous
+G18/G19 physics clock, engineering duty/rounds/captain `ShipDutyClock`,
+and operator-only disposable G6 `TerminalClock`. The last one modifies
+an explicitly armed terminal-atmosphere scenario and must also obey the
+future scenario-specific pause barrier.
+
+The audit validates the presence of four known integration anchors before
+accepting its output:
 
 - `game/world/continuous_ship_physics.py` — the bounded G18/G19 world physics clock
 - `game/world/live_clock.py` — existing engineering watch, rounds and captain duties
