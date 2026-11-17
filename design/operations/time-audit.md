@@ -1,7 +1,7 @@
 # G19 T0 — live world-time integration inventory
 
 **Status:** audit tooling, not runtime time control. Supports the
-[unified time-authority contract](time-authority.md), accepted in PR #160.
+[unified time-authority contract](https://github.com/Earnest-Williams/Ox-of-Hephaestus/blob/main/design/operations/time-authority.md), accepted in PR #160.
 
 `design/ci/audit_world_time.py` performs a deterministic, standard-library
 AST scan of the Ox's own production Python code. It deliberately excludes
@@ -28,8 +28,9 @@ introduced `at_repeat` source fails review until consciously classified.
 This is a **script entrypoint inventory**, not runtime proof that only
 three independently scheduled operations exist.
 
-The first successful static run scanned 247 production Python files and found
-107 candidate sites: 32 canonical event writers, 25 game-time reads, 17
+The initial static run scanned 247 production Python files and found 107
+candidate sites. The corrected scan also counts the G6 terminal step, for
+108 sites overall: 32 canonical event writers, 25 game-time reads, 18
 world-step calls, 17 wall-time reads, 13 scheduler calls, and three directly
 declared `at_repeat` scripts. The reviewed scripts are the continuous
 G18/G19 physics clock, engineering duty/rounds/captain `ShipDutyClock`,
@@ -37,11 +38,12 @@ and operator-only disposable G6 `TerminalClock`. The last one modifies
 an explicitly armed terminal-atmosphere scenario and must also obey the
 future scenario-specific pause barrier.
 
-The audit validates the presence of four known integration anchors before
+The audit validates the presence of five known integration anchors before
 accepting its output:
 
 - `game/world/continuous_ship_physics.py` — the bounded G18/G19 world physics clock
 - `game/world/live_clock.py` — existing engineering watch, rounds and captain duties
+- `game/world/terminal_failure.py` — opt-in G6 terminal incident and its world-step timer
 - `game/commands/clock.py` — authenticated character-visible game seconds
 - `services/ai-handler/src/ox_ai/ports/evennia/clock.py` — crew AI transport clock observation
 
