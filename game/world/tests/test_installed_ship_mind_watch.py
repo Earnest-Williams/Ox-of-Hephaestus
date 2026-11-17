@@ -3,8 +3,11 @@
 All actions use the fitted G19 gateway, surveyed A/B fibre, live computer
 power, and an actual engineer operating the original drum-3 pressure hatch.
 """
+import json
 from types import SimpleNamespace
+from unittest.mock import patch
 
+from django.db import transaction
 from evennia.utils.create import create_account
 from world.continuous_ship_physics import (
     _clock, survey_g19_data_path,
@@ -136,3 +139,83 @@ class InstalledLeadMindFirstWatch(NetworkAccessFixture):
         self.assertEqual(len(self.deliveries()), 2)
         self.assertEqual(CanonicalShipEvent.objects.filter(
             component_key=KEY, operation=FIRED).count(), 1)
+
+    def test_player_wake_is_emitted_only_after_world_commit(self):
+        arm_first_watch(self.account, "5" * 32, "open")
+        account_type = type(self.account)
+        with patch.object(account_type, "msg", autospec=True) as messages:
+            with self.captureOnCommitCallbacks(execute=True):
+                self.action("6", "open")
+                # The hatch and network delivery are committed together.
+                # A notice before the outer transaction's commit would be
+                # able to describe work that might still roll back.
+                notices = [
+                    call for call in messages.call_args_list
+                    if "ox_watch_fired" in call.kwargs
+                ]
+                self.assertFalse(notices)
+            notices = [
+                call for call in messages.call_args_list
+                if "ox_watch_fired" in call.kwargs
+            ]
+            self.assertEqual(len(notices), 1)
+            self.assertEqual(notices[0].args[0].pk, self.account.pk)
+            payload = json.loads(notices[0].kwargs["ox_watch_fired"][0][0])
+            self.assertEqual(payload["schema_version"], "ox.ship-mind-watch-wake/1")
+            self.assertEqual(payload["request_id"], "5" * 32)
+            self.assertEqual(payload["status"], "fired")
+            self.assertEqual(payload["desired"], "open")
+            self.assertEqual(
+                payload["delivery_event_id"],
+                "ox-net-" + str(self.deliveries()[0].sequence),
+            )
+            self.assertFalse(payload["controls_time"])
+            self.assertFalse(payload["physical_actuation"])
+            self.assertNotIn("actor_dbref", payload)
+            self.assertNotIn("location", payload)
+            self.assertEqual(first_watch_status(self.account)["status"], "fired")
+
+    def test_rolled_back_physical_work_never_wakes_an_account(self):
+        arm_first_watch(self.account, "7" * 32, "open")
+
+        class CancelTestTransaction(Exception):
+            pass
+
+        with patch.object(type(self.account), "msg", autospec=True) as messages:
+            with self.captureOnCommitCallbacks(execute=True):
+                with self.assertRaises(CancelTestTransaction):
+                    with transaction.atomic():
+                        self.action("8", "open")
+                        self.assertEqual(
+                            CanonicalShipEvent.objects.filter(
+                                component_key=KEY, operation=FIRED).count(), 1)
+                        raise CancelTestTransaction
+            notices = [
+                call for call in messages.call_args_list
+                if "ox_watch_fired" in call.kwargs
+            ]
+            self.assertFalse(notices)
+        self.assertEqual(
+            CanonicalShipEvent.objects.filter(
+                component_key=KEY, operation=FIRED).count(), 0)
+        self.assertEqual(len(self.deliveries()), 0)
+        self.assertEqual(first_watch_status(self.account)["status"], "armed")
+
+    def test_enrolment_changed_before_commit_suppresses_stale_wake(self):
+        arm_first_watch(self.account, "9" * 32, "open")
+        with patch.object(type(self.account), "msg", autospec=True) as messages:
+            with self.captureOnCommitCallbacks(execute=True):
+                self.action("a", "open")
+                principal = CanonicalShipState.objects.get(pk=PRINCIPAL)
+                principal.reference = dict(
+                    principal.reference, epoch="f" * 32)
+                principal.save(update_fields=["reference"])
+            self.assertFalse([
+                c for c in messages.call_args_list
+                if "ox_watch_fired" in c.kwargs
+            ])
+        # Historical observation survives, but old enrolment cannot claim it.
+        self.assertEqual(
+            CanonicalShipEvent.objects.filter(
+                component_key=KEY, operation=FIRED).count(), 1)
+
