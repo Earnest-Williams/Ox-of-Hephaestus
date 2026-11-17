@@ -1,7 +1,7 @@
 # G19 T0 — live world-time integration inventory
 
 **Status:** audit tooling, not runtime time control. Supports the
-[unified time-authority contract](time-authority.md), accepted in PR #160.
+[unified time-authority contract](https://github.com/Earnest-Williams/Ox-of-Hephaestus/blob/main/design/operations/time-authority.md), accepted in PR #160.
 
 `design/ci/audit_world_time.py` performs a deterministic, standard-library
 AST scan of the Ox's own production Python code. It deliberately excludes
@@ -20,10 +20,11 @@ python design/ci/audit_world_time.py --json --output time-audit.json
 
 The targeted GitHub workflow uploads `time-audit.json` as a short-lived
 review artifact and reports counts in the run summary. It validates the
-presence of four known integration anchors before accepting its output:
+presence of five known integration anchors before accepting its output:
 
 - `game/world/continuous_ship_physics.py` — the bounded G18/G19 world physics clock
 - `game/world/live_clock.py` — existing engineering watch, rounds and captain duties
+- `game/world/terminal_failure.py` — opt-in G6 terminal incident clock and atmosphere progression
 - `game/commands/clock.py` — authenticated character-visible game seconds
 - `services/ai-handler/src/ox_ai/ports/evennia/clock.py` — crew AI transport clock observation
 
