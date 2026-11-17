@@ -15,7 +15,7 @@ from world.ship_access_contact import LINK, OBSERVED, SENSOR
 from world.ship_mind_watch import (
     ARMED, CANCELLED, FIRED, KEY, SCHEMA, SOURCE, ShipWatchError,
     arm_details, empty_details, match_delivery, reference, require,
-    valid_request_id, validate_watch,
+    source_after_arm, valid_request_id, validate_watch,
 )
 from world.ship_network_access import (
     DELIVERED, PRINCIPAL, NetworkAccessError, capture, present_delivery,
@@ -237,7 +237,7 @@ def observe_first_watch(sender, instance, created, **kwargs):
             pk=int(original), operation="crew_hatch",
             component_key="access:" + LINK,
         ).first()
-        if physical is None:
+        if physical is None or not source_after_arm(row, physical, observation):
             return
         expected = capture(observation)
         presented = present_delivery(instance, epoch=row.details["epoch"])
