@@ -79,10 +79,10 @@ def dotted(node: ast.AST) -> str:
 def classify_call(name: str) -> str | None:
     if not name:
         return None
-    if name in TIME_READS or name.endswith(".gametime"):
-        return "external_game_clock"
     if name in WALL_READS:
         return "wall_clock"
+    if name in TIME_READS or name.endswith(".gametime"):
+        return "external_game_clock"
     if name in WORLD_STEPS or any(
             name.endswith("." + target) for target in WORLD_STEPS):
         return "world_tick"
