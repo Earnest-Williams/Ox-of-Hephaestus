@@ -1,7 +1,7 @@
 name: Ox G19 first account watch on delivered hatch evidence
 on:
   push:
-    branches: [main, g19/lead-mind-first-watch-trigger]
+    branches: [main, g19/lead-mind-watch-committed-wake]
     paths:
       - ".github/workflows/ox-lead-mind-watch.yml"
       - "game/world/ship_mind_watch.py"

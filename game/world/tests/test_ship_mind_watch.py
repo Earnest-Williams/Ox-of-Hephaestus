@@ -5,8 +5,9 @@ import unittest
 
 from world.ship_access_contact import LINK, OBSERVED, SENSOR
 from world.ship_mind_watch import (
-    KEY, SCHEMA, SOURCE, ShipWatchError, arm_details,
-    empty_details, match_delivery, reference, source_after_arm, validate_watch,
+    KEY, SCHEMA, SOURCE, FIRED, ShipWatchError, arm_details,
+    committed_watch_notice, empty_details, match_delivery, reference,
+    source_after_arm, validate_watch,
 )
 from world.ship_network_access import DELIVERED, PRINCIPAL, capture
 
@@ -126,4 +127,61 @@ class FirstWatchPolicyTests(unittest.TestCase):
         self.assertTrue(source_after_arm(row, physical, observation))
         observation.sequence = 75
         self.assertFalse(source_after_arm(row, physical, observation))
+
+    def test_committed_notice_is_bound_to_exact_world_firing(self):
+        row = armed()
+        row.setting = "fired"
+        row.details.update(delivery_sequence=79, source_time=1080.0)
+        event = SimpleNamespace(
+            sequence=80, component_key=KEY, operation=FIRED,
+            source_event_id="79", actor_dbref=None, request_id=None,
+            before={"generation": 1, "desired": "open"},
+            after={
+                "generation": 1, "desired": "open",
+                "delivery_event_id": "ox-net-79",
+                "source_time": 1080.0,
+                "controls_time": False, "physical_actuation": False,
+            },
+            game_time=1080.0,
+        )
+        expected = committed_watch_notice(
+            row, event, owner_pk=12, epoch=EPOCH,
+        )
+        self.assertEqual(expected, {
+            "schema_version": "ox.ship-mind-watch-wake/1",
+            "status": "fired", "request_id": REQUEST,
+            "desired": "open", "wake_event_id": "ox-watch-80",
+            "delivery_event_id": "ox-net-79",
+            "source_time": 1080.0,
+            "controls_time": False, "physical_actuation": False,
+        })
+        self.assertNotIn("actor_dbref", expected)
+        self.assertNotIn("location", expected)
+        self.assertIsNone(committed_watch_notice(
+            row, event, owner_pk=13, epoch=EPOCH))
+        self.assertIsNone(committed_watch_notice(
+            row, event, owner_pk=12, epoch="f" * 32))
+        scenarios = [
+            ("old watch", lambda r, e: setattr(r, "setting", "armed")),
+            ("wrong source", lambda r, e: setattr(e, "source_event_id", "78")),
+            ("wrong operation", lambda r, e: setattr(e, "operation", "crew_hatch")),
+            ("other component", lambda r, e: setattr(e, "component_key", "other")),
+            ("fake request", lambda r, e: setattr(e, "request_id", REQUEST)),
+            ("crew identity", lambda r, e: setattr(e, "actor_dbref", "#7")),
+            ("unexpected data", lambda r, e: e.after.update(actor_dbref="#7")),
+            ("unauthorized clock", lambda r, e: e.after.update(controls_time=True)),
+            ("fictitious actuator", lambda r, e: e.after.update(physical_actuation=True)),
+            ("different reading", lambda r, e: e.after.update(desired="closed")),
+            ("different sensor time", lambda r, e: e.after.update(source_time=1090.0)),
+            ("different firing generation", lambda r, e: e.after.update(generation=2)),
+            ("old firing sequence", lambda r, e: setattr(e, "sequence", 79)),
+            ("misleading firing time", lambda r, e: setattr(e, "game_time", 1081.0)),
+        ]
+        for title, mutate in scenarios:
+            with self.subTest(title=title):
+                changed_row = deepcopy(row)
+                changed_event = deepcopy(event)
+                mutate(changed_row, changed_event)
+                self.assertIsNone(committed_watch_notice(
+                    changed_row, changed_event, owner_pk=12, epoch=EPOCH))
 

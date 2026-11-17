@@ -8,14 +8,16 @@ is performed here. All user actions serialize on the continuous-physics clock.
 
 from __future__ import annotations
 
+import json
+
 from django.db import transaction
 
 from world.models import CanonicalShipEvent, CanonicalShipState, WorkReceipt
 from world.ship_access_contact import LINK, OBSERVED, SENSOR
 from world.ship_mind_watch import (
     ARMED, CANCELLED, FIRED, KEY, SCHEMA, SOURCE, ShipWatchError,
-    arm_details, empty_details, match_delivery, reference, require,
-    source_after_arm, valid_request_id, validate_watch,
+    arm_details, committed_watch_notice, empty_details, match_delivery,
+    reference, require, source_after_arm, valid_request_id, validate_watch,
 )
 from world.ship_network_access import (
     DELIVERED, PRINCIPAL, NetworkAccessError, capture, present_delivery,
@@ -187,6 +189,43 @@ def first_watch_status(account):
     }
 
 
+def notify_committed_watch(owner_pk, epoch, fired_sequence):
+    """Best-effort session wake *after commit*, not a second sensor reading.
+
+    Never send until the original account binding, durable fired record and
+    its immutable source event agree. Disconnected players recover the event
+    through oxwatchstatus; this transport is deliberately non-durable.
+    """
+    from evennia.accounts.models import AccountDB
+
+    if (type(owner_pk) is not int or owner_pk <= 0
+            or type(fired_sequence) is not int or fired_sequence <= 0):
+        return False
+    account = AccountDB.objects.filter(pk=owner_pk).first()
+    if account is None:
+        return False
+    try:
+        principal = _principal(account)
+    except NetworkAccessError:
+        return False
+    if principal.reference["epoch"] != epoch:
+        return False
+    row = _watch_row()
+    event = CanonicalShipEvent.objects.filter(
+        pk=fired_sequence, operation=FIRED, component_key=KEY,
+    ).first()
+    payload = committed_watch_notice(
+        row, event, owner_pk=owner_pk, epoch=epoch,
+    ) if row is not None and event is not None else None
+    if payload is None:
+        return False
+    # Evennia delivers to authenticated account sessions (not a puppet or
+    # global channel). With no connected session, msg() sends nothing; the
+    # persistent watch record is the replay/recovery mechanism.
+    account.msg(ox_watch_fired=([json.dumps(payload, sort_keys=True)], {}))
+    return True
+
+
 def observe_first_watch(sender, instance, created, **kwargs):
     """One-shot signal, triggered only by a *new* delivered contact frame.
 
@@ -272,5 +311,15 @@ def observe_first_watch(sender, instance, created, **kwargs):
         }
         row.revision += 1
         row.save(update_fields=["setting", "details", "revision"])
+        # The world transaction may still be rolled back. In particular,
+        # never announce a sensor outcome before the physical work and the
+        # delivered-capsule event have all committed.
+        owner_pk = row.details["owner_pk"]
+        epoch = row.details["epoch"]
+        fired_sequence = event.sequence
+        transaction.on_commit(
+            lambda: notify_committed_watch(owner_pk, epoch, fired_sequence),
+            robust=True,
+        )
     except (ShipWatchError, NetworkAccessError, KeyError, TypeError, ValueError):
         return

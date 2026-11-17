@@ -44,6 +44,28 @@ Its source time is the observation's game time; it does **not** mean the
 hatch is still in that position at status-read time. No actor identity,
 inferred location, or crew state enters the watch's result.
 
+## Committed account wake (next integration)
+
+The system now attempts an `ox_watch_fired` out-of-band notification to
+the **original enrolled account** after the *entire* originating world
+transaction commits. The notice is checked against the durable world
+watch row, its firing event, enrollment epoch and owner; it contains only
+the watch request ID, desired position, firing/delivery IDs and observed
+source time. A stale enrollment, replaced or malformed watch, or a
+transaction that rolls back produces no notification.
+
+The notification uses Evennia's existing account session message path;
+it is **not a ship intercom** and is not a second route around broken
+in-world network instrumentation. The underlying contact was already
+delivered over a live surveyed network at event time, or the watch
+would never have fired. If no player session is connected, there is no
+live notification. Its delivery to an active client is **best effort**,
+not a durable acknowledgement: an application restart between world
+commit and message dispatch can lose the push. The fired watch and its
+event remain available through `oxwatchstatus` after reconnection.
+The notification gives no permission to operate the hatch, inspect
+unconnected sources or alter time.
+
 ## Failure and reconnection
 
 - An unchanged hatch setting creates no contact transition and no watch trigger.

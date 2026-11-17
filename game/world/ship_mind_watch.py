@@ -162,3 +162,62 @@ def source_after_arm(row, physical, observation):
     observed_seq = getattr(observation, "sequence", None)
     return (type(physical_seq) is int and type(observed_seq) is int
             and barrier < physical_seq < observed_seq)
+
+
+def committed_watch_notice(row, event, *, owner_pk, epoch):
+    """Prepare the minimal OOC wake from a committed, matching fired state.
+
+    Pure validation intentionally returns None for a stale enrolment, a
+    superseded watch, or any malformed event. Never expose raw event contents,
+    actors, character locations, or the physically hidden source journal.
+    """
+    try:
+        validate_watch(row)
+    except (ShipWatchError, AttributeError, KeyError, TypeError, ValueError):
+        return None
+    if row.setting != "fired":
+        return None
+    details = row.details
+    if (type(owner_pk) is not int or owner_pk <= 0
+            or details["owner_pk"] != owner_pk
+            or details["epoch"] != epoch):
+        return None
+    after = getattr(event, "after", None)
+    before = getattr(event, "before", None)
+    seq = getattr(event, "sequence", None)
+    fields = {
+        "generation", "desired", "delivery_event_id", "source_time",
+        "controls_time", "physical_actuation",
+    }
+    if (type(seq) is not int or seq <= details["delivery_sequence"]
+            or getattr(event, "component_key", None) != KEY
+            or getattr(event, "operation", None) != FIRED
+            or getattr(event, "source_event_id", None) != str(details["delivery_sequence"])
+            or getattr(event, "request_id", None) is not None
+            or getattr(event, "actor_dbref", None) is not None
+            or not isinstance(after, dict) or set(after) != fields
+            or not isinstance(before, dict)
+            or before != {
+                "generation": details["generation"],
+                "desired": details["desired"],
+            }
+            or after["generation"] != details["generation"]
+            or after["desired"] != details["desired"]
+            or after["delivery_event_id"] !=
+                "ox-net-" + str(details["delivery_sequence"])
+            or after["source_time"] != details["source_time"]
+            or getattr(event, "game_time", None) != details["source_time"]
+            or after["controls_time"] is not False
+            or after["physical_actuation"] is not False):
+        return None
+    return {
+        "schema_version": "ox.ship-mind-watch-wake/1",
+        "status": "fired",
+        "request_id": details["request_id"],
+        "desired": details["desired"],
+        "wake_event_id": "ox-watch-" + str(seq),
+        "delivery_event_id": after["delivery_event_id"],
+        "source_time": details["source_time"],
+        "controls_time": False,
+        "physical_actuation": False,
+    }

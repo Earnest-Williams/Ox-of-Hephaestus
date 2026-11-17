@@ -8,7 +8,8 @@ taking D's authority model, and replaces all four proposals, A to D
 support, an account-bound bodiless principal, a narrow network read stream,
 one drum-3 remote valve with local override, a request-only pressure hatch
 handover, and delivered world-confirmation evidence have since been
-implemented (#151–#157). The nine-machine parity brain, specialist AI,
+implemented (#151–#157); #158 adds the first durable, delivered-event watch
+trigger. The nine-machine parity brain, specialist AI,
 full shift routine, broad remote operation and actual accelerated watch mode
 remain proposed—not implied to be running from this design text.
 
