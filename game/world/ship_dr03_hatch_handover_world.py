@@ -8,6 +8,9 @@ All writes use the physics clock and PostgreSQL row-lock transaction.
 from __future__ import annotations
 
 from django.db import transaction
+from django.db.models import CharField, Exists, OuterRef
+from django.db.models.fields.json import KeyTextTransform
+from django.db.models.functions import Cast
 
 from world.models import CanonicalShipEvent, CanonicalShipState, WorkReceipt
 from world.ship_access_contact import (
@@ -292,11 +295,29 @@ def dr03_hatch_request_status(account, original_request_id):
             component_key=KEY, operation=REQUESTED,
             sequence__gt=decision.sequence,
         ).order_by("sequence").first()
+        # Join physical actions to *event-time delivered* sensor records
+        # inside PostgreSQL. Do not issue two lookups per unrelated action:
+        # a long-lived request can otherwise stall the shared physics clock.
+        candidate_delivery = CanonicalShipEvent.objects.filter(
+            component_key=PRINCIPAL, operation=DELIVERED,
+            sequence__gt=decision.sequence,
+            after__epoch=principal.reference["epoch"],
+            after__access_link_id=LINK,
+            after__setting_after=receipt.arguments["value"],
+        ).annotate(
+            physical_event_ref=KeyTextTransform(
+                "physical_hatch_event_id", "after")
+        ).filter(
+            physical_event_ref=OuterRef("physical_sequence_text")
+        )
         physical_actions = CanonicalShipEvent.objects.filter(
             component_key="access:" + LINK, operation="crew_hatch",
             actor_dbref=decision.actor_dbref,
             sequence__gt=decision.sequence,
-        ).order_by("sequence")
+            after__setting=receipt.arguments["value"],
+        ).annotate(
+            physical_sequence_text=Cast("sequence", output_field=CharField())
+        ).filter(Exists(candidate_delivery)).order_by("sequence")
         if next_request is not None:
             physical_actions = physical_actions.filter(
                 sequence__lt=next_request.sequence)
