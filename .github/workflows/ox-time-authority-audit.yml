@@ -6,6 +6,8 @@ on:
       - ".github/workflows/ox-time-authority-audit.yml"
       - "design/ci/audit_world_time.py"
       - "design/ci/test_time_authority_audit.py"
+      - "design/ci/time_source_owners.py"
+      - "design/ci/test_time_source_owners.py"
       - "game/world/**/*.py"
       - "game/commands/**/*.py"
       - "game/typeclasses/**/*.py"
@@ -17,6 +19,8 @@ on:
       - ".github/workflows/ox-time-authority-audit.yml"
       - "design/ci/audit_world_time.py"
       - "design/ci/test_time_authority_audit.py"
+      - "design/ci/time_source_owners.py"
+      - "design/ci/test_time_source_owners.py"
       - "game/world/**/*.py"
       - "game/commands/**/*.py"
       - "game/typeclasses/**/*.py"
@@ -39,10 +43,11 @@ jobs:
         with:
           python-version: "3.12"
       - name: Unit test static discovery and source contracts
-        run: python -m unittest discover -s design/ci -p 'test_time_authority_audit.py' -v
+        run: python -m unittest discover -s design/ci -p 'test_time_*.py' -v
       - name: Inventory all project time and scheduler sites
         run: |
           python design/ci/audit_world_time.py --json --output time-audit.json > /dev/null
+          python design/ci/time_source_owners.py --audit time-audit.json --output time-script-owners.json > /dev/null
           python - <<'PY'
           import json
           from pathlib import Path
@@ -61,5 +66,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: ox-time-authority-inventory
-          path: time-audit.json
+          path: |
+            time-audit.json
+            time-script-owners.json
           retention-days: 14
