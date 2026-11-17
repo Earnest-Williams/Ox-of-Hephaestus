@@ -6,7 +6,7 @@ import unittest
 from world.ship_access_contact import LINK, OBSERVED, SENSOR
 from world.ship_mind_watch import (
     KEY, SCHEMA, SOURCE, ShipWatchError, arm_details,
-    empty_details, match_delivery, reference, validate_watch,
+    empty_details, match_delivery, reference, source_after_arm, validate_watch,
 )
 from world.ship_network_access import DELIVERED, PRINCIPAL, capture
 
@@ -111,3 +111,19 @@ class FirstWatchPolicyTests(unittest.TestCase):
                 with self.assertRaises(ShipWatchError):
                     arm_details(state(), request_id=value, owner_pk=12,
                                 epoch=EPOCH, desired="open", after_sequence=10)
+
+    def test_old_physical_event_cannot_be_republished_as_new_delivery(self):
+        row = armed()  # Armed after world event 75.
+        physical = SimpleNamespace(sequence=70)
+        observation = SimpleNamespace(sequence=72)
+        self.assertFalse(source_after_arm(row, physical, observation))
+        # An old physical action cannot become eligible merely because
+        # a new sensor or delivery envelope is created much later.
+        observation.sequence = 90
+        self.assertFalse(source_after_arm(row, physical, observation))
+        physical.sequence = 76
+        observation.sequence = 77
+        self.assertTrue(source_after_arm(row, physical, observation))
+        observation.sequence = 75
+        self.assertFalse(source_after_arm(row, physical, observation))
+
