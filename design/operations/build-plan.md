@@ -6,7 +6,16 @@ CI check, following the repository's rules: Ox code stays in `game/`,
 `services/`, `contracts/`, `design/` and `scenarios/`; Evennia owns every world
 change; no handler or interface acts as a second physics authority.
 
-**Status:** physical infrastructure and access evidence accepted, 11 November 2026. [PR #151](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/151) merged and implements physical power islands, surveyed A/B connectivity, finite cooling with original-LT rejection and the first verified read-only drum-3 gateway vocabulary. Remote actuation, a lead-mind principal and player access remain subsequent packages. The original v0.5 ship model remains intact.
+**Status:** first lead-mind physical and player-authority slices accepted through
+17 November 2026. PRs [#151](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/151)–[#157](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/157)
+installed isolated power/cooling, surveyed A/B network, the first gateway and
+passive hatch reader, an operator-enrolled account principal, single-point
+remote LT isolation with local crew override, request-only hatch handover, and
+event-time observed physical completion. These are **bounded drum-3 capabilities**,
+not ship-wide control. The original v0.5 ship model remains intact. The first
+world-owned, network-delivery **watch trigger** is the next package; full
+pause/accelerate time controls and the nine-machine parity mind are not yet
+implemented.
 
 ## What already exists to build on
 
@@ -26,8 +35,10 @@ change; no handler or interface acts as a second physics authority.
 - **The ship model** in `design/ship/ox_full_ship.json`, loaded by
   `game/world/ship_model.py`, checked by `design/ship/check_v05_candidate.py`;
   the prebuilt ship template rebuilds automatically when the design changes.
-- **Remote-operable flags** on 559 isolation points, and 33 local control
-  stations, as data with no runtime behaviour yet.
+- **Remote-operable flags** on 559 isolation points and 33 local stations:
+  only the physically commissioned drum-3 LT isolator has the new
+  authenticated network command and local crew takeover path. The other
+  flagged devices do not acquire controller authority automatically.
 
 ## Work packages
 
@@ -40,10 +51,10 @@ change; no handler or interface acts as a second physics authority.
 | 4 | **Remote actuation** | Commands over the network to remote-operable devices, starting with `ISO-DR-03-LT-IF`; request IDs, receipts, interlocks, arbitration | S04, S05, S06 | 1, 3 |
 | 5 | **Local takeover** | `LCS-DR-03` as a crew console: local reads, local operation, takeover and hand-back, receipted | S14 | 3, 4 |
 | 6 | **Motorised doors** | The lead mind opens, closes and seals motorised doors; new world-owned actuation and seal-state events extend the existing access-log projection | Door commands obey pressure interlocks; standalone open/close/seal transitions appear only when world-confirmed | 2, 4 |
-| 7 | **The core** (physical machinery support underway; parity/principal pending) | Nine machines as fitted equipment, parity and rebuild, capacity steps, handover to subsystems, the core log | S10, S15 | 0, 3 |
+| 7 | **The core** (support commissioned; parity/rebuild and capacity pending) | Nine machines as fitted equipment, parity and rebuild, capacity steps, handover to subsystems, the core log | S10, S15 | 0, 3 |
 | 8 | **Navigation computer** | Equipment on the bridge; a specialist agent with no personality by default; installs only at the machine, recorded | S07 | 0, 7 |
 | 9 | **Watch routine** | 36-hour day, shifts and rota, calls and responses as records | Rota and calls replay exactly | 1 |
-| 10 | **Time and communications** | Watch mode on reachable triggers; message routes and delivery | S11, S13 | 1, 3 |
+| 10 | **Time and communications** (first delivered-event predicate underway) | Watch mode on reachable triggers; message routes and delivery | S11, S13 | 1, 3 |
 
 ## First access-evidence pull request
 
