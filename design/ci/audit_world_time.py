@@ -32,6 +32,7 @@ ROOTS = (
 REQUIRED = (
     "game/world/continuous_ship_physics.py",
     "game/world/live_clock.py",
+    "game/world/terminal_failure.py",
     "game/commands/clock.py",
     "services/ai-handler/src/ox_ai/ports/evennia/clock.py",
 )
@@ -55,6 +56,7 @@ SCHEDULERS = {
 WORLD_STEPS = {
     "tick_continuous_physics", "tick_game_clock",
     "tick_rounds", "tick_captain_obligations",
+    "tick_terminal",
 }
 
 
