@@ -6,10 +6,12 @@ on:
       - ".github/workflows/ox-dr03-hatch-handover.yml"
       - "game/world/ship_dr03_hatch_policy.py"
       - "game/world/ship_dr03_hatch_handover_world.py"
+      - "game/world/ship_dr03_hatch_evidence.py"
       - "game/commands/dr03_hatch_handover.py"
       - "game/commands/account_cmdsets.py"
       - "game/commands/default_cmdsets.py"
       - "game/world/tests/test_ship_dr03_hatch_policy.py"
+      - "game/world/tests/test_ship_dr03_hatch_evidence.py"
       - "game/world/tests/test_installed_ship_dr03_hatch_handover.py"
       - "game/world/tests/test_installed_ship_network_access.py"
       - "game/world/tests/test_account_command_boundary.py"
@@ -29,10 +31,12 @@ on:
       - ".github/workflows/ox-dr03-hatch-handover.yml"
       - "game/world/ship_dr03_hatch_policy.py"
       - "game/world/ship_dr03_hatch_handover_world.py"
+      - "game/world/ship_dr03_hatch_evidence.py"
       - "game/commands/dr03_hatch_handover.py"
       - "game/commands/account_cmdsets.py"
       - "game/commands/default_cmdsets.py"
       - "game/world/tests/test_ship_dr03_hatch_policy.py"
+      - "game/world/tests/test_ship_dr03_hatch_evidence.py"
       - "game/world/tests/test_installed_ship_dr03_hatch_handover.py"
       - "game/world/tests/test_installed_ship_network_access.py"
       - "game/world/tests/test_account_command_boundary.py"
@@ -63,12 +67,12 @@ jobs:
           python-version: "3.12"
       - name: Compile and validate test selection
         run: |
-          python -m compileall -q game/world/ship_dr03_hatch_policy.py game/world/ship_dr03_hatch_handover_world.py game/commands/dr03_hatch_handover.py game/world/tests/test_ship_dr03_hatch_policy.py game/world/tests/test_installed_ship_dr03_hatch_handover.py
+          python -m compileall -q game/world/ship_dr03_hatch_policy.py game/world/ship_dr03_hatch_handover_world.py game/world/ship_dr03_hatch_evidence.py game/commands/dr03_hatch_handover.py game/world/tests/test_ship_dr03_hatch_policy.py game/world/tests/test_ship_dr03_hatch_evidence.py game/world/tests/test_installed_ship_dr03_hatch_handover.py
           python .github/ci/check_ox_ci_scope.py
           python design/ci/check_world_test_selection.py
       - name: Test request-only hatch authority
         working-directory: game
-        run: python -m unittest world.tests.test_ship_dr03_hatch_policy -v
+        run: python -m unittest world.tests.test_ship_dr03_hatch_policy world.tests.test_ship_dr03_hatch_evidence -v
   installed:
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
     needs: pure
