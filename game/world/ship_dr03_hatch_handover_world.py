@@ -19,6 +19,9 @@ from world.ship_dr03_hatch_policy import (
     STATION, HatchHandoverError, clear_pending, pending_state,
     reference, request_id_valid, require, validate_control,
 )
+from world.ship_dr03_hatch_evidence import verified_hatch_completion
+from world.ship_network_access import DELIVERED, PRINCIPAL
+from world.ship_access_contact import OBSERVED
 from world.ship_model import load_ship_model
 from world.ship_network_access_world import _principal, network_reachable
 
@@ -269,15 +272,68 @@ def dr03_hatch_request_status(account, original_request_id):
             and receipt.actor_dbref == identity,
             "No request belonging to this ship account")
     decision = CanonicalShipEvent.objects.filter(
-        operation=DECIDED,
+        component_key=KEY, operation=DECIDED,
         source_event_id=receipt.outcome["source_event_id"],
     ).order_by("-sequence").first()
+    if decision is not None:
+        require(decision.after.get("original_request_id") == original_request_id
+                and decision.after.get("desired") == receipt.arguments["value"]
+                and decision.after.get("status") in {
+                    "accepted_for_manual_action", "declined_by_crew"},
+                "Handover decision has no valid request provenance")
+
+    # A local decision is not completed work. A status may only advance to
+    # world-confirmed when the very same accepting engineer subsequently
+    # operates the real hatch and an *event-time network-delivered* passive
+    # contact observation independently agrees with that change.
+    proof = None
+    if decision is not None and decision.after["status"] == "accepted_for_manual_action":
+        next_request = CanonicalShipEvent.objects.filter(
+            component_key=KEY, operation=REQUESTED,
+            sequence__gt=decision.sequence,
+        ).order_by("sequence").first()
+        physical_actions = CanonicalShipEvent.objects.filter(
+            component_key="access:" + LINK, operation="crew_hatch",
+            actor_dbref=decision.actor_dbref,
+            sequence__gt=decision.sequence,
+        ).order_by("sequence")
+        if next_request is not None:
+            physical_actions = physical_actions.filter(
+                sequence__lt=next_request.sequence)
+        for physical in physical_actions:
+            if (physical.before.get("setting") == physical.after.get("setting")
+                    or physical.after.get("setting") != receipt.arguments["value"]):
+                continue
+            observation = CanonicalShipEvent.objects.filter(
+                component_key="equipment:" + SENSOR, operation=OBSERVED,
+                source_event_id=str(physical.sequence),
+                sequence__gt=physical.sequence,
+            ).order_by("sequence").first()
+            if observation is None:
+                continue
+            delivery = CanonicalShipEvent.objects.filter(
+                component_key=PRINCIPAL, operation=DELIVERED,
+                source_event_id=str(observation.sequence),
+                sequence__gt=observation.sequence,
+            ).order_by("sequence").first()
+            if delivery is None:
+                continue
+            proof = verified_hatch_completion(
+                decision, physical, observation, delivery,
+                original_request_id=original_request_id,
+                desired=receipt.arguments["value"],
+                principal_epoch=principal.reference["epoch"],
+            )
+            if proof is not None:
+                break
     return {
         "request_id": original_request_id,
         "link": LINK,
-        "status": (decision.after["status"] if decision is not None
+        "status": (proof["status"] if proof is not None
+                   else decision.after["status"] if decision is not None
                    else "pending_local_decision"),
-        "physical_actuation": False,
+        "physical_actuation": False,  # Remote request never actuates the hatch.
         "decision_event_id": (str(decision.sequence)
                               if decision is not None else None),
+        "physical_confirmation": proof,
     }
