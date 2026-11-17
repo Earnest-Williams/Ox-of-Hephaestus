@@ -4,8 +4,13 @@
 [Proposal C, *The Ship Herself* (#148)](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/148)
 and [Proposal D, *The Other Captain* (#149)](https://github.com/Earnest-Williams/Ox-of-Hephaestus/pull/149),
 taking D's authority model, and replaces all four proposals, A to D
-(#146–#149). **This is a product design.** Nothing below exists in the game
-yet except where it names installed G19 hardware.
+(#146–#149). **This remains the product design.** The G19 physical
+support, an account-bound bodiless principal, a narrow network read stream,
+one drum-3 remote valve with local override, a request-only pressure hatch
+handover, and delivered world-confirmation evidence have since been
+implemented (#151–#157). The nine-machine parity brain, specialist AI,
+full shift routine, broad remote operation and actual accelerated watch mode
+remain proposed—not implied to be running from this design text.
 
 ## The role
 

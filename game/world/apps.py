@@ -39,3 +39,9 @@ class OxWorldConfig(AppConfig):
         post_save.connect(
             observe_network_delivery, sender=CanonicalShipEvent,
             dispatch_uid="ox.world.access_network_delivery_v1", weak=False)
+        # Only a *newly delivered* network capsule may trip an armed watch.
+        # No polling, catch-up or handler-owned simulation clock.
+        from world.ship_mind_watch_world import observe_first_watch
+        post_save.connect(
+            observe_first_watch, sender=CanonicalShipEvent,
+            dispatch_uid="ox.world.lead_mind_first_watch_v1", weak=False)
