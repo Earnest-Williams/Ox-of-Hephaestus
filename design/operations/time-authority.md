@@ -15,6 +15,21 @@ By default, the clock target is taken from
 `evennia.utils.gametime.gametime(absolute=True)`; ordinary world events
 also use that clock.
 
+**Additional fitted time consumers (confirmed in the repository):**
+`game/world/live_clock.py` defines a separate persistent
+`ShipDutyClock` on a two-real-second interval. It invokes
+`tick_game_clock`, `independent_rounds.tick_rounds`, and
+`captain.tick_captain_obligations`. Its persisted roster handover deadline
+also reads `gametime.gametime(absolute=True)`.
+`game/commands/clock.py` exposes that same absolute source as the
+authenticated `oxclock` character observation; the AI handler's
+`WorldClockPort` and `MemoryClockBridge` use it for crew decision time.
+Those are **real integration points**, not hypothetical future systems.
+They must be moved behind the same pause barrier before a player-controlled
+pause is advertised. The current P3c disposable handover fixture can
+synthetically complete a scheduled handover; that operator-only path must
+not become a player time-control route.
+
 The lead-mind design says that **pause is deliberation, with nothing in
 the world moving**, and that **watch-until advances the world only until
 a condition the lead mind can really observe fires**.
