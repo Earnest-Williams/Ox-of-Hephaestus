@@ -146,3 +146,19 @@ def match_delivery(row, delivery, *, owner_pk, epoch):
         "source_time": packet["source_time"],
         "desired": details["desired"],
     }
+
+
+def source_after_arm(row, physical, observation):
+    """A new delivery must cite a hatch *change made after arming*.
+
+    The delivery sequence alone cannot legalize re-publishing an old sensor
+    frame after a network outage or after the player chose a new watch.
+    """
+    validate_watch(row)
+    if row.setting != "armed":
+        return False
+    barrier = row.details["after_sequence"]
+    physical_seq = getattr(physical, "sequence", None)
+    observed_seq = getattr(observation, "sequence", None)
+    return (type(physical_seq) is int and type(observed_seq) is int
+            and barrier < physical_seq < observed_seq)
