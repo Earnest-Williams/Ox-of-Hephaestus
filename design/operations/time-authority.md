@@ -148,6 +148,24 @@ timers and event writers before accepting a pause command. Keep
 operator-controlled test times explicit and isolated from the player
 API. All producers must prove they use the same committed time source.
 
+**T1a (first code migration, not pause):** `world.world_time_source`
+now supplies a validated **legacy scheduler target** from Evennia absolute
+game seconds. `ShipDutyClock.at_repeat` samples it once per dispatch and
+passes that same instant to the watch handover, rounds and captain reminders.
+The individually callable producers, plus authenticated `oxclock`, use
+the same validated source as their default. Deterministic operator/test
+time overrides remain explicit. A pure alignment helper distinguishes
+this scheduler target from the last committed G18/G19 physics time
+without querying or exposing the physical state. Its diagnostic output
+is not available through `oxclock`.
+
+This is an incremental reader migration, **not completion of T1**:
+the physics engine, G6 terminal scenario and additional event writers
+have not all been brought under an atomic shared progression barrier.
+`meta:continuous-physics` remains the physical authority, and the
+shared accessor must migrate from the legacy scheduler target to committed
+world time before a live player pause or accelerated watch can exist.
+
 **T2 — Durable pause and resume.** Implement a versioned mode record,
 bounded external-time exclusion, account-scoped pause/resume receipts,
 restart recovery, and a real progression barrier for all world mutators.
