@@ -1,0 +1,65 @@
+name: Ox G19 world-time authority inventory
+on:
+  push:
+    branches: [main, g19/time-authority-audit]
+    paths:
+      - ".github/workflows/ox-time-authority-audit.yml"
+      - "design/ci/audit_world_time.py"
+      - "design/ci/test_time_authority_audit.py"
+      - "game/world/**/*.py"
+      - "game/commands/**/*.py"
+      - "game/typeclasses/**/*.py"
+      - "game/server/**/*.py"
+      - "services/ai-handler/src/ox_ai/**/*.py"
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - ".github/workflows/ox-time-authority-audit.yml"
+      - "design/ci/audit_world_time.py"
+      - "design/ci/test_time_authority_audit.py"
+      - "game/world/**/*.py"
+      - "game/commands/**/*.py"
+      - "game/typeclasses/**/*.py"
+      - "game/server/**/*.py"
+      - "services/ai-handler/src/ox_ai/**/*.py"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ox-time-audit-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  inventory:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Unit test static discovery and source contracts
+        run: python -m unittest discover -s design/ci -p 'test_time_authority_audit.py' -v
+      - name: Inventory all project time and scheduler sites
+        run: |
+          python design/ci/audit_world_time.py --json --output time-audit.json > /dev/null
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r = json.loads(Path("time-audit.json").read_text(encoding="utf-8"))
+          print(f"Scanned {r['scanned_files']} files; {r['site_count']} review sites")
+          for kind, count in r["counts"].items():
+              print(f"{kind}: {count}")
+          with open(__import__("os").environ["GITHUB_STEP_SUMMARY"], "a",
+                    encoding="utf-8") as stream:
+              stream.write("## G19 static time-authority inventory\n")
+              stream.write(f"{r['scanned_files']} files; {r['site_count']} sites. ")
+              stream.write("Static audit only, not dynamic coverage.\n\n")
+              for kind, count in r["counts"].items():
+                  stream.write(f"- {kind}: {count}\n")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ox-time-authority-inventory
+          path: time-audit.json
+          retention-days: 14
