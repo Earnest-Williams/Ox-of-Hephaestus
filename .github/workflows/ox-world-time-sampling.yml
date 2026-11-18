@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/ox-world-time-sampling.yml"
       - "game/world/world_time_source.py"
+      - "game/world/continuous_ship_physics.py"
       - "game/world/live_clock.py"
       - "game/world/independent_rounds.py"
       - "game/world/captain.py"
@@ -17,6 +18,7 @@ on:
     paths:
       - ".github/workflows/ox-world-time-sampling.yml"
       - "game/world/world_time_source.py"
+      - "game/world/continuous_ship_physics.py"
       - "game/world/live_clock.py"
       - "game/world/independent_rounds.py"
       - "game/world/captain.py"
@@ -41,7 +43,7 @@ jobs:
           python-version: "3.12"
       - name: Check sampler syntax and CI test ownership
         run: |
-          python -m compileall -q game/world/world_time_source.py game/world/live_clock.py game/world/independent_rounds.py game/world/captain.py game/commands/clock.py game/world/tests/test_world_clock.py
+          python -m compileall -q game/world/world_time_source.py game/world/continuous_ship_physics.py game/world/live_clock.py game/world/independent_rounds.py game/world/captain.py game/commands/clock.py game/world/tests/test_world_clock.py
           python .github/ci/check_ox_ci_scope.py
           python design/ci/check_world_test_selection.py
   installed:
