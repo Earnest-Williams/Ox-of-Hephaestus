@@ -1,0 +1,65 @@
+name: Ox G19 shared legacy world-time sampler
+on:
+  push:
+    branches: [main, g19/world-time-sampling]
+    paths:
+      - ".github/workflows/ox-world-time-sampling.yml"
+      - "game/world/world_time_source.py"
+      - "game/world/live_clock.py"
+      - "game/world/independent_rounds.py"
+      - "game/world/captain.py"
+      - "game/commands/clock.py"
+      - "game/world/tests/test_world_clock.py"
+      - "game/world/tests/test_independent_rounds.py"
+      - "game/world/tests/test_captain_followthrough.py"
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - ".github/workflows/ox-world-time-sampling.yml"
+      - "game/world/world_time_source.py"
+      - "game/world/live_clock.py"
+      - "game/world/independent_rounds.py"
+      - "game/world/captain.py"
+      - "game/commands/clock.py"
+      - "game/world/tests/test_world_clock.py"
+      - "game/world/tests/test_independent_rounds.py"
+      - "game/world/tests/test_captain_followthrough.py"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ox-world-time-sampler-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  pure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check sampler syntax and CI test ownership
+        run: |
+          python -m compileall -q game/world/world_time_source.py game/world/live_clock.py game/world/independent_rounds.py game/world/captain.py game/commands/clock.py game/world/tests/test_world_clock.py
+          python .github/ci/check_ox_ci_scope.py
+          python design/ci/check_world_test_selection.py
+  installed:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    needs: pure
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      EVENNIA_SUPERUSER_USERNAME: OxCI
+      EVENNIA_SUPERUSER_EMAIL: oxci@example.invalid
+      OX_PG_DATABASE: ox_world_time_sampler_ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Evennia and PostgreSQL
+        run: python -m pip install .
+      - name: Test character clock, shared duty sample, rounds and captain
+        working-directory: game
+        run: python -m world.test_runner world.tests.test_world_clock world.tests.test_independent_rounds world.tests.test_captain_followthrough --verbosity=2
