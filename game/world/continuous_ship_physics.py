@@ -17,7 +17,8 @@ from functools import lru_cache
 
 from django.db import transaction
 from evennia.scripts.scripts import DefaultScript
-from evennia.utils import gametime
+
+from world.world_time_source import scheduler_game_seconds
 
 from world.full_ship_operations import (
     MODEL, R_SPECIFIC_AIR, ShipOperationsError, _BROKEN, _conducts,
@@ -625,7 +626,7 @@ def _clock(lock=False):
 
 
 def _now(value):
-    return _positive(float(gametime.gametime(absolute=True)) if value is None
+    return _positive(scheduler_game_seconds() if value is None
                      else value, zero=True)
 
 
@@ -785,7 +786,7 @@ def _event(item, operation, before, *, actor=None, request_id=None):
         component_key=item.key, operation=operation,
         before=before, after=_snapshot(item),
         actor_dbref=getattr(actor, "dbref", None), request_id=request_id,
-        game_time=float(gametime.gametime(absolute=True)),
+        game_time=scheduler_game_seconds(),
     )
 
 
