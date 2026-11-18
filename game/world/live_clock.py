@@ -8,9 +8,7 @@ from __future__ import annotations
 
 from django.db import transaction
 from evennia.scripts.scripts import DefaultScript
-from evennia.utils import gametime
-
-from world.world_time_source import scheduler_game_seconds
+from world.world_time_source import require_game_seconds, scheduler_game_seconds
 
 SCRIPT_NAME = "OxShipDutyClock"
 
@@ -45,8 +43,8 @@ def tick_game_clock(*, now_game_time: float | None = None) -> bool:
     delay = roster.db.ox_handover_delay_seconds
     if delay is None:
         return False
-    now = (float(now_game_time) if now_game_time is not None
-           else float(gametime.gametime(absolute=True)))
+    now = (scheduler_game_seconds() if now_game_time is None
+           else require_game_seconds(now_game_time))
     if roster.db.ox_handover_due_at is None:
         roster.db.ox_handover_due_at = now + float(delay)
         return False
