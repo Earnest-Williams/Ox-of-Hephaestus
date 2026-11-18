@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from evennia.utils.test_resources import EvenniaTestCase
@@ -124,4 +125,41 @@ class WorldTimeSourcePolicyTests(unittest.TestCase):
             source.assert_not_called()
         with self.assertRaises(WorldTimeSourceError):
             _game_time(-1)
+
+    def test_physics_default_now_uses_the_shared_time_sample(self):
+        from world.continuous_ship_physics import _now
+
+        with patch("world.world_time_source.gametime.gametime",
+                   return_value=1700.75) as clock:
+            self.assertEqual(_now(None), 1700.75)
+            clock.assert_called_once_with(absolute=True)
+        with patch("world.world_time_source.gametime.gametime") as clock:
+            self.assertEqual(_now(112.25), 112.25)
+            clock.assert_not_called()
+
+    def test_physics_event_time_comes_from_validated_scheduler_source(self):
+        from world.continuous_ship_physics import _event
+
+        item = SimpleNamespace(
+            key="equipment:TIME-TEST", condition="serviceable",
+            setting="on", quantity=None, revision=1, details={},
+        )
+        with (
+            patch("world.world_time_source.gametime.gametime",
+                  return_value=8888.25) as clock,
+            patch("world.continuous_ship_physics.CanonicalShipEvent.objects.create") as writer,
+        ):
+            _event(item, "time_test", {"setting": "off"})
+        clock.assert_called_once_with(absolute=True)
+        writer.assert_called_once()
+        self.assertEqual(writer.call_args.kwargs["game_time"], 8888.25)
+        self.assertEqual(writer.call_args.kwargs["operation"], "time_test")
+        with (
+            patch("world.world_time_source.gametime.gametime",
+                  return_value=float("inf")),
+            patch("world.continuous_ship_physics.CanonicalShipEvent.objects.create") as writer,
+        ):
+            with self.assertRaises(WorldTimeSourceError):
+                _event(item, "time_test", {})
+        writer.assert_not_called()
 

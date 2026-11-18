@@ -159,6 +159,14 @@ this scheduler target from the last committed G18/G19 physics time
 without querying or exposing the physical state. Its diagnostic output
 is not available through `oxclock`.
 
+**T1b (next reader migration):** the continuous physics module's
+default clock target and canonical equipment-event timestamp now use the
+same validated source as the duty script and character-visible clock.
+Explicit deterministic physics-test times remain supported. The physics
+transaction still advances only bounded intervals and owns its own
+last-committed timestamp; this is **not** a synchronized world step with
+the crew-duty scheduler or a guarantee that both timers have committed.
+
 This is an incremental reader migration, **not completion of T1**:
 the physics engine, G6 terminal scenario and additional event writers
 have not all been brought under an atomic shared progression barrier.
