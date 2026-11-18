@@ -11,7 +11,7 @@ import uuid
 
 from django.db import transaction
 from evennia.objects.models import ObjectDB
-from evennia.utils import gametime
+from world.world_time_source import require_game_seconds, scheduler_game_seconds
 
 from world.bootstrap import build_ship, find_fixture
 from world.event_journal import emit
@@ -35,7 +35,7 @@ QUALIFIED = {
 
 
 def _now() -> float:
-    return float(gametime.gametime(absolute=True))
+    return scheduler_game_seconds()
 
 
 def _captain(actor, ship) -> bool:
@@ -385,7 +385,7 @@ def inspect(actor, ticket_id: str) -> tuple[bool, str]:
 
 def tick_captain_obligations(*, now_game_time: float | None = None) -> int:
     """World-clock reminders require zero model inference while idle."""
-    now = _now() if now_game_time is None else float(now_game_time)
+    now = _now() if now_game_time is None else require_game_seconds(now_game_time)
     count = 0
     for candidate in CaptainObligation.objects.filter(
         status="open", due_game_time__lte=now,

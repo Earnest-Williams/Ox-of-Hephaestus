@@ -12,7 +12,7 @@ import math
 
 from django.db import transaction
 from evennia.objects.models import ObjectDB
-from evennia.utils import gametime
+from world.world_time_source import require_game_seconds, scheduler_game_seconds
 
 from world.bootstrap import build_ship, find_fixture
 from world.event_journal import emit
@@ -28,10 +28,7 @@ WEAR_LIMIT = 3
 
 
 def _game_time(now: float | None) -> float:
-    value = float(gametime.gametime(absolute=True) if now is None else now)
-    if not math.isfinite(value) or value < 0:
-        raise ValueError("Invalid game clock reading")
-    return value
+    return scheduler_game_seconds() if now is None else require_game_seconds(now)
 
 
 def schedule_rounds(*, period_game_seconds: float = 1800) -> None:

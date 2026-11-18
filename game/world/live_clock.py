@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from django.db import transaction
 from evennia.scripts.scripts import DefaultScript
-from evennia.utils import gametime
+from world.world_time_source import require_game_seconds, scheduler_game_seconds
 
 SCRIPT_NAME = "OxShipDutyClock"
 
@@ -43,8 +43,8 @@ def tick_game_clock(*, now_game_time: float | None = None) -> bool:
     delay = roster.db.ox_handover_delay_seconds
     if delay is None:
         return False
-    now = (float(now_game_time) if now_game_time is not None
-           else float(gametime.gametime(absolute=True)))
+    now = (scheduler_game_seconds() if now_game_time is None
+           else require_game_seconds(now_game_time))
     if roster.db.ox_handover_due_at is None:
         roster.db.ox_handover_due_at = now + float(delay)
         return False
@@ -77,11 +77,15 @@ class ShipDutyClock(DefaultScript):
         self.start_delay = True
 
     def at_repeat(self) -> None:
-        tick_game_clock()
+        # One sampled scheduler instant for the entire duty dispatch.
+        # Each callee still owns its state and its separate transaction; this
+        # is NOT yet an atomic, world-wide pause/step barrier.
+        now = scheduler_game_seconds()
+        tick_game_clock(now_game_time=now)
         from world.independent_rounds import tick_rounds
-        tick_rounds()
+        tick_rounds(now_game_time=now)
         from world.captain import tick_captain_obligations
-        tick_captain_obligations()
+        tick_captain_obligations(now_game_time=now)
 
 
 def ensure_clock_script() -> None:

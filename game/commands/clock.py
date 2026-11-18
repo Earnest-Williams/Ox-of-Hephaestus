@@ -6,11 +6,10 @@ it, change the watch roster, or obtain any private character/world state.
 from __future__ import annotations
 
 import json
-import math
 import re
 
 from evennia.commands.command import Command
-from evennia.utils import gametime
+from world.world_time_source import scheduler_game_seconds
 
 
 class CmdOxClock(Command):
@@ -28,9 +27,7 @@ class CmdOxClock(Command):
         if re.fullmatch(r"[0-9a-f]{32}", nonce) is None:
             self.caller.msg("Usage: oxclock <32 lowercase hex nonce>")
             return
-        seconds = float(gametime.gametime(absolute=True))
-        if not math.isfinite(seconds) or seconds < 0:
-            raise ValueError("Invalid authoritative game clock")
+        seconds = scheduler_game_seconds()
         payload = {
             "version": 1,
             "nonce": nonce,
